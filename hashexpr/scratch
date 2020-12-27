@@ -1,0 +1,45 @@
+
+symbol can't start with `#`,`"`, `'`, 0-9
+
+
+
+(def #<
+  (self
+  (∀ ((. 1) #Type)) (
+  (∀ ((. 2) (data (λ (λ (λ (. 1))))))) (
+  (∀ ((. 2) (data (λ (λ (λ (. 0)))))))
+  (.2 .3)
+  )))
+)
+
+(def #Type
+  (self
+  (P ((^ 1) #Type)) (
+  (true ((^ 2) (data (λ (λ (λ (^ 1))))))) (
+  (false ((^ 2) (data (λ (λ (λ (^ 0)))))))
+  (.2 .3)
+  )))
+)
+  
+(def #Bool (data λ λ λ (. 1)))
+(bind true leaf (ctor ((bind P (bind t (bind f leaf))))))
+(bind true leaf (ctor ((bind P (bind t (bind f leaf))))))
+
+def Type
+  @self ∀
+  (0 P     : ∀ Bool -> Type)
+  (& true  : P (data λ P t f => t))
+  (& false : P (data λ P t f => f))
+  -> P self
+
+(def true Bool (data lambda (P t f) t))
+
+
+syntax:
+
+raw:   ~AAKioq
+symbol 'foobar
+bits   ~Kioq:bits ~Kioq:bits32,
+text   "foo":text, "foo":text32
+char   'f':char
+int    0d1234:int32, 0xabcde:int32,

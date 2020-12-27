@@ -1,0 +1,17 @@
+[package]
+name = "hashspace"
+version = "0.1.0"
+authors = ["Anders Christiansen Sørby <anders@sorby.xyz>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rocket = "0.4.6"
+hex = "0.4.2"
+log = "0.4.6"
+blake3 = "0.3.7"
+wasm-bindgen = "0.2.63"
+hashexpr = { path = "../hashexpr"}
+directories-next = "2.0.0"
+
