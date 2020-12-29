@@ -1,19 +1,31 @@
 use std::fmt;
 
 use im::Vector;
-use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::character::complete::{
-  alphanumeric0, multispace0, multispace1, satisfy,
+use nom::{
+  branch::alt,
+  bytes::complete::tag,
+  character::complete::{
+    alphanumeric0,
+    multispace0,
+    multispace1,
+    satisfy,
+  },
+  error::{
+    ErrorKind,
+    ParseError,
+  },
+  multi::{
+    separated_list0,
+    separated_list1,
+  },
+  sequence::{
+    delimited,
+    preceded,
+  },
+  Err,
+  IResult,
+  InputLength,
 };
-use nom::error::ErrorKind;
-use nom::error::ParseError;
-use nom::multi::separated_list0;
-use nom::multi::separated_list1;
-use nom::sequence::{delimited, preceded};
-use nom::Err;
-use nom::IResult;
-use nom::InputLength;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Term {
@@ -42,32 +54,32 @@ impl fmt::Display for Term {
           let (af, aa) = boxed_arg.as_ref();
           format!("{} ({})", apps(ff, fa), apps(af, aa))
         }
-        (App(boxed_fun), Lam(_, _)) => {
+        (App(boxed_fun), Lam(..)) => {
           let (ff, fa) = boxed_fun.as_ref();
           format!("{} ({})", apps(ff, fa), arg)
         }
-        (App(boxed_fun), Var(_, _)) => {
+        (App(boxed_fun), Var(..)) => {
           let (ff, fa) = boxed_fun.as_ref();
           format!("{} {}", apps(ff, fa), arg)
         }
-        (Lam(_, _), App(boxed_arg)) => {
+        (Lam(..), App(boxed_arg)) => {
           let (af, aa) = boxed_arg.as_ref();
           format!("({}) ({})", fun, apps(af, aa))
         }
-        (Var(_, _), App(boxed_arg)) => {
+        (Var(..), App(boxed_arg)) => {
           let (af, aa) = boxed_arg.as_ref();
           format!("{} ({})", fun, apps(af, aa))
         }
-        (Var(_, _), Lam(_, _)) => {
+        (Var(..), Lam(..)) => {
           format!("{} ({})", fun, arg)
         }
-        (Lam(_, _), Var(_, _)) => {
+        (Lam(..), Var(..)) => {
           format!("({}) {}", fun, arg)
         }
-        (Var(_, _), Var(_, _)) => {
+        (Var(..), Var(..)) => {
           format!("{} {}", fun, arg)
         }
-        (Lam(_, _), Lam(_, _)) => {
+        (Lam(..), Lam(..)) => {
           format!("({}) ({})", fun, arg)
         }
       }
@@ -118,7 +130,7 @@ pub enum TermParseError<I> {
 impl<I> TermParseError<I> {
   pub fn rest(self) -> I {
     match self {
-      Self::FreeVariable(i, _, _) => i,
+      Self::FreeVariable(i, ..) => i,
       Self::NomErr(i, _) => i,
     }
   }
@@ -136,7 +148,8 @@ where
   fn append(i: I, k: ErrorKind, other: Self) -> Self {
     if i.clone().input_len() < other.clone().rest().input_len() {
       TermParseError::NomErr(i, k)
-    } else {
+    }
+    else {
       other
     }
   }
@@ -144,15 +157,14 @@ where
   fn or(self, other: Self) -> Self {
     if self.clone().rest().input_len() < other.clone().rest().input_len() {
       self
-    } else {
+    }
+    else {
       other
     }
   }
 }
 pub fn parse_nam(i: &str) -> IResult<&str, String, TermParseError<&str>> {
-  fn init_char(x: char) -> bool {
-    x.is_alphabetic() || x == '_'
-  }
+  fn init_char(x: char) -> bool { x.is_alphabetic() || x == '_' }
   let (i, init) = satisfy(init_char)(i)?;
   let (i, rest) = alphanumeric0(i)?;
   Ok((i, format!("{}{}", init, rest)))
@@ -234,9 +246,14 @@ pub fn parse(i: &str) -> IResult<&str, Term, TermParseError<&str>> {
 #[cfg(test)]
 mod test {
   use super::*;
-  use quickcheck::{Arbitrary, Gen};
-  use rand::prelude::IteratorRandom;
-  use rand::Rng;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+  };
+  use rand::{
+    prelude::IteratorRandom,
+    Rng,
+  };
 
   fn arbitrary_name<G: Gen>(g: &mut G) -> String {
     let alpha = "abcdefghjiklmnopqrstuvwxyz";
@@ -261,7 +278,8 @@ mod test {
     let len = ctx.len();
     if len == 0 {
       arbitrary_lam(g, ctx)
-    } else {
+    }
+    else {
       let x: u32 = g.gen();
       match x % 5 {
         0 | 1 | 2 => arbitrary_var(g, ctx),
@@ -275,9 +293,7 @@ mod test {
   }
 
   impl Arbitrary for Term {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      arbitrary_term(g, Vector::new())
-    }
+    fn arbitrary<G: Gen>(g: &mut G) -> Self { arbitrary_term(g, Vector::new()) }
   }
 
   #[test]

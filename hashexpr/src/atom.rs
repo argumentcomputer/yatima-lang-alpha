@@ -3,7 +3,7 @@ use num_bigint::{
   BigUint,
 };
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct Link(blake3::Hash);
 
 impl Link {
@@ -32,6 +32,8 @@ pub enum Atom {
 }
 
 impl Atom {
+  pub fn symbol(s: &str) -> Self { Self::Symbol(s.to_owned()) }
+
   pub fn type_code(&self) -> (Vec<u8>, Option<u64>) {
     match self {
       Self::Link(_) => (vec![0x00], Some(256)),
@@ -55,4 +57,26 @@ impl Atom {
       Self::Int(x, _) => x.to_signed_bytes_be(),
     }
   }
+}
+#[macro_export]
+macro_rules! link {
+  ($i:expr) => {
+    Link($i)
+  };
+}
+
+#[macro_export]
+macro_rules! bits {
+  ($n:expr, $i:literal) => {
+    Bits($n, $i)
+  };
+}
+#[macro_export]
+macro_rules! symb {
+  ($i:literal) => {
+    Symbol(String::from($i))
+  };
+  ($i:expr) => {
+    Symbol($i)
+  };
 }

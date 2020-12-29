@@ -488,6 +488,24 @@ pub fn parse(i: &str) -> IResult<Span, Expr, ParseError<Span>> {
   parse_expr(Span::new(i))
 }
 
+#[macro_export]
+macro_rules! atom {
+  ($x:expr) => {
+    Expr::Atom(None, $x)
+  };
+  ($p:expr, $x:expr) => {
+    Expr::Atom($p, $x)
+  };
+}
+#[macro_export]
+macro_rules! cons {
+  ($p:expr, $($x: expr),*) => {{
+    let mut vector = Vec::new();
+    $(vector.push($x);)*
+    Expr::Cons($p, vector)
+  }}
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
