@@ -10,7 +10,4 @@ extern crate rand;
 extern crate hashexpr;
 
 pub mod dag;
-pub mod literal;
-pub mod primop;
 pub mod term;
-pub mod uses;

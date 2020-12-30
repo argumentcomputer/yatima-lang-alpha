@@ -1,15 +1,15 @@
 use crate::span::Span;
 use blake3;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Pos {
   // file: blake3::Hash,
-  from_offset: u64,
-  from_line: u64,
-  from_column: u64,
-  upto_offset: u64,
-  upto_line: u64,
-  upto_column: u64,
+  pub from_offset: u64,
+  pub from_line: u64,
+  pub from_column: u64,
+  pub upto_offset: u64,
+  pub upto_line: u64,
+  pub upto_column: u64,
 }
 
 impl Pos {

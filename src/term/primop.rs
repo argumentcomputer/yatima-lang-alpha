@@ -1,3 +1,7 @@
+use crate::term::decode_error::{
+  DecodeError,
+  Expected,
+};
 use hashexpr::{
   atom::Atom::*,
   Expr,
@@ -95,35 +99,35 @@ impl PrimOp {
     }
   }
 
-  pub fn decode(x: Expr) -> Option<Self> {
+  pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("%suc") => Some(Self::Eql),
-      Atom(_, Symbol(n)) if *n == String::from("%lth") => Some(Self::Lth),
-      Atom(_, Symbol(n)) if *n == String::from("%lte") => Some(Self::Lte),
-      Atom(_, Symbol(n)) if *n == String::from("%gth") => Some(Self::Gth),
-      Atom(_, Symbol(n)) if *n == String::from("%gte") => Some(Self::Gte),
-      Atom(_, Symbol(n)) if *n == String::from("%or") => Some(Self::Or),
-      Atom(_, Symbol(n)) if *n == String::from("%and") => Some(Self::And),
-      Atom(_, Symbol(n)) if *n == String::from("%xor") => Some(Self::Xor),
-      Atom(_, Symbol(n)) if *n == String::from("%not") => Some(Self::Not),
-      Atom(_, Symbol(n)) if *n == String::from("%suc") => Some(Self::Suc),
-      Atom(_, Symbol(n)) if *n == String::from("%pre") => Some(Self::Pre),
-      Atom(_, Symbol(n)) if *n == String::from("%add") => Some(Self::Add),
-      Atom(_, Symbol(n)) if *n == String::from("%sub") => Some(Self::Sub),
-      Atom(_, Symbol(n)) if *n == String::from("%mul") => Some(Self::Mul),
-      Atom(_, Symbol(n)) if *n == String::from("%div") => Some(Self::Div),
-      Atom(_, Symbol(n)) if *n == String::from("%mod") => Some(Self::Mod),
-      Atom(_, Symbol(n)) if *n == String::from("%shl") => Some(Self::Shl),
-      Atom(_, Symbol(n)) if *n == String::from("%shr") => Some(Self::Shr),
-      Atom(_, Symbol(n)) if *n == String::from("%rol") => Some(Self::Rol),
-      Atom(_, Symbol(n)) if *n == String::from("%ror") => Some(Self::Ror),
-      Atom(_, Symbol(n)) if *n == String::from("%clz") => Some(Self::Clz),
-      Atom(_, Symbol(n)) if *n == String::from("%ctz") => Some(Self::Ctz),
-      Atom(_, Symbol(n)) if *n == String::from("%cnt") => Some(Self::Cnt),
-      Atom(_, Symbol(n)) if *n == String::from("%len") => Some(Self::Len),
-      Atom(_, Symbol(n)) if *n == String::from("%cat") => Some(Self::Cat),
-      Atom(_, Symbol(n)) if *n == String::from("%cst") => Some(Self::Cst),
-      _ => None,
+      Atom(_, Symbol(n)) if *n == String::from("%suc") => Ok(Self::Eql),
+      Atom(_, Symbol(n)) if *n == String::from("%lth") => Ok(Self::Lth),
+      Atom(_, Symbol(n)) if *n == String::from("%lte") => Ok(Self::Lte),
+      Atom(_, Symbol(n)) if *n == String::from("%gth") => Ok(Self::Gth),
+      Atom(_, Symbol(n)) if *n == String::from("%gte") => Ok(Self::Gte),
+      Atom(_, Symbol(n)) if *n == String::from("%or") => Ok(Self::Or),
+      Atom(_, Symbol(n)) if *n == String::from("%and") => Ok(Self::And),
+      Atom(_, Symbol(n)) if *n == String::from("%xor") => Ok(Self::Xor),
+      Atom(_, Symbol(n)) if *n == String::from("%not") => Ok(Self::Not),
+      Atom(_, Symbol(n)) if *n == String::from("%suc") => Ok(Self::Suc),
+      Atom(_, Symbol(n)) if *n == String::from("%pre") => Ok(Self::Pre),
+      Atom(_, Symbol(n)) if *n == String::from("%add") => Ok(Self::Add),
+      Atom(_, Symbol(n)) if *n == String::from("%sub") => Ok(Self::Sub),
+      Atom(_, Symbol(n)) if *n == String::from("%mul") => Ok(Self::Mul),
+      Atom(_, Symbol(n)) if *n == String::from("%div") => Ok(Self::Div),
+      Atom(_, Symbol(n)) if *n == String::from("%mod") => Ok(Self::Mod),
+      Atom(_, Symbol(n)) if *n == String::from("%shl") => Ok(Self::Shl),
+      Atom(_, Symbol(n)) if *n == String::from("%shr") => Ok(Self::Shr),
+      Atom(_, Symbol(n)) if *n == String::from("%rol") => Ok(Self::Rol),
+      Atom(_, Symbol(n)) if *n == String::from("%ror") => Ok(Self::Ror),
+      Atom(_, Symbol(n)) if *n == String::from("%clz") => Ok(Self::Clz),
+      Atom(_, Symbol(n)) if *n == String::from("%ctz") => Ok(Self::Ctz),
+      Atom(_, Symbol(n)) if *n == String::from("%cnt") => Ok(Self::Cnt),
+      Atom(_, Symbol(n)) if *n == String::from("%len") => Ok(Self::Len),
+      Atom(_, Symbol(n)) if *n == String::from("%cat") => Ok(Self::Cat),
+      Atom(_, Symbol(n)) if *n == String::from("%cst") => Ok(Self::Cst),
+      x => Err(DecodeError::new(x.position(), vec![Expected::PrimOp])),
     }
   }
 }

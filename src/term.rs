@@ -1,11 +1,20 @@
-use crate::{
-  literal::{
-    LitType,
-    Literal,
-  },
-  primop::PrimOp,
-  uses::Uses,
+pub mod decode_error;
+pub mod literal;
+pub mod primop;
+pub mod uses;
+
+use decode_error::{
+  or_else_join,
+  DecodeError,
+  Expected,
 };
+use literal::{
+  LitType,
+  Literal,
+};
+use primop::PrimOp;
+use uses::Uses;
+
 use hashexpr::{
   atom::{
     Atom::*,
@@ -119,37 +128,50 @@ impl Term {
     refs: HashMap<String, (Link, Link)>,
     ctx: Vector<String>,
     expr: Expr,
-  ) -> Option<Self> {
+  ) -> Result<Self, DecodeError> {
     match expr {
       Expr::Atom(pos, val) => {
-        println!("ctx {:?}", ctx);
+        // println!("ctx {:?}", ctx);
         let decode_var = |val| match val {
           Symbol(n) => {
-            println!("var n {:?}", n);
-            let (i, _) = ctx.iter().enumerate().find(|(_, m)| **m == n)?;
-            println!("var i {:?}", i);
-            Some(Self::Var(pos, n.to_owned(), i as u64))
+            // println!("var n {:?}", n);
+            let (i, _) = ctx
+              .iter()
+              .enumerate()
+              .find(|(_, m)| **m == n)
+              .ok_or(DecodeError::new(pos, vec![Expected::BoundVar]))?;
+            // println!("var i {:?}", i);
+            Ok(Self::Var(pos, n.to_owned(), i as u64))
           }
-          _ => None,
+          _ => Err(DecodeError::new(pos, vec![Expected::BoundVar])),
         };
         let decode_ref = |val| match val {
           Symbol(n) => {
-            let (meta_link, ast_link) = refs.get(&n)?;
-            Some(Self::Ref(pos, n.to_owned(), *meta_link, *ast_link))
+            let (meta_link, ast_link) = refs
+              .get(&n)
+              .ok_or(DecodeError::new(pos, vec![Expected::DefinedRef]))?;
+            Ok(Self::Ref(pos, n.to_owned(), *meta_link, *ast_link))
           }
-          _ => None,
+          _ => Err(DecodeError::new(pos, vec![Expected::DefinedRef])),
         };
         let decode_typ = |val| match val {
-          Symbol(n) if *n == String::from("Type") => Some(Self::Typ(pos)),
-          _ => None,
+          Symbol(n) if *n == String::from("Type") => Ok(Self::Typ(pos)),
+          _ => Err(DecodeError::new(pos, vec![Expected::TypeOfTypes])),
         };
 
-        decode_var(val.clone())
-          .or(decode_ref(val.clone()))
-          .or(decode_typ(val.clone()))
-          .or(Literal::decode(atom!(val.clone())).map(|x| Self::Lit(pos, x)))
-          .or(LitType::decode(atom!(val.clone())).map(|x| Self::LTy(pos, x)))
-          .or(PrimOp::decode(atom!(val.clone())).map(|x| Self::Opr(pos, x)))
+        vec![
+          decode_var(val.clone()),
+          decode_ref(val.clone()),
+          decode_typ(val.clone()),
+          Literal::decode(Expr::Atom(pos.clone(), val.clone()))
+            .map(|x| Self::Lit(pos, x)),
+          LitType::decode(Expr::Atom(pos.clone(), val.clone()))
+            .map(|x| Self::LTy(pos, x)),
+          PrimOp::decode(Expr::Atom(pos.clone(), val.clone()))
+            .map(|x| Self::Opr(pos, x)),
+        ]
+        .into_iter()
+        .fold(Err(DecodeError::new(pos, vec![])), or_else_join)
       }
       Expr::Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), uses, typ, exp, bod]
@@ -163,7 +185,7 @@ impl Term {
           let exp =
             Term::decode(refs.to_owned(), new_ctx.clone(), exp.to_owned())?;
           let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Some(Self::Let(
+          Ok(Self::Let(
             pos,
             true,
             nam.clone(),
@@ -184,7 +206,7 @@ impl Term {
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(nam.clone());
           let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Some(Self::Let(
+          Ok(Self::Let(
             pos,
             false,
             nam.clone(),
@@ -197,12 +219,12 @@ impl Term {
         [Atom(_, Symbol(n)), bod] if *n == String::from("data") => {
           let bod =
             Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-          Some(Self::Dat(pos, Box::new(bod)))
+          Ok(Self::Dat(pos, Box::new(bod)))
         }
         [Atom(_, Symbol(n)), bod] if *n == String::from("case") => {
           let bod =
             Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-          Some(Self::Cse(pos, Box::new(bod)))
+          Ok(Self::Cse(pos, Box::new(bod)))
         }
 
         [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), bod]
@@ -211,7 +233,7 @@ impl Term {
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(nam.clone());
           let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Some(Self::Slf(pos, nam.clone(), Box::new(bod)))
+          Ok(Self::Slf(pos, nam.clone(), Box::new(bod)))
         }
         [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), bod]
           if *n == String::from("lambda") =>
@@ -219,7 +241,7 @@ impl Term {
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(nam.clone());
           let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Some(Self::Lam(pos, nam.to_owned(), Box::new(bod)))
+          Ok(Self::Lam(pos, nam.to_owned(), Box::new(bod)))
         }
         [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), uses, typ, bod]
           if *n == String::from("forall") =>
@@ -230,30 +252,24 @@ impl Term {
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(nam.clone());
           let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Some(Self::All(
-            pos,
-            nam.to_owned(),
-            uses,
-            Box::new(typ),
-            Box::new(bod),
-          ))
+          Ok(Self::All(pos, nam.to_owned(), uses, Box::new(typ), Box::new(bod)))
         }
         [Atom(_, Symbol(n)), exp, typ] if *n == String::from("::") => {
           let exp =
             Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
           let typ =
             Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-          Some(Self::Ann(pos, Box::new(exp), Box::new(typ)))
+          Ok(Self::Ann(pos, Box::new(exp), Box::new(typ)))
         }
         [fun, arg] => {
           let fun =
             Term::decode(refs.to_owned(), ctx.to_owned(), fun.to_owned())?;
           let arg =
             Term::decode(refs.to_owned(), ctx.to_owned(), arg.to_owned())?;
-          Some(Self::App(pos, Box::new(fun), Box::new(arg)))
+          Ok(Self::App(pos, Box::new(fun), Box::new(arg)))
         }
 
-        _ => None,
+        _ => Err(DecodeError::new(pos, vec![Expected::Constructor])),
       },
     }
   }
@@ -265,11 +281,9 @@ mod tests {
     Term::*,
     *,
   };
-  use crate::uses::tests;
   use quickcheck::{
     Arbitrary,
     Gen,
-    StdThreadGen,
   };
   use rand::{
     prelude::IteratorRandom,
@@ -342,7 +356,7 @@ mod tests {
       arbitrary_lam(g, ctx)
     }
     else {
-      let x: u32 = g.gen_range(0, 24);
+      let x: u32 = g.gen_range(0, 25);
       match x {
         0 => arbitrary_all(g, ctx.clone()),
         1 => arbitrary_let(g, ctx.clone()),
@@ -373,7 +387,7 @@ mod tests {
   #[quickcheck]
   fn term_encode_decode(x: Term) -> bool {
     match Term::decode(HashMap::new(), Vector::new(), x.clone().encode()) {
-      Some(y) => x == y,
+      Ok(y) => x == y,
       _ => false,
     }
   }
@@ -389,7 +403,7 @@ mod tests {
       format!("{}", b.clone().encode())
     );
     assert_eq!(
-      Some(Var(None, String::from("x"), 0)),
+      Ok(Var(None, String::from("x"), 0)),
       Term::decode(
         HashMap::new(),
         vec![String::from("x")].into(),
@@ -397,8 +411,10 @@ mod tests {
       )
     );
 
+    let f =
+      Lam(None, String::from("x"), Box::new(Var(None, String::from("x"), 0)));
     assert_eq!(
-      Some(f.clone()),
+      Ok(f.clone()),
       Term::decode(
         HashMap::new(),
         Vector::new(),
@@ -407,7 +423,7 @@ mod tests {
     );
 
     assert_eq!(
-      Some(b.clone()),
+      Ok(b.clone()),
       Term::decode(
         HashMap::new(),
         Vector::new(),

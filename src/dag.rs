@@ -1,4 +1,7 @@
-use hashexpr::atom::Link;
+use hashexpr::{
+  atom::Link,
+  position::Pos,
+};
 use std::collections::HashMap;
 
 pub enum Anon {
@@ -18,8 +21,8 @@ pub enum Meta {
 pub struct Def {
   name: String,
   docs: String,
-  term_ast: Link,
-  type_ast: Link,
+  term_anon: Link,
+  type_anon: Link,
   term_meta: Meta,
   type_meta: Meta,
 }
@@ -29,12 +32,17 @@ pub struct Imports {
 }
 
 pub struct Index {
-  entries: HashMap<String, (Link, Link)>,
+  entries: HashMap<String, (Link, Link, Link)>,
 }
 
 pub struct Source {
   name: String,
   text: String,
+}
+
+pub enum Posi {
+  Ctor(Pos, Vec<Posi>),
+  Leaf(Pos),
 }
 
 pub struct Package {

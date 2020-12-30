@@ -1,3 +1,7 @@
+use crate::term::decode_error::{
+  DecodeError,
+  Expected,
+};
 use hashexpr::{
   atom::{
     Atom::*,
@@ -52,23 +56,23 @@ impl Literal {
     }
   }
 
-  pub fn decode(x: Expr) -> Option<Self> {
+  pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Nat(x, len)) => Some(Self::Natural(len, x)),
-      Atom(_, Int(x, len)) => Some(Self::Integer(len, x)),
-      Atom(_, Bits(x, len)) => Some(Self::Bits(len, x)),
-      Atom(_, Text(x, len)) => Some(Self::Text(len, x)),
-      Atom(_, Char(x)) => Some(Self::Char(x)),
-      Atom(_, Link(x)) => Some(Self::Link(x)),
-      Cons(_, xs) => match xs.as_slice() {
+      Atom(_, Nat(x, len)) => Ok(Self::Natural(len, x)),
+      Atom(_, Int(x, len)) => Ok(Self::Integer(len, x)),
+      Atom(_, Bits(x, len)) => Ok(Self::Bits(len, x)),
+      Atom(_, Text(x, len)) => Ok(Self::Text(len, x)),
+      Atom(_, Char(x)) => Ok(Self::Char(x)),
+      Atom(_, Link(x)) => Ok(Self::Link(x)),
+      Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Symbol(n)), Atom(_, Text(x, None))]
-          if *n == String::from("%exception") =>
+          if *n == String::from("exception") =>
         {
-          Some(Self::Exception(x.to_owned()))
+          Ok(Self::Exception(x.to_owned()))
         }
-        _ => None,
+        _ => Err(DecodeError::new(pos, vec![Expected::Literal])),
       },
-      _ => None,
+      _ => Err(DecodeError::new(x.position(), vec![Expected::Literal])),
     }
   }
 }
@@ -86,22 +90,18 @@ impl LitType {
     }
   }
 
-  pub fn decode(x: Expr) -> Option<Self> {
+  pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("Natural") => {
-        Some(Self::Natural)
-      }
-      Atom(_, Symbol(n)) if *n == String::from("Integer") => {
-        Some(Self::Integer)
-      }
-      Atom(_, Symbol(n)) if *n == String::from("Bits") => Some(Self::Bits),
-      Atom(_, Symbol(n)) if *n == String::from("Text") => Some(Self::Text),
-      Atom(_, Symbol(n)) if *n == String::from("Char") => Some(Self::Char),
-      Atom(_, Symbol(n)) if *n == String::from("Link") => Some(Self::Link),
+      Atom(_, Symbol(n)) if *n == String::from("Natural") => Ok(Self::Natural),
+      Atom(_, Symbol(n)) if *n == String::from("Integer") => Ok(Self::Integer),
+      Atom(_, Symbol(n)) if *n == String::from("Bits") => Ok(Self::Bits),
+      Atom(_, Symbol(n)) if *n == String::from("Text") => Ok(Self::Text),
+      Atom(_, Symbol(n)) if *n == String::from("Char") => Ok(Self::Char),
+      Atom(_, Symbol(n)) if *n == String::from("Link") => Ok(Self::Link),
       Atom(_, Symbol(n)) if *n == String::from("Exception") => {
-        Some(Self::Exception)
+        Ok(Self::Exception)
       }
-      _ => None,
+      _ => Err(DecodeError::new(x.position(), vec![Expected::LitType])),
     }
   }
 }

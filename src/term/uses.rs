@@ -1,3 +1,8 @@
+use crate::term::decode_error::{
+  DecodeError,
+  Expected,
+};
+
 use hashexpr::{
   atom::{
     Atom,
@@ -15,7 +20,7 @@ pub enum Uses {
 }
 
 impl Uses {
-  pub fn add(x: Uses, y: Uses) -> Uses {
+  pub fn add(x: Self, y: Self) -> Self {
     match (x, y) {
       (Self::None, y) => y,
       (x, Self::None) => x,
@@ -23,7 +28,7 @@ impl Uses {
     }
   }
 
-  pub fn mul(x: Uses, y: Uses) -> Uses {
+  fn mul(x: Self, y: Self) -> Self {
     match (x, y) {
       (Self::None, _) => Self::None,
       (_, Self::None) => Self::None,
@@ -34,7 +39,7 @@ impl Uses {
     }
   }
 
-  pub fn lte(x: Uses, y: Uses) -> bool {
+  pub fn lte(x: Self, y: Self) -> bool {
     match (x, y) {
       (Self::None, Self::Once) => false,
       (Self::None, _) => true,
@@ -48,7 +53,7 @@ impl Uses {
     }
   }
 
-  pub fn gth(x: Uses, y: Uses) -> bool { !Self::lte(x, y) }
+  pub fn gth(x: Self, y: Self) -> bool { !Self::lte(x, y) }
 
   pub fn encode(self) -> Expr {
     match self {
@@ -59,13 +64,13 @@ impl Uses {
     }
   }
 
-  pub fn decode(x: Expr) -> Option<Self> {
+  pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Expr::Atom(_, Symbol(n)) if *n == String::from("0") => Some(Self::None),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("&") => Some(Self::Affi),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("1") => Some(Self::Once),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("w") => Some(Self::Many),
-      _ => None,
+      Expr::Atom(_, Symbol(n)) if *n == String::from("0") => Ok(Self::None),
+      Expr::Atom(_, Symbol(n)) if *n == String::from("&") => Ok(Self::Affi),
+      Expr::Atom(_, Symbol(n)) if *n == String::from("1") => Ok(Self::Once),
+      Expr::Atom(_, Symbol(n)) if *n == String::from("w") => Ok(Self::Many),
+      x => Err(DecodeError::new(x.position(), vec![Expected::Uses])),
     }
   }
 }

@@ -8,6 +8,5 @@ extern crate rand;
 
 pub mod dag;
 pub mod dll;
-pub mod expr;
 pub mod parser;
 pub mod term;
