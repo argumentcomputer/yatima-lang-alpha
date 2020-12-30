@@ -448,33 +448,47 @@ pub fn reduce(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
   }
 }
 
-pub fn whnf(node: DAG) -> DAG {
-  match node {
-    DAG::App(app_link) => unsafe {
-      let app = &mut *app_link.as_ptr();
-      (*app).func = whnf((*app).func);
-      match (*app).func {
-        DAG::Lam(lam_link) => whnf(reduce(app_link, lam_link)),
-        _ => node,
-      }
-    },
-    _ => node,
+pub fn whnf(mut node: DAG) -> DAG {
+  let mut trail = vec![];
+  loop {
+    match node {
+      DAG::App(link) => unsafe {
+        trail.push(link);
+        node = (*link.as_ptr()).func;
+      },
+      DAG::Lam(lam_link) => {
+        if let Some(app_link) = trail.pop(){
+          node = reduce(app_link, lam_link);
+        }
+        else {
+          break
+        }
+      },
+      _ => break,
+    }
   }
+  if trail.is_empty() {
+    return node
+  }
+  DAG::App(trail[0])
 }
 
-pub fn norm(node: DAG) -> DAG {
-  let node = whnf(node);
-  match node {
-    DAG::App(link) => unsafe {
-      let app = &mut *link.as_ptr();
-      app.func = norm(app.func);
-      app.arg = norm(app.arg);
-    },
-    DAG::Lam(link) => unsafe {
-      let lam = &mut *link.as_ptr();
-      lam.body = norm(lam.body);
-    },
-    DAG::Var(link) => ()
+pub fn norm(mut top_node: DAG) -> DAG {
+  top_node = whnf(top_node);
+  let mut trail = vec![top_node];
+  while let Some(node) = trail.pop() {
+    match node {
+      DAG::App(link) => unsafe {
+        let app = &mut *link.as_ptr();
+        trail.push(whnf(app.func));
+        trail.push(whnf(app.arg));
+      },
+      DAG::Lam(link) => unsafe {
+        let lam = &mut *link.as_ptr();
+        trail.push(whnf(lam.body));
+      },
+      DAG::Var(link) => ()
+    }
   }
-  node
+  top_node
 }
