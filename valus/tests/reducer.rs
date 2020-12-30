@@ -27,5 +27,7 @@ mod test {
     let is_seven = format!("(({}) ({}) {})", add, four, three);
     norm_assert(&is_three, three);
     norm_assert(&is_seven, seven);
+    let id = "λ x => x";
+    norm_assert(&format!("({three}) (({three}) ({id})) ({id})", id=id, three=three), id);
   }
 }
