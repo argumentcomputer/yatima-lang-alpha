@@ -116,7 +116,7 @@ impl Term {
       }
       Self::Typ(_) => atom!(symb!("Type")),
       Self::Ann(_, exp, typ) => {
-        cons!(None, atom!(symb!("::")), exp.encode(), typ.encode())
+        cons!(None, atom!(symb!("typeann")), exp.encode(), typ.encode())
       }
       Self::Lit(_, lit) => lit.encode(),
       Self::LTy(_, lty) => lty.encode(),
@@ -174,92 +174,127 @@ impl Term {
         .fold(Err(DecodeError::new(pos, vec![])), or_else_join)
       }
       Expr::Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), uses, typ, exp, bod]
-          if *n == String::from("letrec") =>
-        {
-          let uses = Uses::decode(uses.to_owned())?;
-          let typ =
-            Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-          let mut new_ctx = ctx.clone();
-          new_ctx.push_front(nam.clone());
-          let exp =
-            Term::decode(refs.to_owned(), new_ctx.clone(), exp.to_owned())?;
-          let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Ok(Self::Let(
-            pos,
-            true,
-            nam.clone(),
-            uses,
-            Box::new(typ),
-            Box::new(exp),
-            Box::new(bod),
-          ))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("letrec") => {
+          match tail {
+            [Atom(_, Symbol(nam)), uses, typ, exp, bod] => {
+              let uses = Uses::decode(uses.to_owned())?;
+              let typ =
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+              let mut new_ctx = ctx.clone();
+              new_ctx.push_front(nam.clone());
+              let exp =
+                Term::decode(refs.to_owned(), new_ctx.clone(), exp.to_owned())?;
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
+              Ok(Self::Let(
+                pos,
+                true,
+                nam.clone(),
+                uses,
+                Box::new(typ),
+                Box::new(exp),
+                Box::new(bod),
+              ))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::LetRec])),
+          }
         }
-        [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), uses, typ, exp, bod]
-          if *n == String::from("let") =>
-        {
-          let uses = Uses::decode(uses.to_owned())?;
-          let typ =
-            Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-          let exp =
-            Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
-          let mut new_ctx = ctx.clone();
-          new_ctx.push_front(nam.clone());
-          let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Ok(Self::Let(
-            pos,
-            false,
-            nam.clone(),
-            uses,
-            Box::new(typ),
-            Box::new(exp),
-            Box::new(bod),
-          ))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("let") => {
+          match tail {
+            [Atom(_, Symbol(nam)), uses, typ, exp, bod] => {
+              let uses = Uses::decode(uses.to_owned())?;
+              let typ =
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+              let exp =
+                Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
+              let mut new_ctx = ctx.clone();
+              new_ctx.push_front(nam.clone());
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
+              Ok(Self::Let(
+                pos,
+                false,
+                nam.clone(),
+                uses,
+                Box::new(typ),
+                Box::new(exp),
+                Box::new(bod),
+              ))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::Let])),
+          }
         }
-        [Atom(_, Symbol(n)), bod] if *n == String::from("data") => {
-          let bod =
-            Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-          Ok(Self::Dat(pos, Box::new(bod)))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("data") => {
+          match tail {
+            [bod] => {
+              let bod =
+                Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
+              Ok(Self::Dat(pos, Box::new(bod)))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::Data])),
+          }
         }
-        [Atom(_, Symbol(n)), bod] if *n == String::from("case") => {
-          let bod =
-            Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-          Ok(Self::Cse(pos, Box::new(bod)))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("case") => {
+          match tail {
+            [bod] => {
+              let bod =
+                Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
+              Ok(Self::Cse(pos, Box::new(bod)))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::Case])),
+          }
         }
-
-        [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), bod]
-          if *n == String::from("self") =>
-        {
-          let mut new_ctx = ctx.clone();
-          new_ctx.push_front(nam.clone());
-          let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Ok(Self::Slf(pos, nam.clone(), Box::new(bod)))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("self") => {
+          match tail {
+            [Atom(_, Symbol(nam)), bod] => {
+              let mut new_ctx = ctx.clone();
+              new_ctx.push_front(nam.clone());
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
+              Ok(Self::Slf(pos, nam.clone(), Box::new(bod)))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::SelfType])),
+          }
         }
-        [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), bod]
-          if *n == String::from("lambda") =>
-        {
-          let mut new_ctx = ctx.clone();
-          new_ctx.push_front(nam.clone());
-          let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Ok(Self::Lam(pos, nam.to_owned(), Box::new(bod)))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("lambda") => {
+          match tail {
+            [Atom(_, Symbol(nam)), bod] => {
+              let mut new_ctx = ctx.clone();
+              new_ctx.push_front(nam.clone());
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
+              Ok(Self::Lam(pos, nam.to_owned(), Box::new(bod)))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::Lambda])),
+          }
         }
-        [Atom(_, Symbol(n)), Atom(_, Symbol(nam)), uses, typ, bod]
-          if *n == String::from("forall") =>
-        {
-          let uses = Uses::decode(uses.to_owned())?;
-          let typ =
-            Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-          let mut new_ctx = ctx.clone();
-          new_ctx.push_front(nam.clone());
-          let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-          Ok(Self::All(pos, nam.to_owned(), uses, Box::new(typ), Box::new(bod)))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("forall") => {
+          match tail {
+            [Atom(_, Symbol(nam)), uses, typ, bod] => {
+              let uses = Uses::decode(uses.to_owned())?;
+              let typ =
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+              let mut new_ctx = ctx.clone();
+              new_ctx.push_front(nam.clone());
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
+              Ok(Self::All(
+                pos,
+                nam.to_owned(),
+                uses,
+                Box::new(typ),
+                Box::new(bod),
+              ))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::Forall])),
+          }
         }
-        [Atom(_, Symbol(n)), exp, typ] if *n == String::from("::") => {
-          let exp =
-            Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
-          let typ =
-            Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-          Ok(Self::Ann(pos, Box::new(exp), Box::new(typ)))
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("typeann") => {
+          match tail {
+            [exp, typ] => {
+              let exp =
+                Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
+              let typ =
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+              Ok(Self::Ann(pos, Box::new(exp), Box::new(typ)))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::Annotation])),
+          }
         }
         [fun, arg] => {
           let fun =

@@ -9,6 +9,14 @@ pub enum Expected {
   BoundVar,
   DefinedRef,
   TypeOfTypes,
+  LetRec,
+  Let,
+  Lambda,
+  Forall,
+  Annotation,
+  SelfType,
+  Case,
+  Data,
   Constructor,
 }
 
