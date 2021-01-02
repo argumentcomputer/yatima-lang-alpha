@@ -1,14 +1,10 @@
-use crate::term::decode_error::{
+use crate::decode_error::{
   DecodeError,
   Expected,
 };
 
 use hashexpr::{
-  atom::{
-    Atom,
-    Atom::*,
-    Link,
-  },
+  atom::Atom::*,
   Expr,
 };
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -28,7 +24,7 @@ impl Uses {
     }
   }
 
-  fn mul(x: Self, y: Self) -> Self {
+  pub fn mul(x: Self, y: Self) -> Self {
     match (x, y) {
       (Self::None, _) => Self::None,
       (_, Self::None) => Self::None,
@@ -60,7 +56,7 @@ impl Uses {
       Self::None => atom!(None, symb!("0")),
       Self::Affi => atom!(None, symb!("&")),
       Self::Once => atom!(None, symb!("1")),
-      Self::Many => atom!(None, symb!("w")),
+      Self::Many => atom!(None, symb!("ω")),
     }
   }
 
@@ -69,7 +65,7 @@ impl Uses {
       Expr::Atom(_, Symbol(n)) if *n == String::from("0") => Ok(Self::None),
       Expr::Atom(_, Symbol(n)) if *n == String::from("&") => Ok(Self::Affi),
       Expr::Atom(_, Symbol(n)) if *n == String::from("1") => Ok(Self::Once),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("w") => Ok(Self::Many),
+      Expr::Atom(_, Symbol(n)) if *n == String::from("ω") => Ok(Self::Many),
       x => Err(DecodeError::new(x.position(), vec![Expected::Uses])),
     }
   }
@@ -81,12 +77,8 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
-    StdThreadGen,
   };
-  use rand::{
-    prelude::IteratorRandom,
-    Rng,
-  };
+  use rand::Rng;
 
   impl Arbitrary for Uses {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {

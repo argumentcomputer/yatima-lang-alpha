@@ -18,6 +18,14 @@ pub enum Expected {
   Case,
   Data,
   Constructor,
+  Definition,
+  DefinitionContents,
+  DefinitionList,
+  UniqueDefinitionName,
+  Import,
+  Imports,
+  Package,
+  PackageContents,
 }
 
 #[derive(PartialEq, Clone, Debug)]

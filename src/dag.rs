@@ -1,5 +1,5 @@
 use hashexpr::{
-  atom::Link,
+  link::Link,
   position::Pos,
 };
 use std::collections::HashMap;

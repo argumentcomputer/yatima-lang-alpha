@@ -3,22 +3,7 @@ use num_bigint::{
   BigUint,
 };
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct Link(blake3::Hash);
-
-impl Link {
-  pub fn make(x: &[u8]) -> Link { Link(blake3::hash(x)) }
-
-  pub fn from(x: [u8; 32]) -> Link { Link(blake3::Hash::from(x)) }
-
-  pub fn as_hash(&self) -> &blake3::Hash {
-    match self {
-      Link(h) => h,
-    }
-  }
-
-  pub fn as_bytes(&self) -> &[u8; 32] { self.as_hash().as_bytes() }
-}
+use crate::link::Link;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Atom {
@@ -78,5 +63,14 @@ macro_rules! symb {
   };
   ($i:expr) => {
     Symbol($i)
+  };
+}
+#[macro_export]
+macro_rules! text {
+  ($i:literal) => {
+    Text(String::from($i), None)
+  };
+  ($i:expr) => {
+    Text($i, None)
   };
 }

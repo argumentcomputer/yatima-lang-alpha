@@ -17,6 +17,7 @@ pub enum DeserialError<I: AsBytes> {
   UnknownTypeCode(I, Vec<u8>, Option<u64>),
   BadLinkLength(I, u64),
   BadCharLength(I, u64),
+  ExpectedLink(I),
   InvalidUnicodeCodepoint(I, u32),
   Utf8Error(I, std::string::FromUtf8Error),
   NomErr(I, ErrorKind),
@@ -28,6 +29,7 @@ impl<'a, I: AsBytes> DeserialError<I> {
       Self::UnknownTypeCode(i, ..) => i,
       Self::BadCharLength(i, _) => i,
       Self::BadLinkLength(i, _) => i,
+      Self::ExpectedLink(i) => i,
       Self::Utf8Error(i, _) => i,
       Self::InvalidUnicodeCodepoint(i, _) => i,
       Self::NomErr(i, _) => i,
@@ -46,6 +48,9 @@ impl<'a, I: AsBytes> DeserialError<I> {
       }
       Self::BadLinkLength(i, x) => {
         DeserialError::BadLinkLength(i.as_bytes().to_vec().into(), *x)
+      }
+      Self::ExpectedLink(i) => {
+        DeserialError::ExpectedLink(i.as_bytes().to_vec().into())
       }
       Self::Utf8Error(i, x) => {
         DeserialError::Utf8Error(i.as_bytes().to_vec().into(), x.to_owned())

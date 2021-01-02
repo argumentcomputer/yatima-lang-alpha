@@ -1,9 +1,8 @@
-pub mod decode_error;
 pub mod literal;
 pub mod primop;
 pub mod uses;
 
-use decode_error::{
+use crate::decode_error::{
   or_else_join,
   DecodeError,
   Expected,
@@ -16,10 +15,8 @@ use primop::PrimOp;
 use uses::Uses;
 
 use hashexpr::{
-  atom::{
-    Atom::*,
-    Link,
-  },
+  atom::Atom::*,
+  link::Link,
   position::Pos,
   Expr,
   Expr::Atom,
@@ -32,12 +29,12 @@ pub enum Term {
   Var(Option<Pos>, String, u64),
   Lam(Option<Pos>, String, Box<Term>),
   App(Option<Pos>, Box<Term>, Box<Term>),
-  All(Option<Pos>, String, Uses, Box<Term>, Box<Term>),
+  All(Option<Pos>, Uses, String, Box<Term>, Box<Term>),
   Slf(Option<Pos>, String, Box<Term>),
   Dat(Option<Pos>, Box<Term>),
   Cse(Option<Pos>, Box<Term>),
   Ref(Option<Pos>, String, Link, Link),
-  Let(Option<Pos>, bool, String, Uses, Box<Term>, Box<Term>, Box<Term>),
+  Let(Option<Pos>, bool, Uses, String, Box<Term>, Box<Term>, Box<Term>),
   Typ(Option<Pos>),
   Ann(Option<Pos>, Box<Term>, Box<Term>),
   Lit(Option<Pos>, Literal),
@@ -51,8 +48,8 @@ impl PartialEq for Term {
       (Self::Var(_, na, ia), Self::Var(_, nb, ib)) => na == nb && ia == ib,
       (Self::Lam(_, na, ba), Self::Lam(_, nb, bb)) => na == nb && ba == bb,
       (Self::App(_, fa, aa), Self::App(_, fb, ab)) => fa == fb && aa == ab,
-      (Self::All(_, na, ua, ta, ba), Self::All(_, nb, ub, tb, bb)) => {
-        na == nb && ua == ub && ta == tb && ba == bb
+      (Self::All(_, ua, na, ta, ba), Self::All(_, ub, nb, tb, bb)) => {
+        ua == ub && na == nb && ta == tb && ba == bb
       }
       (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
       (Self::Dat(_, ba), Self::Dat(_, bb)) => ba == bb,
@@ -61,9 +58,9 @@ impl PartialEq for Term {
         na == nb && ma == mb && aa == ab
       }
       (
-        Self::Let(_, ra, na, ua, ta, xa, ba),
-        Self::Let(_, rb, nb, ub, tb, xb, bb),
-      ) => ra == rb && na == nb && ua == ub && ta == tb && xa == xb && ba == bb,
+        Self::Let(_, ra, ua, na, ta, xa, ba),
+        Self::Let(_, rb, ub, nb, tb, xb, bb),
+      ) => ra == rb && ua == ub && na == nb && ta == tb && xa == xb && ba == bb,
       (Self::Typ(_), Self::Typ(_)) => true,
       (Self::Ann(_, xa, ta), Self::Ann(_, xb, tb)) => xa == xb && ta == tb,
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
@@ -82,12 +79,12 @@ impl Term {
         cons!(None, atom!(symb!("lambda")), atom!(symb!(nam)), bod.encode())
       }
       Self::App(_, fun, arg) => cons!(None, fun.encode(), arg.encode()),
-      Self::All(_, nam, uses, typ, bod) => {
+      Self::All(_, uses, nam, typ, bod) => {
         cons!(
           None,
           atom!(symb!("forall")),
-          atom!(symb!(nam)),
           uses.encode(),
+          atom!(symb!(nam)),
           typ.encode(),
           bod.encode()
         )
@@ -102,13 +99,13 @@ impl Term {
         cons!(None, atom!(symb!("case")), bod.encode())
       }
       Self::Ref(_, nam, ..) => atom!(symb!(nam)),
-      Self::Let(_, rec, nam, uses, typ, exp, bod) => {
+      Self::Let(_, rec, uses, nam, typ, exp, bod) => {
         let ctor = if rec { symb!("letrec") } else { symb!("let") };
         cons!(
           None,
           atom!(ctor),
-          atom!(symb!(nam)),
           uses.encode(),
+          atom!(symb!(nam)),
           typ.encode(),
           exp.encode(),
           bod.encode()
@@ -176,7 +173,7 @@ impl Term {
       Expr::Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("letrec") => {
           match tail {
-            [Atom(_, Symbol(nam)), uses, typ, exp, bod] => {
+            [uses, Atom(_, Symbol(nam)), typ, exp, bod] => {
               let uses = Uses::decode(uses.to_owned())?;
               let typ =
                 Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
@@ -188,8 +185,8 @@ impl Term {
               Ok(Self::Let(
                 pos,
                 true,
-                nam.clone(),
                 uses,
+                nam.clone(),
                 Box::new(typ),
                 Box::new(exp),
                 Box::new(bod),
@@ -200,7 +197,7 @@ impl Term {
         }
         [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("let") => {
           match tail {
-            [Atom(_, Symbol(nam)), uses, typ, exp, bod] => {
+            [uses, Atom(_, Symbol(nam)), typ, exp, bod] => {
               let uses = Uses::decode(uses.to_owned())?;
               let typ =
                 Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
@@ -212,8 +209,8 @@ impl Term {
               Ok(Self::Let(
                 pos,
                 false,
-                nam.clone(),
                 uses,
+                nam.clone(),
                 Box::new(typ),
                 Box::new(exp),
                 Box::new(bod),
@@ -266,7 +263,7 @@ impl Term {
         }
         [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("forall") => {
           match tail {
-            [Atom(_, Symbol(nam)), uses, typ, bod] => {
+            [uses, Atom(_, Symbol(nam)), typ, bod] => {
               let uses = Uses::decode(uses.to_owned())?;
               let typ =
                 Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
@@ -275,8 +272,8 @@ impl Term {
               let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
               Ok(Self::All(
                 pos,
-                nam.to_owned(),
                 uses,
+                nam.to_owned(),
                 Box::new(typ),
                 Box::new(bod),
               ))
@@ -311,7 +308,7 @@ impl Term {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
   use super::{
     Term::*,
     *,
@@ -325,10 +322,10 @@ mod tests {
     Rng,
   };
 
-  fn arbitrary_name<G: Gen>(g: &mut G) -> String {
-    let alpha = "abcdefghjiklmnopqrstuvwxyz";
-    let x = g.gen_range(0, alpha.len());
-    format!("{}", alpha.as_bytes()[x] as char)
+  pub fn arbitrary_name<G: Gen>(g: &mut G) -> String {
+    let s: String = Arbitrary::arbitrary(g);
+    let s: String = format!("_{}", s);
+    s.chars().filter(|x| hashexpr::is_valid_symbol_char(*x)).collect()
   }
 
   fn arbitrary_lam<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
@@ -354,14 +351,14 @@ mod tests {
       ctx2.push_front(n.clone());
       let exp = Box::new(arbitrary_term(g, ctx2.clone()));
       let bod = Box::new(arbitrary_term(g, ctx2.clone()));
-      Let(None, rec, n, u, typ, exp, bod)
+      Let(None, rec, u, n, typ, exp, bod)
     }
     else {
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
       let exp = Box::new(arbitrary_term(g, ctx.clone()));
       let bod = Box::new(arbitrary_term(g, ctx2.clone()));
-      Let(None, rec, n, u, typ, exp, bod)
+      Let(None, rec, u, n, typ, exp, bod)
     }
   }
 
@@ -372,8 +369,8 @@ mod tests {
     ctx2.push_front(n.clone());
     All(
       None,
-      n,
       u,
+      n,
       Box::new(arbitrary_term(g, ctx)),
       Box::new(arbitrary_term(g, ctx2)),
     )
@@ -385,7 +382,7 @@ mod tests {
     Var(None, n.clone(), i as u64)
   }
 
-  fn arbitrary_term<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
+  pub fn arbitrary_term<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
     let len = ctx.len();
     if len == 0 {
       arbitrary_lam(g, ctx)

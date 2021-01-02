@@ -160,7 +160,7 @@ pub fn encode<T: AsRef<[u8]>>(base: Base, input: T) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
   use super::*;
   use quickcheck::{
     Arbitrary,

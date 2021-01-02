@@ -1,14 +1,11 @@
-use crate::term::decode_error::{
+use crate::decode_error::{
   DecodeError,
   Expected,
 };
 use hashexpr::{
   atom::Atom::*,
   Expr,
-  Expr::{
-    Atom,
-    Cons,
-  },
+  Expr::Atom,
 };
 
 #[derive(PartialEq, Eq, Clone, Debug)]

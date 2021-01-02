@@ -1,12 +1,10 @@
-use crate::term::decode_error::{
+use crate::decode_error::{
   DecodeError,
   Expected,
 };
 use hashexpr::{
-  atom::{
-    Atom::*,
-    Link,
-  },
+  atom::Atom::*,
+  link::Link,
   Expr,
   Expr::{
     Atom,

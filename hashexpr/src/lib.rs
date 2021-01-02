@@ -28,7 +28,10 @@ use nom::{
     digit0,
     multispace1,
   },
-  combinator::opt,
+  combinator::{
+    opt,
+    value,
+  },
   multi::{
     count,
     separated_list0,
@@ -43,6 +46,7 @@ pub mod atom;
 pub mod base;
 pub mod bytevec;
 pub mod error;
+pub mod link;
 pub mod position;
 pub mod span;
 pub mod string;
@@ -50,13 +54,13 @@ pub mod string;
 use atom::{
   Atom,
   Atom::*,
-  Link,
 };
 use base::Base;
 use error::{
   DeserialError,
   ParseError,
 };
+use link::Link;
 use string::parse_string;
 
 use position::Pos;
@@ -162,9 +166,9 @@ impl Expr {
     }
   }
 
-  pub fn hash(&self) -> Expr {
-    Expr::Atom(self.position(), Link(Link::make(&self.serialize())))
-  }
+  pub fn link(&self) -> Link { Link::make(&self.serialize()) }
+
+  pub fn hash(&self) -> Expr { Expr::Atom(self.position(), Link(self.link())) }
 
   pub fn deserialize(i: &[u8]) -> IResult<&[u8], Expr, DeserialError<&[u8]>> {
     let (i, size) = take(1 as usize)(i)?;
@@ -249,55 +253,38 @@ impl Expr {
   }
 }
 
-impl Link {
-  pub fn serialize(&self) -> Vec<u8> {
-    Expr::Atom(None, Link(self.clone())).serialize()
-  }
-
-  pub fn deserialize(i: &[u8]) -> Option<Link> {
-    match Expr::deserialize(i) {
-      Ok((_, Expr::Atom(_, Link(x)))) => Some(x),
-      _ => None,
-    }
-  }
-}
-
-impl fmt::Display for Link {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{}", base::encode(Base::_58, self.serialize()))
-  }
-}
-
 impl fmt::Display for Atom {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       Self::Bits(x, Some(l)) => {
         let x: &[u8] = x.as_ref();
-        write!(f, "{}:bits{}", base::encode(Base::_64, x), l)
+        write!(f, "#{}:bits{}", base::encode(Base::_64, x), l)
       }
       Self::Bits(x, None) => {
         let x: &[u8] = x.as_ref();
-        write!(f, "{}:bits", base::encode(Base::_64, x))
+        write!(f, "#{}:bits", base::encode(Base::_64, x))
       }
       Self::Link(l) => write!(f, "#{}", l),
       Self::Symbol(x) => write!(f, "{}", x),
       Self::Nat(x, Some(l)) => write!(f, "0d{}:nat{}", x.to_str_radix(10), l),
       Self::Nat(x, None) => {
-        write!(f, "0d{}:nat", x.to_str_radix(10))
+        write!(f, "0d{}", x.to_str_radix(10))
       }
       Self::Int(x, Some(l)) => match x.sign() {
-        Sign::Minus => write!(f, "-0d{}:int{}", x.to_str_radix(10), l),
-        _ => write!(f, "0d{}:int{}", x.to_str_radix(10), l),
+        Sign::Minus => {
+          write!(f, "-0d{}:int{}", x.magnitude().to_str_radix(10), l)
+        }
+        _ => write!(f, "+0d{}:int{}", x.to_str_radix(10), l),
       },
       Self::Int(x, None) => match x.sign() {
-        Sign::Minus => write!(f, "-0d{}:int", x.to_str_radix(10)),
-        _ => write!(f, "0d{}:int", x.to_str_radix(10)),
+        Sign::Minus => write!(f, "-0d{}", x.magnitude().to_str_radix(10)),
+        _ => write!(f, "+0d{}", x.to_str_radix(10)),
       },
       Self::Text(x, Some(l)) => {
         write!(f, "\"{}\":text{}", x.escape_default(), l)
       }
-      Self::Text(x, None) => write!(f, "\"{}\":text", x.escape_default()),
-      Self::Char(x) => write!(f, "'{}':char", x.escape_default()),
+      Self::Text(x, None) => write!(f, "\"{}\"", x.escape_default()),
+      Self::Char(x) => write!(f, "'{}'", x.escape_default()),
     }
   }
 }
@@ -347,7 +334,7 @@ pub fn parse_symbol(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 pub fn parse_char(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let p = |i| parse_string("'", i);
   let (i_err, c) = delimited(tag("'"), p, tag("'"))(from)?;
-  let (upto, _) = tag(":char")(i_err)?;
+  let (upto, _) = opt(tag(":char"))(i_err)?;
   let s: Vec<char> = c.chars().collect();
   if s.len() != 1 {
     Err(Err::Error(ParseError::ExpectedSingleChar(i_err, s)))
@@ -360,34 +347,38 @@ pub fn parse_char(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 pub fn parse_text(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let p = |i| parse_string("\"", i);
   let (i_err, val) = delimited(tag("\""), p, tag("\""))(from)?;
-  let (i, _) = tag(":text")(i_err)?;
-  let (upto, ds) = digit0(i)?;
-  if ds.len() == 0 {
+  let (upto, sig) = opt(tag(":text"))(i_err)?;
+  if sig.is_none() {
     Ok((upto, Expr::Atom(Some(Pos::from_upto(from, upto)), Text(val, None))))
   }
   else {
-    let len = ds.parse::<u64>().unwrap();
-    if bytelen_from_bitlen(len) < (val.len() as u64) {
-      Err(Error(ParseError::LengthTooSmall(
-        i_err,
-        val.as_bytes().to_owned(),
-        len,
-      )))
+    let (upto, ds) = digit0(upto)?;
+    if ds.len() == 0 {
+      Ok((upto, Expr::Atom(Some(Pos::from_upto(from, upto)), Text(val, None))))
     }
     else {
-      Ok((
-        upto,
-        Expr::Atom(Some(Pos::from_upto(from, upto)), Text(val, Some(len))),
-      ))
+      let len = ds.parse::<u64>().unwrap();
+      if bytelen_from_bitlen(len) < (val.len() as u64) {
+        Err(Error(ParseError::LengthTooSmall(
+          i_err,
+          val.as_bytes().to_owned(),
+          len,
+        )))
+      }
+      else {
+        Ok((
+          upto,
+          Expr::Atom(Some(Pos::from_upto(from, upto)), Text(val, Some(len))),
+        ))
+      }
     }
   }
 }
 pub fn parse_nat(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (i, _) = tag("0")(from)?;
   let (i, (_, val)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
-  let (i, _) = tag(":nat")(i)?;
-  let (upto, ds) = digit0(i)?;
-  if ds.len() == 0 {
+  let (upto, sig) = opt(tag(":nat"))(i)?;
+  if sig.is_none() {
     Ok((
       upto,
       Expr::Atom(
@@ -397,29 +388,40 @@ pub fn parse_nat(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
     ))
   }
   else {
-    let len = ds.parse::<u64>().unwrap();
-    if bytelen_from_bitlen(len) < (val.len() as u64) {
-      Err(Error(ParseError::LengthTooSmall(i, val, len)))
-    }
-    else {
+    let (upto, ds) = digit0(upto)?;
+    if ds.len() == 0 {
       Ok((
         upto,
         Expr::Atom(
           Some(Pos::from_upto(from, upto)),
-          Nat(BigUint::from_bytes_be(&val), Some(len)),
+          Nat(BigUint::from_bytes_be(&val), None),
         ),
       ))
+    }
+    else {
+      let len = ds.parse::<u64>().unwrap();
+      if bytelen_from_bitlen(len) < (val.len() as u64) {
+        Err(Error(ParseError::LengthTooSmall(i, val, len)))
+      }
+      else {
+        Ok((
+          upto,
+          Expr::Atom(
+            Some(Pos::from_upto(from, upto)),
+            Nat(BigUint::from_bytes_be(&val), Some(len)),
+          ),
+        ))
+      }
     }
   }
 }
 pub fn parse_int(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
-  let (i, s) = opt(tag("-"))(from)?;
-  let s = s.map_or(Sign::Plus, |_| Sign::Minus);
+  let (i, s) =
+    alt((value(Sign::Minus, tag("-")), value(Sign::Plus, tag("+"))))(from)?;
   let (i, _) = tag("0")(i)?;
   let (i, (_, val)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
-  let (i, _) = tag(":int")(i)?;
-  let (upto, ds) = digit0(i)?;
-  if ds.len() == 0 {
+  let (upto, sig) = opt(tag(":int"))(i)?;
+  if sig.is_none() {
     Ok((
       upto,
       Expr::Atom(
@@ -429,23 +431,36 @@ pub fn parse_int(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
     ))
   }
   else {
-    let len = ds.parse::<u64>().unwrap();
-    if bytelen_from_bitlen(len) < (val.len() as u64) {
-      Err(Error(ParseError::LengthTooSmall(i, val, len)))
-    }
-    else {
+    let (upto, ds) = digit0(upto)?;
+    if ds.len() == 0 {
       Ok((
         upto,
         Expr::Atom(
           Some(Pos::from_upto(from, upto)),
-          Int(BigInt::from_bytes_be(s, &val), Some(len)),
+          Int(BigInt::from_bytes_be(s, &val), None),
         ),
       ))
+    }
+    else {
+      let len = ds.parse::<u64>().unwrap();
+      if bytelen_from_bitlen(len) < (val.len() as u64) {
+        Err(Error(ParseError::LengthTooSmall(i, val, len)))
+      }
+      else {
+        Ok((
+          upto,
+          Expr::Atom(
+            Some(Pos::from_upto(from, upto)),
+            Int(BigInt::from_bytes_be(s, &val), Some(len)),
+          ),
+        ))
+      }
     }
   }
 }
 pub fn parse_bits(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
-  let (i, (_, val)) = base::parse(from).map_err(|e| nom::Err::convert(e))?;
+  let (i, _) = tag("#")(from)?;
+  let (i, (_, val)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
   let (i, _) = tag(":bits")(i)?;
   let (upto, ds) = digit0(i)?;
   if ds.len() == 0 {
@@ -506,8 +521,24 @@ macro_rules! cons {
   }}
 }
 
+pub fn is_valid_symbol_char(c: char) -> bool {
+  c != '(' && c != ')' && !char::is_whitespace(c) && !char::is_control(c)
+}
+
+pub fn is_valid_symbol_string(s: &String) -> bool {
+  let zero_length = s.len() == 0;
+  let invalid_chars = s.starts_with("\"")
+    || s.starts_with("\'")
+    || s.starts_with("0")
+    || s.starts_with("+0")
+    || s.starts_with("-0")
+    || s.starts_with("#")
+    || s.chars().any(|x| !is_valid_symbol_char(x));
+  !zero_length && !invalid_chars
+}
+
 #[cfg(test)]
-mod tests {
+pub mod tests {
   use super::*;
   use quickcheck::{
     Arbitrary,
@@ -516,24 +547,10 @@ mod tests {
   };
   use rand::Rng;
 
-  fn gen_symbol<G: Gen>(g: &mut G) -> String {
+  pub fn gen_symbol<G: Gen>(g: &mut G) -> String {
     let s: String = Arbitrary::arbitrary(g);
-    let s: String = s
-      .chars()
-      .filter(|x| {
-        !char::is_whitespace(*x)
-          && (*x != ')')
-          && (*x != '"')
-          && (*x != '\'')
-          && (*x != '(')
-      })
-      .collect();
-    let other_literal = alt((
-      parse_bits, parse_raw, parse_nat, parse_int, parse_text, parse_char,
-    ))(Span::new(&s))
-    .is_ok();
-
-    if (s.len() == 0) | other_literal { gen_symbol(g) } else { s }
+    let s: String = format!("_{}", s);
+    s.chars().filter(|x| is_valid_symbol_char(*x)).collect()
   }
 
   impl Arbitrary for Atom {
@@ -573,43 +590,7 @@ mod tests {
           };
           Int(x, l)
         }
-        _ => {
-          let bytes: [u8; 32] = [
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-            Arbitrary::arbitrary(g),
-          ];
-          Link(Link::from(bytes))
-        }
+        _ => Link(Arbitrary::arbitrary(g)),
       }
     }
   }
@@ -637,7 +618,7 @@ mod tests {
       56, 79, 53, 73, 40, 52, 95, 43, 97, 73, 37,
     ];
     let a = Expr::Atom(None, Bits(a_val.clone(), Some(680)));
-    assert_eq!(format!("{}", a), "~0TlZaDAkrDQA4HjcaM1ssFx5bNFYhSCk3OC1iNShUPF1UXjAcHhM_MRAQXzI7MTs0WRsxWkkmTQwzPSYcCAsaOiNGJWFaBEBaFDhPNUkoNF8rYUkl:bits680");
+    assert_eq!(format!("{}", a), "#~0TlZaDAkrDQA4HjcaM1ssFx5bNFYhSCk3OC1iNShUPF1UXjAcHhM_MRAQXzI7MTs0WRsxWkkmTQwzPSYcCAsaOiNGJWFaBEBaFDhPNUkoNF8rYUkl:bits680");
     assert_eq!(parse(&format!("{}", a)).unwrap().1, a.clone());
     let a_ser = vec![
       65, 1, 2, 168, 52, 78, 86, 90, 12, 9, 43, 13, 0, 56, 30, 55, 26, 51, 91,
@@ -649,7 +630,7 @@ mod tests {
     assert_eq!(a.serialize(), a_ser);
     assert_eq!(Expr::deserialize(&a_ser).unwrap(), (b"".as_ref(), a.clone()));
     let a = Expr::Atom(None, Bits(vec![], None));
-    assert_eq!(format!("{}", a), "~:bits");
+    assert_eq!(format!("{}", a), "#~:bits");
     assert_eq!(parse(&format!("{}", a)).unwrap().1, a.clone());
     assert_eq!(a.serialize(), vec![0, 1, 0]);
     assert_eq!(
@@ -657,7 +638,7 @@ mod tests {
       (b"".as_ref(), a.clone())
     );
     let a = Expr::Atom(None, Bits(vec![0], None));
-    assert_eq!(format!("{}", a), "~A:bits");
+    assert_eq!(format!("{}", a), "#~A:bits");
     assert_eq!(parse(&format!("{}", a)).unwrap().1, a.clone());
     assert_eq!(a.serialize(), vec![0, 1, 8, 0]);
     assert_eq!(
@@ -665,7 +646,7 @@ mod tests {
       (b"".as_ref(), a.clone())
     );
     let a1 = Expr::Atom(None, Bits(vec![0], Some(1)));
-    assert_eq!(format!("{}", a1), "~A:bits1");
+    assert_eq!(format!("{}", a1), "#~A:bits1");
     assert_eq!(parse(&format!("{}", a1)).unwrap().1, a1.clone());
     assert_eq!(a1.serialize(), vec![64, 1, 1, 0]);
     assert_eq!(
@@ -673,7 +654,7 @@ mod tests {
       (b"".as_ref(), a1.clone())
     );
     let b = Expr::Atom(None, Bits(vec![42, 42, 42], None));
-    assert_eq!(format!("{}", b), "~Kioq:bits");
+    assert_eq!(format!("{}", b), "#~Kioq:bits");
     assert_eq!(b.serialize(), vec![0, 1, 24, 42, 42, 42]);
     assert_eq!(parse(&format!("{}", b)).unwrap().1, b.clone());
     assert_eq!(
@@ -698,18 +679,33 @@ mod tests {
     );
 
     let c = Expr::Cons(None, vec![a.clone(), a.clone(), a.clone()]);
-    assert_eq!(format!("{}", c), "(~A:bits ~A:bits ~A:bits)");
+    assert_eq!(format!("{}", c), "(#~A:bits #~A:bits #~A:bits)");
     assert_eq!(c.serialize(), vec![128, 3, 0, 1, 8, 0, 0, 1, 8, 0, 0, 1, 8, 0]);
     assert_eq!(
       Expr::deserialize(&vec![128, 3, 0, 1, 8, 0, 0, 1, 8, 0, 0, 1, 8, 0])
         .unwrap(),
       (b"".as_ref(), c.clone())
     );
-    // assert!(format!(, x);
+    assert_eq!(
+      "-0d23",
+      format!("{}", Expr::Atom(None, Atom::Int(BigInt::from(-23), None)))
+    );
+    assert_eq!(
+      "+0d23",
+      format!("{}", Expr::Atom(None, Atom::Int(BigInt::from(23), None)))
+    );
+    assert_eq!(
+      "-0d23:int32",
+      format!("{}", Expr::Atom(None, Atom::Int(BigInt::from(-23), Some(32))))
+    );
+    assert_eq!(
+      "+0d23:int32",
+      format!("{}", Expr::Atom(None, Atom::Int(BigInt::from(23), Some(32))))
+    );
   }
 
   #[quickcheck]
-  fn prop_deserial_serial_identity(x: Expr) -> bool {
+  fn expr_deserial_serial(x: Expr) -> bool {
     println!("expr {}", x);
     match Expr::deserialize(&Expr::serialize(&x)) {
       Ok((_, y)) => x == y,
@@ -718,14 +714,14 @@ mod tests {
   }
 
   #[quickcheck]
-  fn prop_print_parse_desugared_string(x: Expr) -> bool {
+  fn expr_print_parse_desugared_string(x: Expr) -> bool {
     match parse(&x.to_desugared_string()) {
       Ok((_, y)) => x == y,
       _ => false,
     }
   }
   #[quickcheck]
-  fn prop_print_parse_expr(x: Expr) -> bool {
+  fn expr_print_parse(x: Expr) -> bool {
     match parse(&format!("{}", x)) {
       Ok((i, y)) => {
         if x == y {

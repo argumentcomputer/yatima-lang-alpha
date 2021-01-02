@@ -10,4 +10,8 @@ extern crate rand;
 extern crate hashexpr;
 
 pub mod dag;
+pub mod decode_error;
+pub mod defs;
+pub mod imports;
+pub mod package;
 pub mod term;

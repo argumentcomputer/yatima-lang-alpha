@@ -6,20 +6,9 @@ extern crate rocket;
 #[macro_use]
 extern crate log;
 
-extern crate directories_next;
+use hashexpr::Expr;
 
-use directories_next::ProjectDirs;
-use hashexpr::{
-  base,
-  Expr,
-};
 use rocket::Data;
-use std::{
-  fs,
-  fs::File,
-  io::prelude::*,
-  path::Path,
-};
 
 #[get("/")]
 fn index() -> &'static str {
@@ -39,30 +28,23 @@ fn index() -> &'static str {
 }
 
 #[get("/store/<hash>")]
-fn get(hash: String) -> Option<File> {
-  info!("Your hash {}", hash);
-  let proj_dirs =
-    ProjectDirs::from("io", "yatima", "hashspace").expect("needs directory");
-  let path = proj_dirs.cache_dir().join(Path::new(&hash));
-  File::open(&path).ok()
+fn get(hash: String) -> Option<Vec<u8>> {
+  let (_, link) = hashexpr::link::Link::parse(&hash).ok()?;
+  info!("Your link {}", link);
+  let expr = hashspace::get(link)?;
+  Some(expr.serialize())
 }
 
 #[put("/store", data = "<data>")]
 fn put(data: Data) -> Result<String, std::io::Error> {
-  let proj_dirs =
-    ProjectDirs::from("io", "yatima", "hashspace").expect("needs directory");
-  fs::create_dir_all(proj_dirs.cache_dir()).ok();
+  let stream: &[u8] = data.peek();
 
-  let mut stream = data.peek();
+  let expr = match Expr::deserialize(stream) {
+    Ok((_, x)) => x,
+    _ => Expr::from_bits(stream.clone().as_ref()),
+  };
+  let hash = expr.link().to_string();
 
-  // let hash = blake3::hash();
-  let mut hasher = blake3::Hasher::new();
-  hasher.update(stream);
-  let hash = base::encode(base::Base::_58, hasher.finalize().as_bytes());
-
-  let xp = Expr::from_bits(stream.clone().as_ref());
-
-  let path = proj_dirs.cache_dir().join(Path::new(&hash));
   let url = format!(
     "{host}/store/{hash}\n",
     host = "http://localhost:8000",
@@ -70,8 +52,7 @@ fn put(data: Data) -> Result<String, std::io::Error> {
   );
 
   // Write the paste out to the file and return the URL
-  let mut file = File::create(path)?;
-  file.write_all(&mut stream)?;
+  hashspace::put(expr);
   Ok(format!("Your hash {} at {}", hash, url))
 }
 
