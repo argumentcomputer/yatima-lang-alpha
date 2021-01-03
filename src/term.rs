@@ -7,12 +7,12 @@ use crate::decode_error::{
   DecodeError,
   Expected,
 };
-use literal::{
+pub use literal::{
   LitType,
   Literal,
 };
-use primop::PrimOp;
-use uses::Uses;
+pub use primop::PrimOp;
+pub use uses::Uses;
 
 use hashexpr::{
   atom::Atom::*,

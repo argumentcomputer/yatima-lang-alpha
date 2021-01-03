@@ -1,5 +1,6 @@
 use hashexpr::{
   atom::Atom::*,
+  link::Link,
   Expr,
   Expr::*,
 };
@@ -22,6 +23,7 @@ pub struct Package {
   imports: Imports,
   defs: Defs,
 }
+
 impl Package {
   pub fn encode(self) -> Expr {
     let mut defs: Vec<Expr> = Vec::new();

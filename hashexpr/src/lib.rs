@@ -51,7 +51,7 @@ pub mod position;
 pub mod span;
 pub mod string;
 
-use atom::{
+pub use atom::{
   Atom,
   Atom::*,
 };
@@ -60,7 +60,7 @@ use error::{
   DeserialError,
   ParseError,
 };
-use link::Link;
+pub use link::Link;
 use string::parse_string;
 
 use position::Pos;

@@ -52,8 +52,11 @@ macro_rules! link {
 
 #[macro_export]
 macro_rules! bits {
+  ($n:expr) => {
+    Bits($n, None)
+  };
   ($n:expr, $i:literal) => {
-    Bits($n, $i)
+    Bits($n, Some($i))
   };
 }
 #[macro_export]

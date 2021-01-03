@@ -26,6 +26,10 @@ pub enum Expected {
   Imports,
   Package,
   PackageContents,
+  AnonTermCons,
+  AnonTermAtom,
+  AnonTermVariU64,
+  NameMeta,
 }
 
 #[derive(PartialEq, Clone, Debug)]

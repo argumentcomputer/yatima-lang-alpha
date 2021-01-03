@@ -40,6 +40,11 @@ pub struct Defs {
   pub defs: Vec<Def>,
 }
 
+/// A map of names to pairs of links. The first link is to the dag::Def
+/// (expression definition with metadata), the
+/// second is to the dag::Anon (anonymous computational term).
+pub type Refs = HashMap<String, (Link, Link)>;
+
 impl Def {
   pub fn new(
     pos: Option<Pos>,
