@@ -42,6 +42,8 @@ pub enum Term {
   Opr(Option<Pos>, PrimOp),
 }
 
+pub type Refs = HashMap<String, (Link, Link)>;
+
 impl PartialEq for Term {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
@@ -122,7 +124,7 @@ impl Term {
   }
 
   pub fn decode(
-    refs: HashMap<String, (Link, Link)>,
+    refs: Refs,
     ctx: Vector<String>,
     expr: Expr,
   ) -> Result<Self, DecodeError> {
@@ -144,10 +146,10 @@ impl Term {
         };
         let decode_ref = |val| match val {
           Symbol(n) => {
-            let (meta_link, ast_link) = refs
+            let (def_link, ast_link) = refs
               .get(&n)
               .ok_or(DecodeError::new(pos, vec![Expected::DefinedRef]))?;
-            Ok(Self::Ref(pos, n.to_owned(), *meta_link, *ast_link))
+            Ok(Self::Ref(pos, n.to_owned(), *def_link, *ast_link))
           }
           _ => Err(DecodeError::new(pos, vec![Expected::DefinedRef])),
         };
@@ -293,6 +295,14 @@ impl Term {
             _ => Err(DecodeError::new(pos, vec![Expected::Annotation])),
           }
         }
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("exception") => {
+          match tail {
+            [Atom(_, Text(err, _))] => {
+              Ok(Self::Lit(pos, Literal::Exception(err.clone())))
+            }
+            _ => Err(DecodeError::new(pos, vec![Expected::ExceptionLiteral])),
+          }
+        }
         [fun, arg] => {
           let fun =
             Term::decode(refs.to_owned(), ctx.to_owned(), fun.to_owned())?;
@@ -321,6 +331,45 @@ pub mod tests {
     prelude::IteratorRandom,
     Rng,
   };
+  use std::collections::HashMap;
+
+  pub fn arbitrary_link<G: Gen>(g: &mut G) -> hashexpr::Link {
+    let bytes: [u8; 32] = [
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+      Arbitrary::arbitrary(g),
+    ];
+    hashexpr::Link::from(bytes)
+  }
 
   pub fn arbitrary_name<G: Gen>(g: &mut G) -> String {
     let mut s: String = Arbitrary::arbitrary(g);
@@ -334,41 +383,41 @@ pub mod tests {
     format!("_{}", s)
   }
 
-  fn arbitrary_lam<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
+  fn arbitrary_lam<G: Gen>(g: &mut G, refs: Refs, ctx: Vector<String>) -> Term {
     let n = arbitrary_name(g);
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
-    Lam(None, n, Box::new(arbitrary_term(g, ctx2)))
+    Lam(None, n, Box::new(arbitrary_term(g, refs, ctx2)))
   }
 
-  fn arbitrary_slf<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
+  fn arbitrary_slf<G: Gen>(g: &mut G, refs: Refs, ctx: Vector<String>) -> Term {
     let n = arbitrary_name(g);
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
-    Slf(None, n, Box::new(arbitrary_term(g, ctx2)))
+    Slf(None, n, Box::new(arbitrary_term(g, refs, ctx2)))
   }
-  fn arbitrary_let<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
+  fn arbitrary_let<G: Gen>(g: &mut G, refs: Refs, ctx: Vector<String>) -> Term {
     let rec: bool = Arbitrary::arbitrary(g);
     let n = arbitrary_name(g);
     let u: Uses = Arbitrary::arbitrary(g);
-    let typ = Box::new(arbitrary_term(g, ctx.clone()));
+    let typ = Box::new(arbitrary_term(g, refs.clone(), ctx.clone()));
     if rec {
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      let exp = Box::new(arbitrary_term(g, ctx2.clone()));
-      let bod = Box::new(arbitrary_term(g, ctx2.clone()));
+      let exp = Box::new(arbitrary_term(g, refs.clone(), ctx2.clone()));
+      let bod = Box::new(arbitrary_term(g, refs, ctx2));
       Let(None, rec, u, n, typ, exp, bod)
     }
     else {
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      let exp = Box::new(arbitrary_term(g, ctx.clone()));
-      let bod = Box::new(arbitrary_term(g, ctx2.clone()));
+      let exp = Box::new(arbitrary_term(g, refs.clone(), ctx.clone()));
+      let bod = Box::new(arbitrary_term(g, refs, ctx2));
       Let(None, rec, u, n, typ, exp, bod)
     }
   }
 
-  fn arbitrary_all<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
+  fn arbitrary_all<G: Gen>(g: &mut G, refs: Refs, ctx: Vector<String>) -> Term {
     let n = arbitrary_name(g);
     let u: Uses = Arbitrary::arbitrary(g);
     let mut ctx2 = ctx.clone();
@@ -377,54 +426,90 @@ pub mod tests {
       None,
       u,
       n,
-      Box::new(arbitrary_term(g, ctx)),
-      Box::new(arbitrary_term(g, ctx2)),
+      Box::new(arbitrary_term(g, refs.clone(), ctx)),
+      Box::new(arbitrary_term(g, refs, ctx2)),
     )
   }
 
   fn arbitrary_var<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
-    let n = ctx.iter().choose(g).unwrap();
-    let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
-    Var(None, n.clone(), i as u64)
+    match ctx.iter().choose(g) {
+      Some(n) => {
+        let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
+        Var(None, n.clone(), i as u64)
+      }
+      None => Term::Typ(None),
+    }
   }
 
-  pub fn arbitrary_term<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
+  pub fn test_refs() -> Refs {
+    let inp = "((def id \"\" (forall ω A Type A) (lambda x x)) (def id2 \"\" \
+               (forall ω A Type A) (lambda x x)))";
+    let (_, refs) = crate::defs::Defs::decode(
+      HashMap::new(),
+      hashexpr::parse(inp).unwrap().1,
+    )
+    .unwrap();
+    refs
+  }
+
+  fn arbitrary_ref<G: Gen>(g: &mut G, refs: Refs, ctx: Vector<String>) -> Term {
+    match refs.iter().filter(|(n, _)| !ctx.contains(n)).choose(g) {
+      Some((n, (d, a))) => Ref(None, n.clone(), *d, *a),
+      None => Term::Typ(None),
+    }
+  }
+
+  pub fn arbitrary_term<G: Gen>(
+    g: &mut G,
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Term {
     let len = ctx.len();
     if len == 0 {
-      arbitrary_lam(g, ctx)
+      arbitrary_lam(g, refs, ctx)
     }
     else {
-      let x: u32 = g.gen_range(0, 25);
+      let x: u32 = g.gen_range(0, 27);
       match x {
-        0 => arbitrary_all(g, ctx.clone()),
-        1 => arbitrary_let(g, ctx.clone()),
-        2 | 3 => arbitrary_lam(g, ctx.clone()),
-        4 | 5 => arbitrary_slf(g, ctx.clone()),
+        0 => arbitrary_all(g, refs, ctx.clone()),
+        1 => arbitrary_let(g, refs, ctx.clone()),
+        2 | 3 => arbitrary_lam(g, refs, ctx.clone()),
+        4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
         6 | 7 => Term::App(
           None,
-          Box::new(arbitrary_term(g, ctx.clone())),
-          Box::new(arbitrary_term(g, ctx.clone())),
+          Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
+          Box::new(arbitrary_term(g, refs, ctx.clone())),
         ),
         8 | 9 => Term::Ann(
           None,
-          Box::new(arbitrary_term(g, ctx.clone())),
-          Box::new(arbitrary_term(g, ctx.clone())),
+          Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
+          Box::new(arbitrary_term(g, refs, ctx.clone())),
         ),
-        10 | 11 => Term::Dat(None, Box::new(arbitrary_term(g, ctx.clone()))),
-        12 | 13 => Term::Cse(None, Box::new(arbitrary_term(g, ctx.clone()))),
-        14 | 15 | 16 => Term::Typ(None),
-        _ => arbitrary_var(g, ctx),
+        10 | 11 => {
+          Term::Dat(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
+        }
+        12 | 13 => {
+          Term::Cse(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
+        }
+        14 | 15 => Term::Typ(None),
+        16 | 17 => arbitrary_var(g, ctx),
+        18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
+        20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
+        // 22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
+        _ => arbitrary_ref(g, refs, ctx),
       }
     }
   }
 
   impl Arbitrary for Term {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self { arbitrary_term(g, Vector::new()) }
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+      arbitrary_term(g, test_refs(), Vector::new())
+    }
   }
 
   #[quickcheck]
   fn term_encode_decode(x: Term) -> bool {
-    match Term::decode(HashMap::new(), Vector::new(), x.clone().encode()) {
+    match Term::decode(test_refs(), Vector::new(), x.clone().encode()) {
       Ok(y) => x == y,
       _ => false,
     }
@@ -467,6 +552,9 @@ pub mod tests {
         Vector::new(),
         hashexpr::parse("((lambda x x) (lambda x x))").unwrap().1
       )
-    )
+    );
+    // let (id_def, id_ast) = test_refs().get("id").unwrap();
+    // let x = Term::Ref(None, String::from("id"), id_def, id_ast);
+    // assert_eq!(f.clone(), x);
   }
 }

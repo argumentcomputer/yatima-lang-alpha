@@ -103,3 +103,91 @@ impl LitType {
     }
   }
 }
+
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+  };
+  use rand::{
+    prelude::IteratorRandom,
+    Rng,
+  };
+
+  use crate::term::tests::arbitrary_link;
+
+  pub fn arbitrary_bits<G: Gen>(g: &mut G) -> Literal {
+    let x: Vec<u8> = Arbitrary::arbitrary(g);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l = if b { Some((x.len() as u64) * 8) } else { None };
+    Literal::Bits(l, x)
+  }
+
+  pub fn arbitrary_text<G: Gen>(g: &mut G) -> Literal {
+    let x: String = Arbitrary::arbitrary(g);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l = if b { Some((x.len() as u64) * 8) } else { None };
+    Literal::Text(l, x)
+  }
+  pub fn arbitrary_nat<G: Gen>(g: &mut G) -> Literal {
+    let v: Vec<u8> = Arbitrary::arbitrary(g);
+    let x: BigUint = BigUint::from_bytes_be(&v);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l = if b { Some(x.to_bytes_be().len() as u64 * 8) } else { None };
+    Literal::Natural(l, x)
+  }
+  pub fn arbitrary_int<G: Gen>(g: &mut G) -> Literal {
+    let v: Vec<u8> = Arbitrary::arbitrary(g);
+    let x: BigInt = BigInt::from_signed_bytes_be(&v);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l =
+      if b { Some(x.to_signed_bytes_be().len() as u64 * 8) } else { None };
+    Literal::Integer(l, x)
+  }
+
+  impl Arbitrary for Literal {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+      let gen = g.gen_range(0, 7);
+      match gen {
+        0 => arbitrary_nat(g),
+        1 => arbitrary_int(g),
+        2 => arbitrary_bits(g),
+        3 => arbitrary_text(g),
+        4 => Self::Char(Arbitrary::arbitrary(g)),
+        5 => Self::Link(arbitrary_link(g)),
+        _ => Self::Exception(String::from("test_exception")),
+      }
+    }
+  }
+  #[quickcheck]
+  fn literal_encode_decode(x: Literal) -> bool {
+    match Literal::decode(x.clone().encode()) {
+      Ok(y) => x == y,
+      _ => false,
+    }
+  }
+
+  impl Arbitrary for LitType {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+      let gen = g.gen_range(0, 7);
+      match gen {
+        0 => Self::Natural,
+        1 => Self::Integer,
+        2 => Self::Bits,
+        3 => Self::Text,
+        4 => Self::Char,
+        5 => Self::Link,
+        _ => Self::Exception,
+      }
+    }
+  }
+  #[quickcheck]
+  fn lit_type_encode_decode(x: LitType) -> bool {
+    match LitType::decode(x.clone().encode()) {
+      Ok(y) => x == y,
+      _ => false,
+    }
+  }
+}

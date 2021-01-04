@@ -547,49 +547,52 @@ pub mod tests {
   };
   use rand::Rng;
 
-  pub fn gen_symbol<G: Gen>(g: &mut G) -> String {
+  pub fn arbitrary_symbol<G: Gen>(g: &mut G) -> Atom {
     let s: String = Arbitrary::arbitrary(g);
-    let s: String = format!("_{}", s);
-    s.chars().filter(|x| is_valid_symbol_char(*x)).collect()
+    let s = format!("_{}", s);
+    let s = s.chars().filter(|x| is_valid_symbol_char(*x)).collect();
+    Symbol(s)
+  }
+
+  pub fn arbitrary_bits<G: Gen>(g: &mut G) -> Atom {
+    let x: Vec<u8> = Arbitrary::arbitrary(g);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l = if b { Some((x.len() as u64) * 8) } else { None };
+    Bits(x, l)
+  }
+
+  pub fn arbitrary_text<G: Gen>(g: &mut G) -> Atom {
+    let x: String = Arbitrary::arbitrary(g);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l = if b { Some((x.len() as u64) * 8) } else { None };
+    Text(x, l)
+  }
+  pub fn arbitrary_nat<G: Gen>(g: &mut G) -> Atom {
+    let v: Vec<u8> = Arbitrary::arbitrary(g);
+    let x: BigUint = BigUint::from_bytes_be(&v);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l = if b { Some(x.to_bytes_be().len() as u64 * 8) } else { None };
+    Nat(x, l)
+  }
+  pub fn arbitrary_int<G: Gen>(g: &mut G) -> Atom {
+    let v: Vec<u8> = Arbitrary::arbitrary(g);
+    let x: BigInt = BigInt::from_signed_bytes_be(&v);
+    let b: bool = Arbitrary::arbitrary(g);
+    let l =
+      if b { Some(x.to_signed_bytes_be().len() as u64 * 8) } else { None };
+    Int(x, l)
   }
 
   impl Arbitrary for Atom {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
       let gen = g.gen_range(0, 7);
       match gen {
-        0 => {
-          let x: Vec<u8> = Arbitrary::arbitrary(g);
-          let b: bool = Arbitrary::arbitrary(g);
-          let l = if b { Some((x.len() as u64) * 8) } else { None };
-          Bits(x, l)
-        }
-        1 => Symbol(gen_symbol(g)),
-        2 => {
-          let x: String = Arbitrary::arbitrary(g);
-          let b: bool = Arbitrary::arbitrary(g);
-          let l = if b { Some((x.len() as u64) * 8) } else { None };
-          Text(x, l)
-        }
+        0 => arbitrary_bits(g),
+        1 => arbitrary_symbol(g),
+        2 => arbitrary_text(g),
         3 => Char(Arbitrary::arbitrary(g)),
-        4 => {
-          let v: Vec<u8> = Arbitrary::arbitrary(g);
-          let x: BigUint = BigUint::from_bytes_be(&v);
-          let b: bool = Arbitrary::arbitrary(g);
-          let l = if b { Some(x.to_bytes_be().len() as u64 * 8) } else { None };
-          Nat(x, l)
-        }
-        5 => {
-          let v: Vec<u8> = Arbitrary::arbitrary(g);
-          let x: BigInt = BigInt::from_signed_bytes_be(&v);
-          let b: bool = Arbitrary::arbitrary(g);
-          let l = if b {
-            Some(x.to_signed_bytes_be().len() as u64 * 8)
-          }
-          else {
-            None
-          };
-          Int(x, l)
-        }
+        4 => arbitrary_nat(g),
+        5 => arbitrary_int(g),
         _ => Link(Arbitrary::arbitrary(g)),
       }
     }

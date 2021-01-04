@@ -5,6 +5,7 @@ pub enum Expected {
   Uses,
   PrimOp,
   Literal,
+  ExceptionLiteral,
   LitType,
   BoundVar,
   DefinedRef,

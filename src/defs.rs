@@ -10,6 +10,7 @@ use im::Vector;
 use std::collections::HashMap;
 
 use crate::{
+  dag::term_to_dag,
   decode_error::{
     DecodeError,
     Expected,
@@ -110,7 +111,7 @@ impl Defs {
   pub fn decode(
     mut refs: HashMap<String, (Link, Link)>,
     expr: Expr,
-  ) -> Result<Defs, DecodeError> {
+  ) -> Result<(Defs, HashMap<String, (Link, Link)>), DecodeError> {
     match expr {
       Cons(pos, xs) => {
         let mut defs = Vec::new();
@@ -122,11 +123,11 @@ impl Defs {
             ]));
           }
           let def_link = def.clone().encode().link();
-          let trm_link = def.term.clone().encode().link();
-          refs.insert(def.name.clone(), (def_link, trm_link));
+          let ast_link = term_to_dag(def.term.clone()).0.encode().link();
+          refs.insert(def.name.clone(), (def_link, ast_link));
           defs.push(def);
         }
-        Ok(Defs { defs })
+        Ok((Defs { defs }, refs))
       }
       _ => {
         Err(DecodeError::new(expr.position(), vec![Expected::DefinitionList]))
@@ -148,38 +149,43 @@ mod tests {
   use crate::term::tests::{
     arbitrary_name,
     arbitrary_term,
+    test_refs,
   };
 
-  fn arbitrary_def<G: Gen>(g: &mut G, name: String) -> Def {
+  fn arbitrary_def<G: Gen>(g: &mut G, refs: Refs, name: String) -> Def {
     let mut ctx = Vector::new();
     ctx.push_front(name.clone());
     Def {
       pos: None,
       name,
       doc: String::from(""),
-      typ_: arbitrary_term(g, Vector::new()),
-      term: arbitrary_term(g, ctx),
+      typ_: arbitrary_term(g, refs.clone(), Vector::new()),
+      term: arbitrary_term(g, refs, ctx),
     }
   }
 
   impl Arbitrary for Def {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
       let name = arbitrary_name(g);
-      arbitrary_def(g, name)
+      arbitrary_def(g, HashMap::new(), name)
     }
   }
   impl Arbitrary for Defs {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let n = g.gen_range(0, 10);
+      let n = g.gen_range(0, 3);
       let mut defs: Vec<Def> = Vec::new();
-      let mut nams: HashSet<String> = HashSet::new();
+      let mut refs: Refs = HashMap::new();
       for _ in 0..n {
         let mut nam: String = arbitrary_name(g);
-        while nams.contains(&nam) {
+        while refs.clone().contains_key(&nam) {
           nam = arbitrary_name(g);
         }
-        nams.insert(nam.clone());
-        defs.push(arbitrary_def(g, nam))
+        let def = arbitrary_def(g, refs.clone(), nam.clone());
+        let def_link = def.clone().encode().link();
+        let ast_link =
+          crate::dag::term_to_dag(def.term.clone()).0.encode().link();
+        refs.insert(nam.clone(), (def_link, ast_link));
+        defs.push(def)
       }
       Defs { defs }
     }
@@ -196,7 +202,7 @@ mod tests {
   #[quickcheck]
   fn defs_encode_decode(x: Defs) -> bool {
     match Defs::decode(HashMap::new(), x.clone().encode()) {
-      Ok(y) => x == y,
+      Ok((y, _)) => x == y,
       _ => false,
     }
   }
@@ -248,7 +254,7 @@ mod tests {
 
     assert_eq!(
       defs,
-      Defs::decode(HashMap::new(), hashexpr::parse(inp).unwrap().1).unwrap()
+      Defs::decode(HashMap::new(), hashexpr::parse(inp).unwrap().1).unwrap().0
     );
   }
 }

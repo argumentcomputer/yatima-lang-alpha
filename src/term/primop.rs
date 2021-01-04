@@ -80,7 +80,7 @@ impl PrimOp {
       Self::Pre => Atom(None, symb!("%pre")),
       Self::Add => Atom(None, symb!("%add")),
       Self::Sub => Atom(None, symb!("%sub")),
-      Self::Mul => Atom(None, symb!("%suc")),
+      Self::Mul => Atom(None, symb!("%mul")),
       Self::Div => Atom(None, symb!("%div")),
       Self::Mod => Atom(None, symb!("%mod")),
       Self::Shl => Atom(None, symb!("%shl")),
@@ -98,7 +98,7 @@ impl PrimOp {
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("%suc") => Ok(Self::Eql),
+      Atom(_, Symbol(n)) if *n == String::from("%eql") => Ok(Self::Eql),
       Atom(_, Symbol(n)) if *n == String::from("%lth") => Ok(Self::Lth),
       Atom(_, Symbol(n)) if *n == String::from("%lte") => Ok(Self::Lte),
       Atom(_, Symbol(n)) if *n == String::from("%gth") => Ok(Self::Gth),
@@ -125,6 +125,58 @@ impl PrimOp {
       Atom(_, Symbol(n)) if *n == String::from("%cat") => Ok(Self::Cat),
       Atom(_, Symbol(n)) if *n == String::from("%cst") => Ok(Self::Cst),
       x => Err(DecodeError::new(x.position(), vec![Expected::PrimOp])),
+    }
+  }
+}
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+  };
+  use rand::{
+    prelude::IteratorRandom,
+    Rng,
+  };
+  impl Arbitrary for PrimOp {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+      let gen = g.gen_range(0, 26);
+      match gen {
+        0 => Self::Eql,
+        1 => Self::Lth,
+        2 => Self::Lte,
+        3 => Self::Gth,
+        4 => Self::Gte,
+        5 => Self::Or,
+        6 => Self::And,
+        7 => Self::Xor,
+        8 => Self::Not,
+        9 => Self::Suc,
+        10 => Self::Pre,
+        11 => Self::Add,
+        12 => Self::Sub,
+        13 => Self::Mul,
+        14 => Self::Div,
+        15 => Self::Mod,
+        16 => Self::Shl,
+        17 => Self::Shr,
+        18 => Self::Rol,
+        19 => Self::Ror,
+        20 => Self::Clz,
+        21 => Self::Ctz,
+        22 => Self::Cnt,
+        23 => Self::Len,
+        24 => Self::Cat,
+        _ => Self::Cst,
+      }
+    }
+  }
+  #[quickcheck]
+  fn primop_type_encode_decode(x: PrimOp) -> bool {
+    match PrimOp::decode(x.clone().encode()) {
+      Ok(y) => x == y,
+      _ => false,
     }
   }
 }

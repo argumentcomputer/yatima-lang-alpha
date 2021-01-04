@@ -48,7 +48,7 @@ impl Package {
             [Atom(_, Symbol(nam)), Atom(_, Text(doc, _)), imports, defs] => {
               let imports = Imports::decode(imports.to_owned())?;
               let refs = HashMap::new();
-              let defs = Defs::decode(refs, defs.to_owned())?;
+              let (defs, _) = Defs::decode(refs, defs.to_owned())?;
               Ok(Package {
                 name: nam.to_owned(),
                 docs: doc.to_owned(),
@@ -91,7 +91,8 @@ pub mod tests {
         .unwrap()
         .1,
       )
-      .unwrap(),
+      .unwrap()
+      .0,
     }
   }
 

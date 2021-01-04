@@ -338,7 +338,6 @@ pub mod tests {
 
   #[quickcheck]
   fn term_separate_merge(x: Term) -> bool {
-    println!("x: {:?}", x);
     let (a, m, p) = term_to_dag(x.clone());
     match dag_to_term(Vector::new(), &a, &m, &p) {
       Ok(y) => {
@@ -346,16 +345,16 @@ pub mod tests {
           true
         }
         else {
-          println!("x: {:?}", x);
-          println!("y: {:?}", y);
+          //          println!("x: {:?}", x);
+          //          println!("y: {:?}", y);
           false
         }
       }
       e => {
-        println!("x: {:?}", x);
-        println!("a: {:?}", a);
-        println!("m: {:?}", m);
-        println!("e: {:?}", e);
+        //        println!("x: {:?}", x);
+        //        println!("a: {:?}", a);
+        //        println!("m: {:?}", m);
+        //        println!("e: {:?}", e);
         false
       }
     }

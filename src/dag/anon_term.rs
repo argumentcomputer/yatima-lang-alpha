@@ -86,45 +86,10 @@ pub mod tests {
   };
   use rand::Rng;
 
-  use crate::term::tests::arbitrary_name;
-
-  pub fn arbitrary_link<G: Gen>(g: &mut G) -> hashexpr::Link {
-    let bytes: [u8; 32] = [
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-    ];
-    hashexpr::Link::from(bytes)
-  }
+  use crate::term::tests::{
+    arbitrary_link,
+    arbitrary_name,
+  };
 
   pub fn arbitrary_anon_term<G: Gen>(g: &mut G, ctx: u64) -> AnonTerm {
     let x: u32 = g.gen_range(0, 6);
