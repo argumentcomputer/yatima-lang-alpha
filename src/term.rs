@@ -323,9 +323,15 @@ pub mod tests {
   };
 
   pub fn arbitrary_name<G: Gen>(g: &mut G) -> String {
-    let s: String = Arbitrary::arbitrary(g);
-    let s: String = format!("_{}", s);
-    s.chars().filter(|x| hashexpr::is_valid_symbol_char(*x)).collect()
+    let mut s: String = Arbitrary::arbitrary(g);
+    let mut s: String = s
+      .chars()
+      .filter(|x| {
+        hashexpr::is_valid_symbol_char(*x) && char::is_ascii_alphabetic(x)
+      })
+      .collect();
+    s.truncate(1);
+    format!("_{}", s)
   }
 
   fn arbitrary_lam<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
