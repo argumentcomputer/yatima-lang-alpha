@@ -142,13 +142,13 @@ pub fn set_parents(term: DAG, pref: Option<NonNull<Parents>>) {
 // Given a term and a parent node, add the node to term's parents.
 #[inline]
 pub fn add_to_parents(node: DAG, plink: NonNull<Parents>) {
-  let new_parent = unsafe {
-    (*plink.as_ptr()).elem
-  };
   let parents = get_parents(node);
-  parents.map_or((), |parents| unsafe {
-    (*parents.as_ptr()).add_before(new_parent)
-  });
+  match parents {
+    Some(parents) => unsafe {
+      (*parents.as_ptr()).merge(plink)
+    },
+    None => set_parents(node, Some(plink)),
+  }
 }
 
 // Resets the cache slots of the app nodes.
@@ -216,9 +216,13 @@ pub fn free_dead_node(node: DAG) {
   unsafe {
     match node {
       DAG::Lam(link) => {
-        let Lam {body, body_ref, ..} = &*link.as_ptr();
-        // maybe deallocate var as well?
-        match DLL::remove_node(*body_ref) {
+        let Lam {body, body_ref, var, ..} = &*link.as_ptr();
+        if (*var.as_ptr()).parents.is_none() {
+          free_dead_node(DAG::Var(*var))
+        }
+        let new_body_parents = DLL::remove_node(*body_ref);
+        set_parents(*body, new_body_parents);
+        match new_body_parents {
           None => free_dead_node(*body),
           _ => (),
         }
@@ -226,18 +230,22 @@ pub fn free_dead_node(node: DAG) {
       },
       DAG::App(link) => {
         let App {func, arg, func_ref, arg_ref, ..} = &*link.as_ptr();
-        match DLL::remove_node(*func_ref) {
+        let new_func_parents = DLL::remove_node(*func_ref);
+        set_parents(*func, new_func_parents);
+        match new_func_parents {
           None => free_dead_node(*func),
           _ => (),
         }
-        match DLL::remove_node(*arg_ref) {
+        let new_arg_parents = DLL::remove_node(*arg_ref);
+        set_parents(*arg, new_arg_parents);
+        match new_arg_parents {
           None => free_dead_node(*arg),
           _ => (),
         }
         dealloc(link.as_ptr() as *mut u8, Layout::new::<App>());
       },
       DAG::Var(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<App>());
+        dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
       }
     }
   }
@@ -391,24 +399,16 @@ pub fn upcopy(new_child: DAG, cc: ParentCell){
 }
 
 // Contract a redex, return the body.
-pub fn reduce(term: DAG) -> DAG {
+pub fn reduce(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
   unsafe {
-    let redex = match term {
-      DAG::App(link) => link,
-      _ => return term,
-    };
-    let App{func_ref, func, arg_ref, arg, parents, ..} = *redex.as_ptr();
-    let lam = match func {
-      DAG::Lam(lam) => lam,
-      _ => return term
-    };
-    let Lam{var, body, body_ref, parents: lampars, ..} = *lam.as_ptr();
-    let Var{parents: vpars, ..} = *var.as_ptr();
-    let ans = if DLL::is_singleton(lampars){
+    let App{arg, ..} = *redex.as_ptr();
+    let Lam{var, body, parents: lam_parents, ..} = *lam.as_ptr();
+    let Var{parents: var_parents, ..} = *var.as_ptr();
+    let ans = if DLL::is_singleton(lam_parents){
       replace_child(DAG::Var(var), arg);
       // We have to read `body` again because `lam`'s body could be mutated through `replace_child`
       (*lam.as_ptr()).body
-    } else if vpars.is_none() {
+    } else if var_parents.is_none() {
       body
     } else {
       let mut input = body;
@@ -428,7 +428,7 @@ pub fn reduce(term: DAG) -> DAG {
             let new_app = new_app(func, top_arg);
             (*app.as_ptr()).copy = Some(new_app);
             topapp = Some(app);
-            for parent in DLL::iter_option(vpars){
+            for parent in DLL::iter_option(var_parents){
               upcopy(arg, *parent);
             }
             result = DAG::App(new_app);
@@ -448,34 +448,47 @@ pub fn reduce(term: DAG) -> DAG {
   }
 }
 
-pub fn whnf(node: DAG) -> DAG {
-  match node {
-    DAG::App(link) => unsafe {
-      let app = &mut *link.as_ptr();
-      (*app).func = whnf((*app).func);
-      match (*app).func {
-        DAG::Lam(_) => whnf(reduce(node)),
-        _ => node,
-      }
-
-    },
-    _ => node,
+pub fn whnf(mut node: DAG) -> DAG {
+  let mut trail = vec![];
+  loop {
+    match node {
+      DAG::App(link) => unsafe {
+        trail.push(link);
+        node = (*link.as_ptr()).func;
+      },
+      DAG::Lam(lam_link) => {
+        if let Some(app_link) = trail.pop(){
+          node = reduce(app_link, lam_link);
+        }
+        else {
+          break
+        }
+      },
+      _ => break,
+    }
   }
+  if trail.is_empty() {
+    return node
+  }
+  DAG::App(trail[0])
 }
 
-pub fn norm(node: DAG) -> DAG {
-  let node = whnf(node);
-  match node {
-    DAG::App(link) => unsafe {
-      let app = &mut *link.as_ptr();
-      app.func = norm(app.func);
-      app.arg = norm(app.arg);
-    },
-    DAG::Lam(link) => unsafe {
-      let lam = &mut *link.as_ptr();
-      lam.body = norm(lam.body);
-    },
-    DAG::Var(link) => ()
+pub fn norm(mut top_node: DAG) -> DAG {
+  top_node = whnf(top_node);
+  let mut trail = vec![top_node];
+  while let Some(node) = trail.pop() {
+    match node {
+      DAG::App(link) => unsafe {
+        let app = &mut *link.as_ptr();
+        trail.push(whnf(app.func));
+        trail.push(whnf(app.arg));
+      },
+      DAG::Lam(link) => unsafe {
+        let lam = &mut *link.as_ptr();
+        trail.push(whnf(lam.body));
+      },
+      DAG::Var(link) => ()
+    }
   }
-  node
+  top_node
 }

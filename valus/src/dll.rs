@@ -62,9 +62,7 @@ impl<T> DLL<T>{
       prev: NonNull::new(self),
       elem: elem,
     })));
-    unsafe {
-      self.next.map_or((), |ptr| (*ptr.as_ptr()).prev = new_next);
-    }
+    self.next.map_or((), |ptr| unsafe { (*ptr.as_ptr()).prev = new_next });
     self.next = new_next;
   }
   
@@ -74,10 +72,17 @@ impl<T> DLL<T>{
       prev: self.prev,
       elem: elem,
     })));
-    unsafe {
-      self.prev.map_or((), |ptr| (*ptr.as_ptr()).next = new_prev);
-    }
+    self.prev.map_or((), |ptr| unsafe { (*ptr.as_ptr()).next = new_prev });
     self.prev = new_prev;
+  }
+
+  pub fn merge(&mut self, node: NonNull<Self>){
+    unsafe {
+      (*node.as_ptr()).prev = self.prev;
+      (*node.as_ptr()).next = NonNull::new(self);
+      self.prev.map_or((), |ptr| (*ptr.as_ptr()).next = Some(node));
+      self.prev = Some(node);
+    }
   }
   
   // Deallocates the given node and returns, if it exists, a neighboring node
