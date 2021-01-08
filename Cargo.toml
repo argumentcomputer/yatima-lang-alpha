@@ -21,6 +21,8 @@ num-bigint = "0.3.1"
 blake3 = "0.3.7"
 im  = "15.0.0"
 structopt = "0.3.21"
+rustyline = "7.1.0"
+directories-next = "2.0.0"
 
 [dev-dependencies]
 quickcheck = "^0.9.2"

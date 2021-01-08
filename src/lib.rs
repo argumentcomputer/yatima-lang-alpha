@@ -14,4 +14,5 @@ pub mod decode_error;
 pub mod defs;
 pub mod imports;
 pub mod package;
+pub mod repl;
 pub mod term;

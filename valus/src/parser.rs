@@ -1,13 +1,15 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
-use crate::dag::*;
-use crate::dll::*;
-use crate::term;
-use crate::term::Term;
+use crate::{
+  dag::*,
+  dll::*,
+  term,
+  term::Term,
+};
 use core::ptr::NonNull;
-use std::collections::HashMap;
 use nom::IResult;
+use std::collections::HashMap;
 
 // Consumes a term Tree and produces a DAG
 pub fn tree_to_dag(tree: Term) -> DAG {
@@ -94,6 +96,8 @@ pub fn tree_to_dag(tree: Term) -> DAG {
 
 pub fn parse(i: &str) -> IResult<&str, DAG, term::TermParseError<&str>> {
   let (i, tree) = term::parse(i)?;
+  let (i, _) = nom::character::complete::multispace0(i)?;
+  let (i, _) = nom::combinator::eof(i)?;
   let dag = tree_to_dag(tree);
   Ok((i, dag))
 }
