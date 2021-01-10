@@ -7,6 +7,7 @@ use hashexpr::{
   Expr,
   Expr::Atom,
 };
+use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum PrimOp {
@@ -128,6 +129,40 @@ impl PrimOp {
     }
   }
 }
+
+impl fmt::Display for PrimOp {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Eql => write!(f, "%eql"),
+      Self::Lth => write!(f, "%lth"),
+      Self::Lte => write!(f, "%lte"),
+      Self::Gth => write!(f, "%gth"),
+      Self::Gte => write!(f, "%gte"),
+      Self::Or => write!(f, "%or"),
+      Self::And => write!(f, "%and"),
+      Self::Xor => write!(f, "%xor"),
+      Self::Not => write!(f, "%not"),
+      Self::Suc => write!(f, "%suc"),
+      Self::Pre => write!(f, "%pre"),
+      Self::Add => write!(f, "%add"),
+      Self::Sub => write!(f, "%sub"),
+      Self::Mul => write!(f, "%mul"),
+      Self::Div => write!(f, "%div"),
+      Self::Mod => write!(f, "%mod"),
+      Self::Shl => write!(f, "%shl"),
+      Self::Shr => write!(f, "%shr"),
+      Self::Rol => write!(f, "%rol"),
+      Self::Ror => write!(f, "%ror"),
+      Self::Clz => write!(f, "%clz"),
+      Self::Ctz => write!(f, "%ctz"),
+      Self::Cnt => write!(f, "%cnt"),
+      Self::Len => write!(f, "%len"),
+      Self::Cat => write!(f, "%cat"),
+      Self::Cst => write!(f, "%cst"),
+    }
+  }
+}
+
 #[cfg(test)]
 pub mod tests {
   use super::*;

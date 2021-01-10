@@ -7,14 +7,17 @@ use hashexpr::{
 };
 
 use im::Vector;
-use std::collections::HashMap;
+use std::{
+  collections::HashMap,
+  fmt,
+};
 
 use crate::{
-  dag::term_to_dag,
   decode_error::{
     DecodeError,
     Expected,
   },
+  hashspace::embed::desaturate_term,
   term::Term,
 };
 
@@ -123,7 +126,7 @@ impl Defs {
             ]));
           }
           let def_link = def.clone().encode().link();
-          let ast_link = term_to_dag(def.term.clone()).0.encode().link();
+          let ast_link = desaturate_term(def.term.clone()).0.encode().link();
           refs.insert(def.name.clone(), (def_link, ast_link));
           defs.push(def);
         }
@@ -136,6 +139,31 @@ impl Defs {
   }
 }
 
+impl fmt::Display for Def {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.doc.is_empty() {
+      write!(f, "def {} : {} = {}", self.name, self.typ_, self.term)
+    }
+    else {
+      write!(
+        f,
+        "//{}\n def {} : {} = {}",
+        self.doc, self.name, self.typ_, self.term
+      )
+    }
+  }
+}
+
+impl fmt::Display for Defs {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "{}",
+      self.defs.iter().map(|x| format!("{}\n", x)).collect::<String>()
+    )
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -144,7 +172,6 @@ mod tests {
     Gen,
   };
   use rand::Rng;
-  use std::collections::HashSet;
 
   use crate::term::tests::{
     arbitrary_name,
@@ -183,7 +210,10 @@ mod tests {
         let def = arbitrary_def(g, refs.clone(), nam.clone());
         let def_link = def.clone().encode().link();
         let ast_link =
-          crate::dag::term_to_dag(def.term.clone()).0.encode().link();
+          crate::hashspace::embed::desaturate_term(def.term.clone())
+            .0
+            .encode()
+            .link();
         refs.insert(nam.clone(), (def_link, ast_link));
         defs.push(def)
       }

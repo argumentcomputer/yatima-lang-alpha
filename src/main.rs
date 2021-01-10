@@ -7,6 +7,7 @@ use std::{
 };
 
 use yatima::{
+  hashspace,
   package,
   repl,
 };

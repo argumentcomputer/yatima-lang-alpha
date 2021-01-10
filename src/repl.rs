@@ -8,10 +8,10 @@ use rustyline::{
   KeyEvent,
 };
 
-use valus::{
-  dag::norm,
-  parser::parse,
-};
+// use crate::valus::{
+//  dag::norm,
+//  parser::parse,
+//};
 
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
@@ -24,14 +24,14 @@ pub fn main() -> rustyline::Result<()> {
     let readline = rl.readline("⅄ ");
     match readline {
       Ok(line) => {
-        let res = parse(&line);
-        match res {
-          Ok((_, term)) => {
-            rl.add_history_entry(line.as_str());
-            println!("{}", norm(term));
-          }
-          Err(e) => println!("Error: {}", e),
-        }
+        //        let res = parse(&line);
+        //        match res {
+        //          Ok((_, term)) => {
+        //            rl.add_history_entry(line.as_str());
+        //            println!("{}", norm(term));
+        //          }
+        //          Err(e) => println!("Error: {}", e),
+        //        }
       }
       Err(ReadlineError::Interrupted) => {
         println!("CTRL-C");

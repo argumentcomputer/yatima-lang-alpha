@@ -1,11 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-
-#[macro_use]
-extern crate rocket;
-
-#[macro_use]
-extern crate log;
-
+use crate::hashspace;
 use hashexpr::Expr;
 
 use rocket::Data;

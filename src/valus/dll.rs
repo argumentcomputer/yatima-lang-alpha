@@ -1,6 +1,11 @@
-use core::ptr::NonNull;
-use core::marker::PhantomData;
-use std::alloc::{dealloc, Layout};
+use core::{
+  marker::PhantomData,
+  ptr::NonNull,
+};
+use std::alloc::{
+  dealloc,
+  Layout,
+};
 
 // A doubly-linked list (DLL) node
 pub struct DLL<T> {
@@ -15,18 +20,16 @@ pub struct Iter<'a, T> {
   marker: PhantomData<&'a mut DLL<T>>,
 }
 
-impl<'a, T> Iter<'a, T>{
+impl<'a, T> Iter<'a, T> {
   #[inline]
-  pub fn is_last(&self) -> bool {
-    self.next.is_none()
-  }
+  pub fn is_last(&self) -> bool { self.next.is_none() }
+
   #[inline]
-  pub fn this(&self) -> Option<NonNull<DLL<T>>> {
-    self.this
-  }
+  pub fn this(&self) -> Option<NonNull<DLL<T>>> { self.this }
 }
 impl<'a, T> Iterator for Iter<'a, T> {
   type Item = &'a mut T;
+
   #[inline]
   fn next(&mut self) -> Option<Self::Item> {
     self.this = self.next;
@@ -38,16 +41,10 @@ impl<'a, T> Iterator for Iter<'a, T> {
   }
 }
 
-impl<T> DLL<T>{
+impl<T> DLL<T> {
   #[inline]
-  pub fn singleton(elem: T) -> Self{
-    DLL {
-      next: None,
-      prev: None,
-      elem: elem,
-    }
-  }
-  
+  pub fn singleton(elem: T) -> Self { DLL { next: None, prev: None, elem } }
+
   #[inline]
   pub fn is_singleton(dll: Option<NonNull<Self>>) -> bool {
     dll.map_or(false, |dll| unsafe {
@@ -55,28 +52,28 @@ impl<T> DLL<T>{
       dll.prev.is_none() && dll.next.is_none()
     })
   }
-  
-  pub fn add_after(&mut self, elem: T){
+
+  pub fn add_after(&mut self, elem: T) {
     let new_next = NonNull::new(Box::into_raw(Box::new(DLL {
       next: self.next,
       prev: NonNull::new(self),
-      elem: elem,
+      elem,
     })));
     self.next.map_or((), |ptr| unsafe { (*ptr.as_ptr()).prev = new_next });
     self.next = new_next;
   }
-  
-  pub fn add_before(&mut self, elem: T){
+
+  pub fn add_before(&mut self, elem: T) {
     let new_prev = NonNull::new(Box::into_raw(Box::new(DLL {
       next: NonNull::new(self),
       prev: self.prev,
-      elem: elem,
+      elem,
     })));
     self.prev.map_or((), |ptr| unsafe { (*ptr.as_ptr()).next = new_prev });
     self.prev = new_prev;
   }
 
-  pub fn merge(&mut self, node: NonNull<Self>){
+  pub fn merge(&mut self, node: NonNull<Self>) {
     unsafe {
       (*node.as_ptr()).prev = self.prev;
       (*node.as_ptr()).next = NonNull::new(self);
@@ -84,47 +81,46 @@ impl<T> DLL<T>{
       self.prev = Some(node);
     }
   }
-  
+
   // Deallocates the given node and returns, if it exists, a neighboring node
-  pub fn remove_node(node: NonNull<Self>) -> Option<NonNull<Self>>{
+  pub fn remove_node(node: NonNull<Self>) -> Option<NonNull<Self>> {
     unsafe {
       let node = node.as_ptr();
       let next = (*node).next;
       let prev = (*node).prev;
-      next.map_or((), |next| {
-        (*next.as_ptr()).prev = prev
-      });
-      prev.map_or((), |prev| {
-        (*prev.as_ptr()).next = next
-      });
+      next.map_or((), |next| (*next.as_ptr()).prev = prev);
+      prev.map_or((), |prev| (*prev.as_ptr()).next = next);
       dealloc(node as *mut u8, Layout::new::<Self>());
       (prev).or(next)
     }
   }
-  
-  pub fn first(mut node: NonNull<Self>) -> NonNull<Self>{
+
+  pub fn first(mut node: NonNull<Self>) -> NonNull<Self> {
     loop {
       let prev = unsafe { (*node.as_ptr()).prev };
       match prev {
         None => break,
         Some(ptr) => node = ptr,
       }
-    };
+    }
     node
   }
 
-  pub fn last(mut node: NonNull<Self>) -> NonNull<Self>{
+  pub fn last(mut node: NonNull<Self>) -> NonNull<Self> {
     loop {
       let next = unsafe { (*node.as_ptr()).next };
       match next {
         None => break,
         Some(ptr) => node = ptr,
       }
-    };
+    }
     node
   }
 
-  pub fn concat(dll: NonNull<Self>, rest: Option<NonNull<Self>>) -> NonNull<Self>{
+  pub fn concat(
+    dll: NonNull<Self>,
+    rest: Option<NonNull<Self>>,
+  ) -> NonNull<Self> {
     let last = DLL::last(dll);
     let first = rest.map(|dll| DLL::first(dll));
     unsafe {
@@ -148,15 +144,11 @@ impl<T> DLL<T>{
   #[inline]
   pub fn iter(&mut self) -> Iter<'_, T> {
     let link: NonNull<Self> = NonNull::from(self);
-    Iter {
-      next: Some(DLL::first(link)),
-      this: None,
-      marker: PhantomData,
-    }
+    Iter { next: Some(DLL::first(link)), this: None, marker: PhantomData }
   }
 }
 
-impl<T: ToString> DLL<T>{
+impl<T: ToString> DLL<T> {
   pub fn to_string(&mut self) -> String {
     let mut iter = self.iter();
     let head = &iter.next().map_or(String::from(""), |head| head.to_string());
@@ -165,5 +157,53 @@ impl<T: ToString> DLL<T>{
       msg = msg + " <-> " + &val.to_string();
     }
     msg + " ]"
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use core::ptr::NonNull;
+
+  #[test]
+  pub fn dll() {
+    unsafe {
+      let dll = NonNull::new_unchecked(Box::leak(Box::new(DLL::singleton(3))));
+      // Populate list
+      let node = &mut *dll.as_ptr();
+      node.add_after(6);
+      node.add_after(5);
+      node.add_after(4);
+      node.add_before(0);
+      node.add_before(1);
+      node.add_before(2);
+      assert_eq!(node.to_string(), "[ 0 <-> 1 <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 ]");
+      // Remove elements
+      let dll = match DLL::remove_node(dll) {
+        Some(dll) => dll,
+        None => return (),
+      };
+      assert_eq!(
+        (*dll.as_ptr()).to_string(),
+        "[ 0 <-> 1 <-> 2 <-> 4 <-> 5 <-> 6 ]"
+      );
+      let dll = match DLL::remove_node(dll) {
+        Some(dll) => dll,
+        None => return (),
+      };
+      assert_eq!((*dll.as_ptr()).to_string(), "[ 0 <-> 1 <-> 4 <-> 5 <-> 6 ]");
+      let dll = match DLL::remove_node(dll) {
+        Some(dll) => dll,
+        None => return (),
+      };
+      let node = &mut *dll.as_ptr();
+      let mut iter = node.iter();
+      assert_eq!(iter.next(), Some(&mut 0));
+      assert_eq!(iter.next(), Some(&mut 4));
+      if let Some(dll) = iter.this() {
+        let node = &*dll.as_ptr();
+        assert_eq!(node.elem, 4);
+      }
+    }
   }
 }

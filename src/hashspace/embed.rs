@@ -1,13 +1,4 @@
-use hashexpr::{
-  position::Pos,
-  Link,
-};
 use im::Vector;
-use std::collections::HashMap;
-
-pub mod anon_term;
-pub mod name_meta;
-pub mod position_meta;
 
 use crate::term::{
   LitType,
@@ -18,11 +9,13 @@ use crate::term::{
   Uses,
 };
 
-use anon_term::AnonTerm;
-use name_meta::NameMeta;
-use position_meta::PosiMeta;
+use crate::hashspace::{
+  anon_term::AnonTerm,
+  name_meta::NameMeta,
+  posi_meta::PosiMeta,
+};
 
-pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
+pub fn desaturate_term(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
   match term {
     Var(pos, _, idx) => (
       AnonTerm::Ctor(String::from("var"), vec![AnonTerm::Vari(idx)]),
@@ -61,7 +54,7 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       PosiMeta::Ctor(pos, vec![]),
     ),
     Lam(pos, name, body) => {
-      let (anon, meta, posi) = term_to_dag(*body);
+      let (anon, meta, posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("lam"), vec![AnonTerm::Bind(Box::new(
           anon,
@@ -71,7 +64,7 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     Slf(pos, name, body) => {
-      let (anon, meta, posi) = term_to_dag(*body);
+      let (anon, meta, posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("slf"), vec![AnonTerm::Bind(Box::new(
           anon,
@@ -81,8 +74,8 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     App(pos, fun, arg) => {
-      let (fun_anon, fun_meta, fun_posi) = term_to_dag(*fun);
-      let (arg_anon, arg_meta, arg_posi) = term_to_dag(*arg);
+      let (fun_anon, fun_meta, fun_posi) = desaturate_term(*fun);
+      let (arg_anon, arg_meta, arg_posi) = desaturate_term(*arg);
       (
         AnonTerm::Ctor(String::from("app"), vec![fun_anon, arg_anon]),
         NameMeta::Ctor(vec![fun_meta, arg_meta]),
@@ -90,8 +83,8 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     Ann(pos, val, typ) => {
-      let (val_anon, val_meta, val_posi) = term_to_dag(*val);
-      let (typ_anon, typ_meta, typ_posi) = term_to_dag(*typ);
+      let (val_anon, val_meta, val_posi) = desaturate_term(*val);
+      let (typ_anon, typ_meta, typ_posi) = desaturate_term(*typ);
       (
         AnonTerm::Ctor(String::from("ann"), vec![val_anon, typ_anon]),
         NameMeta::Ctor(vec![val_meta, typ_meta]),
@@ -99,7 +92,7 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     Dat(pos, body) => {
-      let (anon, meta, posi) = term_to_dag(*body);
+      let (anon, meta, posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("dat"), vec![anon]),
         NameMeta::Ctor(vec![meta]),
@@ -107,7 +100,7 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     Cse(pos, body) => {
-      let (anon, meta, posi) = term_to_dag(*body);
+      let (anon, meta, posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("cse"), vec![anon]),
         NameMeta::Ctor(vec![meta]),
@@ -115,8 +108,8 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     All(pos, uses, name, typ_, body) => {
-      let (typ_anon, typ_meta, typ_posi) = term_to_dag(*typ_);
-      let (bod_anon, bod_meta, bod_posi) = term_to_dag(*body);
+      let (typ_anon, typ_meta, typ_posi) = desaturate_term(*typ_);
+      let (bod_anon, bod_meta, bod_posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("all"), vec![
           AnonTerm::Data(uses.encode().serialize()),
@@ -132,9 +125,9 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     Let(pos, true, uses, name, typ_, expr, body) => {
-      let (typ_anon, typ_meta, typ_posi) = term_to_dag(*typ_);
-      let (exp_anon, exp_meta, exp_posi) = term_to_dag(*expr);
-      let (bod_anon, bod_meta, bod_posi) = term_to_dag(*body);
+      let (typ_anon, typ_meta, typ_posi) = desaturate_term(*typ_);
+      let (exp_anon, exp_meta, exp_posi) = desaturate_term(*expr);
+      let (bod_anon, bod_meta, bod_posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("rec"), vec![
           AnonTerm::Data(uses.encode().serialize()),
@@ -152,9 +145,9 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
       )
     }
     Let(pos, false, uses, name, typ_, expr, body) => {
-      let (typ_anon, typ_meta, typ_posi) = term_to_dag(*typ_);
-      let (exp_anon, exp_meta, exp_posi) = term_to_dag(*expr);
-      let (bod_anon, bod_meta, bod_posi) = term_to_dag(*body);
+      let (typ_anon, typ_meta, typ_posi) = desaturate_term(*typ_);
+      let (exp_anon, exp_meta, exp_posi) = desaturate_term(*expr);
+      let (bod_anon, bod_meta, bod_posi) = desaturate_term(*body);
       (
         AnonTerm::Ctor(String::from("let"), vec![
           AnonTerm::Data(uses.encode().serialize()),
@@ -175,26 +168,26 @@ pub fn term_to_dag(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
 }
 
 #[derive(Clone, Debug)]
-pub enum DagError {
+pub enum ResaturationError {
   FreeVariable,
   DeserialError,
   UnexpectedCtor(AnonTerm, NameMeta, PosiMeta),
   BadLet,
 }
 
-pub fn dag_to_term(
+pub fn resaturate_term(
   ctx: Vector<String>,
   anon_term: &AnonTerm,
   name_meta: &NameMeta,
   position_meta: &PosiMeta,
-) -> Result<Term, DagError> {
+) -> Result<Term, ResaturationError> {
   match (anon_term, name_meta, position_meta) {
     (AnonTerm::Ctor(n, xs), NameMeta::Ctor(ys), PosiMeta::Ctor(pos, zs)) => {
       match (&n[..], xs.as_slice(), ys.as_slice(), zs.as_slice()) {
         ("var", [AnonTerm::Vari(idx)], [NameMeta::Leaf], [PosiMeta::Leaf]) => {
           match ctx.iter().enumerate().find(|(i, _)| (*i as u64) == *idx) {
             Some((_, n)) => Ok(Term::Var(*pos, n.to_owned(), *idx)),
-            None => Err(DagError::FreeVariable),
+            None => Err(ResaturationError::FreeVariable),
           }
         }
         (
@@ -205,53 +198,54 @@ pub fn dag_to_term(
         ) => Ok(Term::Ref(*pos, name.clone(), *def, *anon)),
         ("lit", [AnonTerm::Data(data)], [NameMeta::Leaf], [PosiMeta::Leaf]) => {
           let (_, lit) = hashexpr::Expr::deserialize(data)
-            .map_err(|_| DagError::DeserialError)?;
-          let lit =
-            Literal::decode(lit).map_err(|_| DagError::DeserialError)?;
+            .map_err(|_| ResaturationError::DeserialError)?;
+          let lit = Literal::decode(lit)
+            .map_err(|_| ResaturationError::DeserialError)?;
           Ok(Term::Lit(*pos, lit))
         }
         ("lty", [AnonTerm::Data(data)], [NameMeta::Leaf], [PosiMeta::Leaf]) => {
           let (_, lty) = hashexpr::Expr::deserialize(data)
-            .map_err(|_| DagError::DeserialError)?;
-          let lty =
-            LitType::decode(lty).map_err(|_| DagError::DeserialError)?;
+            .map_err(|_| ResaturationError::DeserialError)?;
+          let lty = LitType::decode(lty)
+            .map_err(|_| ResaturationError::DeserialError)?;
           Ok(Term::LTy(*pos, lty))
         }
         ("opr", [AnonTerm::Data(data)], [NameMeta::Leaf], [PosiMeta::Leaf]) => {
           let (_, opr) = hashexpr::Expr::deserialize(data)
-            .map_err(|_| DagError::DeserialError)?;
-          let opr = PrimOp::decode(opr).map_err(|_| DagError::DeserialError)?;
+            .map_err(|_| ResaturationError::DeserialError)?;
+          let opr = PrimOp::decode(opr)
+            .map_err(|_| ResaturationError::DeserialError)?;
           Ok(Term::Opr(*pos, opr))
         }
         ("typ", [], [], []) => Ok(Term::Typ(*pos)),
         ("dat", [anon], [meta], [posi]) => {
-          let body = dag_to_term(ctx, anon, meta, posi)?;
+          let body = resaturate_term(ctx, anon, meta, posi)?;
           Ok(Term::Dat(*pos, Box::new(body)))
         }
         ("cse", [anon], [meta], [posi]) => {
-          let body = dag_to_term(ctx, anon, meta, posi)?;
+          let body = resaturate_term(ctx, anon, meta, posi)?;
           Ok(Term::Cse(*pos, Box::new(body)))
         }
         ("lam", [AnonTerm::Bind(anon)], [NameMeta::Bind(n, meta)], [posi]) => {
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(n.clone());
-          let body = dag_to_term(new_ctx, anon, meta, posi)?;
+          let body = resaturate_term(new_ctx, anon, meta, posi)?;
           Ok(Term::Lam(*pos, n.clone(), Box::new(body)))
         }
         ("slf", [AnonTerm::Bind(anon)], [NameMeta::Bind(n, meta)], [posi]) => {
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(n.clone());
-          let body = dag_to_term(new_ctx, anon, meta, posi)?;
+          let body = resaturate_term(new_ctx, anon, meta, posi)?;
           Ok(Term::Slf(*pos, n.clone(), Box::new(body)))
         }
         ("app", [fanon, aanon], [fmeta, ameta], [fposi, aposi]) => {
-          let fun = dag_to_term(ctx.clone(), fanon, fmeta, fposi)?;
-          let arg = dag_to_term(ctx.clone(), aanon, ameta, aposi)?;
+          let fun = resaturate_term(ctx.clone(), fanon, fmeta, fposi)?;
+          let arg = resaturate_term(ctx.clone(), aanon, ameta, aposi)?;
           Ok(Term::App(*pos, Box::new(fun), Box::new(arg)))
         }
         ("ann", [xanon, tanon], [xmeta, tmeta], [xposi, tposi]) => {
-          let xpr = dag_to_term(ctx.clone(), xanon, xmeta, xposi)?;
-          let typ = dag_to_term(ctx.clone(), tanon, tmeta, tposi)?;
+          let xpr = resaturate_term(ctx.clone(), xanon, xmeta, xposi)?;
+          let typ = resaturate_term(ctx.clone(), tanon, tmeta, tposi)?;
           Ok(Term::Ann(*pos, Box::new(xpr), Box::new(typ)))
         }
         (
@@ -261,12 +255,13 @@ pub fn dag_to_term(
           [PosiMeta::Leaf, tposi, bposi],
         ) => {
           let (_, uses) = hashexpr::Expr::deserialize(uses)
-            .map_err(|_| DagError::DeserialError)?;
-          let uses = Uses::decode(uses).map_err(|_| DagError::DeserialError)?;
-          let typ_ = dag_to_term(ctx.clone(), tanon, tmeta, tposi)?;
+            .map_err(|_| ResaturationError::DeserialError)?;
+          let uses =
+            Uses::decode(uses).map_err(|_| ResaturationError::DeserialError)?;
+          let typ_ = resaturate_term(ctx.clone(), tanon, tmeta, tposi)?;
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(n.clone());
-          let body = dag_to_term(new_ctx, banon, bmeta, bposi)?;
+          let body = resaturate_term(new_ctx, banon, bmeta, bposi)?;
           Ok(Term::All(*pos, uses, n.clone(), Box::new(typ_), Box::new(body)))
         }
         (
@@ -275,15 +270,17 @@ pub fn dag_to_term(
           [NameMeta::Leaf, tmeta, NameMeta::Bind(n1, xmeta), NameMeta::Bind(n2, bmeta)],
           [PosiMeta::Leaf, tposi, xposi, bposi],
         ) => {
-          let name = if n1 == n2 { Ok(n1) } else { Err(DagError::BadLet) }?;
+          let name =
+            if n1 == n2 { Ok(n1) } else { Err(ResaturationError::BadLet) }?;
           let (_, uses) = hashexpr::Expr::deserialize(uses)
-            .map_err(|_| DagError::DeserialError)?;
-          let uses = Uses::decode(uses).map_err(|_| DagError::DeserialError)?;
-          let typ_ = dag_to_term(ctx.clone(), tanon, tmeta, tposi)?;
+            .map_err(|_| ResaturationError::DeserialError)?;
+          let uses =
+            Uses::decode(uses).map_err(|_| ResaturationError::DeserialError)?;
+          let typ_ = resaturate_term(ctx.clone(), tanon, tmeta, tposi)?;
           let mut new_ctx = ctx.clone();
           new_ctx.push_front(name.clone());
-          let exp = dag_to_term(new_ctx.clone(), xanon, xmeta, xposi)?;
-          let body = dag_to_term(new_ctx, banon, bmeta, bposi)?;
+          let exp = resaturate_term(new_ctx.clone(), xanon, xmeta, xposi)?;
+          let body = resaturate_term(new_ctx, banon, bmeta, bposi)?;
           Ok(Term::Let(
             *pos,
             true,
@@ -301,13 +298,14 @@ pub fn dag_to_term(
           [PosiMeta::Leaf, tposi, xposi, bposi],
         ) => {
           let (_, uses) = hashexpr::Expr::deserialize(uses)
-            .map_err(|_| DagError::DeserialError)?;
-          let uses = Uses::decode(uses).map_err(|_| DagError::DeserialError)?;
-          let typ_ = dag_to_term(ctx.clone(), tanon, tmeta, tposi)?;
-          let exp = dag_to_term(ctx.clone(), xanon, xmeta, xposi)?;
+            .map_err(|_| ResaturationError::DeserialError)?;
+          let uses =
+            Uses::decode(uses).map_err(|_| ResaturationError::DeserialError)?;
+          let typ_ = resaturate_term(ctx.clone(), tanon, tmeta, tposi)?;
+          let exp = resaturate_term(ctx.clone(), xanon, xmeta, xposi)?;
           let mut new_ctx = ctx;
           new_ctx.push_front(name.clone());
-          let body = dag_to_term(new_ctx, banon, bmeta, bposi)?;
+          let body = resaturate_term(new_ctx, banon, bmeta, bposi)?;
           Ok(Term::Let(
             *pos,
             false,
@@ -318,14 +316,14 @@ pub fn dag_to_term(
             Box::new(body),
           ))
         }
-        _ => Err(DagError::UnexpectedCtor(
+        _ => Err(ResaturationError::UnexpectedCtor(
           anon_term.clone(),
           name_meta.clone(),
           position_meta.clone(),
         )),
       }
     }
-    _ => Err(DagError::UnexpectedCtor(
+    _ => Err(ResaturationError::UnexpectedCtor(
       anon_term.clone(),
       name_meta.clone(),
       position_meta.clone(),
@@ -338,8 +336,8 @@ pub mod tests {
 
   #[quickcheck]
   fn term_separate_merge(x: Term) -> bool {
-    let (a, m, p) = term_to_dag(x.clone());
-    match dag_to_term(Vector::new(), &a, &m, &p) {
+    let (a, m, p) = desaturate_term(x.clone());
+    match resaturate_term(Vector::new(), &a, &m, &p) {
       Ok(y) => {
         if x == y {
           true
@@ -360,16 +358,3 @@ pub mod tests {
     }
   }
 }
-// pub struct Imports {
-//  imports: Vec<(Link, String)>,
-//}
-// pub struct Index {
-//  entries: HashMap<String, (Link, Link, Link)>,
-//}
-// pub struct Package {
-//  name: String,
-//  docs: String,
-//  source: Link,
-//  imports: Imports,
-//  index: Index,
-//}
