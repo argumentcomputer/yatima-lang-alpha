@@ -5,6 +5,7 @@ use crate::{
   valus::dll::*,
 };
 
+use hashexpr::span::Span;
 use nom::IResult;
 
 use core::ptr::NonNull;
@@ -591,7 +592,7 @@ impl DAG {
 
 pub fn parse(
   i: &str,
-) -> IResult<&str, DAG, crate::parse::error::ParseError<&str>> {
+) -> IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
   let (i, tree) = crate::parse::term::parse(i)?;
   let (i, _) = nom::character::complete::multispace0(i)?;
   let (i, _) = nom::combinator::eof(i)?;

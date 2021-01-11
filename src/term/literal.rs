@@ -116,25 +116,25 @@ impl Literal {
 impl LitType {
   pub fn encode(self) -> Expr {
     match self {
-      Self::Natural => Atom(None, symb!("Natural")),
-      Self::Integer => Atom(None, symb!("Integer")),
-      Self::Bits => Atom(None, symb!("Bits")),
-      Self::Text => Atom(None, symb!("Text")),
-      Self::Char => Atom(None, symb!("Char")),
-      Self::Link => Atom(None, symb!("Link")),
-      Self::Exception => Atom(None, symb!("Exception")),
+      Self::Natural => Atom(None, symb!("%Natural")),
+      Self::Integer => Atom(None, symb!("%Integer")),
+      Self::Bits => Atom(None, symb!("%Bits")),
+      Self::Text => Atom(None, symb!("%Text")),
+      Self::Char => Atom(None, symb!("%Char")),
+      Self::Link => Atom(None, symb!("%Link")),
+      Self::Exception => Atom(None, symb!("%Exception")),
     }
   }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("Natural") => Ok(Self::Natural),
-      Atom(_, Symbol(n)) if *n == String::from("Integer") => Ok(Self::Integer),
-      Atom(_, Symbol(n)) if *n == String::from("Bits") => Ok(Self::Bits),
-      Atom(_, Symbol(n)) if *n == String::from("Text") => Ok(Self::Text),
-      Atom(_, Symbol(n)) if *n == String::from("Char") => Ok(Self::Char),
-      Atom(_, Symbol(n)) if *n == String::from("Link") => Ok(Self::Link),
-      Atom(_, Symbol(n)) if *n == String::from("Exception") => {
+      Atom(_, Symbol(n)) if *n == String::from("%Natural") => Ok(Self::Natural),
+      Atom(_, Symbol(n)) if *n == String::from("%Integer") => Ok(Self::Integer),
+      Atom(_, Symbol(n)) if *n == String::from("%Bits") => Ok(Self::Bits),
+      Atom(_, Symbol(n)) if *n == String::from("%Text") => Ok(Self::Text),
+      Atom(_, Symbol(n)) if *n == String::from("%Char") => Ok(Self::Char),
+      Atom(_, Symbol(n)) if *n == String::from("%Link") => Ok(Self::Link),
+      Atom(_, Symbol(n)) if *n == String::from("%Exception") => {
         Ok(Self::Exception)
       }
       _ => Err(DecodeError::new(x.position(), vec![Expected::LitType])),
@@ -146,13 +146,13 @@ impl fmt::Display for LitType {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use LitType::*;
     match self {
-      Natural => write!(f, "Natural"),
-      Integer => write!(f, "Integer"),
-      Bits => write!(f, "Bits"),
-      Link => write!(f, "Link"),
-      Text => write!(f, "Text"),
-      Char => write!(f, "Char"),
-      Exception => write!(f, "Exception"),
+      Natural => write!(f, "%Natural"),
+      Integer => write!(f, "%Integer"),
+      Bits => write!(f, "%Bits"),
+      Link => write!(f, "%Link"),
+      Text => write!(f, "%Text"),
+      Char => write!(f, "%Char"),
+      Exception => write!(f, "%Exception"),
     }
   }
 }

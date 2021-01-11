@@ -6,13 +6,15 @@ use nom::{
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ParseError<I> {
-  FreeVariable(I, String, Vector<String>),
+  UndefinedReference(I, String, Vector<String>),
+  ReservedSymbol(I, String),
   NomErr(I, ErrorKind),
 }
 impl<I> ParseError<I> {
   pub fn rest(self) -> I {
     match self {
-      Self::FreeVariable(i, ..) => i,
+      Self::UndefinedReference(i, ..) => i,
+      Self::ReservedSymbol(i, ..) => i,
       Self::NomErr(i, _) => i,
     }
   }

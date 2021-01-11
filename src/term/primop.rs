@@ -22,7 +22,7 @@ pub enum PrimOp {
   /// greater-than-or-equal
   Gte,
   /// bitwise or
-  Or,
+  Bor,
   /// bitwise and
   And,
   /// bitwise xor
@@ -66,100 +66,83 @@ pub enum PrimOp {
 }
 
 impl PrimOp {
-  pub fn encode(self) -> Expr {
+  pub fn symbol(self) -> String {
     match self {
-      Self::Eql => Atom(None, symb!("%eql")),
-      Self::Lth => Atom(None, symb!("%lth")),
-      Self::Lte => Atom(None, symb!("%lte")),
-      Self::Gth => Atom(None, symb!("%gth")),
-      Self::Gte => Atom(None, symb!("%gte")),
-      Self::Or => Atom(None, symb!("%or")),
-      Self::And => Atom(None, symb!("%and")),
-      Self::Xor => Atom(None, symb!("%xor")),
-      Self::Not => Atom(None, symb!("%not")),
-      Self::Suc => Atom(None, symb!("%suc")),
-      Self::Pre => Atom(None, symb!("%pre")),
-      Self::Add => Atom(None, symb!("%add")),
-      Self::Sub => Atom(None, symb!("%sub")),
-      Self::Mul => Atom(None, symb!("%mul")),
-      Self::Div => Atom(None, symb!("%div")),
-      Self::Mod => Atom(None, symb!("%mod")),
-      Self::Shl => Atom(None, symb!("%shl")),
-      Self::Shr => Atom(None, symb!("%shr")),
-      Self::Rol => Atom(None, symb!("%rol")),
-      Self::Ror => Atom(None, symb!("%ror")),
-      Self::Clz => Atom(None, symb!("%clz")),
-      Self::Ctz => Atom(None, symb!("%ctz")),
-      Self::Cnt => Atom(None, symb!("%cnt")),
-      Self::Len => Atom(None, symb!("%len")),
-      Self::Cat => Atom(None, symb!("%cat")),
-      Self::Cst => Atom(None, symb!("%cst")),
+      Self::Eql => String::from("%eql"),
+      Self::Lth => String::from("%lth"),
+      Self::Lte => String::from("%lte"),
+      Self::Gth => String::from("%gth"),
+      Self::Gte => String::from("%gte"),
+      Self::Bor => String::from("%bor"),
+      Self::And => String::from("%and"),
+      Self::Xor => String::from("%xor"),
+      Self::Not => String::from("%not"),
+      Self::Suc => String::from("%suc"),
+      Self::Pre => String::from("%pre"),
+      Self::Add => String::from("%add"),
+      Self::Sub => String::from("%sub"),
+      Self::Mul => String::from("%mul"),
+      Self::Div => String::from("%div"),
+      Self::Mod => String::from("%mod"),
+      Self::Shl => String::from("%shl"),
+      Self::Shr => String::from("%shr"),
+      Self::Rol => String::from("%rol"),
+      Self::Ror => String::from("%ror"),
+      Self::Clz => String::from("%clz"),
+      Self::Ctz => String::from("%ctz"),
+      Self::Cnt => String::from("%cnt"),
+      Self::Len => String::from("%len"),
+      Self::Cat => String::from("%cat"),
+      Self::Cst => String::from("%cst"),
     }
   }
 
+  pub fn from_symbol(s: String) -> Option<Self> {
+    match s.as_str() {
+      "%eql" => Some(Self::Eql),
+      "%lth" => Some(Self::Lth),
+      "%lte" => Some(Self::Lte),
+      "%gth" => Some(Self::Gth),
+      "%gte" => Some(Self::Gte),
+      "%bor" => Some(Self::Bor),
+      "%and" => Some(Self::And),
+      "%xor" => Some(Self::Xor),
+      "%not" => Some(Self::Not),
+      "%suc" => Some(Self::Suc),
+      "%pre" => Some(Self::Pre),
+      "%add" => Some(Self::Add),
+      "%sub" => Some(Self::Sub),
+      "%mul" => Some(Self::Mul),
+      "%div" => Some(Self::Div),
+      "%mod" => Some(Self::Mod),
+      "%shl" => Some(Self::Shl),
+      "%shr" => Some(Self::Shr),
+      "%rol" => Some(Self::Rol),
+      "%ror" => Some(Self::Ror),
+      "%clz" => Some(Self::Clz),
+      "%ctz" => Some(Self::Ctz),
+      "%cnt" => Some(Self::Cnt),
+      "%len" => Some(Self::Len),
+      "%cat" => Some(Self::Cat),
+      "%cst" => Some(Self::Cst),
+      _ => None,
+    }
+  }
+
+  pub fn encode(self) -> Expr { Atom(None, Symbol(self.symbol())) }
+
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
+    let err = |pos| DecodeError::new(pos, vec![Expected::PrimOp]);
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("%eql") => Ok(Self::Eql),
-      Atom(_, Symbol(n)) if *n == String::from("%lth") => Ok(Self::Lth),
-      Atom(_, Symbol(n)) if *n == String::from("%lte") => Ok(Self::Lte),
-      Atom(_, Symbol(n)) if *n == String::from("%gth") => Ok(Self::Gth),
-      Atom(_, Symbol(n)) if *n == String::from("%gte") => Ok(Self::Gte),
-      Atom(_, Symbol(n)) if *n == String::from("%or") => Ok(Self::Or),
-      Atom(_, Symbol(n)) if *n == String::from("%and") => Ok(Self::And),
-      Atom(_, Symbol(n)) if *n == String::from("%xor") => Ok(Self::Xor),
-      Atom(_, Symbol(n)) if *n == String::from("%not") => Ok(Self::Not),
-      Atom(_, Symbol(n)) if *n == String::from("%suc") => Ok(Self::Suc),
-      Atom(_, Symbol(n)) if *n == String::from("%pre") => Ok(Self::Pre),
-      Atom(_, Symbol(n)) if *n == String::from("%add") => Ok(Self::Add),
-      Atom(_, Symbol(n)) if *n == String::from("%sub") => Ok(Self::Sub),
-      Atom(_, Symbol(n)) if *n == String::from("%mul") => Ok(Self::Mul),
-      Atom(_, Symbol(n)) if *n == String::from("%div") => Ok(Self::Div),
-      Atom(_, Symbol(n)) if *n == String::from("%mod") => Ok(Self::Mod),
-      Atom(_, Symbol(n)) if *n == String::from("%shl") => Ok(Self::Shl),
-      Atom(_, Symbol(n)) if *n == String::from("%shr") => Ok(Self::Shr),
-      Atom(_, Symbol(n)) if *n == String::from("%rol") => Ok(Self::Rol),
-      Atom(_, Symbol(n)) if *n == String::from("%ror") => Ok(Self::Ror),
-      Atom(_, Symbol(n)) if *n == String::from("%clz") => Ok(Self::Clz),
-      Atom(_, Symbol(n)) if *n == String::from("%ctz") => Ok(Self::Ctz),
-      Atom(_, Symbol(n)) if *n == String::from("%cnt") => Ok(Self::Cnt),
-      Atom(_, Symbol(n)) if *n == String::from("%len") => Ok(Self::Len),
-      Atom(_, Symbol(n)) if *n == String::from("%cat") => Ok(Self::Cat),
-      Atom(_, Symbol(n)) if *n == String::from("%cst") => Ok(Self::Cst),
-      x => Err(DecodeError::new(x.position(), vec![Expected::PrimOp])),
+      Atom(pos, Symbol(n)) => Self::from_symbol(n).ok_or(err(pos)),
+      x => Err(err(x.position())),
     }
   }
 }
 
 impl fmt::Display for PrimOp {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::Eql => write!(f, "%eql"),
-      Self::Lth => write!(f, "%lth"),
-      Self::Lte => write!(f, "%lte"),
-      Self::Gth => write!(f, "%gth"),
-      Self::Gte => write!(f, "%gte"),
-      Self::Or => write!(f, "%or"),
-      Self::And => write!(f, "%and"),
-      Self::Xor => write!(f, "%xor"),
-      Self::Not => write!(f, "%not"),
-      Self::Suc => write!(f, "%suc"),
-      Self::Pre => write!(f, "%pre"),
-      Self::Add => write!(f, "%add"),
-      Self::Sub => write!(f, "%sub"),
-      Self::Mul => write!(f, "%mul"),
-      Self::Div => write!(f, "%div"),
-      Self::Mod => write!(f, "%mod"),
-      Self::Shl => write!(f, "%shl"),
-      Self::Shr => write!(f, "%shr"),
-      Self::Rol => write!(f, "%rol"),
-      Self::Ror => write!(f, "%ror"),
-      Self::Clz => write!(f, "%clz"),
-      Self::Ctz => write!(f, "%ctz"),
-      Self::Cnt => write!(f, "%cnt"),
-      Self::Len => write!(f, "%len"),
-      Self::Cat => write!(f, "%cat"),
-      Self::Cst => write!(f, "%cst"),
-    }
+    write!(f, "{}", self.clone().symbol())
   }
 }
 
@@ -170,10 +153,7 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use rand::{
-    prelude::IteratorRandom,
-    Rng,
-  };
+  use rand::Rng;
   impl Arbitrary for PrimOp {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
       let gen = g.gen_range(0, 26);
@@ -183,7 +163,7 @@ pub mod tests {
         2 => Self::Lte,
         3 => Self::Gth,
         4 => Self::Gte,
-        5 => Self::Or,
+        5 => Self::Bor,
         6 => Self::And,
         7 => Self::Xor,
         8 => Self::Not,
