@@ -22,11 +22,11 @@ use hashexpr::{
   Expr,
   Expr::Atom,
 };
-use im::Vector;
-use std::{
-  collections::HashMap,
-  fmt,
+use im::{
+  HashMap,
+  Vector,
 };
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub enum Term {
@@ -422,6 +422,7 @@ pub mod tests {
     Term::*,
     *,
   };
+  use im::HashMap;
   use quickcheck::{
     Arbitrary,
     Gen,
@@ -430,7 +431,6 @@ pub mod tests {
     prelude::IteratorRandom,
     Rng,
   };
-  use std::collections::HashMap;
 
   pub fn arbitrary_link<G: Gen>(g: &mut G) -> hashexpr::Link {
     let mut bytes: [u8; 32] = [0; 32];

@@ -16,9 +16,11 @@ use hashexpr::{
   span::Span,
   Expr,
 };
-use std::collections::HashMap;
 
-use im::Vector;
+use im::{
+  HashMap,
+  Vector,
+};
 use nom::{
   branch::alt,
   bytes::complete::{
@@ -53,14 +55,17 @@ pub fn reserved_symbols() -> Vector<String> {
   Vector::from(vec![
     String::from("λ"),
     String::from("=>"),
+    String::from("{"),
+    String::from("}"),
     String::from("∀"),
     String::from("->"),
     String::from("@"),
     String::from(":="),
     String::from(";"),
-    String::from("typeann"),
+    String::from("::"),
     String::from("type"),
     String::from("data"),
+    String::from("def"),
     String::from("case"),
     String::from("Type"),
   ])
@@ -75,6 +80,7 @@ pub fn parse_name(i: Span) -> IResult<Span, String, ParseError<Span>> {
     Err(Err::Error(ParseError::ReservedSymbol(i, s)))
   }
   else if s.starts_with("#") {
+    // TODO: more specific error for literal overlap
     Err(Err::Error(ParseError::ReservedSymbol(i, s)))
   }
   else if !hashexpr::is_valid_symbol_string(&s) {

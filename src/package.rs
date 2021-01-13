@@ -5,10 +5,8 @@ use hashexpr::{
   Expr::*,
 };
 
-use std::{
-  collections::HashMap,
-  fmt,
-};
+use im::HashMap;
+use std::fmt;
 
 use crate::{
   decode_error::{
@@ -24,10 +22,10 @@ use crate::{
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
-  name: String,
-  docs: String,
-  imports: Imports,
-  defs: Defs,
+  pub name: String,
+  pub docs: String,
+  pub imports: Imports,
+  pub defs: Defs,
 }
 
 impl Package {

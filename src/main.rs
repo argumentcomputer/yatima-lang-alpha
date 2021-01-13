@@ -9,6 +9,7 @@ use std::{
 use yatima::{
   hashspace,
   package,
+  parse,
   repl,
 };
 
@@ -27,6 +28,10 @@ enum Cli {
   Show {
     input: String,
   },
+  Parse {
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+  },
   Repl,
 }
 //
@@ -35,6 +40,11 @@ fn main() {
   let command = Cli::from_args();
   match command {
     Cli::Repl => repl::main().unwrap(),
+    Cli::Parse { input } => {
+      let p = parse::package::parse_file(input);
+      println!("Package parsed: {}", p);
+      println!("Package parsed: {:?}", p)
+    }
     Cli::Save { input } => {
       let string = fs::read_to_string(input).unwrap();
       let expr = hashexpr::parse(&string).unwrap().1;

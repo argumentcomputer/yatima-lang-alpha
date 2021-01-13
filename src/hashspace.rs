@@ -4,7 +4,6 @@ use hashexpr::{
   Expr,
 };
 use std::{
-  self,
   fs,
   path::{
     Path,

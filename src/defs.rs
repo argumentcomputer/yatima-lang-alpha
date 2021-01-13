@@ -6,11 +6,11 @@ use hashexpr::{
   Expr::*,
 };
 
-use im::Vector;
-use std::{
-  collections::HashMap,
-  fmt,
+use im::{
+  HashMap,
+  Vector,
 };
+use std::fmt;
 
 use crate::{
   decode_error::{
