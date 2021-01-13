@@ -74,7 +74,7 @@ pub fn parse_def(
   move |from: Span| {
     let (i, _) = tag("def")(from)?;
     let (i, _) = multispace1(i)?;
-    let (upto, (name, typ_, term)) =
+    let (upto, (name, term, typ_)) =
       parse_decl(refs.clone(), Vector::new(), true, false)(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Def { pos, name, doc: String::new(), typ_, term }))
