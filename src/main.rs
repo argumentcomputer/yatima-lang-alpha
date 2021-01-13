@@ -6,7 +6,11 @@ use std::{
   },
 };
 
-use yatima::package;
+use yatima::{
+  hashspace,
+  package,
+  repl,
+};
 
 use structopt::{
   clap::Shell,
@@ -23,12 +27,14 @@ enum Cli {
   Show {
     input: String,
   },
+  Repl,
 }
 //
 
 fn main() {
   let command = Cli::from_args();
   match command {
+    Cli::Repl => repl::main().unwrap(),
     Cli::Save { input } => {
       let string = fs::read_to_string(input).unwrap();
       let expr = hashexpr::parse(&string).unwrap().1;

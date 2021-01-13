@@ -5,7 +5,10 @@ use hashexpr::{
   Expr::*,
 };
 
-use std::collections::HashMap;
+use std::{
+  collections::HashMap,
+  fmt,
+};
 
 use crate::{
   decode_error::{
@@ -13,7 +16,10 @@ use crate::{
     Expected,
   },
   defs::Defs,
-  imports::Imports,
+  imports::{
+    Import,
+    Imports,
+  },
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -62,6 +68,21 @@ impl Package {
         _ => Err(DecodeError::new(pos, vec![Expected::Package])),
       },
       _ => Err(DecodeError::new(expr.position(), vec![Expected::Package])),
+    }
+  }
+}
+
+impl fmt::Display for Package {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.docs.is_empty() {
+      write!(f, "package {} {}where\n{}", self.name, self.imports, self.defs)
+    }
+    else {
+      write!(
+        f,
+        "/*{}*/\npackage {} {}where\n{}",
+        self.docs, self.name, self.imports, self.defs
+      )
     }
   }
 }

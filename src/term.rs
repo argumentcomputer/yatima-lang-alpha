@@ -7,6 +7,7 @@ use crate::decode_error::{
   DecodeError,
   Expected,
 };
+
 pub use literal::{
   LitType,
   Literal,
@@ -22,7 +23,10 @@ use hashexpr::{
   Expr::Atom,
 };
 use im::Vector;
-use std::collections::HashMap;
+use std::{
+  collections::HashMap,
+  fmt,
+};
 
 #[derive(Clone, Debug)]
 pub enum Term {
@@ -69,6 +73,102 @@ impl PartialEq for Term {
       (Self::LTy(_, a), Self::LTy(_, b)) => a == b,
       (Self::Opr(_, a), Self::Opr(_, b)) => a == b,
       _ => false,
+    }
+  }
+}
+
+impl fmt::Display for Term {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use Term::*;
+    const WILDCARD: &str = "_";
+
+    fn name(nam: &str) -> &str { if nam.is_empty() { WILDCARD } else { nam } }
+
+    fn uses(uses: &Uses) -> &str {
+      match uses {
+        Uses::None => "0 ",
+        Uses::Affi => "& ",
+        Uses::Once => "1 ",
+        Uses::Many => "",
+      }
+    }
+
+    fn is_atom(term: &Term) -> bool {
+      match term {
+        Var(..) => true,
+        Ref(..) => true,
+        Lit(..) => true,
+        LTy(..) => true,
+        Opr(..) => true,
+        Ann(..) => true,
+        Typ(..) => true,
+        _ => false,
+      }
+    }
+
+    fn lams(nam: &str, bod: &Term) -> String {
+      match bod {
+        Lam(_, nam2, bod2) => format!("{} {}", name(nam), lams(nam2, bod2)),
+        _ => format!("{} => {}", nam, bod),
+      }
+    }
+
+    fn alls(use_: &Uses, nam: &str, typ: &Term, bod: &Term) -> String {
+      match bod {
+        All(_, bod_use, bod_nam, bod_typ, bod_bod) => {
+          format!(
+            " ({}{}: {}){}",
+            uses(use_),
+            name(nam),
+            typ,
+            alls(bod_use, bod_nam, bod_typ, bod_bod)
+          )
+        }
+        _ => format!(" ({}{}: {}) -> {}", uses(use_), name(nam), typ, bod),
+      }
+    }
+
+    fn parens(term: &Term) -> String {
+      if is_atom(term) { format!("{}", term) } else { format!("({})", term) }
+    }
+
+    fn apps(fun: &Term, arg: &Term) -> String {
+      match (fun, arg) {
+        (App(_, ff, fa), App(_, af, aa)) => {
+          format!("{} ({})", apps(ff, fa), apps(af, aa))
+        }
+        (App(_, ff, fa), arg) => {
+          format!("({}) {}", apps(ff, fa), parens(arg))
+        }
+        (fun, App(_, af, aa)) => {
+          format!("{} ({})", parens(fun), apps(af, aa))
+        }
+        (fun, arg) => {
+          format!("{} {}", parens(fun), parens(arg))
+        }
+      }
+    }
+
+    match self {
+      Var(_, nam, ..) => write!(f, "{}", nam),
+      Ref(_, nam, ..) => write!(f, "{}", nam),
+      Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
+      App(_, fun, arg) => write!(f, "{}", apps(fun, arg)),
+      Let(_, true, u, n, typ, exp, bod) => {
+        write!(f, "letrec {} {}: {} = {}; {}", uses(u), name(n), typ, exp, bod)
+      }
+      Let(_, false, u, n, typ, exp, bod) => {
+        write!(f, "let {} {}: {} = {}; {}", uses(u), name(n), typ, exp, bod)
+      }
+      Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
+      All(_, us_, nam, typ, bod) => write!(f, "∀{}", alls(us_, nam, typ, bod)),
+      Ann(_, val, typ) => write!(f, "{} :: {}", val, typ),
+      Dat(_, bod) => write!(f, "data {}", bod),
+      Cse(_, bod) => write!(f, "case {}", bod),
+      Typ(_) => write!(f, "Type"),
+      Lit(_, lit) => write!(f, "{}", lit),
+      LTy(_, lty) => write!(f, "{}", lty),
+      Opr(_, opr) => write!(f, "{}", opr),
     }
   }
 }
@@ -334,45 +434,15 @@ pub mod tests {
   use std::collections::HashMap;
 
   pub fn arbitrary_link<G: Gen>(g: &mut G) -> hashexpr::Link {
-    let bytes: [u8; 32] = [
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-      Arbitrary::arbitrary(g),
-    ];
+    let mut bytes: [u8; 32] = [0; 32];
+    for x in bytes.iter_mut() {
+      *x = Arbitrary::arbitrary(g);
+    }
     hashexpr::Link::from(bytes)
   }
 
   pub fn arbitrary_name<G: Gen>(g: &mut G) -> String {
-    let mut s: String = Arbitrary::arbitrary(g);
+    let s: String = Arbitrary::arbitrary(g);
     let mut s: String = s
       .chars()
       .filter(|x| {
@@ -472,7 +542,7 @@ pub mod tests {
       let x: u32 = g.gen_range(0, 27);
       match x {
         0 => arbitrary_all(g, refs, ctx.clone()),
-        1 => arbitrary_let(g, refs, ctx.clone()),
+        // 1 => arbitrary_let(g, refs, ctx.clone()),
         2 | 3 => arbitrary_lam(g, refs, ctx.clone()),
         4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
         6 | 7 => Term::App(
@@ -480,11 +550,11 @@ pub mod tests {
           Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
           Box::new(arbitrary_term(g, refs, ctx.clone())),
         ),
-        8 | 9 => Term::Ann(
-          None,
-          Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-          Box::new(arbitrary_term(g, refs, ctx.clone())),
-        ),
+        // 8 | 9 => Term::Ann(
+        //  None,
+        //  Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
+        //  Box::new(arbitrary_term(g, refs, ctx.clone())),
+        //),
         10 | 11 => {
           Term::Dat(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
         }
@@ -493,8 +563,8 @@ pub mod tests {
         }
         14 | 15 => Term::Typ(None),
         16 | 17 => arbitrary_var(g, ctx),
-        18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
-        20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
+        // 18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
+        // 20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
         // 22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
         _ => arbitrary_ref(g, refs, ctx),
       }

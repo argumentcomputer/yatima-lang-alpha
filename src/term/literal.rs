@@ -4,6 +4,8 @@ use crate::decode_error::{
 };
 use hashexpr::{
   atom::Atom::*,
+  base,
+  base::Base,
   link::Link,
   Expr,
   Expr::{
@@ -14,7 +16,10 @@ use hashexpr::{
 use num_bigint::{
   BigInt,
   BigUint,
+  Sign,
 };
+
+use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Literal {
@@ -36,6 +41,39 @@ pub enum LitType {
   Char,
   Link,
   Exception,
+}
+
+impl fmt::Display for Literal {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use Literal::*;
+    match self {
+      Natural(Some(len), x) => write!(f, "0d{}:nat{}", x.to_str_radix(10), len),
+      Natural(None, x) => write!(f, "0d{}:nat", x.to_str_radix(10)),
+      Integer(len, x) => {
+        let sign = match x.sign() {
+          Sign::Minus => "-",
+          _ => "+",
+        };
+        match len {
+          Some(len) => write!(f, "{}0d{}:int{}", sign, x.to_str_radix(10), len),
+          None => write!(f, "{}0d{}", sign, x.to_str_radix(10)),
+        }
+      }
+      Bits(Some(l), x) => {
+        let x: &[u8] = x.as_ref();
+        write!(f, "#{}:bits{}", base::encode(Base::_64, x), l)
+      }
+      Bits(None, x) => {
+        let x: &[u8] = x.as_ref();
+        write!(f, "#{}:bits", base::encode(Base::_64, x))
+      }
+      Link(l) => write!(f, "#{}", l),
+      Text(Some(l), x) => write!(f, "\"{}\":text{}", x.escape_default(), l),
+      Text(None, x) => write!(f, "\"{}\"", x.escape_default()),
+      Char(x) => write!(f, "'{}'", x.escape_default()),
+      Exception(x) => write!(f, "!\"{}\"", x.escape_default()),
+    }
+  }
 }
 
 impl Literal {
@@ -78,28 +116,43 @@ impl Literal {
 impl LitType {
   pub fn encode(self) -> Expr {
     match self {
-      Self::Natural => Atom(None, symb!("Natural")),
-      Self::Integer => Atom(None, symb!("Integer")),
-      Self::Bits => Atom(None, symb!("Bits")),
-      Self::Text => Atom(None, symb!("Text")),
-      Self::Char => Atom(None, symb!("Char")),
-      Self::Link => Atom(None, symb!("Link")),
-      Self::Exception => Atom(None, symb!("Exception")),
+      Self::Natural => Atom(None, symb!("%Natural")),
+      Self::Integer => Atom(None, symb!("%Integer")),
+      Self::Bits => Atom(None, symb!("%Bits")),
+      Self::Text => Atom(None, symb!("%Text")),
+      Self::Char => Atom(None, symb!("%Char")),
+      Self::Link => Atom(None, symb!("%Link")),
+      Self::Exception => Atom(None, symb!("%Exception")),
     }
   }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("Natural") => Ok(Self::Natural),
-      Atom(_, Symbol(n)) if *n == String::from("Integer") => Ok(Self::Integer),
-      Atom(_, Symbol(n)) if *n == String::from("Bits") => Ok(Self::Bits),
-      Atom(_, Symbol(n)) if *n == String::from("Text") => Ok(Self::Text),
-      Atom(_, Symbol(n)) if *n == String::from("Char") => Ok(Self::Char),
-      Atom(_, Symbol(n)) if *n == String::from("Link") => Ok(Self::Link),
-      Atom(_, Symbol(n)) if *n == String::from("Exception") => {
+      Atom(_, Symbol(n)) if *n == String::from("%Natural") => Ok(Self::Natural),
+      Atom(_, Symbol(n)) if *n == String::from("%Integer") => Ok(Self::Integer),
+      Atom(_, Symbol(n)) if *n == String::from("%Bits") => Ok(Self::Bits),
+      Atom(_, Symbol(n)) if *n == String::from("%Text") => Ok(Self::Text),
+      Atom(_, Symbol(n)) if *n == String::from("%Char") => Ok(Self::Char),
+      Atom(_, Symbol(n)) if *n == String::from("%Link") => Ok(Self::Link),
+      Atom(_, Symbol(n)) if *n == String::from("%Exception") => {
         Ok(Self::Exception)
       }
       _ => Err(DecodeError::new(x.position(), vec![Expected::LitType])),
+    }
+  }
+}
+
+impl fmt::Display for LitType {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use LitType::*;
+    match self {
+      Natural => write!(f, "%Natural"),
+      Integer => write!(f, "%Integer"),
+      Bits => write!(f, "%Bits"),
+      Link => write!(f, "%Link"),
+      Text => write!(f, "%Text"),
+      Char => write!(f, "%Char"),
+      Exception => write!(f, "%Exception"),
     }
   }
 }
