@@ -1,26 +1,35 @@
 use im::Vector;
 use nom::{
   error::ErrorKind,
+  AsBytes,
   InputLength,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum ParseError<I> {
+pub enum ParseError<I: AsBytes> {
   UndefinedReference(I, String, Vector<String>),
+  TopLevelRedefinition(I, String),
+  UnknownLiteralType(I, String),
+  UnexpectedLiteral(I, hashexpr::Expr),
+  LiteralError(I, hashexpr::error::ParseError<I>),
   ReservedSymbol(I, String),
   NomErr(I, ErrorKind),
 }
-impl<I> ParseError<I> {
+impl<I: AsBytes> ParseError<I> {
   pub fn rest(self) -> I {
     match self {
       Self::UndefinedReference(i, ..) => i,
       Self::ReservedSymbol(i, ..) => i,
+      Self::TopLevelRedefinition(i, ..) => i,
+      Self::UnknownLiteralType(i, ..) => i,
+      Self::UnexpectedLiteral(i, ..) => i,
+      Self::LiteralError(i, ..) => i,
       Self::NomErr(i, _) => i,
     }
   }
 }
 
-impl<I> nom::error::ParseError<I> for ParseError<I>
+impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
 where
   I: InputLength,
   I: Clone,
@@ -44,6 +53,19 @@ where
     }
     else {
       other
+    }
+  }
+}
+
+impl<I: Clone + AsBytes> From<hashexpr::error::ParseError<I>>
+  for ParseError<I>
+{
+  fn from(x: hashexpr::error::ParseError<I>) -> Self {
+    match x {
+      hashexpr::error::ParseError::NomErr(i, e) => {
+        ParseError::NomErr(i.into(), e)
+      }
+      e => ParseError::LiteralError(e.clone().rest().into(), e),
     }
   }
 }

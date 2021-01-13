@@ -100,7 +100,6 @@ impl fmt::Display for Term {
         Lit(..) => true,
         LTy(..) => true,
         Opr(..) => true,
-        Ann(..) => true,
         Typ(..) => true,
         _ => false,
       }
@@ -155,14 +154,14 @@ impl fmt::Display for Term {
       Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
       App(_, fun, arg) => write!(f, "{}", apps(fun, arg)),
       Let(_, true, u, n, typ, exp, bod) => {
-        write!(f, "letrec {} {}: {} = {}; {}", uses(u), name(n), typ, exp, bod)
+        write!(f, "letrec {}{}: {} := {}; {}", uses(u), name(n), typ, exp, bod)
       }
       Let(_, false, u, n, typ, exp, bod) => {
-        write!(f, "let {} {}: {} = {}; {}", uses(u), name(n), typ, exp, bod)
+        write!(f, "let {}{}: {} := {}; {}", uses(u), name(n), typ, exp, bod)
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
       All(_, us_, nam, typ, bod) => write!(f, "∀{}", alls(us_, nam, typ, bod)),
-      Ann(_, val, typ) => write!(f, "{} :: {}", val, typ),
+      Ann(_, typ, val) => write!(f, "(type {} {})", parens(typ), parens(val)),
       Dat(_, bod) => write!(f, "data {}", bod),
       Cse(_, bod) => write!(f, "case {}", bod),
       Typ(_) => write!(f, "Type"),
@@ -214,8 +213,8 @@ impl Term {
         )
       }
       Self::Typ(_) => atom!(symb!("Type")),
-      Self::Ann(_, exp, typ) => {
-        cons!(None, atom!(symb!("typeann")), exp.encode(), typ.encode())
+      Self::Ann(_, typ, trm) => {
+        cons!(None, atom!(symb!("type")), typ.encode(), trm.encode())
       }
       Self::Lit(_, lit) => lit.encode(),
       Self::LTy(_, lty) => lty.encode(),
@@ -383,14 +382,14 @@ impl Term {
             _ => Err(DecodeError::new(pos, vec![Expected::Forall])),
           }
         }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("typeann") => {
+        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("type") => {
           match tail {
-            [exp, typ] => {
-              let exp =
-                Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
+            [typ, trm] => {
               let typ =
                 Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-              Ok(Self::Ann(pos, Box::new(exp), Box::new(typ)))
+              let trm =
+                Term::decode(refs.to_owned(), ctx.to_owned(), trm.to_owned())?;
+              Ok(Self::Ann(pos, Box::new(typ), Box::new(trm)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Annotation])),
           }
@@ -542,7 +541,7 @@ pub mod tests {
       let x: u32 = g.gen_range(0, 27);
       match x {
         0 => arbitrary_all(g, refs, ctx.clone()),
-        // 1 => arbitrary_let(g, refs, ctx.clone()),
+        1 => arbitrary_let(g, refs, ctx.clone()),
         2 | 3 => arbitrary_lam(g, refs, ctx.clone()),
         4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
         6 | 7 => Term::App(
@@ -550,11 +549,11 @@ pub mod tests {
           Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
           Box::new(arbitrary_term(g, refs, ctx.clone())),
         ),
-        // 8 | 9 => Term::Ann(
-        //  None,
-        //  Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-        //  Box::new(arbitrary_term(g, refs, ctx.clone())),
-        //),
+        8 | 9 => Term::Ann(
+          None,
+          Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
+          Box::new(arbitrary_term(g, refs, ctx.clone())),
+        ),
         10 | 11 => {
           Term::Dat(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
         }
@@ -563,9 +562,9 @@ pub mod tests {
         }
         14 | 15 => Term::Typ(None),
         16 | 17 => arbitrary_var(g, ctx),
-        // 18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
-        // 20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
-        // 22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
+        18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
+        20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
+        22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
         _ => arbitrary_ref(g, refs, ctx),
       }
     }

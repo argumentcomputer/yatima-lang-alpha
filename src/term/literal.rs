@@ -23,8 +23,8 @@ use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Literal {
-  Natural(Option<u64>, BigUint),
-  Integer(Option<u64>, BigInt),
+  Nat(Option<u64>, BigUint),
+  Int(Option<u64>, BigInt),
   Bits(Option<u64>, Vec<u8>),
   Text(Option<u64>, String),
   Char(char),
@@ -34,8 +34,8 @@ pub enum Literal {
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum LitType {
-  Natural,
-  Integer,
+  Nat,
+  Int,
   Bits,
   Text,
   Char,
@@ -47,9 +47,9 @@ impl fmt::Display for Literal {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use Literal::*;
     match self {
-      Natural(Some(len), x) => write!(f, "0d{}:nat{}", x.to_str_radix(10), len),
-      Natural(None, x) => write!(f, "0d{}:nat", x.to_str_radix(10)),
-      Integer(len, x) => {
+      Nat(Some(len), x) => write!(f, "0d{}:nat{}", x.to_str_radix(10), len),
+      Nat(None, x) => write!(f, "0d{}:nat", x.to_str_radix(10)),
+      Int(len, x) => {
         let sign = match x.sign() {
           Sign::Minus => "-",
           _ => "+",
@@ -71,7 +71,7 @@ impl fmt::Display for Literal {
       Text(Some(l), x) => write!(f, "\"{}\":text{}", x.escape_default(), l),
       Text(None, x) => write!(f, "\"{}\"", x.escape_default()),
       Char(x) => write!(f, "'{}'", x.escape_default()),
-      Exception(x) => write!(f, "!\"{}\"", x.escape_default()),
+      Exception(x) => write!(f, "#!\"{}\"", x.escape_default()),
     }
   }
 }
@@ -79,8 +79,8 @@ impl fmt::Display for Literal {
 impl Literal {
   pub fn encode(self) -> Expr {
     match self {
-      Self::Natural(len, x) => Atom(None, Nat(x, len)),
-      Self::Integer(len, x) => Atom(None, Int(x, len)),
+      Self::Nat(len, x) => Atom(None, Nat(x, len)),
+      Self::Int(len, x) => Atom(None, Int(x, len)),
       Self::Bits(len, x) => Atom(None, Bits(x, len)),
       Self::Text(len, x) => Atom(None, Text(x, len)),
       Self::Char(x) => Atom(None, Char(x)),
@@ -94,8 +94,8 @@ impl Literal {
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Nat(x, len)) => Ok(Self::Natural(len, x)),
-      Atom(_, Int(x, len)) => Ok(Self::Integer(len, x)),
+      Atom(_, Nat(x, len)) => Ok(Self::Nat(len, x)),
+      Atom(_, Int(x, len)) => Ok(Self::Int(len, x)),
       Atom(_, Bits(x, len)) => Ok(Self::Bits(len, x)),
       Atom(_, Text(x, len)) => Ok(Self::Text(len, x)),
       Atom(_, Char(x)) => Ok(Self::Char(x)),
@@ -116,25 +116,25 @@ impl Literal {
 impl LitType {
   pub fn encode(self) -> Expr {
     match self {
-      Self::Natural => Atom(None, symb!("%Natural")),
-      Self::Integer => Atom(None, symb!("%Integer")),
-      Self::Bits => Atom(None, symb!("%Bits")),
-      Self::Text => Atom(None, symb!("%Text")),
-      Self::Char => Atom(None, symb!("%Char")),
-      Self::Link => Atom(None, symb!("%Link")),
-      Self::Exception => Atom(None, symb!("%Exception")),
+      Self::Nat => Atom(None, symb!("#Nat")),
+      Self::Int => Atom(None, symb!("#Int")),
+      Self::Bits => Atom(None, symb!("#Bits")),
+      Self::Text => Atom(None, symb!("#Text")),
+      Self::Char => Atom(None, symb!("#Char")),
+      Self::Link => Atom(None, symb!("#Link")),
+      Self::Exception => Atom(None, symb!("#Exception")),
     }
   }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Symbol(n)) if *n == String::from("%Natural") => Ok(Self::Natural),
-      Atom(_, Symbol(n)) if *n == String::from("%Integer") => Ok(Self::Integer),
-      Atom(_, Symbol(n)) if *n == String::from("%Bits") => Ok(Self::Bits),
-      Atom(_, Symbol(n)) if *n == String::from("%Text") => Ok(Self::Text),
-      Atom(_, Symbol(n)) if *n == String::from("%Char") => Ok(Self::Char),
-      Atom(_, Symbol(n)) if *n == String::from("%Link") => Ok(Self::Link),
-      Atom(_, Symbol(n)) if *n == String::from("%Exception") => {
+      Atom(_, Symbol(n)) if *n == String::from("#Nat") => Ok(Self::Nat),
+      Atom(_, Symbol(n)) if *n == String::from("#Int") => Ok(Self::Int),
+      Atom(_, Symbol(n)) if *n == String::from("#Bits") => Ok(Self::Bits),
+      Atom(_, Symbol(n)) if *n == String::from("#Text") => Ok(Self::Text),
+      Atom(_, Symbol(n)) if *n == String::from("#Char") => Ok(Self::Char),
+      Atom(_, Symbol(n)) if *n == String::from("#Link") => Ok(Self::Link),
+      Atom(_, Symbol(n)) if *n == String::from("#Exception") => {
         Ok(Self::Exception)
       }
       _ => Err(DecodeError::new(x.position(), vec![Expected::LitType])),
@@ -144,15 +144,14 @@ impl LitType {
 
 impl fmt::Display for LitType {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    use LitType::*;
     match self {
-      Natural => write!(f, "%Natural"),
-      Integer => write!(f, "%Integer"),
-      Bits => write!(f, "%Bits"),
-      Link => write!(f, "%Link"),
-      Text => write!(f, "%Text"),
-      Char => write!(f, "%Char"),
-      Exception => write!(f, "%Exception"),
+      Self::Nat => write!(f, "#Nat"),
+      Self::Int => write!(f, "#Int"),
+      Self::Bits => write!(f, "#Bits"),
+      Self::Link => write!(f, "#Link"),
+      Self::Text => write!(f, "#Text"),
+      Self::Char => write!(f, "#Char"),
+      Self::Exception => write!(f, "#Exception"),
     }
   }
 }
@@ -189,7 +188,7 @@ pub mod tests {
     let x: BigUint = BigUint::from_bytes_be(&v);
     let b: bool = Arbitrary::arbitrary(g);
     let l = if b { Some(x.to_bytes_be().len() as u64 * 8) } else { None };
-    Literal::Natural(l, x)
+    Literal::Nat(l, x)
   }
   pub fn arbitrary_int<G: Gen>(g: &mut G) -> Literal {
     let v: Vec<u8> = Arbitrary::arbitrary(g);
@@ -197,7 +196,7 @@ pub mod tests {
     let b: bool = Arbitrary::arbitrary(g);
     let l =
       if b { Some(x.to_signed_bytes_be().len() as u64 * 8) } else { None };
-    Literal::Integer(l, x)
+    Literal::Int(l, x)
   }
 
   impl Arbitrary for Literal {
@@ -226,8 +225,8 @@ pub mod tests {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
       let gen = g.gen_range(0, 7);
       match gen {
-        0 => Self::Natural,
-        1 => Self::Integer,
+        0 => Self::Nat,
+        1 => Self::Int,
         2 => Self::Bits,
         3 => Self::Text,
         4 => Self::Char,

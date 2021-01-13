@@ -322,7 +322,7 @@ pub fn parse_raw(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 /// Symbols cannot contain whitespace, parentheses, or ':'
 pub fn parse_symbol(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (upto, s) = take_till1(|x| {
-    char::is_whitespace(x) | (x == ':') | (x == ')') | (x == '(')
+    char::is_whitespace(x) | (x == ':') | (x == ';') | (x == ')') | (x == '(')
   })(from)?;
 
   Ok((
@@ -526,6 +526,7 @@ macro_rules! cons {
 
 pub fn is_valid_symbol_char(c: char) -> bool {
   c != ':'
+    && c != ';'
     && c != '('
     && c != ')'
     && !char::is_whitespace(c)
