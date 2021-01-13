@@ -58,6 +58,7 @@ pub fn reserved_symbols() -> Vector<String> {
     String::from("@"),
     String::from(":="),
     String::from(";"),
+    String::from("typeann"),
     String::from("type"),
     String::from("data"),
     String::from("case"),
@@ -500,11 +501,11 @@ pub fn parse_ann(
   ctx: Vector<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = tag("type")(from)?;
-    let (i, _) = multispace1(i)?;
-    let (i, typ) = parse_term_inner(refs.clone(), ctx.clone())(i)?;
-    let (i, _) = multispace1(i)?;
-    let (upto, trm) = parse_term(refs.clone(), ctx.clone())(i)?;
+    let (i, trm) = parse_term(refs.clone(), ctx.clone())(from)?;
+    let (i, _) = multispace0(i)?;
+    let (i, _) = tag("::")(i)?;
+    let (i, _) = multispace0(i)?;
+    let (upto, typ) = parse_term(refs.clone(), ctx.clone())(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Ann(pos, Box::new(typ), Box::new(trm))))
   }
@@ -537,10 +538,14 @@ pub fn parse_term_inner(
     alt((
       delimited(
         preceded(tag("("), multispace0),
+        parse_ann(refs.clone(), ctx.clone()),
+        tag(")"),
+      ),
+      delimited(
+        preceded(tag("("), multispace0),
         parse_term(refs.clone(), ctx.clone()),
         tag(")"),
       ),
-      parse_ann(refs.clone(), ctx.clone()),
       parse_self(refs.clone(), ctx.clone()),
       parse_data(refs.clone(), ctx.clone()),
       parse_case(refs.clone(), ctx.clone()),
