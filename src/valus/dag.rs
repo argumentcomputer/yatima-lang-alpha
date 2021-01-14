@@ -467,8 +467,8 @@ pub fn whnf(mut node: DAG) -> DAG {
       DAG::Opr(link) => unsafe {
         let len = trail.len();
         if len >= 2 {
-          let arg1 = whnf((*trail[len-1].as_ptr()).arg);
-          let arg2 = whnf((*trail[len-2].as_ptr()).arg);
+          let arg1 = whnf((*trail[len-2].as_ptr()).arg);
+          let arg2 = whnf((*trail[len-1].as_ptr()).arg);
           match (arg1, arg2) {
             (DAG::Lit(x), DAG::Lit(y)) => {
               let opr = (*link.as_ptr()).opr;
