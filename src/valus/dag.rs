@@ -25,6 +25,8 @@ pub enum DAG {
   Lam(NonNull<Lam>),
   App(NonNull<App>),
   Var(NonNull<Var>),
+  Lit(NonNull<Lit>),
+  Opr(NonNull<Opr>),
 }
 
 // Doubly-linked list of parent nodes
@@ -40,13 +42,12 @@ pub enum ParentCell {
   Root,
 }
 
-// The three λ-DAG nodes: Lam, App and Var
+// The five λ-DAG nodes: Lam, App, Var, Lit and Opr
 pub struct Lam {
   pub var: NonNull<Var>,
   pub body: DAG,
   pub body_ref: NonNull<Parents>,
   pub parents: Option<NonNull<Parents>>,
-  // uniq: u64,
 }
 
 pub struct App {
@@ -56,13 +57,37 @@ pub struct App {
   pub arg_ref: NonNull<Parents>,
   pub copy: Option<NonNull<App>>,
   pub parents: Option<NonNull<Parents>>,
-  // uniq: u64,
 }
 
 pub struct Var {
   pub name: String,
   pub parents: Option<NonNull<Parents>>,
   // uniq: u64,
+}
+
+pub struct Lit {
+  pub val: PrimVal,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Opr {
+  pub opr: PrimOpr,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+
+// Primitive values and operations
+#[derive(Clone, Copy)]
+pub enum PrimVal {
+  Nat(u32),
+}
+
+#[derive(Clone, Copy)]
+pub enum PrimOpr {
+  Add,
+  Sub,
+  Mul,
+  Div,
 }
 
 // Get the parents of a term.
@@ -73,6 +98,8 @@ pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
       DAG::Lam(link) => (*link.as_ptr()).parents,
       DAG::App(link) => (*link.as_ptr()).parents,
       DAG::Var(link) => (*link.as_ptr()).parents,
+      DAG::Lit(link) => (*link.as_ptr()).parents,
+      DAG::Opr(link) => (*link.as_ptr()).parents,
     }
   }
 }
@@ -85,6 +112,8 @@ pub fn set_parents(term: DAG, pref: Option<NonNull<Parents>>) {
       DAG::Lam(link) => (*link.as_ptr()).parents = pref,
       DAG::App(link) => (*link.as_ptr()).parents = pref,
       DAG::Var(link) => (*link.as_ptr()).parents = pref,
+      DAG::Lit(link) => (*link.as_ptr()).parents = pref,
+      DAG::Opr(link) => (*link.as_ptr()).parents = pref,
     }
   }
 }
@@ -195,6 +224,12 @@ pub fn free_dead_node(node: DAG) {
       DAG::Var(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
       }
+      DAG::Lit(link) => {
+        dealloc(link.as_ptr() as *mut u8, Layout::new::<Lit>());
+      }
+      DAG::Opr(link) => {
+        dealloc(link.as_ptr() as *mut u8, Layout::new::<Opr>());
+      }
     }
   }
 }
@@ -260,7 +295,7 @@ pub fn new_app(fun: DAG, arg: DAG) -> NonNull<App> {
       arg,
       func_ref,
       arg_ref,
-      parents: None, // uniq: new_uniq(),
+      parents: None,
     });
     *func_ref.as_ptr() = DLL::singleton(ParentCell::AppFun(new_app));
     *arg_ref.as_ptr() = DLL::singleton(ParentCell::AppArg(new_app));
@@ -276,7 +311,6 @@ pub fn new_lambda(oldvar: NonNull<Var>, body: DAG) -> NonNull<Lam> {
     let var = alloc_val(Var {
       name: name.clone(),
       parents: None,
-      // uniq: new_uniq(),
     });
     let dll = alloc_uninit();
     let lam = alloc_val(Lam {
@@ -292,6 +326,15 @@ pub fn new_lambda(oldvar: NonNull<Var>, body: DAG) -> NonNull<Lam> {
     }
     lam
   }
+}
+
+// Allocate a fresh lit node
+#[inline]
+pub fn new_lit(n: PrimVal) -> NonNull<Lit> {
+  alloc_val(Lit {
+    val: n,
+    parents: None,
+  })
 }
 
 // The core up-copy function.
@@ -340,8 +383,8 @@ pub fn upcopy(new_child: DAG, cc: ParentCell) {
   }
 }
 
-// Contract a redex, return the body.
-pub fn reduce(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
+// Contract a lambda redex, return the body.
+pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
   unsafe {
     let App { arg, .. } = *redex.as_ptr();
     let Lam { var, body, parents: lam_parents, .. } = *lam.as_ptr();
@@ -362,7 +405,6 @@ pub fn reduce(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
       let mut vars = vec![];
       loop {
         match input {
-          DAG::Var(_) => break,
           DAG::Lam(lam) => {
             let Lam { body, var, .. } = *lam.as_ptr();
             input = body;
@@ -378,7 +420,9 @@ pub fn reduce(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
             }
             result = DAG::App(new_app);
             break;
-          }
+          },
+          // Otherwise it must be `var`, since `var` necessarily appears inside `body`
+          _ => break
         }
       }
       while let Some(var) = vars.pop() {
@@ -393,6 +437,17 @@ pub fn reduce(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
   }
 }
 
+pub fn apply_opr(opr: PrimOpr, x: PrimVal, y: PrimVal) -> Option<PrimVal> {
+  match (opr, x, y) {
+    (PrimOpr::Add, PrimVal::Nat(x), PrimVal::Nat(y)) => Some(PrimVal::Nat(x+y)),
+    (PrimOpr::Sub, PrimVal::Nat(x), PrimVal::Nat(y)) => Some(PrimVal::Nat(x-y)),
+    (PrimOpr::Mul, PrimVal::Nat(x), PrimVal::Nat(y)) => Some(PrimVal::Nat(x*y)),
+    (PrimOpr::Div, PrimVal::Nat(x), PrimVal::Nat(y)) => Some(PrimVal::Nat(x/y)),
+    // _ => None,
+  }
+}
+
+// Reduce term to its weak head normal form
 pub fn whnf(mut node: DAG) -> DAG {
   let mut trail = vec![];
   loop {
@@ -403,12 +458,39 @@ pub fn whnf(mut node: DAG) -> DAG {
       },
       DAG::Lam(lam_link) => {
         if let Some(app_link) = trail.pop() {
-          node = reduce(app_link, lam_link);
+          node = reduce_lam(app_link, lam_link);
         }
         else {
           break;
         }
       }
+      DAG::Opr(link) => unsafe {
+        let len = trail.len();
+        if len >= 2 {
+          let arg1 = whnf((*trail[len-2].as_ptr()).arg);
+          let arg2 = whnf((*trail[len-1].as_ptr()).arg);
+          match (arg1, arg2) {
+            (DAG::Lit(x), DAG::Lit(y)) => {
+              let opr = (*link.as_ptr()).opr;
+              let x = (*x.as_ptr()).val;
+              let y = (*y.as_ptr()).val;
+              let res = apply_opr(opr, x, y);
+              if let Some(res) = res {
+                trail.pop();
+                trail.pop();
+                node = DAG::Lit(new_lit(res));
+                replace_child(arg1, node);
+                free_dead_node(arg1);
+              }
+              else {
+                break;
+              }
+            },
+            _ => break,
+          }
+        }
+        break
+      },
       _ => break,
     }
   }
@@ -418,6 +500,7 @@ pub fn whnf(mut node: DAG) -> DAG {
   DAG::App(trail[0])
 }
 
+// Reduce term to its normal form
 pub fn norm(mut top_node: DAG) -> DAG {
   top_node = whnf(top_node);
   let mut trail = vec![top_node];
@@ -432,7 +515,7 @@ pub fn norm(mut top_node: DAG) -> DAG {
         let lam = &mut *link.as_ptr();
         trail.push(whnf(lam.body));
       },
-      DAG::Var(link) => (),
+      _ => ()
     }
   }
   top_node
@@ -441,6 +524,7 @@ pub fn norm(mut top_node: DAG) -> DAG {
 // TODO: rewrite in terms of `to_term`
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+
     fn lams(link: &NonNull<Lam>) -> String {
       unsafe {
         let body = &(*link.as_ptr()).body;
@@ -463,28 +547,47 @@ impl fmt::Display for DAG {
           (DAG::App(link_func), DAG::Lam(_)) => {
             format!("{} ({})", apps(link_func), arg)
           }
-          (DAG::App(link_func), DAG::Var(_)) => {
-            format!("{} {}", apps(link_func), arg)
-          }
           (DAG::Lam(_), DAG::App(link_arg)) => {
             format!("({}) ({})", func, apps(link_arg))
-          }
-          (DAG::Var(_), DAG::App(link_arg)) => {
-            format!("{} ({})", func, apps(link_arg))
-          }
-          (DAG::Var(_), DAG::Lam(_)) => {
-            format!("{} ({})", func, arg)
-          }
-          (DAG::Lam(_), DAG::Var(_)) => {
-            format!("({}) {}", func, arg)
-          }
-          (DAG::Var(_), DAG::Var(_)) => {
-            format!("{} {}", func, arg)
           }
           (DAG::Lam(_), DAG::Lam(_)) => {
             format!("({}) ({})", func, arg)
           }
+          (DAG::App(link_func), _) => {
+            format!("{} {}", apps(link_func), arg)
+          }
+          (DAG::Lam(_), _) => {
+            format!("({}) {}", func, arg)
+          }
+          (_, DAG::App(link_arg)) => {
+            format!("{} ({})", func, apps(link_arg))
+          }
+          (_, DAG::Lam(_)) => {
+            format!("{} ({})", func, arg)
+          }
+          _ => {
+            format!("{} {}", func, arg)
+          }
         }
+      }
+    };
+
+    #[inline]
+    fn lit(link: &NonNull<Lit>) -> String {
+      let val = unsafe { &(*link.as_ptr()).val };
+      match val {
+        PrimVal::Nat(n) => format!("{}", n),
+      }
+    }
+
+    #[inline]
+    fn opr(link: &NonNull<Opr>) -> String {
+      let opr = unsafe { &(*link.as_ptr()).opr };
+      match opr {
+        PrimOpr::Add => String::from("+"),
+        PrimOpr::Sub => String::from("-"),
+        PrimOpr::Mul => String::from("*"),
+        PrimOpr::Div => String::from("/"),
       }
     }
 
@@ -495,9 +598,15 @@ impl fmt::Display for DAG {
       },
       DAG::Lam(link) => {
         write!(f, "λ {}", lams(link))
-      }
+      },
       DAG::App(link) => {
         write!(f, "{}", apps(link))
+      }
+      DAG::Lit(link) => {
+        write!(f, "{}", lit(link))
+      }
+      DAG::Opr(link) => {
+        write!(f, "{}", opr(link))
       }
     }
   }
