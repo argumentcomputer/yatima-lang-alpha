@@ -5,7 +5,10 @@ use crate::decode_error::{
 };
 
 pub use crate::valus::{
-  literal::Literal,
+  literal::{
+    LitType,
+    Literal,
+  },
   primop::PrimOp,
   uses::Uses,
 };
@@ -37,6 +40,7 @@ pub enum Term {
   Typ(Option<Pos>),
   Ann(Option<Pos>, Box<Term>, Box<Term>),
   Lit(Option<Pos>, Literal),
+  LTy(Option<Pos>, LitType),
   Opr(Option<Pos>, PrimOp),
 }
 
@@ -64,6 +68,7 @@ impl PartialEq for Term {
       (Self::Typ(_), Self::Typ(_)) => true,
       (Self::Ann(_, xa, ta), Self::Ann(_, xb, tb)) => xa == xb && ta == tb,
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
+      (Self::LTy(_, a), Self::LTy(_, b)) => a == b,
       (Self::Opr(_, a), Self::Opr(_, b)) => a == b,
       _ => false,
     }
@@ -91,6 +96,7 @@ impl fmt::Display for Term {
         Var(..) => true,
         Ref(..) => true,
         Lit(..) => true,
+        LTy(..) => true,
         Opr(..) => true,
         Typ(..) => true,
         _ => false,
@@ -158,6 +164,7 @@ impl fmt::Display for Term {
       Cse(_, bod) => write!(f, "case {}", bod),
       Typ(_) => write!(f, "Type"),
       Lit(_, lit) => write!(f, "{}", lit),
+      LTy(_, lty) => write!(f, "{}", lty),
       Opr(_, opr) => write!(f, "{}", opr),
     }
   }
@@ -208,6 +215,7 @@ impl Term {
         cons!(None, atom!(symb!("type")), typ.encode(), trm.encode())
       }
       Self::Lit(_, lit) => lit.encode(),
+      Self::LTy(_, lty) => lty.encode(),
       Self::Opr(_, opr) => opr.encode(),
     }
   }
@@ -253,6 +261,8 @@ impl Term {
           decode_typ(val.clone()),
           Literal::decode(Expr::Atom(pos.clone(), val.clone()))
             .map(|x| Self::Lit(pos, x)),
+          LitType::decode(Expr::Atom(pos.clone(), val.clone()))
+            .map(|x| Self::LTy(pos, x)),
           PrimOp::decode(Expr::Atom(pos.clone(), val.clone()))
             .map(|x| Self::Opr(pos, x)),
         ]
@@ -528,32 +538,32 @@ pub mod tests {
     else {
       let x: u32 = g.gen_range(0, 27);
       match x {
-        //0 => arbitrary_all(g, refs, ctx.clone()),
-        // 1 => arbitrary_let(g, refs, ctx.clone()),
+        0 => arbitrary_all(g, refs, ctx.clone()),
+        1 => arbitrary_let(g, refs, ctx.clone()),
         2 | 3 => arbitrary_lam(g, refs, ctx.clone()),
-        // 4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
+        4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
         6 | 7 => Term::App(
           None,
           Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
           Box::new(arbitrary_term(g, refs, ctx.clone())),
         ),
-       // 8 | 9 => Term::Ann(
-       //   None,
-       //   Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-       //   Box::new(arbitrary_term(g, refs, ctx.clone())),
-       // ),
-        //10 | 11 => {
-        //  Term::Dat(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
-        //}
-        //12 | 13 => {
-        //  Term::Cse(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
-        //}
-        //14 | 15 => Term::Typ(None),
+        8 | 9 => Term::Ann(
+          None,
+          Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
+          Box::new(arbitrary_term(g, refs, ctx.clone())),
+        ),
+        10 | 11 => {
+          Term::Dat(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
+        }
+        12 | 13 => {
+          Term::Cse(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
+        }
+        14 | 15 => Term::Typ(None),
         16 | 17 => arbitrary_var(g, ctx),
-        _ => arbitrary_var(g, ctx),
-        //18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
-        //22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
-        //_ => arbitrary_ref(g, refs, ctx),
+        18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
+        20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
+        22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
+        _ => arbitrary_ref(g, refs, ctx),
       }
     }
   }
