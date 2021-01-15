@@ -10,7 +10,7 @@ use rustyline::{
 
 use crate::{
   parse::term::parse,
-  valus::dag::norm,
+  valus::eval::norm,
 };
 
 pub fn main() -> rustyline::Result<()> {

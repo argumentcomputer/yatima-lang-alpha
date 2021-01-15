@@ -394,9 +394,12 @@ pub fn parse_lty(
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (upto, tag) = alt((
+      tag("#Natural"),
       tag("#Nat"),
+      tag("#Integer"),
       tag("#Int"),
-      tag("#Bits"),
+      tag("#BitString"),
+      tag("#BitVector"),
       tag("#Text"),
       tag("#Char"),
       tag("#Link"),
@@ -405,8 +408,11 @@ pub fn parse_lty(
     let pos = Some(Pos::from_upto(from, upto));
     match tag.fragment().as_ref() {
       "#Nat" => Ok((upto, Term::LTy(pos, LitType::Nat))),
+      "#Natural" => Ok((upto, Term::LTy(pos, LitType::Natural))),
       "#Int" => Ok((upto, Term::LTy(pos, LitType::Int))),
-      "#Bits" => Ok((upto, Term::LTy(pos, LitType::Bits))),
+      "#Integer" => Ok((upto, Term::LTy(pos, LitType::Integer))),
+      "#BitString" => Ok((upto, Term::LTy(pos, LitType::BitString))),
+      "#BitVector" => Ok((upto, Term::LTy(pos, LitType::BitVector))),
       "#Text" => Ok((upto, Term::LTy(pos, LitType::Text))),
       "#Char" => Ok((upto, Term::LTy(pos, LitType::Char))),
       "#Link" => Ok((upto, Term::LTy(pos, LitType::Link))),
@@ -452,20 +458,29 @@ pub fn parse_lit(
       Expr::Atom(_, Atom::Link(x)) => {
         Ok((upto, Term::Lit(pos, Literal::Link(x))))
       }
-      Expr::Atom(_, Atom::Bits(x, len)) => {
-        Ok((upto, Term::Lit(pos, Literal::Bits(len, x))))
+      Expr::Atom(_, Atom::Bits(x, Some(len))) => {
+        Ok((upto, Term::Lit(pos, Literal::BitVector(len, x))))
       }
-      Expr::Atom(_, Atom::Text(x, len)) => {
-        Ok((upto, Term::Lit(pos, Literal::Text(len, x))))
+      Expr::Atom(_, Atom::Bits(x, None)) => {
+        Ok((upto, Term::Lit(pos, Literal::BitString(x))))
+      }
+      Expr::Atom(_, Atom::Text(x, None)) => {
+        Ok((upto, Term::Lit(pos, Literal::Text(x))))
       }
       Expr::Atom(_, Atom::Char(x)) => {
         Ok((upto, Term::Lit(pos, Literal::Char(x))))
       }
-      Expr::Atom(_, Atom::Nat(x, len)) => {
+      Expr::Atom(_, Atom::Nat(x, Some(len))) => {
         Ok((upto, Term::Lit(pos, Literal::Nat(len, x))))
       }
-      Expr::Atom(_, Atom::Int(x, len)) => {
+      Expr::Atom(_, Atom::Nat(x, None)) => {
+        Ok((upto, Term::Lit(pos, Literal::Natural(x))))
+      }
+      Expr::Atom(_, Atom::Int(x, Some(len))) => {
         Ok((upto, Term::Lit(pos, Literal::Int(len, x))))
+      }
+      Expr::Atom(_, Atom::Int(x, None)) => {
+        Ok((upto, Term::Lit(pos, Literal::Integer(x))))
       }
       e => Err(Err::Error(ParseError::UnexpectedLiteral(upto, e))),
     }

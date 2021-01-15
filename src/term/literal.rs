@@ -23,10 +23,13 @@ use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Literal {
-  Nat(Option<u64>, BigUint),
-  Int(Option<u64>, BigInt),
-  Bits(Option<u64>, Vec<u8>),
-  Text(Option<u64>, String),
+  Natural(BigUint),
+  Nat(u64, BigUint),
+  Integer(BigInt),
+  Int(u64, BigInt),
+  BitString(Vec<u8>),
+  BitVector(u64, Vec<u8>),
+  Text(String),
   Char(char),
   Link(Link),
   Exception(String),
@@ -35,8 +38,11 @@ pub enum Literal {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum LitType {
   Nat,
+  Natural,
   Int,
-  Bits,
+  Integer,
+  BitString,
+  BitVector,
   Text,
   Char,
   Link,
@@ -47,29 +53,32 @@ impl fmt::Display for Literal {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use Literal::*;
     match self {
-      Nat(Some(len), x) => write!(f, "0d{}:nat{}", x.to_str_radix(10), len),
-      Nat(None, x) => write!(f, "0d{}:nat", x.to_str_radix(10)),
+      Nat(len, x) => write!(f, "0d{}:nat{}", x.to_str_radix(10), len),
+      Natural(x) => write!(f, "0d{}", x.to_str_radix(10)),
+      Integer(x) => {
+        let sign = match x.sign() {
+          Sign::Minus => "-",
+          _ => "+",
+        };
+        write!(f, "{}0d{}", sign, x.to_str_radix(10))
+      }
       Int(len, x) => {
         let sign = match x.sign() {
           Sign::Minus => "-",
           _ => "+",
         };
-        match len {
-          Some(len) => write!(f, "{}0d{}:int{}", sign, x.to_str_radix(10), len),
-          None => write!(f, "{}0d{}", sign, x.to_str_radix(10)),
-        }
+        write!(f, "{}0d{}:int{}", sign, x.to_str_radix(10), len)
       }
-      Bits(Some(l), x) => {
+      BitVector(len, x) => {
         let x: &[u8] = x.as_ref();
-        write!(f, "#{}:bits{}", base::encode(Base::_64, x), l)
+        write!(f, "#{}:bits{}", base::encode(Base::_64, x), len)
       }
-      Bits(None, x) => {
+      BitString(x) => {
         let x: &[u8] = x.as_ref();
         write!(f, "#{}:bits", base::encode(Base::_64, x))
       }
       Link(l) => write!(f, "#{}", l),
-      Text(Some(l), x) => write!(f, "\"{}\":text{}", x.escape_default(), l),
-      Text(None, x) => write!(f, "\"{}\"", x.escape_default()),
+      Text(x) => write!(f, "\"{}\"", x.escape_default()),
       Char(x) => write!(f, "'{}'", x.escape_default()),
       Exception(x) => write!(f, "#!\"{}\"", x.escape_default()),
     }
@@ -79,10 +88,13 @@ impl fmt::Display for Literal {
 impl Literal {
   pub fn encode(self) -> Expr {
     match self {
-      Self::Nat(len, x) => Atom(None, Nat(x, len)),
-      Self::Int(len, x) => Atom(None, Int(x, len)),
-      Self::Bits(len, x) => Atom(None, Bits(x, len)),
-      Self::Text(len, x) => Atom(None, Text(x, len)),
+      Self::Nat(len, x) => Atom(None, Nat(x, Some(len))),
+      Self::Natural(x) => Atom(None, Nat(x, None)),
+      Self::Int(len, x) => Atom(None, Int(x, Some(len))),
+      Self::Integer(x) => Atom(None, Int(x, None)),
+      Self::BitString(x) => Atom(None, Bits(x, None)),
+      Self::BitVector(len, x) => Atom(None, Bits(x, Some(len))),
+      Self::Text(x) => Atom(None, Text(x, None)),
       Self::Char(x) => Atom(None, Char(x)),
       Self::Link(x) => Atom(None, Link(x)),
       Self::Exception(x) => Cons(None, vec![
@@ -94,10 +106,13 @@ impl Literal {
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Nat(x, len)) => Ok(Self::Nat(len, x)),
-      Atom(_, Int(x, len)) => Ok(Self::Int(len, x)),
-      Atom(_, Bits(x, len)) => Ok(Self::Bits(len, x)),
-      Atom(_, Text(x, len)) => Ok(Self::Text(len, x)),
+      Atom(_, Nat(x, Some(len))) => Ok(Self::Nat(len, x)),
+      Atom(_, Nat(x, None)) => Ok(Self::Natural(x)),
+      Atom(_, Int(x, Some(len))) => Ok(Self::Int(len, x)),
+      Atom(_, Int(x, None)) => Ok(Self::Integer(x)),
+      Atom(_, Bits(x, Some(len))) => Ok(Self::BitVector(len, x)),
+      Atom(_, Bits(x, None)) => Ok(Self::BitString(x)),
+      Atom(_, Text(x, None)) => Ok(Self::Text(x)),
       Atom(_, Char(x)) => Ok(Self::Char(x)),
       Atom(_, Link(x)) => Ok(Self::Link(x)),
       Cons(pos, xs) => match xs.as_slice() {
@@ -117,8 +132,11 @@ impl LitType {
   pub fn encode(self) -> Expr {
     match self {
       Self::Nat => Atom(None, symb!("#Nat")),
+      Self::Natural => Atom(None, symb!("#Natural")),
       Self::Int => Atom(None, symb!("#Int")),
-      Self::Bits => Atom(None, symb!("#Bits")),
+      Self::Integer => Atom(None, symb!("#Integer")),
+      Self::BitString => Atom(None, symb!("#BitString")),
+      Self::BitVector => Atom(None, symb!("#BitVector")),
       Self::Text => Atom(None, symb!("#Text")),
       Self::Char => Atom(None, symb!("#Char")),
       Self::Link => Atom(None, symb!("#Link")),
@@ -129,8 +147,15 @@ impl LitType {
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
       Atom(_, Symbol(n)) if *n == String::from("#Nat") => Ok(Self::Nat),
+      Atom(_, Symbol(n)) if *n == String::from("#Natural") => Ok(Self::Natural),
       Atom(_, Symbol(n)) if *n == String::from("#Int") => Ok(Self::Int),
-      Atom(_, Symbol(n)) if *n == String::from("#Bits") => Ok(Self::Bits),
+      Atom(_, Symbol(n)) if *n == String::from("#Integer") => Ok(Self::Integer),
+      Atom(_, Symbol(n)) if *n == String::from("#BitString") => {
+        Ok(Self::BitString)
+      }
+      Atom(_, Symbol(n)) if *n == String::from("#BitVector") => {
+        Ok(Self::BitVector)
+      }
       Atom(_, Symbol(n)) if *n == String::from("#Text") => Ok(Self::Text),
       Atom(_, Symbol(n)) if *n == String::from("#Char") => Ok(Self::Char),
       Atom(_, Symbol(n)) if *n == String::from("#Link") => Ok(Self::Link),
@@ -146,8 +171,11 @@ impl fmt::Display for LitType {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Nat => write!(f, "#Nat"),
+      Self::Natural => write!(f, "#Natural"),
       Self::Int => write!(f, "#Int"),
-      Self::Bits => write!(f, "#Bits"),
+      Self::Integer => write!(f, "#Integer"),
+      Self::BitString => write!(f, "#BitString"),
+      Self::BitVector => write!(f, "#BitVector"),
       Self::Link => write!(f, "#Link"),
       Self::Text => write!(f, "#Text"),
       Self::Char => write!(f, "#Char"),
@@ -173,30 +201,40 @@ pub mod tests {
   pub fn arbitrary_bits<G: Gen>(g: &mut G) -> Literal {
     let x: Vec<u8> = Arbitrary::arbitrary(g);
     let b: bool = Arbitrary::arbitrary(g);
-    let l = if b { Some((x.len() as u64) * 8) } else { None };
-    Literal::Bits(l, x)
+    if b {
+      Literal::BitVector((x.len() as u64) * 8, x)
+    }
+    else {
+      Literal::BitString(x)
+    }
   }
 
   pub fn arbitrary_text<G: Gen>(g: &mut G) -> Literal {
     let x: String = Arbitrary::arbitrary(g);
     let b: bool = Arbitrary::arbitrary(g);
-    let l = if b { Some((x.len() as u64) * 8) } else { None };
-    Literal::Text(l, x)
+    Literal::Text(x)
   }
   pub fn arbitrary_nat<G: Gen>(g: &mut G) -> Literal {
     let v: Vec<u8> = Arbitrary::arbitrary(g);
     let x: BigUint = BigUint::from_bytes_be(&v);
     let b: bool = Arbitrary::arbitrary(g);
-    let l = if b { Some(x.to_bytes_be().len() as u64 * 8) } else { None };
-    Literal::Nat(l, x)
+    if b {
+      Literal::Nat(x.to_bytes_be().len() as u64 * 8, x)
+    }
+    else {
+      Literal::Natural(x)
+    }
   }
   pub fn arbitrary_int<G: Gen>(g: &mut G) -> Literal {
     let v: Vec<u8> = Arbitrary::arbitrary(g);
     let x: BigInt = BigInt::from_signed_bytes_be(&v);
     let b: bool = Arbitrary::arbitrary(g);
-    let l =
-      if b { Some(x.to_signed_bytes_be().len() as u64 * 8) } else { None };
-    Literal::Int(l, x)
+    if b {
+      Literal::Int(x.to_signed_bytes_be().len() as u64 * 8, x)
+    }
+    else {
+      Literal::Integer(x)
+    }
   }
 
   impl Arbitrary for Literal {
@@ -223,14 +261,17 @@ pub mod tests {
 
   impl Arbitrary for LitType {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let gen = g.gen_range(0, 7);
+      let gen = g.gen_range(0, 9);
       match gen {
         0 => Self::Nat,
-        1 => Self::Int,
-        2 => Self::Bits,
-        3 => Self::Text,
-        4 => Self::Char,
-        5 => Self::Link,
+        1 => Self::Natural,
+        2 => Self::Int,
+        3 => Self::Integer,
+        4 => Self::BitString,
+        5 => Self::BitVector,
+        6 => Self::Text,
+        7 => Self::Char,
+        8 => Self::Link,
         _ => Self::Exception,
       }
     }
