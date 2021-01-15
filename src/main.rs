@@ -1,22 +1,15 @@
 use std::{
   fs,
-  path::{
-    Path,
-    PathBuf,
-  },
+  path::PathBuf,
 };
 
 use yatima::{
   hashspace,
-  package,
   parse,
   repl,
 };
 
-use structopt::{
-  clap::Shell,
-  StructOpt,
-};
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]

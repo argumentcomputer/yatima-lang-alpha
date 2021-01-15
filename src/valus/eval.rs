@@ -145,7 +145,7 @@ pub fn whnf(mut node: DAG) -> DAG {
               let opr = (*link.as_ptr()).opr;
               let x = (*x.as_ptr()).val.clone();
               let y = (*y.as_ptr()).val.clone();
-              let res = apply_bin_op(opr, x, y);
+              let res = apply_bin_op(opr, y, x);
               if let Some(res) = res {
                 trail.pop();
                 trail.pop();

@@ -10,7 +10,10 @@ use rustyline::{
 
 use crate::{
   parse::term::parse,
-  valus::eval::norm,
+  valus::{
+    dag::DAG,
+    eval::norm,
+  },
 };
 
 pub fn main() -> rustyline::Result<()> {
@@ -29,7 +32,7 @@ pub fn main() -> rustyline::Result<()> {
         let res = parse(&line);
         match res {
           Ok((_, term)) => {
-            println!("{}", term);
+            println!("{}", norm(DAG::from_term(term)));
           }
           Err(e) => println!("Error: {}", e),
         }

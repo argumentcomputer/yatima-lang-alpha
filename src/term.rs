@@ -135,7 +135,7 @@ impl fmt::Display for Term {
           format!("{} ({})", apps(ff, fa), apps(af, aa))
         }
         (App(_, ff, fa), arg) => {
-          format!("({}) {}", apps(ff, fa), parens(arg))
+          format!("{} {}", apps(ff, fa), parens(arg))
         }
         (fun, App(_, af, aa)) => {
           format!("{} ({})", parens(fun), apps(af, aa))
