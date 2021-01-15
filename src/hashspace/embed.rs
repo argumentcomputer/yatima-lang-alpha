@@ -1,7 +1,6 @@
 use im::Vector;
 
 use crate::term::{
-  LitType,
   Literal,
   PrimOp,
   Term,
@@ -30,13 +29,6 @@ pub fn desaturate_term(term: Term) -> (AnonTerm, NameMeta, PosiMeta) {
     Lit(pos, lit) => (
       AnonTerm::Ctor(String::from("lit"), vec![AnonTerm::Data(
         lit.encode().serialize(),
-      )]),
-      NameMeta::Ctor(vec![NameMeta::Leaf]),
-      PosiMeta::Ctor(pos, vec![PosiMeta::Leaf]),
-    ),
-    LTy(pos, lty) => (
-      AnonTerm::Ctor(String::from("lty"), vec![AnonTerm::Data(
-        lty.encode().serialize(),
       )]),
       NameMeta::Ctor(vec![NameMeta::Leaf]),
       PosiMeta::Ctor(pos, vec![PosiMeta::Leaf]),
@@ -202,13 +194,6 @@ pub fn resaturate_term(
           let lit = Literal::decode(lit)
             .map_err(|_| ResaturationError::DeserialError)?;
           Ok(Term::Lit(*pos, lit))
-        }
-        ("lty", [AnonTerm::Data(data)], [NameMeta::Leaf], [PosiMeta::Leaf]) => {
-          let (_, lty) = hashexpr::Expr::deserialize(data)
-            .map_err(|_| ResaturationError::DeserialError)?;
-          let lty = LitType::decode(lty)
-            .map_err(|_| ResaturationError::DeserialError)?;
-          Ok(Term::LTy(*pos, lty))
         }
         ("opr", [AnonTerm::Data(data)], [NameMeta::Leaf], [PosiMeta::Leaf]) => {
           let (_, opr) = hashexpr::Expr::deserialize(data)

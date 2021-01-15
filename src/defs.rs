@@ -240,9 +240,9 @@ mod tests {
   #[test]
   fn test_cases() {
     use crate::term::{
-      uses::Uses,
       Term,
       Term::*,
+      Uses,
     };
     let typ_ = All(
       None,

@@ -1,7 +1,6 @@
 use crate::{
   parse::error::ParseError,
   term::{
-    LitType,
     Literal,
     PrimOp,
     Refs,
@@ -407,18 +406,16 @@ pub fn parse_lty(
     ))(from)?;
     let pos = Some(Pos::from_upto(from, upto));
     match tag.fragment().as_ref() {
-      "#Nat" => Ok((upto, Term::LTy(pos, LitType::Nat))),
-      "#Natural" => Ok((upto, Term::LTy(pos, LitType::Natural))),
-      "#Int" => Ok((upto, Term::LTy(pos, LitType::Int))),
-      "#Integer" => Ok((upto, Term::LTy(pos, LitType::Integer))),
-      "#BitString" => Ok((upto, Term::LTy(pos, LitType::BitString))),
-      "#BitVector" => Ok((upto, Term::LTy(pos, LitType::BitVector))),
-      "#Text" => Ok((upto, Term::LTy(pos, LitType::Text))),
-      "#Char" => Ok((upto, Term::LTy(pos, LitType::Char))),
-      "#Link" => Ok((upto, Term::LTy(pos, LitType::Link))),
-      "#Exception" => {
-        Ok((upto, Term::LTy(pos, crate::term::LitType::Exception)))
-      }
+      "#Nat" => Ok((upto, Term::Lit(pos, Literal::NatType))),
+      "#Natural" => Ok((upto, Term::Lit(pos, Literal::NaturalType))),
+      "#Int" => Ok((upto, Term::Lit(pos, Literal::IntType))),
+      "#Integer" => Ok((upto, Term::Lit(pos, Literal::IntegerType))),
+      "#BitString" => Ok((upto, Term::Lit(pos, Literal::BitStringType))),
+      "#BitVector" => Ok((upto, Term::Lit(pos, Literal::BitVectorType))),
+      "#Text" => Ok((upto, Term::Lit(pos, Literal::TextType))),
+      "#Char" => Ok((upto, Term::Lit(pos, Literal::CharType))),
+      "#Link" => Ok((upto, Term::Lit(pos, Literal::LinkType))),
+      "#Exception" => Ok((upto, Term::Lit(pos, Literal::ExceptionType))),
       e => {
         Err(Err::Error(ParseError::UnknownLiteralType(upto, String::from(e))))
       }

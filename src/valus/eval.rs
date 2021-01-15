@@ -7,7 +7,6 @@ use crate::valus::{
     free_dead_node,
     new_app,
     new_lambda,
-    prim::apply_opr,
     replace_child,
     App,
     Lam,
@@ -16,6 +15,7 @@ use crate::valus::{
     DAG,
   },
   dll::*,
+  primop::apply_op,
 };
 
 // The core up-copy function.
@@ -145,7 +145,7 @@ pub fn whnf(mut node: DAG) -> DAG {
               let opr = (*link.as_ptr()).opr;
               let x = (*x.as_ptr()).val.clone();
               let y = (*y.as_ptr()).val.clone();
-              let res = apply_opr(opr, x, y);
+              let res = apply_op(opr, x, y);
               if let Some(res) = res {
                 trail.pop();
                 trail.pop();

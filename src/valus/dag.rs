@@ -1,20 +1,14 @@
 #![allow(unused_variables)]
 
-pub mod prim;
-
 use crate::{
   term,
-  term::{
-    Literal,
-    Term,
-  },
+  term::Term,
   valus::{
-    dag::prim::{
-      PrimOpr,
-      PrimVal,
-    },
     dll::*,
     eval,
+    literal::Literal,
+    primop::PrimOp,
+    uses::Uses,
   },
 };
 
@@ -77,12 +71,12 @@ pub struct Var {
 }
 
 pub struct Lit {
-  pub val: PrimVal,
+  pub val: Literal,
   pub parents: Option<NonNull<Parents>>,
 }
 
 pub struct Opr {
-  pub opr: PrimOpr,
+  pub opr: PrimOp,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -323,8 +317,14 @@ pub fn new_lambda(oldvar: NonNull<Var>, body: DAG) -> NonNull<Lam> {
 
 // Allocate a fresh lit node
 #[inline]
-pub fn alloc_lit(n: PrimVal) -> NonNull<Lit> {
+pub fn alloc_lit(n: Literal) -> NonNull<Lit> {
   alloc_val(Lit { val: n, parents: None })
+}
+
+// Allocate a fresh lit node
+#[inline]
+pub fn alloc_opr(n: PrimOp) -> NonNull<Opr> {
+  alloc_val(Opr { opr: n, parents: None })
 }
 
 impl fmt::Display for DAG {
@@ -365,22 +365,11 @@ impl DAG {
         }
         DAG::Lit(link) => {
           let lit = unsafe { &(*link.as_ptr()).val };
-          match lit {
-            PrimVal::U8(x) => Term::Lit(None, Literal::Nat(8, (*x).into())),
-            PrimVal::U16(x) => Term::Lit(None, Literal::Nat(16, (*x).into())),
-            PrimVal::U32(x) => Term::Lit(None, Literal::Nat(32, (*x).into())),
-            PrimVal::U64(x) => Term::Lit(None, Literal::Nat(64, (*x).into())),
-            PrimVal::Nat(x) => Term::Lit(None, Literal::Natural(x.clone())),
-          }
+          Term::Lit(None, lit.clone())
         }
         DAG::Opr(link) => {
           let opr = unsafe { &(*link.as_ptr()).opr };
-          match opr {
-            PrimOpr::Add => Term::Opr(None, term::PrimOp::Add),
-            PrimOpr::Sub => Term::Opr(None, term::PrimOp::Add),
-            PrimOpr::Mul => Term::Opr(None, term::PrimOp::Add),
-            PrimOpr::Div => Term::Opr(None, term::PrimOp::Add),
-          }
+          Term::Opr(None, *opr)
         }
       }
     }
@@ -464,24 +453,11 @@ impl DAG {
           };
           DAG::Var(var)
         }
-        Term::Lit(_, Literal::Nat(8, x)) => {
-          let x: u8 = x.try_into().expect("to_dag u8 error");
-          DAG::Lit(alloc_lit(PrimVal::U8(x)))
+        Term::Lit(_, lit) => {
+          DAG::Lit(alloc_val(Lit { val: lit, parents: Some(parents) }))
         }
-        Term::Lit(_, Literal::Nat(16, x)) => {
-          let x: u16 = x.try_into().expect("to_dag u16 error");
-          DAG::Lit(alloc_lit(PrimVal::U16(x)))
-        }
-        Term::Lit(_, Literal::Nat(32, x)) => {
-          let x: u32 = x.try_into().expect("to_dag u32 error");
-          DAG::Lit(alloc_lit(PrimVal::U32(x)))
-        }
-        Term::Lit(_, Literal::Nat(64, x)) => {
-          let x: u64 = x.try_into().expect("to_dag u64 error");
-          DAG::Lit(alloc_lit(PrimVal::U64(x)))
-        }
-        Term::Lit(_, Literal::Natural(x)) => {
-          DAG::Lit(alloc_lit(PrimVal::Nat(x)))
+        Term::Opr(_, opr) => {
+          DAG::Opr(alloc_val(Opr { opr, parents: Some(parents) }))
         }
         _ => panic!("TODO: implement Term::to_dag variants"),
       }

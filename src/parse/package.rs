@@ -11,7 +11,6 @@ use crate::{
     term::*,
   },
   term::{
-    LitType,
     Literal,
     PrimOp,
     Refs,
