@@ -2,7 +2,10 @@
 
 use crate::{
   term,
-  term::Term,
+  term::{
+    Link,
+    Term,
+  },
   valus::{
     dll::*,
     eval,
@@ -30,6 +33,7 @@ pub enum DAG {
   Lam(NonNull<Lam>),
   App(NonNull<App>),
   Var(NonNull<Var>),
+  Ref(NonNull<Ref>),
   Lit(NonNull<Lit>),
   Opr(NonNull<Opr>),
 }
@@ -70,6 +74,14 @@ pub struct Var {
   // uniq: u64,
 }
 
+pub struct Ref {
+  pub name: String,
+  pub def_link: Link,
+  pub ast_link: Link,
+  pub parents: Option<NonNull<Parents>>,
+  // uniq: u64,
+}
+
 pub struct Lit {
   pub val: Literal,
   pub parents: Option<NonNull<Parents>>,
@@ -88,6 +100,7 @@ pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
       DAG::Lam(link) => (*link.as_ptr()).parents,
       DAG::App(link) => (*link.as_ptr()).parents,
       DAG::Var(link) => (*link.as_ptr()).parents,
+      DAG::Ref(link) => (*link.as_ptr()).parents,
       DAG::Lit(link) => (*link.as_ptr()).parents,
       DAG::Opr(link) => (*link.as_ptr()).parents,
     }
@@ -102,6 +115,7 @@ pub fn set_parents(term: DAG, pref: Option<NonNull<Parents>>) {
       DAG::Lam(link) => (*link.as_ptr()).parents = pref,
       DAG::App(link) => (*link.as_ptr()).parents = pref,
       DAG::Var(link) => (*link.as_ptr()).parents = pref,
+      DAG::Ref(link) => (*link.as_ptr()).parents = pref,
       DAG::Lit(link) => (*link.as_ptr()).parents = pref,
       DAG::Opr(link) => (*link.as_ptr()).parents = pref,
     }
@@ -213,6 +227,9 @@ pub fn free_dead_node(node: DAG) {
       }
       DAG::Var(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
+      }
+      DAG::Ref(link) => {
+        dealloc(link.as_ptr() as *mut u8, Layout::new::<Ref>());
       }
       DAG::Lit(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Lit>());
@@ -348,6 +365,12 @@ impl DAG {
           let level = map.get(&link.as_ptr()).unwrap();
           Term::Var(None, nam.clone(), depth - level - 1)
         }
+        DAG::Ref(link) => {
+          let nam = unsafe { &(*link.as_ptr()).name };
+          let def = unsafe { &(*link.as_ptr()).def_link };
+          let ast = unsafe { &(*link.as_ptr()).ast_link };
+          Term::Ref(None, nam.clone(), *def, *ast)
+        }
         DAG::Lam(link) => {
           let var = unsafe { &(*link.as_ptr()).var };
           let bod = unsafe { &(*link.as_ptr()).body };
@@ -459,6 +482,12 @@ impl DAG {
         Term::Opr(_, opr) => {
           DAG::Opr(alloc_val(Opr { opr, parents: Some(parents) }))
         }
+        Term::Ref(_, name, def_link, ast_link) => DAG::Ref(alloc_val(Ref {
+          name,
+          def_link,
+          ast_link,
+          parents: Some(parents),
+        })),
         _ => panic!("TODO: implement Term::to_dag variants"),
       }
     }

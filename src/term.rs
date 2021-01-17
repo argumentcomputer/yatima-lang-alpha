@@ -13,13 +13,14 @@ pub use crate::valus::{
   uses::Uses,
 };
 
+pub use hashexpr::link::Link;
 use hashexpr::{
   atom::Atom::*,
-  link::Link,
   position::Pos,
   Expr,
   Expr::Atom,
 };
+
 use im::{
   HashMap,
   Vector,

@@ -388,7 +388,6 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     _ => None,
   }
 }
-
 #[cfg(test)]
 pub mod tests {
   use super::*;
