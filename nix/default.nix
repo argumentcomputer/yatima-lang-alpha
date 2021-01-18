@@ -16,8 +16,8 @@ in
 
   # provided by shell.nix
   devTools = {
-    inherit (pkgs) niv nixpkgs-fmt nix-linter;
-    inherit (pre-commit-hooks) pre-commit;
+    inherit (pkgs) niv;
+    inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter;
   };
 
   # to be built by github actions
