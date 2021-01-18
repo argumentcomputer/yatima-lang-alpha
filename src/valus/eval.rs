@@ -20,6 +20,13 @@ use crate::valus::{
 
 // The core up-copy function.
 pub fn upcopy(new_child: DAG, cc: ParentCell) {
+  // TODO: Add the other cases. One child nodes will always clone itself,
+  // adding the new child as its body. Two or more children node should only
+  // clone itself and follow the upcopy when its cache (copy field) is clear,
+  // otherwise it should update the copy's respective field with the new child.
+  // Each node will potentially create a new variable node in case it has a `var`
+  // field, spawning an upcopy of the old variable node's parents with the new
+  // variable node.
   unsafe {
     match cc {
       ParentCell::LamBod(parent) => {
@@ -60,6 +67,7 @@ pub fn upcopy(new_child: DAG, cc: ParentCell) {
         }
       }
       ParentCell::Root => (),
+      _ => panic!("TODO"),
     }
   }
 }
@@ -80,12 +88,30 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
       body
     }
     else {
+      // TODO: `topapp` should now be a generic two or more children node. The
+      // stack `vars` should also contain the information necessary to build a copy
+      // of the "spine" of one variable nodes, since now we have other one child
+      // nodes apart from `Lam`.
       let mut input = body;
       let mut topapp = None;
       let mut result = arg;
       let mut vars = vec![];
       loop {
         match input {
+          // TODO: add the other cases (one, two and three children nodes only).
+          // Any one child node will push everything necessary to build a copy of
+          // itself to the stack `vars` (should be renamed) and continue the loop
+          // downwards. I guess the best way to do this is pushing newly allocated nodes
+          // to the stack with dangling body pointers, only to be updated afterwards.
+          // Two and three children nodes should follow the `App` model: clone itself,
+          // add the clone to the node's `copy` field, update `topapp` (should be renamed)
+          // to point to it, spawn an upcopy of `arg` and each of the nodes' parents
+          // update the result to the newly created copy, and break. When such nodes
+          // also have a `var` field, the cloning will also create a new variable node
+          // and spawn upcopy, similarly to newly created `Lam` nodes.
+          // Note: `Ann` nodes can be discarded, since they play no useful role in the
+          // typechecker when it appears in type position (which are the only terms that
+          // ever get reduced)
           DAG::Lam(lam) => {
             let Lam { body, var, .. } = *lam.as_ptr();
             input = body;
@@ -107,6 +133,8 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
           _ => break,
         }
       }
+      // TODO: this is the part where a one child node spine is created/connected.
+      // Should be updated accordingly to previous remarks.
       while let Some(var) = vars.pop() {
         result = DAG::Lam(new_lambda(var, result));
       }
@@ -166,6 +194,7 @@ pub fn whnf(mut node: DAG) -> DAG {
         }
         break;
       },
+      // TODO: Add the `Let` and `Fix` cases.
       _ => break,
     }
   }

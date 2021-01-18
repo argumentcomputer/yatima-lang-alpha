@@ -7,6 +7,7 @@ use crate::{
     dll::*,
     eval,
     literal::Literal,
+    literal::LitType,
     primop::PrimOp,
     uses::Uses,
   },
@@ -24,30 +25,68 @@ use std::{
   fmt,
 };
 
-// A λ-DAG pointer. Keeps track of what kind of node it points to.
+// A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
 #[derive(Clone, Copy)]
 pub enum DAG {
   Lam(NonNull<Lam>),
   App(NonNull<App>),
   Var(NonNull<Var>),
+  All(NonNull<All>),
+  Fix(NonNull<Fix>),
+  Slf(NonNull<Slf>),
+  Dat(NonNull<Dat>),
+  Cse(NonNull<Cse>),
+  Let(NonNull<Let>),
+  Typ(NonNull<Typ>),
+  Ann(NonNull<Ann>),
+  LTy(NonNull<LTy>),
   Lit(NonNull<Lit>),
   Opr(NonNull<Opr>),
+  // Ref(NonNull<Ref>),
 }
 
 // Doubly-linked list of parent nodes
 type Parents = DLL<ParentCell>;
 
-// A parent pointer. Keeps track of the relation between the child and the
-// parent.
+// A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
+// the child and the parent.
 #[derive(Clone, Copy)]
 pub enum ParentCell {
+  Root,
   AppFun(NonNull<App>),
   AppArg(NonNull<App>),
   LamBod(NonNull<Lam>),
-  Root,
+  AllDom(NonNull<All>),
+  AllImg(NonNull<All>),
+  FixBod(NonNull<Fix>),
+  SlfBod(NonNull<Slf>),
+  DatBod(NonNull<Dat>),
+  CseBod(NonNull<Cse>),
+  LetExp(NonNull<Let>),
+  LetTyp(NonNull<Let>),
+  LetBod(NonNull<Let>),
+  AnnExp(NonNull<Ann>),
+  AnnTyp(NonNull<Ann>),
 }
 
-// The five λ-DAG nodes: Lam, App, Var, Lit and Opr
+// The λ-DAG nodes
+// TODO: Each constructor is its own struct. This is necessary for two things:
+// variable binding constructors need a pointer directly to a variable node and
+// the parent pointers must only point to nodes that have children, not general
+// DAG nodes. Note that each variable binding node must currently have a `var` field
+// and each constructor that have at least two children must have a `copy` field.
+// As we will see, this will create a lot of boilerplate in the upcoming functions.
+// It is possible, however, to reduce the boilerplate by instead adding general 0,
+// 1 and 2 children nodes with a tag and a generic "other data field" (such as
+// multiplicity and name). To account for variable binding nodes, we could have a
+// single variable binding node, such as `Lam` and have every other var. binding
+// constructor take a `Lam` node as argument; i.e., `Slf n b` becomes `Slf (Lam n b)`.
+// Alternatively, we could have each generic node have an optional `var` field; i.e.,
+// by changing the type of `var` from `NonNull<Var>` to `Option<NonNull<Var>>`.
+// Doing this would make `App`, `Ann` and `All` instances of two children node, `Slf`,
+// `Cse`, `Fix` and `Dat` (and possibly `Lam`) instances of one child node and `Var`,
+// `Opr`, `Lit`, `Typ`, `LTy` and `Ref` instances of childless nodes, leaving only
+// `Let` (and possibly `Lam`) as specific constructor nodes.
 pub struct Lam {
   pub var: NonNull<Var>,
   pub body: DAG,
@@ -67,7 +106,81 @@ pub struct App {
 pub struct Var {
   pub name: String,
   pub parents: Option<NonNull<Parents>>,
-  // uniq: u64,
+}
+
+pub struct All {
+  pub uses: Uses,
+  pub var: NonNull<Var>,
+  pub dom: DAG,
+  pub img: DAG,
+  pub dom_ref: NonNull<Parents>,
+  pub img_ref: NonNull<Parents>,
+  pub copy: Option<NonNull<All>>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Let {
+  pub uses: Uses,
+  pub var: NonNull<Var>,
+  pub exp: DAG,
+  pub typ: DAG,
+  pub bod: DAG,
+  pub exp_ref: NonNull<Parents>,
+  pub typ_ref: NonNull<Parents>,
+  pub bod_ref: NonNull<Parents>,
+  pub copy: Option<NonNull<Let>>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Ann {
+  pub exp: DAG,
+  pub typ: DAG,
+  pub exp_ref: NonNull<Parents>,
+  pub typ_ref: NonNull<Parents>,
+  pub copy: Option<NonNull<Ann>>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Fix {
+  pub var: NonNull<Var>,
+  pub body: DAG,
+  pub body_ref: NonNull<Parents>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Slf {
+  pub var: NonNull<Var>,
+  pub body: DAG,
+  pub body_ref: NonNull<Parents>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Cse {
+  pub body: DAG,
+  pub body_ref: NonNull<Parents>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct Dat {
+  pub body: DAG,
+  pub body_ref: NonNull<Parents>,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+// TODO: Childless nodes apart from `Var` do not really need a
+// `parents` field, because the upcopy will never reach such nodes
+// and, apart from `Lit`, these other nodes do not really need to
+// be garbage collected or allocated on the fly, and could instead
+// be shared constants, so this field would not even be used as
+// reference counting.
+// We currently keep these fields to make the nodes more homogeneous.
+pub struct Typ {
+  pub parents: Option<NonNull<Parents>>,
+}
+
+pub struct LTy {
+  pub val: LitType,
+  pub parents: Option<NonNull<Parents>>,
 }
 
 pub struct Lit {
@@ -80,6 +193,10 @@ pub struct Opr {
   pub parents: Option<NonNull<Parents>>,
 }
 
+// pub struct Ref {
+//   pub parents: Option<NonNull<Parents>>,
+// }
+
 // Get the parents of a term.
 #[inline]
 pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
@@ -88,6 +205,15 @@ pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
       DAG::Lam(link) => (*link.as_ptr()).parents,
       DAG::App(link) => (*link.as_ptr()).parents,
       DAG::Var(link) => (*link.as_ptr()).parents,
+      DAG::All(link) => (*link.as_ptr()).parents,
+      DAG::Fix(link) => (*link.as_ptr()).parents,
+      DAG::Slf(link) => (*link.as_ptr()).parents,
+      DAG::Dat(link) => (*link.as_ptr()).parents,
+      DAG::Cse(link) => (*link.as_ptr()).parents,
+      DAG::Let(link) => (*link.as_ptr()).parents,
+      DAG::Typ(link) => (*link.as_ptr()).parents,
+      DAG::Ann(link) => (*link.as_ptr()).parents,
+      DAG::LTy(link) => (*link.as_ptr()).parents,
       DAG::Lit(link) => (*link.as_ptr()).parents,
       DAG::Opr(link) => (*link.as_ptr()).parents,
     }
@@ -102,6 +228,15 @@ pub fn set_parents(term: DAG, pref: Option<NonNull<Parents>>) {
       DAG::Lam(link) => (*link.as_ptr()).parents = pref,
       DAG::App(link) => (*link.as_ptr()).parents = pref,
       DAG::Var(link) => (*link.as_ptr()).parents = pref,
+      DAG::All(link) => (*link.as_ptr()).parents = pref,
+      DAG::Fix(link) => (*link.as_ptr()).parents = pref,
+      DAG::Slf(link) => (*link.as_ptr()).parents = pref,
+      DAG::Dat(link) => (*link.as_ptr()).parents = pref,
+      DAG::Cse(link) => (*link.as_ptr()).parents = pref,
+      DAG::Let(link) => (*link.as_ptr()).parents = pref,
+      DAG::Typ(link) => (*link.as_ptr()).parents = pref,
+      DAG::Ann(link) => (*link.as_ptr()).parents = pref,
+      DAG::LTy(link) => (*link.as_ptr()).parents = pref,
       DAG::Lit(link) => (*link.as_ptr()).parents = pref,
       DAG::Opr(link) => (*link.as_ptr()).parents = pref,
     }
@@ -119,8 +254,18 @@ pub fn add_to_parents(node: DAG, plink: NonNull<Parents>) {
 }
 
 // Resets the cache slots of the app nodes.
-pub fn clear_copies(mut redlam: &Lam, topapp: &mut App) {
+pub fn clear_copies(redlam: &Lam, topapp: &mut App) {
   fn clean_up(cc: &ParentCell) {
+    // TODO: add all the other parent nodes. All constructors
+    // with a `copy` field would follow the `AppFun`/`AppArg`
+    // pattern: if the copy field is `None`, then stop the return,
+    // else add each unlinked parent (func_ref, etc) to its respective
+    // child and continue the `clean_up` function. All constructors
+    // with a `var` field will also need to spawn a `clean_up` in
+    // its variable node. If a constructor has both a `copy` field
+    // and a `var` field, it should check the `copy` field first,
+    // and only if its not `None` should it initiate `clean_up`
+    // in its variable node. All other nodes will simply recurse upwards. 
     match cc {
       ParentCell::AppFun(parent) => unsafe {
         let parent = &mut *parent.as_ptr();
@@ -160,19 +305,30 @@ pub fn clear_copies(mut redlam: &Lam, topapp: &mut App) {
     }
   }
   // Clears the top app cache and adds itself to its children's list of parents
+  // TODO: Since there are other nodes beyond `App` with a `copy` field, then
+  // `topapp` could actually be any such nodes, and this must be accounted for.
+  // Maybe a special enum type for such nodes should be created. Generic two
+  // children nodes would account for that if it weren't for the single three
+  // children node `Let`. Is there a way out?
   topapp.copy.map_or((), |ptr| unsafe {
     let App { arg, arg_ref, func, func_ref, .. } = *ptr.as_ptr();
     topapp.copy = None;
     add_to_parents(arg, arg_ref);
     add_to_parents(func, func_ref);
   });
+  let mut node = redlam;
   loop {
-    let var = unsafe { &*redlam.var.as_ptr() };
+    // TODO: This loop will traverse the line of one child nodes, until it finds
+    // the node with more than one children (the one with a `copy` field). If any
+    // such nodes have a `var` field, then it should initiate `clean_up` in its
+    // variable node. Because of this, `node` cannot be assumed to be only lambda
+    // nodes anymore. Here, again the generic nodes would help.
+    let var = unsafe { &*node.var.as_ptr() };
     for parent in DLL::iter_option(var.parents) {
       clean_up(parent);
     }
-    match redlam.body {
-      DAG::Lam(lam) => unsafe { redlam = &*lam.as_ptr() },
+    match node.body {
+      DAG::Lam(lam) => unsafe { node = &*lam.as_ptr() },
       _ => break,
     }
   }
@@ -181,6 +337,13 @@ pub fn clear_copies(mut redlam: &Lam, topapp: &mut App) {
 // Free parentless nodes.
 pub fn free_dead_node(node: DAG) {
   unsafe {
+    // TODO: add all the other `DAG` cases. The rest should be
+    // pretty easy: remove itself from its children's list of parents,
+    // recursing down every time a child becomes parentless, and freeing
+    // itself. Nodes with `var` field should only free its var when such
+    // nodes are parentless, and this should be done before removing
+    // itself from its children's list of parents. Childless nodes
+    // are immediately freed.
     match node {
       DAG::Lam(link) => {
         let Lam { body, body_ref, var, .. } = &*link.as_ptr();
@@ -220,6 +383,7 @@ pub fn free_dead_node(node: DAG) {
       DAG::Opr(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Opr>());
       }
+      _ => panic!("TODO"),
     }
   }
 }
@@ -228,12 +392,15 @@ pub fn free_dead_node(node: DAG) {
 pub fn replace_child(oldchild: DAG, newchild: DAG) {
   #[inline]
   fn install_child(parent: &mut ParentCell, newchild: DAG) {
+    // TODO: add the rest of the `ParentCell` cases. The other
+    // cases are completely analogous.
     unsafe {
       match parent {
         ParentCell::AppFun(parent) => (*parent.as_ptr()).func = newchild,
         ParentCell::AppArg(parent) => (*parent.as_ptr()).arg = newchild,
         ParentCell::LamBod(parent) => (*parent.as_ptr()).body = newchild,
         ParentCell::Root => (),
+        _ => panic!("TODO"),
       }
     }
   }
@@ -371,6 +538,7 @@ impl DAG {
           let opr = unsafe { &(*link.as_ptr()).opr };
           Term::Opr(None, *opr)
         }
+        _ => panic!("TODO"),
       }
     }
     go(&self, &mut map, 0)
