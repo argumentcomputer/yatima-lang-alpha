@@ -28,10 +28,14 @@ in
         shellcheck.enable = true;
         nixpkgs-fmt.enable = true;
         nix-linter.enable = true;
-        rustfmt.enable = true;
+        # cargo-check.enable = true;
+        # rustfmt = {
+        #   enable = true;
+        # };
       };
       # generated files
       excludes = [ "^nix/sources\.nix$" ];
     };
+    yatima = ../yatima.nix sources pkgs;
   };
 }
