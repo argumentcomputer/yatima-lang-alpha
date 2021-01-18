@@ -3,3 +3,7 @@ target
 */Cargo.lock
 */target/*
 .direnv
+# nix
+result
+result-*
+.pre-commit-config.yaml
