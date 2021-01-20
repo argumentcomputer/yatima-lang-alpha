@@ -36,6 +36,8 @@ in
       # generated files
       excludes = [ "^nix/sources\.nix$" ];
     };
-    yatima = ../yatima.nix sources pkgs;
+    yatima = import ../yatima.nix {
+      inherit sources pkgs;
+    };
   };
 }
