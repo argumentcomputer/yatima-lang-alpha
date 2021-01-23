@@ -1,18 +1,21 @@
-extern crate directories_next;
-
 use directories_next::ProjectDirs;
 use hashexpr::{
   link::Link,
   Expr,
 };
 use std::{
-  self,
   fs,
   path::{
     Path,
     PathBuf,
   },
 };
+
+pub mod anon_term;
+pub mod embed;
+pub mod name_meta;
+pub mod posi_meta;
+pub mod server;
 
 // TODO: Add custom directory option
 /// Returns the hashspace directory. This function panics if the directory

@@ -1,9 +1,5 @@
 [workspace]
-members = [ 
-  "hashexpr",
-  "valus",
-  "hashspace",
-  ]
+members = [ "hashexpr" ]
 
 [package]
 name = "yatima"
@@ -15,12 +11,17 @@ edition = "2018"
 
 [dependencies]
 hashexpr = { path = "hashexpr"}
-valus = { path = "valus"}
-hashspace = { path = "hashspace"}
 num-bigint = "0.3.1"
 blake3 = "0.3.7"
 im  = "15.0.0"
 structopt = "0.3.21"
+rustyline = "7.1.0"
+directories-next = "2.0.0"
+rocket = "0.4.6"
+log = "0.4.6"
+wasm-bindgen = "0.2.63"
+nom = "6.0.1"
+nom_locate = "3.0.0"
 
 [dev-dependencies]
 quickcheck = "^0.9.2"
