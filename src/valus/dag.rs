@@ -41,7 +41,7 @@ type Parents = DLL<ParentCell>;
 #[derive(Clone, Copy)]
 pub enum ParentCell {
   Root,
-  Single(NonNull<Single>),
+  Body(NonNull<Single>),
   Left(NonNull<Branch>),
   Right(NonNull<Branch>),
 }
@@ -64,12 +64,12 @@ pub enum LeafTag {
 pub struct Single {
   pub var: Option<NonNull<Leaf>>,
   pub tag: SingleTag,
-  pub single: DAG,
-  pub single_ref: NonNull<Parents>,
+  pub body: DAG,
+  pub body_ref: NonNull<Parents>,
   pub parents: Option<NonNull<Parents>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum SingleTag {
   Lam,
   Fix,
@@ -89,7 +89,7 @@ pub struct Branch {
   pub parents: Option<NonNull<Parents>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum BranchTag {
   App,
   Ann,
@@ -136,7 +136,7 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
   fn clean_up_var(var: Option<NonNull<Leaf>>) {
     match var {
       Some(var) => {
-        let var = &mut *var.as_ptr();
+        let var = unsafe { &mut *var.as_ptr() };
         for var_parent in DLL::iter_option((*var).parents) {
           clean_up(var_parent);
         }
@@ -172,7 +172,7 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
           }
         })
       },
-      ParentCell::Single(parent) => unsafe {
+      ParentCell::Body(parent) => unsafe {
         let Single { parents, var, .. } = &*parent.as_ptr();
         clean_up_var(*var);
         for grandparent in DLL::iter_option(*parents) {
@@ -192,7 +192,7 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
   });
   loop {
     clean_up_var(spine.var);
-    match spine.single {
+    match spine.body {
       DAG::Single(single) => unsafe { spine = &*single.as_ptr() },
       _ => break,
     }
@@ -204,7 +204,7 @@ pub fn free_dead_node(node: DAG) {
   #[inline]
   fn free_var(var: Option<NonNull<Leaf>>) {
     match var {
-      Some(var) => {
+      Some(var) => unsafe {
         if (*var.as_ptr()).parents.is_none() {
           free_dead_node(DAG::Leaf(var))
         }
@@ -215,12 +215,12 @@ pub fn free_dead_node(node: DAG) {
   unsafe {
     match node {
       DAG::Single(link) => {
-        let Single { single, single_ref, var, .. } = &*link.as_ptr();
+        let Single { body, body_ref, var, .. } = &*link.as_ptr();
         free_var(*var);
-        let new_single_parents = DLL::remove_node(*single_ref);
-        set_parents(*single, new_single_parents);
-        match new_single_parents {
-          None => free_dead_node(*single),
+        let new_body_parents = DLL::remove_node(*body_ref);
+        set_parents(*body, new_body_parents);
+        match new_body_parents {
+          None => free_dead_node(*body),
           _ => (),
         }
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Single>());
@@ -257,7 +257,7 @@ pub fn replace_child(oldchild: DAG, newchild: DAG) {
       match parent {
         ParentCell::Left(parent) => (*parent.as_ptr()).left = newchild,
         ParentCell::Right(parent) => (*parent.as_ptr()).right = newchild,
-        ParentCell::Single(parent) => (*parent.as_ptr()).single = newchild,
+        ParentCell::Body(parent) => (*parent.as_ptr()).body = newchild,
         ParentCell::Root => (),
       }
     }
@@ -334,18 +334,18 @@ pub fn new_branch(oldvar: Option<NonNull<Leaf>>, left: DAG, right: DAG, tag: Bra
 
 // Allocate a fresh single node
 #[inline]
-pub fn new_single(oldvar: Option<NonNull<Leaf>>, single: DAG, tag: SingleTag) -> NonNull<Single> {
+pub fn new_single(oldvar: Option<NonNull<Leaf>>, body: DAG, tag: SingleTag) -> NonNull<Single> {
   unsafe {
-    let single_ref = alloc_uninit();
+    let body_ref = alloc_uninit();
     let new_single = alloc_val(Single {
       tag,
       var: None,
-      single,
-      single_ref,
+      body,
+      body_ref,
       parents: None,
     });
-    *single_ref.as_ptr() = DLL::singleton(ParentCell::Single(new_single));
-    add_to_parents(single, single_ref);
+    *body_ref.as_ptr() = DLL::singleton(ParentCell::Body(new_single));
+    add_to_parents(body, body_ref);
     match oldvar {
       Some(oldvar) => {
         let Leaf { tag: var_tag, parents: var_parents } = &*oldvar.as_ptr();
@@ -367,146 +367,181 @@ pub fn new_leaf(tag: LeafTag) -> NonNull<Leaf> {
   alloc_val(Leaf { tag, parents: None })
 }
 
-// impl fmt::Display for DAG {
-//   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//     write!(f, "{}", self.to_term())
-//   }
-// }
+impl fmt::Display for DAG {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_term())
+  }
+}
 
-// impl DAG {
-//   pub fn to_term(&self) -> Term {
-//     let mut map: HashMap<*mut Var, u64> = HashMap::new();
+impl DAG {
+  pub fn to_term(&self) -> Term {
+    let mut map: HashMap<*mut Leaf, u64> = HashMap::new();
 
-//     pub fn go(
-//       node: &DAG,
-//       mut map: &mut HashMap<*mut Var, u64>,
-//       depth: u64,
-//     ) -> Term {
-//       match node {
-//         DAG::Var(link) => {
-//           let nam = unsafe { &(*link.as_ptr()).name };
-//           let level = map.get(&link.as_ptr()).unwrap();
-//           Term::Var(None, nam.clone(), depth - level - 1)
-//         }
-//         DAG::Lam(link) => {
-//           let var = unsafe { &(*link.as_ptr()).var };
-//           let bod = unsafe { &(*link.as_ptr()).body };
-//           let nam = unsafe { &(*var.as_ptr()).name };
-//           map.insert(var.as_ptr(), depth);
-//           let body = go(bod, &mut map, depth + 1);
-//           Term::Lam(None, nam.clone(), Box::new(body))
-//         }
-//         DAG::App(link) => {
-//           let fun = unsafe { &(*link.as_ptr()).func };
-//           let arg = unsafe { &(*link.as_ptr()).arg };
-//           let fun = go(fun, &mut map, depth);
-//           let arg = go(arg, &mut map, depth);
-//           Term::App(None, Box::new(fun), Box::new(arg))
-//         }
-//         DAG::Lit(link) => {
-//           let lit = unsafe { &(*link.as_ptr()).val };
-//           Term::Lit(None, lit.clone())
-//         }
-//         DAG::Opr(link) => {
-//           let opr = unsafe { &(*link.as_ptr()).opr };
-//           Term::Opr(None, *opr)
-//         }
-//         _ => panic!("TODO"),
-//       }
-//     }
-//     go(&self, &mut map, 0)
-//   }
+    pub fn go(
+      node: &DAG,
+      mut map: &mut HashMap<*mut Leaf, u64>,
+      depth: u64,
+    ) -> Term {
+      match node {
+        // DAG::Leaf(link) => {
+        //   let Leaf { tag, .. } = unsafe { &*link.as_ptr() };
+        //   match tag {
+        //     LeafTag::Typ => Term::Typ(None),
+        //     LeafTag::LTy(lty) => Term::LTy(None, *lty),
+        //     LeafTag::Lit(lit) => Term::Lit(None, lit.clone()),
+        //     LeafTag::Opr(opr) => Term::Opr(None, *opr),
+        //     LeafTag::Var(nam) => {
+        //       let level = map.get(&link.as_ptr()).unwrap();
+        //       Term::Var(None, nam.clone(), depth - level - 1)
+        //     },
+        //   }
+        // }
+        // DAG::Single(link) => {
+        //   let Single { tag, body, var, .. } = unsafe { &*link.as_ptr() };
+        //   match var {
+        //     Some(var_link) => {
+        //       let Leaf { tag: var_tag, .. } = unsafe { &*var_link.as_ptr() };
+        //       let name = match var_tag {
+        //         LeafTag::Var(name) => name,
+        //         _ => panic!("Malformed DAG."),
+        //       };
+        //       match tag {
+        //         Lam => {
+        //           map.insert(var_link.as_ptr(), depth);
+        //           let body = go(body, &mut map, depth + 1);
+        //           Term::Lam(None, name.clone(), Box::new(body))
+                    
+        //         },
+        //         Slf => {
+        //           map.insert(var_link.as_ptr(), depth);
+        //           let body = go(body, &mut map, depth + 1);
+        //           Term::Slf(None, name.clone(), Box::new(body))
+        //         },
+        //         Fix => panic!("TODO: Add Fix to Term."),
+        //         _ => panic!("Malformed DAG."),
+        //       }
+        //     },
+        //     None => {
+        //       match tag {
+        //         Cse => Term::Cse(None, Box::new(go(body, &mut map, depth))),
+        //         Dat => Term::Dat(None, Box::new(go(body, &mut map, depth))),
+        //         _ => panic!("Malformed DAG."),
+        //       }
+        //     },
+        //   }
+        // }
+        _ => panic!("TODO"),
+        // DAG::Branch(link) => {
+        //   let fun = unsafe { &(*link.as_ptr()).func };
+        //   let arg = unsafe { &(*link.as_ptr()).arg };
+        //   let fun = go(fun, &mut map, depth);
+        //   let arg = go(arg, &mut map, depth);
+        //   Term::App(None, Box::new(fun), Box::new(arg))
+        // }
+        // DAG::Lit(link) => {
+        //   let lit = unsafe { &(*link.as_ptr()).val };
+        //   Term::Lit(None, lit.clone())
+        // }
+        // DAG::Opr(link) => {
+        //   let opr = unsafe { &(*link.as_ptr()).opr };
+        //   Term::Opr(None, *opr)
+        // }
+      }
+    }
+    go(&self, &mut map, 0)
+  }
 
-//   pub fn from_term(tree: Term) -> DAG {
-//     pub fn go(
-//       tree: Term,
-//       mut map: HashMap<String, NonNull<Var>>,
-//       parents: NonNull<DLL<ParentCell>>,
-//     ) -> DAG {
-//       match tree {
-//         Term::Lam(_, name, body) => {
-//           // Allocate nodes
-//           let var = alloc_val(Var { name: name.clone(), parents: None });
-//           let sons_parents = alloc_uninit();
-//           let lam = alloc_val(Lam {
-//             var,
-//             // Temporary, dangling DAG pointer
-//             body: DAG::Lam(NonNull::dangling()),
-//             body_ref: sons_parents,
-//             parents: Some(parents),
-//           });
+  pub fn from_term(tree: Term) -> DAG {
+    pub fn go(
+      tree: Term,
+      mut map: HashMap<String, NonNull<Leaf>>,
+      parents: NonNull<DLL<ParentCell>>,
+    ) -> DAG {
+      match tree {
+        _ => panic!("TODO"),
+        // Term::Lam(_, name, body) => {
+        //   // Allocate nodes
+        //   let var = alloc_val(Var { name: name.clone(), parents: None });
+        //   let sons_parents = alloc_uninit();
+        //   let lam = alloc_val(Lam {
+        //     var,
+        //     // Temporary, dangling DAG pointer
+        //     body: DAG::Lam(NonNull::dangling()),
+        //     body_ref: sons_parents,
+        //     parents: Some(parents),
+        //   });
 
-//           // Update `sons_parents` to refer to current node
-//           unsafe {
-//             *sons_parents.as_ptr() = DLL::singleton(ParentCell::LamBod(lam));
-//           }
+        //   // Update `sons_parents` to refer to current node
+        //   unsafe {
+        //     *sons_parents.as_ptr() = DLL::singleton(ParentCell::LamBod(lam));
+        //   }
 
-//           // Map `name` to `var` node
-//           map.insert(name.clone(), var);
-//           let body = go(*body, map, sons_parents);
+        //   // Map `name` to `var` node
+        //   map.insert(name.clone(), var);
+        //   let body = go(*body, map, sons_parents);
 
-//           // Update `lam` with the correct body
-//           unsafe {
-//             (*lam.as_ptr()).body = body;
-//           }
-//           DAG::Lam(lam)
-//         }
+        //   // Update `lam` with the correct body
+        //   unsafe {
+        //     (*lam.as_ptr()).body = body;
+        //   }
+        //   DAG::Lam(lam)
+        // }
 
-//         Term::App(_, fun, arg) => {
-//           // Allocation and updates
-//           let arg_parents = alloc_uninit();
-//           let func_parents = alloc_uninit();
-//           let app = alloc_val(App {
-//             // Temporary, dangling DAG pointers
-//             func: DAG::Lam(NonNull::dangling()),
-//             arg: DAG::Lam(NonNull::dangling()),
-//             func_ref: func_parents,
-//             arg_ref: arg_parents,
-//             copy: None,
-//             parents: Some(parents),
-//           });
-//           unsafe {
-//             *arg_parents.as_ptr() = DLL::singleton(ParentCell::AppArg(app));
-//             *func_parents.as_ptr() = DLL::singleton(ParentCell::AppFun(app));
-//           }
+        // Term::App(_, fun, arg) => {
+        //   // Allocation and updates
+        //   let arg_parents = alloc_uninit();
+        //   let func_parents = alloc_uninit();
+        //   let app = alloc_val(App {
+        //     // Temporary, dangling DAG pointers
+        //     func: DAG::Lam(NonNull::dangling()),
+        //     arg: DAG::Lam(NonNull::dangling()),
+        //     func_ref: func_parents,
+        //     arg_ref: arg_parents,
+        //     copy: None,
+        //     parents: Some(parents),
+        //   });
+        //   unsafe {
+        //     *arg_parents.as_ptr() = DLL::singleton(ParentCell::AppArg(app));
+        //     *func_parents.as_ptr() = DLL::singleton(ParentCell::AppFun(app));
+        //   }
 
-//           let fun = go(*fun, map.clone(), func_parents);
-//           let arg = go(*arg, map, arg_parents);
+        //   let fun = go(*fun, map.clone(), func_parents);
+        //   let arg = go(*arg, map, arg_parents);
 
-//           // Update `app` with the correct fields
-//           unsafe {
-//             (*app.as_ptr()).arg = arg;
-//             (*app.as_ptr()).func = fun;
-//           }
-//           DAG::App(app)
-//         }
+        //   // Update `app` with the correct fields
+        //   unsafe {
+        //     (*app.as_ptr()).arg = arg;
+        //     (*app.as_ptr()).func = fun;
+        //   }
+        //   DAG::App(app)
+        // }
 
-//         Term::Var(_, name, _) => {
-//           let var = match map.get(&name.clone()) {
-//             Some(var) => unsafe {
-//               DLL::concat(parents, (*var.as_ptr()).parents);
-//               (*var.as_ptr()).parents = Some(parents);
-//               *var
-//             },
-//             None => {
-//               alloc_val(Var { name: name.clone(), parents: Some(parents) })
-//             }
-//           };
-//           DAG::Var(var)
-//         }
-//         Term::Lit(_, lit) => {
-//           DAG::Lit(alloc_val(Lit { val: lit, parents: Some(parents) }))
-//         }
-//         Term::Opr(_, opr) => {
-//           DAG::Opr(alloc_val(Opr { opr, parents: Some(parents) }))
-//         }
-//         _ => panic!("TODO: implement Term::to_dag variants"),
-//       }
-//     }
-//     let root = alloc_val(DLL::singleton(ParentCell::Root));
-//     go(tree, HashMap::new(), root)
-//   }
-// }
+        // Term::Var(_, name, _) => {
+        //   let var = match map.get(&name.clone()) {
+        //     Some(var) => unsafe {
+        //       DLL::concat(parents, (*var.as_ptr()).parents);
+        //       (*var.as_ptr()).parents = Some(parents);
+        //       *var
+        //     },
+        //     None => {
+        //       alloc_val(Var { name: name.clone(), parents: Some(parents) })
+        //     }
+        //   };
+        //   DAG::Var(var)
+        // }
+        // Term::Lit(_, lit) => {
+        //   DAG::Lit(alloc_val(Lit { val: lit, parents: Some(parents) }))
+        // }
+        // Term::Opr(_, opr) => {
+        //   DAG::Opr(alloc_val(Opr { opr, parents: Some(parents) }))
+        // }
+        // _ => panic!("TODO: implement Term::to_dag variants"),
+      }
+    }
+    let root = alloc_val(DLL::singleton(ParentCell::Root));
+    go(tree, HashMap::new(), root)
+  }
+}
 
 // #[cfg(test)]
 // mod test {
