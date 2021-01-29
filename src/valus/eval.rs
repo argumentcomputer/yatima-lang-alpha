@@ -6,10 +6,11 @@ use crate::valus::{
     free_dead_node,
     new_branch,
     new_single,
-    new_leaf,
     replace_child,
     Branch,
     Single,
+    BranchTag,
+    SingleTag,
     Leaf,
     ParentCell,
     DAG,
@@ -136,7 +137,7 @@ pub fn whnf(mut node: DAG) -> DAG {
       DAG::Branch(link) => unsafe {
         let Branch { left, tag, .. } = &*link.as_ptr();
         match tag {
-          App => {
+          BranchTag::App => {
             trail.push(link);
             node = *left;
           },
@@ -145,8 +146,9 @@ pub fn whnf(mut node: DAG) -> DAG {
         }
       },
       DAG::Single(link) => unsafe {
-        match &*link.as_ptr() {
-          Lam => {
+        let Single { tag, .. } = &*link.as_ptr();
+        match tag {
+          SingleTag::Lam => {
             if let Some(app_link) = trail.pop() {
               node = reduce_lam(app_link, link);
             }
@@ -158,6 +160,7 @@ pub fn whnf(mut node: DAG) -> DAG {
           _ => break,
         }
       }
+
       // TODO: All primitive operations
       // DAG::Opr(link) => unsafe {
       //   let len = trail.len();

@@ -7,7 +7,6 @@ use num_bigint::{
 };
 
 use crate::valus::literal::{
-  LitType,
   Literal,
 };
 
