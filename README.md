@@ -1,4 +1,7 @@
 # Yatima
+
+[![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+
 A programming language for the decentralized web
 
 ## Development environment with nix
