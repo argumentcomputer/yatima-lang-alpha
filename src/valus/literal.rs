@@ -35,7 +35,7 @@ pub enum Literal {
   Exception(String),
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum LitType {
   Nat,
   Natural,

@@ -7,7 +7,7 @@ use hashexpr::{
   atom::Atom::*,
   Expr,
 };
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Uses {
   None,
   Affi,
