@@ -540,7 +540,7 @@ pub mod tests {
       let x: u32 = g.gen_range(0, 27);
       match x {
         0 => arbitrary_all(g, refs, ctx.clone()),
-        1 => arbitrary_let(g, refs, ctx.clone()),
+        // 1 => arbitrary_let(g, refs, ctx.clone()),
         2 | 3 => arbitrary_lam(g, refs, ctx.clone()),
         4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
         6 | 7 => Term::App(

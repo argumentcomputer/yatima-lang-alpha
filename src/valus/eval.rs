@@ -8,11 +8,11 @@ use crate::valus::{
     new_single,
     replace_child,
     Branch,
-    Single,
     BranchTag,
-    SingleTag,
     Leaf,
     ParentCell,
+    Single,
+    SingleTag,
     DAG,
   },
   dll::*,
@@ -32,7 +32,8 @@ pub fn upcopy(new_child: DAG, cc: ParentCell) {
         }
       }
       ParentCell::Left(parent) => {
-        let Branch { var, copy, right, parents: grandparents, .. } = *parent.as_ptr();
+        let Branch { var, copy, right, parents: grandparents, .. } =
+          *parent.as_ptr();
         let tag = &(*parent.as_ptr()).tag;
         match copy {
           Some(cache) => {
@@ -48,7 +49,8 @@ pub fn upcopy(new_child: DAG, cc: ParentCell) {
         }
       }
       ParentCell::Right(parent) => {
-        let Branch { var, copy, left, parents: grandparents, .. } = *parent.as_ptr();
+        let Branch { var, copy, left, parents: grandparents, .. } =
+          *parent.as_ptr();
         let tag = &(*parent.as_ptr()).tag;
         match copy {
           Some(cache) => {
@@ -120,7 +122,8 @@ pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
       while let Some((var, tag)) = spine.pop() {
         result = DAG::Single(new_single(var, result, tag.clone()));
       }
-      top_branch.map_or((), |app| clear_copies(lam.as_ref(), &mut *app.as_ptr()));
+      top_branch
+        .map_or((), |app| clear_copies(lam.as_ref(), &mut *app.as_ptr()));
       result
     };
     replace_child(DAG::Branch(redex), ans);
@@ -140,7 +143,7 @@ pub fn whnf(mut node: DAG) -> DAG {
           BranchTag::App => {
             trail.push(link);
             node = *left;
-          },
+          }
           // TODO: Add the `Ann` and `Let` cases
           _ => break,
         }
@@ -155,11 +158,11 @@ pub fn whnf(mut node: DAG) -> DAG {
             else {
               break;
             }
-          },
+          }
           // TODO: Add the `Fix` case.
           _ => break,
         }
-      }
+      },
 
       // TODO: All primitive operations
       // DAG::Opr(link) => unsafe {
@@ -223,67 +226,66 @@ pub fn norm(mut top_node: DAG) -> DAG {
   top_node
 }
 
-// use hashexpr::span::Span;
+#[cfg(test)]
+mod test {
+  use super::{
+    norm,
+    DAG,
+  };
+  use hashexpr::span::Span;
 
-// pub fn parse(
-//   i: &str,
-// ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
-//   let (i, tree) = crate::parse::term::parse(i)?;
-//   let (i, _) = nom::character::complete::multispace0(i)?;
-//   let (i, _) = nom::combinator::eof(i)?;
-//   let dag = DAG::from_term(tree);
-//   Ok((i, dag))
-// }
+  pub fn parse(
+    i: &str,
+  ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
+    let (i, tree) = crate::parse::term::parse(i)?;
+    let (i, _) = nom::character::complete::multispace0(i)?;
+    let (i, _) = nom::combinator::eof(i)?;
+    let dag = DAG::from_term(tree);
+    Ok((i, dag))
+  }
 
-// #[cfg(test)]
-// mod test {
-//   use super::{
-//     norm,
-//     parse,
-//   };
+  #[test]
+  pub fn parser() {
+    fn parse_assert(input: &str) {
+      match parse(&input) {
+        Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
+        Err(_) => panic!("Did not parse."),
+      }
+    }
+    parse_assert("λ x => x");
+    parse_assert("λ x y => x y");
+    parse_assert("λ y => (λ x => x) y");
+    parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
+  }
 
-//   #[test]
-//   pub fn parser() {
-//     fn parse_assert(input: &str) {
-//       match parse(&input) {
-//         Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
-//         Err(_) => panic!("Did not parse."),
-//       }
-//     }
-//     parse_assert("λ x => x");
-//     parse_assert("λ x y => x y");
-//     parse_assert("λ y => (λ x => x) y");
-//     parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
-//   }
-
-//   #[test]
-//   pub fn reducer() {
-//     fn norm_assert(input: &str, result: &str) {
-//       match parse(&input) {
-//         Ok((_, dag)) => assert_eq!(format!("{}", norm(dag)), result),
-//         Err(_) => panic!("Did not parse."),
-//       }
-//     }
-//     // Already normalized
-//     norm_assert("λ x => x", "λ x => x");
-//     norm_assert("λ x y => x y", "λ x y => x y");
-//     // Not normalized cases
-//     norm_assert("λ y => (λ x => x) y", "λ y => y");
-//     norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
-//     // // Church arithmetic
-//     let zero = "λ s z => z";
-//     let three = "λ s z => s (s (s z))";
-//     let four = "λ s z => s (s (s (s z)))";
-//     let seven = "λ s z => s (s (s (s (s (s (s z))))))";
-//     let add = "λ m n s z => m s (n s z)";
-//     let is_three = format!("(({}) ({}) {})", add, zero, three);
-//     let is_seven = format!("(({}) ({}) {})", add, four, three);
-//     norm_assert(&is_three, three);
-//     norm_assert(&is_seven, seven);
-//     let id = "λ x => x";
-//     norm_assert(
-//       &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
-//       id,
-//     );
-//   }
-// }
+  #[test]
+  pub fn reducer() {
+    fn norm_assert(input: &str, result: &str) {
+      match parse(&input) {
+        Ok((_, dag)) => assert_eq!(format!("{}", norm(dag)), result),
+        Err(_) => panic!("Did not parse."),
+      }
+    }
+    // Already normalized
+    norm_assert("λ x => x", "λ x => x");
+    norm_assert("λ x y => x y", "λ x y => x y");
+    // Not normalized cases
+    norm_assert("λ y => (λ x => x) y", "λ y => y");
+    norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
+    // // Church arithmetic
+    let zero = "λ s z => z";
+    let three = "λ s z => s (s (s z))";
+    let four = "λ s z => s (s (s (s z)))";
+    let seven = "λ s z => s (s (s (s (s (s (s z))))))";
+    let add = "λ m n s z => m s (n s z)";
+    let is_three = format!("(({}) ({}) {})", add, zero, three);
+    let is_seven = format!("(({}) ({}) {})", add, four, three);
+    norm_assert(&is_three, three);
+    norm_assert(&is_seven, seven);
+    // let id = "λ x => x";
+    // norm_assert(
+    //  &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
+    //  id,
+    //);
+  }
+}
