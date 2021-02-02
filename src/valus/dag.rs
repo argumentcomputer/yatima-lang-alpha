@@ -29,6 +29,7 @@ use std::{
     dealloc,
     Layout,
   },
+  collections::HashSet,
   fmt,
 };
 
@@ -158,12 +159,12 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
         let parent = &mut *parent.as_ptr();
         parent.copy.map_or((), |branch| {
           parent.copy = None;
-          let Branch { var, left, left_ref, right, right_ref, parents, .. } =
+          let Branch { var, left, left_ref, right, right_ref, .. } =
             *branch.as_ptr();
           add_to_parents(left, left_ref);
           add_to_parents(right, right_ref);
           clean_up_var(var);
-          for grandparent in DLL::iter_option(parents) {
+          for grandparent in DLL::iter_option(parent.parents) {
             clean_up(grandparent);
           }
         })
@@ -172,12 +173,12 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
         let parent = &mut *parent.as_ptr();
         parent.copy.map_or((), |branch| {
           parent.copy = None;
-          let Branch { var, left, left_ref, right, right_ref, parents, .. } =
+          let Branch { var, left, left_ref, right, right_ref, .. } =
             *branch.as_ptr();
           add_to_parents(left, left_ref);
           add_to_parents(right, right_ref);
           clean_up_var(var);
-          for grandparent in DLL::iter_option(parents) {
+          for grandparent in DLL::iter_option(parent.parents) {
             clean_up(grandparent);
           }
         })
@@ -382,6 +383,87 @@ pub fn new_leaf(tag: LeafTag) -> NonNull<Leaf> {
   alloc_val(Leaf { tag, parents: None })
 }
 
+impl fmt::Debug for DAG {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    #[inline]
+    fn stringify_parents(dll: Option<NonNull<Parents>>) -> String {
+      #[inline]
+      fn extract_link(p: ParentCell) -> String {
+        match p {
+          ParentCell::Root => String::from("ROOT"),
+          ParentCell::Body(link) => format!("B{}", link.as_ptr() as u64),
+          ParentCell::Left(link) => format!("L{}", link.as_ptr() as u64),
+          ParentCell::Right(link) => format!("R{}", link.as_ptr() as u64),
+        }
+      }
+      match dll {
+        Some(dll) => unsafe {
+          let mut iter = (*dll.as_ptr()).iter();
+          let head = &iter.next().map_or(String::from(""), |head| {
+            format!("{}", extract_link(*head))
+          });
+          let mut msg = String::from("[ ") + head;
+          for val in iter {
+            msg = msg + " <-> " + &format!("{}", extract_link(*val));
+          }
+          msg + " ]"
+        },
+        _ => String::from("[]"),
+      }
+    }
+    fn go(term: DAG, set: &mut HashSet<u64>) -> String {
+      match term {
+        DAG::Branch(link) => unsafe {
+          if set.get(&(link.as_ptr() as u64)).is_none(){
+            set.insert(link.as_ptr() as u64);
+            let Branch { parents, left, right, copy, .. } = *link.as_ptr();
+            let copy = copy.map(|link| format!("{}", link.as_ptr() as u64));
+            format!("\nApp<{}> parents: {} copy: {:?}{}{}", link.as_ptr() as u64, stringify_parents(parents), copy, go(left, set), go(right, set))
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        },
+        DAG::Single(link) => unsafe {
+          let Single { var, parents, body, .. } = *link.as_ptr();
+          let name = match var {
+            Some(var_link) => {
+              match &(*var_link.as_ptr()).tag {
+                LeafTag::Var(name) => name.clone(),
+                _ => panic!("TODO"),
+              }
+            },
+            _ => panic!("TODO"),
+          };
+          if set.get(&(link.as_ptr() as u64)).is_none(){
+            set.insert(link.as_ptr() as u64);
+            format!("\nLam<{}> {} parents: {}{}", link.as_ptr() as u64, name, stringify_parents(parents), go(body, set))
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        },
+        DAG::Leaf(link) => unsafe {
+          let Leaf { parents, .. } = *link.as_ptr();
+          match &(*link.as_ptr()).tag {
+            LeafTag::Var(name) => {
+              if set.get(&(link.as_ptr() as u64)).is_none(){
+                set.insert(link.as_ptr() as u64);
+                format!("\nVar<{}> {} parents: {}", link.as_ptr() as u64, name, stringify_parents(parents))
+              }
+              else {
+                format!("\nSHARE<{}>", link.as_ptr() as u64)
+              }
+            }
+            _ => panic!("TODO"),
+          }
+        },
+      }
+    }
+    write!(f, "{}", go(*self, &mut HashSet::new()))
+  }
+}
+
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_term())
@@ -410,7 +492,6 @@ impl DAG {
             }
             LeafTag::Var(nam) => {
               let level = map.get(&link.as_ptr()).unwrap();
-              // println!("(depth: {}, level: {})", depth, level);
               Term::Var(None, nam.to_owned(), depth - level - 1)
             }
           }
@@ -610,8 +691,9 @@ impl DAG {
           }
 
           // Map `name` to `var` node
-          let dom = go(*dom, ctx.clone(), dom_parents);
-          ctx.push_front(var);
+          let mut dom_ctx = ctx.clone();
+          dom_ctx.push_front(var);
+          let dom = go(*dom, dom_ctx, dom_parents);
           let img = go(*img, ctx, img_parents);
 
           // Update `all` with the correct fields
