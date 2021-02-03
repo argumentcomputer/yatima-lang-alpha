@@ -67,7 +67,7 @@ pub enum LeafTag {
   Lit(Literal),
   Opr(PrimOp),
   Var(String),
-  Ref(String, Link, Link),
+  Ref(String, Link),
 }
 
 pub struct Single {
@@ -414,11 +414,18 @@ impl fmt::Debug for DAG {
     fn go(term: DAG, set: &mut HashSet<u64>) -> String {
       match term {
         DAG::Branch(link) => unsafe {
-          if set.get(&(link.as_ptr() as u64)).is_none(){
+          if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);
             let Branch { parents, left, right, copy, .. } = *link.as_ptr();
             let copy = copy.map(|link| format!("{}", link.as_ptr() as u64));
-            format!("\nApp<{}> parents: {} copy: {:?}{}{}", link.as_ptr() as u64, stringify_parents(parents), copy, go(left, set), go(right, set))
+            format!(
+              "\nApp<{}> parents: {} copy: {:?}{}{}",
+              link.as_ptr() as u64,
+              stringify_parents(parents),
+              copy,
+              go(left, set),
+              go(right, set)
+            )
           }
           else {
             format!("\nSHARE<{}>", link.as_ptr() as u64)
@@ -427,17 +434,21 @@ impl fmt::Debug for DAG {
         DAG::Single(link) => unsafe {
           let Single { var, parents, body, .. } = *link.as_ptr();
           let name = match var {
-            Some(var_link) => {
-              match &(*var_link.as_ptr()).tag {
-                LeafTag::Var(name) => name.clone(),
-                _ => panic!("TODO"),
-              }
+            Some(var_link) => match &(*var_link.as_ptr()).tag {
+              LeafTag::Var(name) => name.clone(),
+              _ => panic!("TODO"),
             },
             _ => panic!("TODO"),
           };
-          if set.get(&(link.as_ptr() as u64)).is_none(){
+          if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);
-            format!("\nLam<{}> {} parents: {}{}", link.as_ptr() as u64, name, stringify_parents(parents), go(body, set))
+            format!(
+              "\nLam<{}> {} parents: {}{}",
+              link.as_ptr() as u64,
+              name,
+              stringify_parents(parents),
+              go(body, set)
+            )
           }
           else {
             format!("\nSHARE<{}>", link.as_ptr() as u64)
@@ -447,9 +458,14 @@ impl fmt::Debug for DAG {
           let Leaf { parents, .. } = *link.as_ptr();
           match &(*link.as_ptr()).tag {
             LeafTag::Var(name) => {
-              if set.get(&(link.as_ptr() as u64)).is_none(){
+              if set.get(&(link.as_ptr() as u64)).is_none() {
                 set.insert(link.as_ptr() as u64);
-                format!("\nVar<{}> {} parents: {}", link.as_ptr() as u64, name, stringify_parents(parents))
+                format!(
+                  "\nVar<{}> {} parents: {}",
+                  link.as_ptr() as u64,
+                  name,
+                  stringify_parents(parents)
+                )
               }
               else {
                 format!("\nSHARE<{}>", link.as_ptr() as u64)
@@ -487,9 +503,7 @@ impl DAG {
             LeafTag::LTy(lty) => Term::LTy(None, *lty),
             LeafTag::Lit(lit) => Term::Lit(None, lit.clone()),
             LeafTag::Opr(opr) => Term::Opr(None, *opr),
-            LeafTag::Ref(nam, def_link, ast_link) => {
-              Term::Ref(None, nam.to_owned(), *def_link, *ast_link)
-            }
+            LeafTag::Ref(nam, link) => Term::Ref(None, nam.to_owned(), *link),
             LeafTag::Var(nam) => {
               let level = map.get(&link.as_ptr()).unwrap();
               Term::Var(None, nam.to_owned(), depth - level - 1)
@@ -691,10 +705,10 @@ impl DAG {
           }
 
           // Map `name` to `var` node
-          let mut dom_ctx = ctx.clone();
-          dom_ctx.push_front(var);
-          let dom = go(*dom, dom_ctx, dom_parents);
-          let img = go(*img, ctx, img_parents);
+          let mut img_ctx = ctx.clone();
+          let dom = go(*dom, ctx, dom_parents);
+          img_ctx.push_front(var);
+          let img = go(*img, img_ctx, img_parents);
 
           // Update `all` with the correct fields
           unsafe {
@@ -785,8 +799,8 @@ impl DAG {
           tag: LeafTag::Opr(opr),
           parents: Some(parents),
         })),
-        Term::Ref(_, name, def_link, ast_link) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::Ref(name, def_link, ast_link),
+        Term::Ref(_, name, link) => DAG::Leaf(alloc_val(Leaf {
+          tag: LeafTag::Ref(name, link),
           parents: Some(parents),
         })),
         _ => panic!("TODO: implement Term::to_dag variants"),

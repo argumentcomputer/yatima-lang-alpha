@@ -1,33 +1,35 @@
 use hashexpr::{
   atom::Atom::*,
-  link::Link,
   Expr,
   Expr::*,
 };
 
-use std::collections::HashMap;
+use crate::term::Link;
 
-use crate::{
-  decode_error::{
-    DecodeError,
-    Expected,
-  },
-  defs::Defs,
-  imports::Imports,
-};
+use im::HashMap;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
-  name: String,
-  docs: String,
-  source: Link,
-  imports: Imports,
-  index: Index,
+  pub name: String,
+  pub docs: String,
+  pub source: Link,
+  pub imports: Imports,
+  pub index: Index,
+}
+#[derive(PartialEq, Clone, Debug)]
+pub struct Imports {
+  pub imports: Vec<(Link, String)>,
 }
 
-pub struct Imports {
-  imports: Vec<(Link, String)>,
+#[derive(PartialEq, Clone, Debug)]
+pub struct Entry {
+  pub def_link: Link,
+  pub ast_link: Link,
+  pub type_posi: Link,
+  pub term_posi: Link,
 }
+
+#[derive(PartialEq, Clone, Debug)]
 pub struct Index {
-  entries: HashMap<String, (Link, Link, Link)>,
+  pub entries: HashMap<String, Entry>,
 }

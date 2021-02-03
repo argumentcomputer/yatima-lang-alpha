@@ -96,7 +96,7 @@ pub mod tests {
   use crate::term::tests::arbitrary_name;
 
   pub fn test_package() -> Package {
-    let refs: HashMap<String, (Link, Link)> = HashMap::new();
+    let refs: HashMap<String, Link> = HashMap::new();
     Package {
       name: String::from("test"),
       docs: String::from("This is a test package"),

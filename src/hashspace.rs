@@ -12,9 +12,10 @@ use std::{
 };
 
 pub mod anon_term;
+pub mod cache;
 pub mod embed;
-pub mod name_meta;
-pub mod posi_meta;
+pub mod embed_package;
+pub mod meta_term;
 pub mod server;
 
 // TODO: Add custom directory option

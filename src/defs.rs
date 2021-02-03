@@ -17,7 +17,7 @@ use crate::{
     DecodeError,
     Expected,
   },
-  hashspace::embed::desaturate_term,
+  hashspace::embed::embed_term,
   term::Term,
 };
 
@@ -25,7 +25,7 @@ use crate::{
 pub struct Def {
   pub pos: Option<Pos>,
   pub name: String,
-  pub doc: String,
+  pub docs: String,
   pub typ_: Term,
   pub term: Term,
 }
@@ -33,7 +33,6 @@ pub struct Def {
 impl PartialEq for Def {
   fn eq(&self, other: &Def) -> bool {
     self.name == other.name
-      && self.doc == other.doc
       && self.typ_ == other.typ_
       && self.term == other.term
   }
@@ -44,41 +43,36 @@ pub struct Defs {
   pub defs: Vec<Def>,
 }
 
-/// A map of names to pairs of links. The first link is to the dag::Def
-/// (expression definition with metadata), the
-/// second is to the dag::Anon (anonymous computational term).
-pub type Refs = HashMap<String, (Link, Link)>;
-
 impl Def {
   pub fn new(
     pos: Option<Pos>,
     name: String,
-    doc: String,
+    docs: String,
     typ_: Term,
     term: Term,
   ) -> Self {
-    Def { pos, name, doc, typ_, term }
+    Def { pos, name, docs, typ_, term }
   }
 
   pub fn encode(self) -> Expr {
     Expr::Cons(self.pos, vec![
       atom!(symb!("def")),
       atom!(symb!(self.name)),
-      atom!(text!(self.doc)),
+      atom!(text!(self.docs)),
       Term::encode(self.typ_),
       Term::encode(self.term),
     ])
   }
 
   pub fn decode(
-    refs: HashMap<String, (Link, Link)>,
+    refs: HashMap<String, Link>,
     expr: Expr,
   ) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("def") => {
           match tail {
-            [Atom(_, Symbol(name)), Atom(_, Text(doc, None)), typ_, term] => {
+            [Atom(_, Symbol(name)), Atom(_, Text(docs, None)), typ_, term] => {
               let mut ctx = Vector::new();
               let typ_ =
                 Term::decode(refs.to_owned(), ctx.to_owned(), typ_.to_owned())?;
@@ -87,7 +81,7 @@ impl Def {
               Ok(Def::new(
                 pos.to_owned(),
                 name.to_owned(),
-                doc.to_owned(),
+                docs.to_owned(),
                 typ_,
                 term,
               ))
@@ -112,9 +106,9 @@ impl Defs {
   }
 
   pub fn decode(
-    mut refs: HashMap<String, (Link, Link)>,
+    mut refs: HashMap<String, Link>,
     expr: Expr,
-  ) -> Result<(Defs, HashMap<String, (Link, Link)>), DecodeError> {
+  ) -> Result<(Defs, HashMap<String, Link>), DecodeError> {
     match expr {
       Cons(pos, xs) => {
         let mut defs = Vec::new();
@@ -125,9 +119,8 @@ impl Defs {
               Expected::UniqueDefinitionName,
             ]));
           }
-          let def_link = def.clone().encode().link();
-          let ast_link = desaturate_term(def.term.clone()).0.encode().link();
-          refs.insert(def.name.clone(), (def_link, ast_link));
+          let link = embed_term(def.term.clone()).0.encode().link();
+          refs.insert(def.name.clone(), link);
           defs.push(def);
         }
         Ok((Defs { defs }, refs))
@@ -141,14 +134,14 @@ impl Defs {
 
 impl fmt::Display for Def {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if self.doc.is_empty() {
+    if self.docs.is_empty() {
       write!(f, "def {} : {} = {}", self.name, self.typ_, self.term)
     }
     else {
       write!(
         f,
         "//{}\n def {} : {} = {}",
-        self.doc, self.name, self.typ_, self.term
+        self.docs, self.name, self.typ_, self.term
       )
     }
   }
@@ -165,7 +158,7 @@ impl fmt::Display for Defs {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
   use super::*;
   use quickcheck::{
     Arbitrary,
@@ -173,19 +166,20 @@ mod tests {
   };
   use rand::Rng;
 
+  use crate::term::Refs;
+
   use crate::term::tests::{
     arbitrary_name,
     arbitrary_term,
-    test_refs,
   };
 
-  fn arbitrary_def<G: Gen>(g: &mut G, refs: Refs, name: String) -> Def {
+  pub fn arbitrary_def<G: Gen>(g: &mut G, refs: Refs, name: String) -> Def {
     let mut ctx = Vector::new();
     ctx.push_front(name.clone());
     Def {
       pos: None,
       name,
-      doc: String::from(""),
+      docs: String::from(""),
       typ_: arbitrary_term(g, refs.clone(), Vector::new()),
       term: arbitrary_term(g, refs, ctx),
     }
@@ -208,13 +202,8 @@ mod tests {
           nam = arbitrary_name(g);
         }
         let def = arbitrary_def(g, refs.clone(), nam.clone());
-        let def_link = def.clone().encode().link();
-        let ast_link =
-          crate::hashspace::embed::desaturate_term(def.term.clone())
-            .0
-            .encode()
-            .link();
-        refs.insert(nam.clone(), (def_link, ast_link));
+        let link = embed_term(def.term.clone()).0.encode().link();
+        refs.insert(nam.clone(), link);
         defs.push(def)
       }
       Defs { defs }
@@ -256,7 +245,7 @@ mod tests {
     let def = Def {
       pos: None,
       name: String::from("id"),
-      doc: String::from(""),
+      docs: String::from(""),
       typ_: typ_.clone(),
       term: term.clone(),
     };
@@ -271,7 +260,7 @@ mod tests {
     let def2 = Def {
       pos: None,
       name: String::from("id2"),
-      doc: String::from(""),
+      docs: String::from(""),
       typ_: typ_.clone(),
       term: term.clone(),
     };

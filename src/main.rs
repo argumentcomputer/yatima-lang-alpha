@@ -35,8 +35,7 @@ fn main() {
     Cli::Repl => repl::main().unwrap(),
     Cli::Parse { input } => {
       let p = parse::package::parse_file(input);
-      println!("Package parsed: {}", p);
-      println!("Package parsed: {:?}", p)
+      println!("Package parsed:\n{}", p);
     }
     Cli::Save { input } => {
       let string = fs::read_to_string(input).unwrap();

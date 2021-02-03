@@ -36,7 +36,7 @@ pub enum Term {
   Slf(Option<Pos>, String, Box<Term>),
   Dat(Option<Pos>, Box<Term>),
   Cse(Option<Pos>, Box<Term>),
-  Ref(Option<Pos>, String, Link, Link),
+  Ref(Option<Pos>, String, Link),
   Let(Option<Pos>, bool, Uses, String, Box<Term>, Box<Term>, Box<Term>),
   Typ(Option<Pos>),
   Ann(Option<Pos>, Box<Term>, Box<Term>),
@@ -45,7 +45,10 @@ pub enum Term {
   Opr(Option<Pos>, PrimOp),
 }
 
-pub type Refs = HashMap<String, (Link, Link)>;
+/// A map of names to pairs of links. The first link is to the dag::Def
+/// (expression definition with metadata), the
+/// second is to the dag::Anon (anonymous computational term).
+pub type Refs = HashMap<String, Link>;
 
 impl PartialEq for Term {
   fn eq(&self, other: &Self) -> bool {
@@ -59,9 +62,7 @@ impl PartialEq for Term {
       (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
       (Self::Dat(_, ba), Self::Dat(_, bb)) => ba == bb,
       (Self::Cse(_, ba), Self::Cse(_, bb)) => ba == bb,
-      (Self::Ref(_, na, ma, aa), Self::Ref(_, nb, mb, ab)) => {
-        na == nb && ma == mb && aa == ab
-      }
+      (Self::Ref(_, na, ma), Self::Ref(_, nb, mb)) => na == nb && ma == mb,
       (
         Self::Let(_, ra, ua, na, ta, xa, ba),
         Self::Let(_, rb, ub, nb, tb, xb, bb),
@@ -244,10 +245,10 @@ impl Term {
         };
         let decode_ref = |val| match val {
           Symbol(n) => {
-            let (def_link, ast_link) = refs
+            let link = refs
               .get(&n)
               .ok_or(DecodeError::new(pos, vec![Expected::DefinedRef]))?;
-            Ok(Self::Ref(pos, n.to_owned(), *def_link, *ast_link))
+            Ok(Self::Ref(pos, n.to_owned(), *link))
           }
           _ => Err(DecodeError::new(pos, vec![Expected::DefinedRef])),
         };
@@ -522,7 +523,7 @@ pub mod tests {
 
   fn arbitrary_ref<G: Gen>(g: &mut G, refs: Refs, ctx: Vector<String>) -> Term {
     match refs.iter().filter(|(n, _)| !ctx.contains(n)).choose(g) {
-      Some((n, (d, a))) => Ref(None, n.clone(), *d, *a),
+      Some((n, l)) => Ref(None, n.clone(), *l),
       None => Term::Typ(None),
     }
   }

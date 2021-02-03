@@ -25,6 +25,7 @@ use nom::{
   branch::alt,
   bytes::complete::{
     tag,
+    take_till,
     take_till1,
   },
   character::complete::{
@@ -35,6 +36,7 @@ use nom::{
   },
   combinator::{
     map,
+    opt,
     success,
     value,
   },
@@ -53,11 +55,14 @@ use nom::{
 
 pub fn reserved_symbols() -> Vector<String> {
   Vector::from(vec![
+    String::from("//"),
     String::from("λ"),
+    String::from("lambda"),
     String::from("=>"),
     String::from("{"),
     String::from("}"),
     String::from("∀"),
+    String::from("forall"),
     String::from("->"),
     String::from("@"),
     String::from(":="),
@@ -69,6 +74,17 @@ pub fn reserved_symbols() -> Vector<String> {
     String::from("case"),
     String::from("Type"),
   ])
+}
+
+pub fn parse_line_comment(i: Span) -> IResult<Span, Span, ParseError<Span>> {
+  let (i, _) = tag("//")(i)?;
+  let (i, com) = take_till(|c| c == '\n')(i)?;
+  Ok((i, com))
+}
+pub fn parse_space(i: Span) -> IResult<Span, Option<Span>, ParseError<Span>> {
+  let (i, _) = multispace0(i)?;
+  let (i, com) = opt(terminated(parse_line_comment, multispace1))(i)?;
+  Ok((i, com))
 }
 
 pub fn parse_name(i: Span) -> IResult<Span, String, ParseError<Span>> {
@@ -101,9 +117,7 @@ pub fn parse_var(
     match ctx.iter().enumerate().find(|(_, x)| **x == nam) {
       Some((idx, _)) => Ok((upto, Term::Var(pos, nam.clone(), idx as u64))),
       None => match refs.get(&nam) {
-        Some((def_link, ast_link)) => {
-          Ok((upto, Term::Ref(pos, nam.clone(), *def_link, *ast_link)))
-        }
+        Some(link) => Ok((upto, Term::Ref(pos, nam.clone(), *link))),
         None => Err(Err::Error(ParseError::UndefinedReference(
           upto,
           nam.clone(),
@@ -119,12 +133,12 @@ pub fn parse_lam(
   ctx: Vector<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = nom::character::complete::char('λ')(from)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
+    let (i, _) = parse_space(i)?;
     let (i, ns) = separated_list1(multispace1, parse_name)(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, _) = tag("=>")(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     for n in ns.clone().into_iter() {
       ctx2.push_front(n);
@@ -154,12 +168,12 @@ pub fn parse_binder_full(
 ) -> impl Fn(Span) -> IResult<Span, (Uses, String, Term), ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, u) = parse_uses(i)?;
     let (i, n) = parse_name(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, _) = tag(":")(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, typ) = parse_term(refs.clone(), ctx.clone())(i)?;
     let (i, _) = tag(")")(i)?;
     Ok((i, (u, n, typ)))
@@ -216,7 +230,7 @@ pub fn parse_binders(
 
     loop {
       match preceded(
-        multispace0,
+        parse_space,
         parse_binder(refs.clone(), ctx.clone(), nam_opt),
       )(i)
       {
@@ -237,12 +251,12 @@ pub fn parse_all(
   ctx: Vector<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = nom::character::complete::char('∀')(from)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = alt((tag("∀"), tag("lambda")))(from)?;
+    let (i, _) = parse_space(i)?;
     let (i, bs) = parse_binders(refs.clone(), ctx.clone(), true)(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, _) = tag("->")(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     for (_, n, _) in bs.clone().iter() {
       ctx2.push_front(n.clone());
@@ -274,7 +288,7 @@ pub fn parse_self(
   move |from: Span| {
     let (i, _) = nom::character::complete::char('@')(from)?;
     let (i, n) = parse_name(i)?;
-    let (i, _) = multispace1(i)?;
+    let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
     let (upto, bod) = parse_term(refs.clone(), ctx2)(i)?;
@@ -289,7 +303,7 @@ pub fn parse_case(
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("case")(from)?;
-    let (i, _) = multispace1(i)?;
+    let (i, _) = parse_space(i)?;
     let (upto, bod) = parse_term(refs.clone(), ctx.clone())(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Cse(pos, Box::new(bod))))
@@ -302,7 +316,7 @@ pub fn parse_data(
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("data")(from)?;
-    let (i, _) = multispace1(i)?;
+    let (i, _) = parse_space(i)?;
     let (upto, bod) = parse_term(refs.clone(), ctx.clone())(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Dat(pos, Box::new(bod))))
@@ -321,16 +335,16 @@ pub fn parse_decl(
       Err(Err::Error(ParseError::TopLevelRedefinition(from, nam.clone())))
     }
     else {
-      let (i, _) = multispace0(i)?;
+      let (i, _) = parse_space(i)?;
       let (i, bs) = alt((
         terminated(
           parse_binders(refs.clone(), ctx.clone(), false),
-          multispace0,
+          parse_space,
         ),
         success(Vec::new()),
       ))(i)?;
       let (i, _) = tag(":")(i)?;
-      let (i, _) = multispace0(i)?;
+      let (i, _) = parse_space(i)?;
       let mut ctx2 = ctx.clone();
       for (_, n, _) in bs.clone().iter() {
         ctx2.push_front(n.clone());
@@ -339,9 +353,9 @@ pub fn parse_decl(
       if rec {
         ctx2.push_front(nam.clone());
       };
-      let (i, _) = multispace0(i)?;
+      let (i, _) = parse_space(i)?;
       let (i, _) = tag(":=")(i)?;
-      let (i, _) = multispace0(i)?;
+      let (i, _) = parse_space(i)?;
       let (upto, trm) = parse_term(refs.clone(), ctx2.clone())(i)?;
       let pos = Some(Pos::from_upto(from, upto));
       let trm = bs
@@ -363,12 +377,12 @@ pub fn parse_let(
   move |from: Span| {
     let (i, rec) =
       alt((value(true, tag("letrec")), value(false, tag("let"))))(from)?;
-    let (i, _) = multispace1(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, uses) = parse_uses(i)?;
     let (i, (nam, exp, typ)) =
       parse_decl(refs.clone(), ctx.clone(), rec, true)(i)?;
     let (i, _) = tag(";")(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     ctx2.push_front(nam.clone());
     let (upto, bod) = parse_term(refs.clone(), ctx2.clone())(i)?;
@@ -523,9 +537,9 @@ pub fn parse_ann(
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, trm) = parse_term(refs.clone(), ctx.clone())(from)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (i, _) = tag("::")(i)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (upto, typ) = parse_term(refs.clone(), ctx.clone())(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Ann(pos, Box::new(typ), Box::new(trm))))
@@ -538,7 +552,7 @@ pub fn parse_term(
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, fun) = parse_term_inner(refs.clone(), ctx.clone())(from)?;
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     let (upto, args) = separated_list0(
       multispace1,
       parse_term_inner(refs.clone(), ctx.clone()),
@@ -558,12 +572,12 @@ pub fn parse_term_inner(
   move |i: Span| {
     alt((
       delimited(
-        preceded(tag("("), multispace0),
+        preceded(tag("("), parse_space),
         parse_ann(refs.clone(), ctx.clone()),
         tag(")"),
       ),
       delimited(
-        preceded(tag("("), multispace0),
+        preceded(tag("("), parse_space),
         parse_term(refs.clone(), ctx.clone()),
         tag(")"),
       ),

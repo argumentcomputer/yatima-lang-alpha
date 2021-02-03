@@ -19,6 +19,11 @@ pub enum Expected {
   Case,
   Data,
   Constructor,
+  EmbedDef,
+  EmbedDefContents,
+  EmbedDefs,
+  EmbedPackage,
+  EmbedPackageContents,
   Definition,
   DefinitionContents,
   DefinitionList,
@@ -30,7 +35,7 @@ pub enum Expected {
   AnonTermCons,
   AnonTermAtom,
   AnonTermVariU64,
-  NameMeta,
+  MetaTerm,
 }
 
 #[derive(PartialEq, Clone, Debug)]

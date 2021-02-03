@@ -274,6 +274,8 @@ mod test {
     norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
     // // Church arithmetic
     let zero = "λ s z => z";
+    let one = "λ s z => (s z)";
+    let two = "λ s z => s (s z)";
     let three = "λ s z => s (s (s z))";
     let four = "λ s z => s (s (s (s z)))";
     let seven = "λ s z => s (s (s (s (s (s (s z))))))";
@@ -284,8 +286,15 @@ mod test {
     norm_assert(&is_seven, seven);
     let id = "λ x => x";
     norm_assert(
-     &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
-     id,
+      &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
+      id,
     );
+    let trm_str =
+      &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id,);
+    println!("{}", trm_str);
+    let (_, trm) = parse(trm_str).unwrap();
+    println!("{:?}", DAG::to_term(&trm));
+    // assert_eq!(true, false);
+    norm_assert(trm_str, id)
   }
 }
