@@ -4,7 +4,7 @@ use crate::decode_error::{
   Expected,
 };
 
-pub use crate::valus::{
+pub use crate::core::{
   literal::{
     LitType,
     Literal,

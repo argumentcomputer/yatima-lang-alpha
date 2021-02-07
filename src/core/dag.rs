@@ -1,12 +1,7 @@
 #![allow(unused_variables)]
 
 use crate::{
-  term,
-  term::{
-    Link,
-    Term,
-  },
-  valus::{
+  core::{
     dll::*,
     eval,
     literal::{
@@ -15,6 +10,11 @@ use crate::{
     },
     primop::PrimOp,
     uses::Uses,
+  },
+  term,
+  term::{
+    Link,
+    Term,
   },
 };
 

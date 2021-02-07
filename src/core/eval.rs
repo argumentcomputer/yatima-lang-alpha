@@ -1,6 +1,6 @@
 use core::ptr::NonNull;
 
-use crate::valus::{
+use crate::core::{
   dag::{
     clear_copies,
     free_dead_node,

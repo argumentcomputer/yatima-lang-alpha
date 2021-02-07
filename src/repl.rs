@@ -9,11 +9,11 @@ use rustyline::{
 };
 
 use crate::{
-  parse::term::parse,
-  valus::{
+  core::{
     dag::DAG,
     eval::norm,
   },
+  parse::term::parse,
 };
 
 pub fn main() -> rustyline::Result<()> {

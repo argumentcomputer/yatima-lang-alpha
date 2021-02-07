@@ -17,6 +17,7 @@ extern crate log;
 #[macro_use]
 extern crate hashexpr;
 
+pub mod core;
 pub mod decode_error;
 pub mod defs;
 pub mod hashspace;
@@ -25,4 +26,3 @@ pub mod package;
 pub mod parse;
 pub mod repl;
 pub mod term;
-pub mod valus;

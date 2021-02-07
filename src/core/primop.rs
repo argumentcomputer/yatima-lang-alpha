@@ -6,9 +6,7 @@ use num_bigint::{
   BigUint,
 };
 
-use crate::valus::literal::{
-  Literal,
-};
+use crate::core::literal::Literal;
 
 use crate::decode_error::{
   DecodeError,

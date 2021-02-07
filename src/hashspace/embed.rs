@@ -101,7 +101,10 @@ impl Def {
         }
         _ => Err(DecodeError::new(pos, vec![Expected::EmbedDef])),
       },
-      _ => Err(DecodeError::new(expr.position(), vec![Expected::EmbedDef])),
+      _ => {
+        println!("foo");
+        Err(DecodeError::new(expr.position(), vec![Expected::EmbedDef]))
+      }
     }
   }
 }

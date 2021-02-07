@@ -14,7 +14,6 @@ use std::{
 pub mod anon_term;
 pub mod cache;
 pub mod embed;
-pub mod embed_package;
 pub mod meta_term;
 pub mod server;
 
