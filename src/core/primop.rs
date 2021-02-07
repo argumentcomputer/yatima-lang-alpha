@@ -61,8 +61,7 @@ pub enum PrimOp {
   Len,
   /// concatenate
   Cat,
-  /// cast
-  Cst,
+  // Cst
 }
 
 impl PrimOp {
@@ -88,7 +87,7 @@ impl PrimOp {
       Self::Shr => String::from("#shr"),
       Self::Len => String::from("#len"),
       Self::Cat => String::from("#cat"),
-      Self::Cst => String::from("#cst"),
+      // Self::Cst => String::from("#cst"),
     }
   }
 
@@ -114,8 +113,18 @@ impl PrimOp {
       "#shr" => Some(Self::Shr),
       "#len" => Some(Self::Len),
       "#cat" => Some(Self::Cat),
-      "#cst" => Some(Self::Cst),
+      //"#cst" => Some(Self::Cst),
       _ => None,
+    }
+  }
+
+  pub fn arity(self) -> u64 {
+    match self {
+      Self::Not => 1,
+      Self::Len => 1,
+      Self::Suc => 1,
+      Self::Pre => 1,
+      _ => 2,
     }
   }
 
@@ -395,7 +404,7 @@ pub mod tests {
   use rand::Rng;
   impl Arbitrary for PrimOp {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let gen = g.gen_range(0, 20);
+      let gen = g.gen_range(0, 19);
       match gen {
         0 => Self::Eql,
         1 => Self::Lth,
@@ -416,8 +425,8 @@ pub mod tests {
         16 => Self::Shl,
         17 => Self::Shr,
         18 => Self::Len,
-        19 => Self::Cat,
-        _ => Self::Cst,
+        _ => Self::Cat,
+        //_ => Self::Cst,
       }
     }
   }

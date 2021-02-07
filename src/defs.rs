@@ -97,6 +97,15 @@ impl Def {
 }
 
 impl Defs {
+  pub fn get(self, name: &str) -> Option<Def> {
+    for d in self.defs {
+      if name == d.name {
+        return Some(d);
+      }
+    }
+    return None;
+  }
+
   pub fn encode(self) -> Expr {
     let mut defs = Vec::new();
     for d in self.defs {

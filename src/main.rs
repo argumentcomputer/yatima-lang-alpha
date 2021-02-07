@@ -4,6 +4,7 @@ use std::{
 };
 
 use yatima::{
+  core,
   hashspace,
   parse,
   repl,
@@ -25,6 +26,10 @@ enum Cli {
     #[structopt(parse(from_os_str))]
     input: PathBuf,
   },
+  Run {
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+  },
   Repl,
 }
 //
@@ -36,6 +41,19 @@ fn main() {
     Cli::Parse { input } => {
       let p = parse::package::parse_file(input);
       println!("Package parsed:\n{}", p);
+    }
+    Cli::Run { input } => {
+      let p = parse::package::parse_file(input.clone());
+      let d = p.defs.get("main");
+      match d {
+        None => panic!(
+          "No `main` expression in package {} from file {:?}",
+          p.name, input
+        ),
+        Some(d) => {
+          println!("{}", core::eval::norm(core::dag::DAG::from_term(d.term)));
+        }
+      }
     }
     Cli::Save { input } => {
       let string = fs::read_to_string(input).unwrap();

@@ -5,18 +5,23 @@ use crate::core::{
     clear_copies,
     free_dead_node,
     new_branch,
+    new_leaf,
     new_single,
     replace_child,
     Branch,
     BranchTag,
     Leaf,
+    LeafTag,
     ParentCell,
     Single,
     SingleTag,
     DAG,
   },
   dll::*,
-  primop::apply_bin_op,
+  primop::{
+    apply_bin_op,
+    apply_una_op,
+  },
 };
 
 // The core up-copy function.
@@ -163,26 +168,73 @@ pub fn whnf(mut node: DAG) -> DAG {
           _ => break,
         }
       },
+      DAG::Leaf(link) => unsafe {
+        let Leaf { tag, .. } = &*link.as_ptr();
+        match tag {
+          LeafTag::Opr(opr) => {
+            let len = trail.len();
+            if len >= 1 && opr.arity() == 1 {
+              let arg = whnf((*trail[len - 1].as_ptr()).right);
+              match arg {
+                DAG::Leaf(x) => {
+                  let x = (*x.as_ptr()).tag.clone();
+                  match x {
+                    LeafTag::Lit(x) => {
+                      let res = apply_una_op(*opr, x);
+                      if let Some(res) = res {
+                        trail.pop();
+                        node = DAG::Leaf(new_leaf(LeafTag::Lit(res)));
+                        replace_child(arg, node);
+                        free_dead_node(arg);
+                      }
+                      else {
+                        break;
+                      }
+                    }
+
+                    _ => break,
+                  }
+                }
+                _ => break,
+              }
+            }
+            else if len >= 2 && opr.arity() == 2 {
+              let arg1 = whnf((*trail[len - 2].as_ptr()).right);
+              let arg2 = whnf((*trail[len - 1].as_ptr()).right);
+              match (arg1, arg2) {
+                (DAG::Leaf(x), DAG::Leaf(y)) => {
+                  let x = (*x.as_ptr()).tag.clone();
+                  let y = (*y.as_ptr()).tag.clone();
+                  match (x, y) {
+                    (LeafTag::Lit(x), LeafTag::Lit(y)) => {
+                      let res = apply_bin_op(*opr, y, x);
+                      if let Some(res) = res {
+                        trail.pop();
+                        trail.pop();
+                        node = DAG::Leaf(new_leaf(LeafTag::Lit(res)));
+                        replace_child(arg1, node);
+                        free_dead_node(arg1);
+                      }
+                      else {
+                        break;
+                      }
+                    }
+                    _ => break,
+                  }
+                }
+                _ => break,
+              }
+            }
+            else {
+              break;
+            }
+          }
+          _ => break,
+        }
+      },
 
       // TODO: All primitive operations
       // DAG::Opr(link) => unsafe {
-      //   let len = trail.len();
-      //   if len >= 2 {
-      //     let arg1 = whnf((*trail[len - 2].as_ptr()).arg);
-      //     let arg2 = whnf((*trail[len - 1].as_ptr()).arg);
-      //     match (arg1, arg2) {
-      //       (DAG::Lit(x), DAG::Lit(y)) => {
-      //         let opr = (*link.as_ptr()).opr;
-      //         let x = (*x.as_ptr()).val.clone();
-      //         let y = (*y.as_ptr()).val.clone();
-      //         let res = apply_bin_op(opr, y, x);
-      //         if let Some(res) = res {
-      //           trail.pop();
-      //           trail.pop();
-      //           node = DAG::Lit(alloc_lit(res));
-      //           replace_child(arg1, node);
-      //           free_dead_node(arg1);
-      //         }
       //         // TODO: (#cst (Nat 256) 0d1)
       //         //(DAG::App(x), DAG::Lit(y)) => {
       //         //
