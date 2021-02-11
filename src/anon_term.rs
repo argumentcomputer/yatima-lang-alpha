@@ -1,13 +1,12 @@
 use hashexpr::{
-  Bits,
+  AVal,
+  AVal::*,
   Expr,
   Expr::{
     Atom,
     Cons,
   },
   Link,
-  Nat,
-  Symbol,
 };
 use std::convert::TryInto;
 
@@ -31,16 +30,16 @@ impl AnonTerm {
     match self {
       Self::Ctor(ctor, xs) => {
         let mut ys = Vec::new();
-        ys.push(atom!(symb!(ctor)));
+        ys.push(symb!(ctor));
         for x in xs {
           ys.push(x.encode());
         }
         Expr::Cons(None, ys)
       }
       Self::Bind(x) => cons!(None, x.encode()),
-      Self::Vari(x) => atom!(Nat(x.into(), Some(64))),
-      Self::Link(link) => atom!(link!(link)),
-      Self::Data(data) => atom!(bits!(data)),
+      Self::Vari(x) => nat!(x.into()),
+      Self::Link(link) => link!(link),
+      Self::Data(data) => bits!(data),
     }
   }
 
@@ -61,14 +60,14 @@ impl AnonTerm {
         }
         _ => Err(DecodeError::new(pos, vec![Expected::AnonTermCons])),
       },
-      Atom(pos, Nat(x, Some(64))) => {
+      Atom(pos, Nat(x)) => {
         let idx: u64 = x.try_into().map_err(|_| {
           DecodeError::new(pos, vec![Expected::AnonTermVariU64])
         })?;
         Ok(Self::Vari(idx))
       }
       Atom(_, Link(link)) => Ok(Self::Link(link)),
-      Atom(_, Bits(data, None)) => Ok(Self::Data(data)),
+      Atom(_, Bits(data)) => Ok(Self::Data(data)),
       _ => Err(DecodeError::new(expr.position(), vec![Expected::AnonTermAtom])),
     }
   }

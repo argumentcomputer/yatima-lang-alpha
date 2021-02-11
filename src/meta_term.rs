@@ -1,15 +1,14 @@
 use hashexpr::{
-  Bits,
+  position::Pos,
+  AVal,
+  AVal::*,
   Expr,
   Expr::{
     Atom,
     Cons,
   },
   Link,
-  Nat,
-  Symbol,
 };
-use std::convert::TryInto;
 
 use crate::decode_error::{
   DecodeError,
@@ -19,50 +18,52 @@ use crate::decode_error::{
 /// The computationally irrelevant naming metadata of a term in a lambda-like
 /// language
 #[derive(Debug, Clone, PartialEq)]
-pub enum NameMeta {
-  Ctor(Vec<NameMeta>),
-  Bind(String, Box<NameMeta>),
+pub enum MetaTerm {
+  Ctor(Option<Pos>, Vec<MetaTerm>),
+  Bind(String, Box<MetaTerm>),
   Link(String, Link),
   Leaf,
 }
 
-impl NameMeta {
-  pub fn encode(self) -> Expr {
+impl MetaTerm {
+  pub fn encode(&self) -> Expr {
     match self {
-      Self::Ctor(xs) => {
+      Self::Ctor(pos, xs) => {
         let mut ys = Vec::new();
         for x in xs {
           ys.push(x.encode());
         }
-        Expr::Cons(None, ys)
+        Expr::Cons(*pos, ys)
       }
-      Self::Bind(n, x) => cons!(None, atom!(symb!(n)), x.encode()),
-      Self::Link(n, link) => cons!(None, atom!(symb!(n)), atom!(link!(link))),
-      Self::Leaf => atom!(bits!(vec![])),
+      Self::Bind(n, x) => cons!(None, symb!(n.clone()), x.encode()),
+      Self::Link(n, l) => {
+        cons!(None, symb!(n.clone()), link!(*l))
+      }
+      Self::Leaf => bits!(vec![]),
     }
   }
 
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
-      Cons(_, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(name)), Atom(_, Link(link))] => {
-          Ok(Self::Link(name.to_owned(), *link))
+      Cons(pos, xs) => match xs.as_slice() {
+        [Atom(_, Symbol(name)), Atom(_, Link(l))] => {
+          Ok(Self::Link(name.to_owned(), *l))
         }
         [Atom(_, Symbol(name)), bound] => {
-          let bound = NameMeta::decode(bound.to_owned())?;
+          let bound = MetaTerm::decode(bound.to_owned())?;
           Ok(Self::Bind(name.to_owned(), Box::new(bound)))
         }
         [xs @ ..] => {
           let mut ys = Vec::new();
           for x in xs {
-            let y = NameMeta::decode(x.to_owned())?;
+            let y = MetaTerm::decode(x.to_owned())?;
             ys.push(y);
           }
-          Ok(Self::Ctor(ys))
+          Ok(Self::Ctor(pos, ys))
         }
       },
       Atom(_, Bits(..)) => Ok(Self::Leaf),
-      _ => Err(DecodeError::new(expr.position(), vec![Expected::NameMeta])),
+      _ => Err(DecodeError::new(expr.position(), vec![Expected::MetaTerm])),
     }
   }
 }
@@ -70,8 +71,8 @@ impl NameMeta {
 #[cfg(test)]
 pub mod tests {
   use super::{
-    NameMeta,
-    NameMeta::*,
+    MetaTerm,
+    MetaTerm::*,
   };
   use quickcheck::{
     Arbitrary,
@@ -84,7 +85,7 @@ pub mod tests {
     arbitrary_name,
   };
 
-  impl Arbitrary for NameMeta {
+  impl Arbitrary for MetaTerm {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
       let x: u32 = g.gen_range(0, 45);
       match x {
@@ -94,7 +95,7 @@ pub mod tests {
           for _ in 0..n {
             xs.push(Arbitrary::arbitrary(g))
           }
-          Ctor(xs)
+          Ctor(None, xs)
         }
         1 => Bind(arbitrary_name(g), Arbitrary::arbitrary(g)),
         2 => Link(arbitrary_name(g), arbitrary_link(g)),
@@ -104,8 +105,8 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn name_meta_encode_decode(x: NameMeta) -> bool {
-    match NameMeta::decode(x.clone().encode()) {
+  fn meta_term_encode_decode(x: MetaTerm) -> bool {
+    match MetaTerm::decode(x.clone().encode()) {
       Ok(y) => x == y,
       _ => false,
     }

@@ -19,6 +19,8 @@ pub enum Expected {
   Case,
   Data,
   Constructor,
+  TermDef,
+  TermDefContents,
   Definition,
   DefinitionContents,
   DefinitionList,
@@ -26,11 +28,14 @@ pub enum Expected {
   Import,
   Imports,
   Package,
+  PackageDecls,
+  PackageDeclaration,
+  PackageDefinition,
   PackageContents,
   AnonTermCons,
   AnonTermAtom,
   AnonTermVariU64,
-  NameMeta,
+  MetaTerm,
 }
 
 #[derive(PartialEq, Clone, Debug)]

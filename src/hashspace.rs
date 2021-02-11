@@ -11,10 +11,7 @@ use std::{
   },
 };
 
-pub mod anon_term;
-pub mod embed;
-pub mod name_meta;
-pub mod posi_meta;
+pub mod cache;
 pub mod server;
 
 // TODO: Add custom directory option
@@ -63,8 +60,11 @@ pub fn get(link: Link) -> Option<Expr> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file = fs::read(path).ok()?;
-  let (_, expr) = Expr::deserialize(&file).ok()?;
-  Some(expr)
+  println!("file {:?}", file);
+  match Expr::deserialize(&file) {
+    Ok((_, x)) => Some(x),
+    Err(e) => panic!("deserialization error: {}", e),
+  }
 }
 
 pub fn put(expr: Expr) -> Link {
