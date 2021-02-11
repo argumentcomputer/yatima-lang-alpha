@@ -17,12 +17,15 @@ extern crate log;
 #[macro_use]
 extern crate hashexpr;
 
+pub mod anon_term;
 pub mod core;
 pub mod decode_error;
-pub mod defs;
+pub mod definition;
 pub mod hashspace;
 pub mod imports;
+pub mod meta_term;
 pub mod package;
 pub mod parse;
 pub mod repl;
 pub mod term;
+pub mod unembed_error;

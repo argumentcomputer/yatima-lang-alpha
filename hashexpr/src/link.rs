@@ -6,7 +6,7 @@ use crate::{
     ParseError,
   },
   span::Span,
-  Atom,
+  AVal,
   Expr,
 };
 use nom::{
@@ -35,12 +35,12 @@ impl Link {
   pub fn as_bytes(&self) -> &[u8; 32] { self.as_hash().as_bytes() }
 
   pub fn serialize(&self) -> Vec<u8> {
-    Expr::Atom(None, Atom::Link(self.clone())).serialize()
+    Expr::Atom(None, AVal::Link(self.clone())).serialize()
   }
 
   pub fn deserialize(i: &[u8]) -> IResult<&[u8], Link, DeserialError<&[u8]>> {
     match Expr::deserialize(i) {
-      Ok((i, Expr::Atom(_, Atom::Link(x)))) => Ok((i, x)),
+      Ok((i, Expr::Atom(_, AVal::Link(x)))) => Ok((i, x)),
       Ok((i, _)) => Err(Error(DeserialError::ExpectedLink(i))),
       Err(e) => Err(e),
     }

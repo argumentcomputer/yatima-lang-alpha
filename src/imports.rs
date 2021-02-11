@@ -1,6 +1,7 @@
 use hashexpr::{
-  atom::Atom::*,
   link::Link,
+  AVal,
+  AVal::*,
   Expr,
   Expr::*,
 };
@@ -31,10 +32,10 @@ impl Import {
 
   pub fn encode(self) -> Expr {
     Expr::Cons(None, vec![
-      atom!(symb!("import")),
-      atom!(symb!(self.name)),
-      atom!(symb!(self.alias)),
-      atom!(link!(self.link)),
+      symb!("import"),
+      symb!(self.name),
+      symb!(self.alias),
+      link!(self.link),
     ])
   }
 
@@ -110,8 +111,6 @@ mod tests {
   use crate::term::tests::arbitrary_name;
 
   use crate::package::tests::test_package;
-
-  // use cr
 
   impl Arbitrary for Import {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {

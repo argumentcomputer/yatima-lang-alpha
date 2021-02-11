@@ -67,7 +67,7 @@ pub enum LeafTag {
   Lit(Literal),
   Opr(PrimOp),
   Var(String),
-  Ref(String, Link),
+  Ref(String, Link, Link),
 }
 
 pub struct Single {
@@ -503,7 +503,9 @@ impl DAG {
             LeafTag::LTy(lty) => Term::LTy(None, *lty),
             LeafTag::Lit(lit) => Term::Lit(None, lit.clone()),
             LeafTag::Opr(opr) => Term::Opr(None, *opr),
-            LeafTag::Ref(nam, link) => Term::Ref(None, nam.to_owned(), *link),
+            LeafTag::Ref(nam, def_link, ast_link) => {
+              Term::Ref(None, nam.to_owned(), *def_link, *ast_link)
+            }
             LeafTag::Var(nam) => {
               let level = map.get(&link.as_ptr()).unwrap();
               Term::Var(None, nam.to_owned(), depth - level - 1)
@@ -799,8 +801,8 @@ impl DAG {
           tag: LeafTag::Opr(opr),
           parents: Some(parents),
         })),
-        Term::Ref(_, name, link) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::Ref(name, link),
+        Term::Ref(_, name, def_link, ast_link) => DAG::Leaf(alloc_val(Leaf {
+          tag: LeafTag::Ref(name, def_link, ast_link),
           parents: Some(parents),
         })),
         _ => panic!("TODO: implement Term::to_dag variants"),

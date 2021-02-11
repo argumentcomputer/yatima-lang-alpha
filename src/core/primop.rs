@@ -13,7 +13,7 @@ use crate::decode_error::{
   Expected,
 };
 use hashexpr::{
-  atom::Atom::Symbol,
+  AVal::*,
   Expr,
   Expr::Atom,
 };
@@ -151,44 +151,22 @@ pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
   let one: BigUint = (1 as u64).into();
   let one_i: BigInt = (1 as u64).into();
   match (opr, x) {
-    (Not, BitVector(l, x)) => {
-      let mut bs = BitVec::from_bytes(&x);
-      bs.negate();
-      Some(BitVector(l, bs.to_bytes()))
-    }
     (Not, BitString(x)) => {
       let mut bs = BitVec::from_bytes(&x);
       bs.negate();
       Some(BitString(bs.to_bytes()))
     }
-    (Suc, Nat(l1, x)) => {
-      let y: BigUint = x + one;
-      if y.bits() == l1 { Some(Nat(l1, y)) } else { None }
-    }
     (Suc, Natural(x)) => Some(Natural(x + one)),
     (Suc, Integer(x)) => Some(Integer(x + one_i)),
-    (Suc, Int(l1, x)) => {
-      let y: BigInt = x + one_i;
-      if y.bits() == l1 { Some(Int(l1, y)) } else { None }
-    }
     (Pre, Natural(x)) if x != (0 as u64).into() => Some(Natural(x - one)),
-    (Pre, Nat(l1, x)) if x != (0 as u64).into() => Some(Nat(l1, x - one)),
     (Pre, Integer(x)) => Some(Integer(x - one_i)),
-    (Pre, Int(l1, x)) => {
-      let y: BigInt = x.clone() - one_i;
-      if y < x { Some(Int(l1, y)) } else { None }
-    }
-    (Len, Nat(l1, _)) => Some(Nat(64, l1.into())),
-    (Len, Natural(x)) => Some(Nat(64, x.bits().into())),
-    (Len, Int(l1, _)) => Some(Nat(64, l1.into())),
-    (Len, Integer(x)) => Some(Nat(64, x.bits().into())),
-    (Len, BitVector(l1, _)) => Some(Nat(64, l1.into())),
-    (Len, BitString(x)) => Some(Nat(
-      64,
+    (Len, Natural(x)) => Some(Natural(x.bits().into())),
+    (Len, Integer(x)) => Some(Natural(x.bits().into())),
+    (Len, BitString(x)) => Some(Natural(
       x.len().checked_mul(8).expect("impossible length overflow").into(),
     )),
-    (Len, Text(x)) => Some(Nat(64, x.chars().count().into())),
-    (Len, Char(_)) => Some(Nat(64, (32 as u64).into())),
+    (Len, Text(x)) => Some(Natural(x.chars().count().into())),
+    (Len, Char(_)) => Some(Natural((32 as u64).into())),
     _ => None,
   }
 }
@@ -196,149 +174,86 @@ pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
 pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
-  let tt = BitVector(1, vec![1]);
-  let ff = BitVector(1, vec![0]);
+  let tt = BitString(vec![1]);
+  let ff = BitString(vec![0]);
   let ite = |c| if c { tt } else { ff };
   match (opr, x, y) {
     // Eql
-    (Eql, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(ite(x == y)),
     (Eql, Natural(x), Natural(y)) => Some(ite(x == y)),
-    (Eql, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(ite(x == y)),
     (Eql, Integer(x), Integer(y)) => Some(ite(x == y)),
-    (Eql, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => Some(ite(x == y)),
     (Eql, BitString(x), BitString(y)) => Some(ite(x == y)),
     (Eql, Text(x), Text(y)) => Some(ite(x == y)),
     (Eql, Char(x), Char(y)) => Some(ite(x == y)),
     (Eql, Exception(x), Exception(y)) => Some(ite(x == y)),
     // Lth
-    (Lth, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(ite(x < y)),
     (Lth, Natural(x), Natural(y)) => Some(ite(x < y)),
-    (Lth, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(ite(x < y)),
     (Lth, Integer(x), Integer(y)) => Some(ite(x < y)),
-    (Lth, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => Some(ite(x < y)),
     (Lth, BitString(x), BitString(y)) => Some(ite(x < y)),
     (Lth, Text(x), Text(y)) => Some(ite(x < y)),
     (Lth, Char(x), Char(y)) => Some(ite(x < y)),
     // Lte
-    (Lte, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(ite(x <= y)),
     (Lte, Natural(x), Natural(y)) => Some(ite(x <= y)),
-    (Lte, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(ite(x <= y)),
     (Lte, Integer(x), Integer(y)) => Some(ite(x <= y)),
-    (Lte, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => Some(ite(x <= y)),
     (Lte, BitString(x), BitString(y)) => Some(ite(x <= y)),
     (Lte, Text(x), Text(y)) => Some(ite(x <= y)),
     (Lte, Char(x), Char(y)) => Some(ite(x <= y)),
     // Gth
-    (Gth, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(ite(x > y)),
     (Gth, Natural(x), Natural(y)) => Some(ite(x > y)),
-    (Gth, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(ite(x > y)),
     (Gth, Integer(x), Integer(y)) => Some(ite(x > y)),
-    (Gth, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => Some(ite(x > y)),
     (Gth, BitString(x), BitString(y)) => Some(ite(x > y)),
     (Gth, Text(x), Text(y)) => Some(ite(x > y)),
     (Gth, Char(x), Char(y)) => Some(ite(x > y)),
     // Gte
-    (Gte, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(ite(x >= y)),
     (Gte, Natural(x), Natural(y)) => Some(ite(x >= y)),
-    (Gte, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(ite(x >= y)),
     (Gte, Integer(x), Integer(y)) => Some(ite(x >= y)),
-    (Gte, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => Some(ite(x >= y)),
     (Gte, BitString(x), BitString(y)) => Some(ite(x >= y)),
     (Gte, Text(x), Text(y)) => Some(ite(x >= y)),
     (Gte, Char(x), Char(y)) => Some(ite(x >= y)),
     // Bor
-    (Bor, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => {
-      let z = x.iter().zip(y.iter()).map(|(a, b)| a | b).collect();
-      Some(BitVector(l1, z))
-    }
     (Bor, BitString(x), BitString(y)) => {
       let z = x.iter().zip(y.iter()).map(|(a, b)| a | b).collect();
       Some(BitString(z))
     }
     // And
-    (And, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => {
-      let z = x.iter().zip(y.iter()).map(|(a, b)| a & b).collect();
-      Some(BitVector(l1, z))
-    }
     (And, BitString(x), BitString(y)) => {
       let z = x.iter().zip(y.iter()).map(|(a, b)| a ^ b).collect();
       Some(BitString(z))
     }
     // Xor
-    (Xor, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => {
-      let z = x.iter().zip(y.iter()).map(|(a, b)| a ^ b).collect();
-      Some(BitVector(l1, z))
-    }
     (Xor, BitString(x), BitString(y)) => {
       let z = x.iter().zip(y.iter()).map(|(a, b)| a ^ b).collect();
       Some(BitString(z))
     }
     // Add
-    (Add, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(Nat(l1, x + y)),
     (Add, Natural(x), Natural(y)) => Some(Natural(x + y)),
-    (Add, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(Int(l1, x + y)),
     (Add, Integer(x), Integer(y)) => Some(Integer(x + y)),
     // Sub
-    (Sub, Nat(l1, x), Nat(l2, y)) if l1 == l2 && x >= y => Some(Nat(l1, x - y)),
     (Sub, Natural(x), Natural(y)) if x >= y => Some(Natural(x - y)),
-    (Sub, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(Int(l1, x - y)),
     (Sub, Integer(x), Integer(y)) => Some(Integer(x - y)),
     // Mul
-    (Mul, Nat(l1, x), Nat(l2, y)) if l1 == l2 => Some(Nat(l1, x * y)),
     (Mul, Natural(x), Natural(y)) => Some(Natural(x * y)),
-    (Mul, Int(l1, x), Int(l2, y)) if l1 == l2 => Some(Int(l1, x * y)),
     (Mul, Integer(x), Integer(y)) => Some(Integer(x * y)),
     // Div
-    (Div, Nat(l1, x), Nat(l2, y)) if l1 == l2 && y != (0 as u64).into() => {
-      Some(Nat(l1, x / y))
-    }
     (Div, Natural(x), Natural(y)) if y != (0 as u64).into() => {
       Some(Natural(x * y))
     }
-    (Div, Int(l1, x), Int(l2, y)) if l1 == l2 && y != 0.into() => {
-      Some(Int(l1, x / y))
-    }
     (Div, Integer(x), Integer(y)) if y != 0.into() => Some(Integer(x / y)),
     // Mod
-    (Mod, Nat(l1, x), Nat(l2, y)) if l1 == l2 && y != (0 as u64).into() => {
-      Some(Nat(l1, x % y))
-    }
     (Mod, Natural(x), Natural(y)) if y != (0 as u64).into() => {
       Some(Natural(x * y))
-    }
-    (Mod, Int(l1, x), Int(l2, y)) if l1 == l2 && y != 0.into() => {
-      Some(Int(l1, x % y))
     }
     (Mod, Integer(x), Integer(y)) if y != 0.into() => Some(Integer(x % y)),
 
     // Shl
-    (Shl, Nat(l1, x), Nat(64, y)) => {
-      let y: u64 = y.try_into().ok()?;
-      let l2 = u64::checked_add(l1, y)?;
-      Some(Nat(l2, x << y))
-    }
-    (Shl, Natural(x), Nat(64, y)) => {
+    (Shl, Natural(x), Natural(y)) => {
       let y: u64 = y.try_into().ok()?;
       Some(Natural(x << y))
     }
-    (Shl, Int(l1, x), Nat(64, y)) => {
-      let y: u64 = y.try_into().ok()?;
-      let l2 = u64::checked_add(l1, y)?;
-      Some(Int(l2, x << y))
-    }
-    (Shl, Integer(x), Nat(64, y)) => {
+    (Shl, Integer(x), Natural(y)) => {
       let y: u64 = y.try_into().ok()?;
       Some(Integer(x << y))
     }
-    (Shl, BitVector(l1, x), Nat(64, y)) => {
-      let y: u64 = y.try_into().ok()?;
-      let l2 = u64::checked_add(l1, y)?;
-      let mut bs = BitVec::from_bytes(&x);
-      let mut pad = BitVec::from_elem(y as usize, false);
-      bs.append(&mut pad);
-      Some(BitVector(l2, bs.to_bytes()))
-    }
-    (Shl, BitString(x), Nat(64, y)) => {
+    (Shl, BitString(x), Natural(y)) => {
       let y: u64 = y.try_into().ok()?;
       let mut bs = BitVec::from_bytes(&x);
       let mut pad = BitVec::from_elem(y as usize, false);
@@ -346,44 +261,21 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
       Some(BitString(bs.to_bytes()))
     }
     // Shr
-    (Shr, Nat(l1, x), Nat(64, y)) => {
-      let y: u64 = y.try_into().ok()?;
-      let l2 = u64::checked_add(l1, y)?;
-      Some(Nat(l2, x >> y))
-    }
-    (Shr, Natural(x), Nat(64, y)) => {
+    (Shr, Natural(x), Natural(y)) => {
       let y: u64 = y.try_into().ok()?;
       Some(Natural(x >> y))
     }
-    (Shr, Int(l1, x), Nat(64, y)) => {
-      let y: u64 = y.try_into().ok()?;
-      let l2 = u64::checked_add(l1, y)?;
-      Some(Int(l2, x >> y))
-    }
-    (Shr, Integer(x), Nat(64, y)) => {
+    (Shr, Integer(x), Natural(y)) => {
       let y: u64 = y.try_into().ok()?;
       Some(Integer(x >> y))
     }
-    (Shr, BitVector(l1, x), Nat(64, y)) => {
-      let y: u64 = y.try_into().ok()?;
-      let l2 = u64::checked_add(l1, y)?;
-      let mut bs = BitVec::from_bytes(&x);
-      bs.truncate(bs.len() - (y as usize));
-      Some(BitVector(l2, bs.to_bytes()))
-    }
-    (Shr, BitString(x), Nat(64, y)) => {
+    (Shr, BitString(x), Natural(y)) => {
       let y: u64 = y.try_into().ok()?;
       let mut bs = BitVec::from_bytes(&x);
       bs.truncate(bs.len() - (y as usize));
       Some(BitString(bs.to_bytes()))
     }
     // Cat
-    (Cat, BitVector(l1, x), BitVector(l2, y)) if l1 == l2 => {
-      let mut xs = BitVec::from_bytes(&x);
-      let mut ys = BitVec::from_bytes(&y);
-      xs.append(&mut ys);
-      Some(BitVector(l2, xs.to_bytes()))
-    }
     (Cat, BitString(x), BitString(y)) => {
       let mut xs = BitVec::from_bytes(&x);
       let mut ys = BitVec::from_bytes(&y);

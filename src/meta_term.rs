@@ -1,12 +1,13 @@
 use hashexpr::{
   position::Pos,
-  Bits,
+  AVal,
+  AVal::*,
   Expr,
   Expr::{
     Atom,
     Cons,
   },
-  Symbol,
+  Link,
 };
 
 use crate::decode_error::{
@@ -20,30 +21,34 @@ use crate::decode_error::{
 pub enum MetaTerm {
   Ctor(Option<Pos>, Vec<MetaTerm>),
   Bind(String, Box<MetaTerm>),
-  Link(String),
+  Link(String, Link),
   Leaf,
 }
 
 impl MetaTerm {
-  pub fn encode(self) -> Expr {
+  pub fn encode(&self) -> Expr {
     match self {
       Self::Ctor(pos, xs) => {
         let mut ys = Vec::new();
         for x in xs {
           ys.push(x.encode());
         }
-        Expr::Cons(pos, ys)
+        Expr::Cons(*pos, ys)
       }
-      Self::Bind(n, x) => cons!(None, atom!(symb!(n)), x.encode()),
-      Self::Link(n) => cons!(None, atom!(symb!(n))),
-      Self::Leaf => atom!(bits!(vec![])),
+      Self::Bind(n, x) => cons!(None, symb!(n.clone()), x.encode()),
+      Self::Link(n, l) => {
+        cons!(None, symb!(n.clone()), link!(*l))
+      }
+      Self::Leaf => bits!(vec![]),
     }
   }
 
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(name))] => Ok(Self::Link(name.to_owned())),
+        [Atom(_, Symbol(name)), Atom(_, Link(l))] => {
+          Ok(Self::Link(name.to_owned(), *l))
+        }
         [Atom(_, Symbol(name)), bound] => {
           let bound = MetaTerm::decode(bound.to_owned())?;
           Ok(Self::Bind(name.to_owned(), Box::new(bound)))
@@ -75,7 +80,10 @@ pub mod tests {
   };
   use rand::Rng;
 
-  use crate::term::tests::arbitrary_name;
+  use crate::term::tests::{
+    arbitrary_link,
+    arbitrary_name,
+  };
 
   impl Arbitrary for MetaTerm {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -90,7 +98,7 @@ pub mod tests {
           Ctor(None, xs)
         }
         1 => Bind(arbitrary_name(g), Arbitrary::arbitrary(g)),
-        2 => Link(arbitrary_name(g)),
+        2 => Link(arbitrary_name(g), arbitrary_link(g)),
         _ => Leaf,
       }
     }
