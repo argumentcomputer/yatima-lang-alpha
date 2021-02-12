@@ -17,6 +17,7 @@ pub enum ParseError<I: AsBytes> {
   UnexpectedLiteral(I, hashexpr::Expr),
   LiteralError(I, hashexpr::error::ParseError<I>),
   ReservedSymbol(I, String),
+  ExpectedImportLink(I, hashexpr::Expr),
   NomErr(I, ErrorKind),
 }
 impl<I: AsBytes> ParseError<I> {
@@ -28,6 +29,7 @@ impl<I: AsBytes> ParseError<I> {
       Self::UnknownLiteralType(i, ..) => i,
       Self::UnexpectedLiteral(i, ..) => i,
       Self::LiteralError(i, ..) => i,
+      Self::ExpectedImportLink(i, ..) => i,
       Self::NomErr(i, _) => i,
     }
   }

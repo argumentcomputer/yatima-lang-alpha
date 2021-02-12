@@ -4,10 +4,11 @@ use crate::decode_error::{
 };
 
 use hashexpr::{
-  atom::Atom::*,
+  AVal,
+  AVal::*,
   Expr,
 };
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Uses {
   None,
   Affi,
@@ -53,10 +54,10 @@ impl Uses {
 
   pub fn encode(self) -> Expr {
     match self {
-      Self::None => atom!(None, symb!("0")),
-      Self::Affi => atom!(None, symb!("&")),
-      Self::Once => atom!(None, symb!("1")),
-      Self::Many => atom!(None, symb!("ω")),
+      Self::None => symb!("0"),
+      Self::Affi => symb!("&"),
+      Self::Once => symb!("1"),
+      Self::Many => symb!("ω"),
     }
   }
 

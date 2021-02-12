@@ -14,7 +14,7 @@ use std::num::ParseIntError;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum DeserialError<I: AsBytes> {
-  UnknownTypeCode(I, Vec<u8>, Option<u64>),
+  UnknownTypeCode(I, Vec<u8>),
   BadLinkLength(I, u64),
   BadCharLength(I, u64),
   ExpectedLink(I),
@@ -38,11 +38,9 @@ impl<'a, I: AsBytes> DeserialError<I> {
 
   pub fn input_as_bytes(&'a self) -> DeserialError<ByteVec> {
     match self {
-      Self::UnknownTypeCode(i, x, y) => DeserialError::UnknownTypeCode(
-        i.as_bytes().to_vec().into(),
-        x.clone(),
-        *y,
-      ),
+      Self::UnknownTypeCode(i, x) => {
+        DeserialError::UnknownTypeCode(i.as_bytes().to_vec().into(), x.clone())
+      }
       Self::BadCharLength(i, x) => {
         DeserialError::BadCharLength(i.as_bytes().to_vec().into(), *x)
       }
