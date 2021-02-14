@@ -1,3 +1,7 @@
+use crate::{
+  term::Link,
+  unembed_error::UnembedError,
+};
 use im::Vector;
 use nom::{
   error::ErrorKind,
@@ -9,7 +13,7 @@ use std::{
   path::PathBuf,
 };
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum ParseError<I: AsBytes> {
   UndefinedReference(I, String, Vector<String>),
   TopLevelRedefinition(I, String),
@@ -18,6 +22,12 @@ pub enum ParseError<I: AsBytes> {
   LiteralError(I, hashexpr::error::ParseError<I>),
   ReservedSymbol(I, String),
   ExpectedImportLink(I, hashexpr::Expr),
+  UnknownImportLink(I, Link),
+  MisnamedPackage(I, String),
+  MisnamedImport(I, String, String),
+  MalformedPath(I),
+  ImportCycle(I, PathBuf),
+  EmbeddingError(I, UnembedError),
   NomErr(I, ErrorKind),
 }
 impl<I: AsBytes> ParseError<I> {
@@ -27,7 +37,13 @@ impl<I: AsBytes> ParseError<I> {
       Self::ReservedSymbol(i, ..) => i,
       Self::TopLevelRedefinition(i, ..) => i,
       Self::UnknownLiteralType(i, ..) => i,
+      Self::UnknownImportLink(i, ..) => i,
+      Self::EmbeddingError(i, ..) => i,
       Self::UnexpectedLiteral(i, ..) => i,
+      Self::ImportCycle(i, ..) => i,
+      Self::MisnamedPackage(i, ..) => i,
+      Self::MisnamedImport(i, ..) => i,
+      Self::MalformedPath(i) => i,
       Self::LiteralError(i, ..) => i,
       Self::ExpectedImportLink(i, ..) => i,
       Self::NomErr(i, _) => i,

@@ -5,6 +5,7 @@ use crate::{
     Expected,
   },
   definition::Definition,
+  hashspace,
   unembed_error::UnembedError,
 };
 
@@ -809,6 +810,21 @@ impl Def {
       &def.term_meta,
     )?;
     Ok(Def::new(def.pos, def.name, def.docs, typ_, term))
+  }
+
+  pub fn unembed_link(defn: Link) -> Result<Self, UnembedError> {
+    let def = hashspace::get(defn).ok_or(UnembedError::UnknownLink(defn))?;
+    let def =
+      Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
+    let type_anon =
+      hashspace::get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
+    let type_anon =
+      AnonTerm::decode(type_anon).map_err(|e| UnembedError::DecodeError(e))?;
+    let term_anon =
+      hashspace::get(def.term_anon).ok_or(UnembedError::UnknownLink(defn))?;
+    let term_anon =
+      AnonTerm::decode(term_anon).map_err(|e| UnembedError::DecodeError(e))?;
+    Def::unembed(def, type_anon, term_anon)
   }
 }
 

@@ -5,45 +5,45 @@ use hashexpr::{
   Expr::*,
   Link,
 };
-use std::fmt;
 
 use crate::{
-  anon_term::AnonTerm,
   decode_error::{
     DecodeError,
     Expected,
   },
-  definition::Definition,
   hashspace,
-  imports::{
-    Import,
-    Imports,
+  term::{
+    Def,
+    Defs,
   },
-  term::Def,
   unembed_error::UnembedError,
 };
+use im::OrdMap;
+use std::fmt;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
   pub name: String,
   pub docs: String,
   pub source: Link,
-  pub imports: Imports,
   pub decls: Vec<Declaration>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Declaration {
   Defn { name: String, defn: Link, term: Link },
-  /* Open { name: String, alias: String, from: Link },
-   * Data { name: String, typ_: Term, ctors: HashMap<String, Term> }, */
+  Open { name: String, alias: String, from: Link },
+  // Data { name: String, typ_: Term, ctors: HashMap<String, Term> },
 }
 
 impl Declaration {
   pub fn encode(self) -> Expr {
     match self {
       Self::Defn { name, defn, term } => {
-        cons!(None, symb!(name), link!(defn), link!(term))
+        cons!(None, symb!("defn"), symb!(name), link!(defn), link!(term))
+      }
+      Self::Open { name, alias, from } => {
+        cons!(None, symb!("open"), symb!(name), symb!(alias), link!(from))
       }
     }
   }
@@ -51,8 +51,15 @@ impl Declaration {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(n)), Atom(_, Link(d)), Atom(_, Link(a))] => {
+        [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Link(d)), Atom(_, Link(a))]
+          if *c == String::from("defn") =>
+        {
           Ok(Self::Defn { name: n.to_owned(), defn: *d, term: *a })
+        }
+        [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Symbol(a)), Atom(_, Link(f))]
+          if *c == String::from("open") =>
+        {
+          Ok(Self::Open { name: n.to_owned(), alias: a.to_owned(), from: *f })
         }
         _ => Err(DecodeError::new(pos, vec![Expected::PackageDefinition])),
       },
@@ -61,32 +68,24 @@ impl Declaration {
       }
     }
   }
-
-  pub fn to_def(self) -> Result<Def, UnembedError> {
-    match self {
-      Self::Defn { defn, .. } => {
-        let def =
-          hashspace::get(defn).ok_or(UnembedError::UnknownLink(defn))?;
-        let def =
-          Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
-        let type_anon = hashspace::get(def.type_anon)
-          .ok_or(UnembedError::UnknownLink(defn))?;
-        let type_anon = AnonTerm::decode(type_anon)
-          .map_err(|e| UnembedError::DecodeError(e))?;
-        let term_anon = hashspace::get(def.term_anon)
-          .ok_or(UnembedError::UnknownLink(defn))?;
-        let term_anon = AnonTerm::decode(term_anon)
-          .map_err(|e| UnembedError::DecodeError(e))?;
-        Def::unembed(def, type_anon, term_anon)
-      }
-    }
-  }
 }
 
 impl fmt::Display for Declaration {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let def = self.clone().to_def().expect("unembed error");
-    write!(f, "{}", def)
+    match self {
+      Self::Defn { defn, .. } => {
+        let def = Def::unembed_link(*defn).expect("unembed error");
+        write!(f, "{}", def)
+      }
+      Self::Open { name, alias, from } => {
+        if *alias == String::from("") {
+          write!(f, "open {} from {}", name, from)
+        }
+        else {
+          write!(f, "open {} as {} from {}", name, alias, from)
+        }
+      }
+    }
   }
 }
 
@@ -102,7 +101,6 @@ impl Package {
       symb!(self.name),
       text!(self.docs),
       link!(self.source),
-      self.imports.encode(),
       Expr::Cons(None, xs)
     )
   }
@@ -112,10 +110,9 @@ impl Package {
       Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Symbol(c)), tail @ ..] if *c == String::from("package") => {
           match tail {
-            [Atom(_, Symbol(n)), Atom(_, Text(d)), Atom(_, Link(s)), x, y] => {
-              let imports = Imports::decode(x.to_owned())?;
+            [Atom(_, Symbol(n)), Atom(_, Text(d)), Atom(_, Link(s)), ds] => {
               let mut decls = Vec::new();
-              match y {
+              match ds {
                 Cons(_, xs) => {
                   for x in xs {
                     let decl = Declaration::decode(x.to_owned())?;
@@ -125,7 +122,6 @@ impl Package {
                     name: n.to_owned(),
                     docs: d.to_owned(),
                     source: s.to_owned(),
-                    imports,
                     decls,
                   })
                 }
@@ -142,6 +138,36 @@ impl Package {
       _ => Err(DecodeError::new(expr.position(), vec![Expected::Package])),
     }
   }
+
+  pub fn defs(self) -> Result<Defs, UnembedError> {
+    let mut defs: Defs = OrdMap::new();
+    for d in self.decls {
+      match d {
+        Declaration::Defn { name, defn, term } => {
+          defs.insert(name, (defn, term));
+        }
+        Declaration::Open { alias, from, .. } => {
+          let pack =
+            hashspace::get(from).ok_or(UnembedError::UnknownLink(from))?;
+          let pack =
+            Package::decode(pack).map_err(|e| UnembedError::DecodeError(e))?;
+          let import_defs = pack.defs()?;
+          defs = merge_defs(defs, import_defs, alias)
+        }
+      }
+    }
+    Ok(defs)
+  }
+}
+
+pub fn merge_defs(left: Defs, right: Defs, alias: String) -> Defs {
+  let defs = if alias != String::from("") {
+    right.iter().map(|(k, v)| (format!("{}.{}", alias, k), *v)).collect()
+  }
+  else {
+    right
+  };
+  left.union_with(defs, |_, right| right)
 }
 
 impl fmt::Display for Package {
