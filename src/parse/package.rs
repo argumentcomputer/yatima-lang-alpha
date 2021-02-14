@@ -126,11 +126,14 @@ pub fn parse_open(
         for n in name.split(".") {
           path.push(n);
         }
-        if env.open.contains(&path) {
+        path.set_extension("ya");
+        let mut open = env.open.clone();
+        let has_path = open.insert(path.clone());
+        if has_path.is_some() {
           Err(Err::Error(ParseError::ImportCycle(i, path)))
         }
         else {
-          let env = env.clone().set_path(path);
+          let env = PackageEnv { path, open };
           let (link, ..) = parse_file(env);
           Ok((i, Declaration::Open { name, alias, from: link }))
         }
@@ -196,7 +199,7 @@ pub fn parse_package(
     let (i, name) = parse_name(i)?;
     let file_name =
       env.path.file_name().ok_or(Err::Error(ParseError::MalformedPath(i)))?;
-    let name_os: OsString = name.clone().into();
+    let name_os: OsString = format!("{}.ya", name.clone()).into();
     if name_os != file_name {
       return Err(Err::Error(ParseError::MisnamedPackage(i, name.clone())));
     }
