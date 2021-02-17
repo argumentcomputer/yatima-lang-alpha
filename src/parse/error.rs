@@ -8,10 +8,7 @@ use nom::{
   AsBytes,
   InputLength,
 };
-use std::{
-  fs,
-  path::PathBuf,
-};
+use std::path::PathBuf;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseError<I: AsBytes> {

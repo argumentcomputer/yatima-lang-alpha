@@ -33,6 +33,7 @@ use hashexpr::{
 };
 
 use im::{
+  HashMap,
   OrdMap,
   Vector,
 };
@@ -826,6 +827,15 @@ impl Def {
       AnonTerm::decode(term_anon).map_err(|e| UnembedError::DecodeError(e))?;
     Def::unembed(def, type_anon, term_anon)
   }
+}
+
+pub fn unembed_defs(defs: Defs) -> Result<HashMap<Link, Def>, UnembedError> {
+  let mut def_map = HashMap::new();
+  for (_, (d, _)) in defs {
+    let def = Def::unembed_link(d)?;
+    def_map.insert(d, def);
+  }
+  Ok(def_map)
 }
 
 impl fmt::Display for Def {

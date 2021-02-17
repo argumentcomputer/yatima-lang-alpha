@@ -49,4 +49,5 @@ fn put(data: Data) -> Result<String, std::io::Error> {
   Ok(format!("Your hash {} at {}", hash, url))
 }
 
+#[allow(dead_code)]
 fn main() { rocket::ignite().mount("/", routes![index, get, put]).launch(); }

@@ -2,7 +2,6 @@ use crate::{
   parse::error::ParseError,
   term::{
     Defs,
-    Link,
     LitType,
     Literal,
     PrimOp,
@@ -14,7 +13,6 @@ use crate::{
 use hashexpr::{
   position::Pos,
   span::Span,
-  AVal,
   AVal::*,
   Expr,
 };

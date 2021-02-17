@@ -13,7 +13,6 @@ use crate::{
     Def,
     Defs,
     Link,
-    Term,
   },
   unembed_error::UnembedError,
 };
@@ -39,32 +38,16 @@ use im::{
 };
 use nom::{
   branch::alt,
-  bytes::complete::{
-    tag,
-    take_till1,
-  },
+  bytes::complete::tag,
   character::complete::{
-    alphanumeric0,
     multispace0,
     multispace1,
-    satisfy,
   },
   combinator::{
     eof,
-    map,
     opt,
-    success,
-    value,
   },
-  multi::{
-    separated_list0,
-    separated_list1,
-  },
-  sequence::{
-    delimited,
-    preceded,
-    terminated,
-  },
+  sequence::preceded,
   Err,
   IResult,
 };
@@ -189,7 +172,7 @@ pub fn parse_defn(
 pub fn parse_package(
   env: PackageEnv,
   source_link: Link,
-) -> impl Fn(Span) -> IResult<Span, (Link, Package), ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, (Link, Defs, Package), ParseError<Span>> {
   move |i: Span| {
     let (i, _) = multispace0(i)?;
     // let (i, docs) = parse_doc(
@@ -215,7 +198,7 @@ pub fn parse_package(
       if end.is_ok() {
         let pack = Package { name, docs, source: source_link, decls };
         let pack_link = hashspace::put(pack.clone().encode());
-        return Ok((i, (pack_link, pack)));
+        return Ok((i, (pack_link, defs, pack)));
       }
       else {
         let (i2, decl) = parse_declaration(env.to_owned(), defs.clone())(i)?;
@@ -251,7 +234,7 @@ pub fn parse_package(
   }
 }
 
-pub fn parse_file<'a>(env: PackageEnv) -> (Link, Package) {
+pub fn parse_file<'a>(env: PackageEnv) -> (Link, Defs, Package) {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).expect("file not found");
   let source_link = hashspace::put(text!(txt.clone()));

@@ -5,7 +5,6 @@ use std::{
 
 use structopt::StructOpt;
 use yatima::{
-  core,
   hashspace,
   parse,
   repl,
@@ -38,20 +37,20 @@ fn main() {
     Cli::Repl => repl::main().unwrap(),
     Cli::Parse { input } => {
       let env = parse::package::PackageEnv::new(input);
-      let (l, p) = parse::package::parse_file(env);
+      let (_, _, p) = parse::package::parse_file(env);
       println!("Package parsed:\n{}", p);
     }
     // Cli::Run { input } => {
     //  let env = parse::package::PackageEnv::new(input);
-    //  let (l, p) = parse::package::parse_file(env);
-    //  let d = p.defs.get("main");
+    //  let (l, defs, p) = parse::package::parse_file(env);
+    //  let d = defs.get("main");
     //  match d {
     //    None => panic!(
     //      "No `main` expression in package {} from file {:?}",
     //      p.name, input
     //    ),
-    //    Some((d,_)) => {
-    //      let d = hashspace::get(
+    //    Some((d, _)) => {
+    //      let d = hashspace::get(*d);
     //      println!("{}", core::eval::norm(core::dag::DAG::from_term(d.term)));
     //    }
     //  }
