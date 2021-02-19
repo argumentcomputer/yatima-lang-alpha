@@ -343,18 +343,22 @@ pub fn parse_decl(
       ))(i)?;
       let (i, _) = tag(":")(i)?;
       let (i, _) = parse_space(i)?;
-      let mut ctx2 = ctx.clone();
+      let mut type_ctx = ctx.clone();
       for (_, n, _) in bs.clone().iter() {
-        ctx2.push_front(n.clone());
+        type_ctx.push_front(n.clone());
       }
-      let (i, typ) = parse_term(defs.clone(), ctx2.clone())(i)?;
+      let (i, typ) = parse_term(defs.clone(), type_ctx)(i)?;
+      let mut term_ctx = ctx.to_owned();
       if rec {
-        ctx2.push_front(nam.clone());
+        term_ctx.push_front(nam.clone());
       };
+      for (_, n, _) in bs.clone().iter() {
+        term_ctx.push_front(n.clone());
+      }
       let (i, _) = parse_space(i)?;
       let (i, _) = tag(":=")(i)?;
       let (i, _) = parse_space(i)?;
-      let (upto, trm) = parse_term(defs.clone(), ctx2)(i)?;
+      let (upto, trm) = parse_term(defs.clone(), term_ctx)(i)?;
       let pos = Some(Pos::from_upto(from, upto));
       let trm = bs
         .iter()
