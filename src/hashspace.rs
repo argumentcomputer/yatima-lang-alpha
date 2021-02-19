@@ -60,7 +60,7 @@ pub fn get(link: Link) -> Option<Expr> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file = fs::read(path).ok()?;
-  println!("file {:?}", file);
+  // println!("file {:?}", file);
   match Expr::deserialize(&file) {
     Ok((_, x)) => Some(x),
     Err(e) => panic!("deserialization error: {}", e),
