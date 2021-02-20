@@ -944,67 +944,51 @@ pub mod tests {
   ) -> Term {
     let len = ctx.len();
     if len == 0 {
-      arbitrary_lam(g, defs, ctx)
+      return arbitrary_lam(g, defs, ctx);
     }
     else {
-
-      frequency(
+      let freq = frequency(
         vec![
-          (1, arbitrary_all(g, refs.clone(), ctx.clone())),
-          (1, arbitrary_let(g, refs.clone(), ctx.clone())),
-          (2, arbitrary_lam(g, refs.clone(), ctx.clone())),
-          (2, arbitrary_slf(g, refs.clone(), ctx.clone())),
-          (2, Term::App(
-            None,
-            Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-            Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-          )),
-          (2, Term::Ann(
-            None,
-            Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-            Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-          )),
-          (2, Term::Dat(None, Box::new(arbitrary_term(g, refs.clone(), ctx.clone())))),
-          (2, Term::Cse(None, Box::new(arbitrary_term(g, refs.clone(), ctx.clone())))),
+          (1, Term::All(None, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (1, Term::Let(None, true, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (2, Term::Lam(None, String::new(), Box::new(Term::Typ(None)))),
+          (2, Term::Slf(None, String::new(), Box::new(Term::Typ(None)))),
+          (2, Term::App(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (2, Term::Ann(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (2, Term::Dat(None, Box::new(Term::Typ(None)))),
+          (2, Term::Cse(None, Box::new(Term::Typ(None)))),
           (2, Term::Typ(None)),
-          (2, arbitrary_var(g, ctx.clone())),
-          (2, Term::Lit(None, Arbitrary::arbitrary(g))),
-          (2, Term::LTy(None, Arbitrary::arbitrary(g))),
-          (2, Term::Opr(None, Arbitrary::arbitrary(g))),
-          (5, arbitrary_ref(g, refs.clone(), ctx.clone()))
-          ])
+          (2, Term::Var(None, String::new(), 0)),
+          (2, Term::Lit(None, Literal::Text(String::new()))),
+          (2, Term::LTy(None, LitType::Natural)),
+          (2, Term::Opr(None, PrimOp::Eql)),
+          (2, Term::Ref(None, String::new(), Link::from([0;32]), Link::from([0;32]))
+        ]);
+      let random_term = match freq {
+        Term::All(_, _, _, _, _) => arbitrary_all(g, defs.clone(), ctx.clone()),
+        Term::Let(_, _, _, _, _, _, _) => arbitrary_let(g, defs.clone(), ctx.clone()),
+        Term::Lam(_, _, _) => arbitrary_lam(g, defs.clone(), ctx.clone()),
+        Term::Slf(_, _, _) => arbitrary_slf(g, defs.clone(), ctx.clone()),
+        Term::App(_, _, _) => Term::App(
+            None,
+            Box::new(arbitrary_term(g, defs.clone(), ctx.clone())),
+            Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Ann(_, _, _) => Term::Ann(
+            None,
+            Box::new(arbitrary_term(g, defs.clone(), ctx.clone())),
+            Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Dat(_, _) => Term::Dat(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Cse(_, _) => Term::Cse(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
 
+        Term::Typ(_) => Term::Typ(None),
+        Term::Var(_, _, _) => arbitrary_var(g, ctx.clone()),
+        Term::Lit(_, _) => Term::Lit(None, Arbitrary::arbitrary(g)),
+        Term::LTy(_, _) => Term::LTy(None, Arbitrary::arbitrary(g)),
+        Term::Opr(_, _) => Term::Opr(None, Arbitrary::arbitrary(g)),
+        Term::Ref(_, _, _, _) => arbitrary_ref(g, defs.clone(), ctx.clone())
+    };
+    return random_term;
 
-      //let x: u32 = g.gen_range(0, 27);
-      //match x {
-      //  0 => arbitrary_all(g, refs, ctx.clone()),
-      //  1 => arbitrary_let(g, refs, ctx.clone()),
-      //  2 | 3 => arbitrary_lam(g, refs, ctx.clone()),
-      //  4 | 5 => arbitrary_slf(g, refs, ctx.clone()),
-      //  6 | 7 => Term::App(
-      //    None,
-      //    Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-      //    Box::new(arbitrary_term(g, refs, ctx.clone())),
-      //  ),
-      //  8 | 9 => Term::Ann(
-      //    None,
-      //    Box::new(arbitrary_term(g, refs.clone(), ctx.clone())),
-      //    Box::new(arbitrary_term(g, refs, ctx.clone())),
-      //  ),
-      //  10 | 11 => {
-      //    Term::Dat(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
-      //  }
-      //  12 | 13 => {
-       //   Term::Cse(None, Box::new(arbitrary_term(g, refs, ctx.clone())))
-       // }
-       // 14 | 15 => Term::Typ(None),
-       // 16 | 17 => arbitrary_var(g, ctx),
-       // 18 | 19 => Term::Lit(None, Arbitrary::arbitrary(g)),
-       // 20 | 21 => Term::LTy(None, Arbitrary::arbitrary(g)),
-       // 22 | 23 => Term::Opr(None, Arbitrary::arbitrary(g)),
-       // _ => arbitrary_ref(g, refs, ctx),
-       //}
-    }
   }
 
   pub fn frequency<G: Clone>(input: Vec<(i64, G)>) -> G {
