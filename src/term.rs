@@ -944,54 +944,52 @@ pub mod tests {
   ) -> Term {
     let len = ctx.len();
     if len == 0 {
-      return arbitrary_lam(g, defs, ctx);
+      arbitrary_lam(g, defs, ctx)
     }
     else {
-      let freq = frequency(
+      let freq = frequency(g,
         vec![
-          (1, Term::All(None, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
-          (1, Term::Let(None, true, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (2, Term::Var(None, String::new(), 0)),
           (2, Term::Lam(None, String::new(), Box::new(Term::Typ(None)))),
-          (2, Term::Slf(None, String::new(), Box::new(Term::Typ(None)))),
           (2, Term::App(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
-          (2, Term::Ann(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (1, Term::All(None, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (2, Term::Slf(None, String::new(), Box::new(Term::Typ(None)))),
           (2, Term::Dat(None, Box::new(Term::Typ(None)))),
           (2, Term::Cse(None, Box::new(Term::Typ(None)))),
+          (2, Term::Ref(None, String::new(), Link::from([0;32]), Link::from([0;32]))),
+          (1, Term::Let(None, true, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
           (2, Term::Typ(None)),
-          (2, Term::Var(None, String::new(), 0)),
+          (2, Term::Ann(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
           (2, Term::Lit(None, Literal::Text(String::new()))),
           (2, Term::LTy(None, LitType::Natural)),
-          (2, Term::Opr(None, PrimOp::Eql)),
-          (2, Term::Ref(None, String::new(), Link::from([0;32]), Link::from([0;32]))
+          (2, Term::Opr(None, PrimOp::Eql))
         ]);
-      let random_term = match freq {
-        Term::All(_, _, _, _, _) => arbitrary_all(g, defs.clone(), ctx.clone()),
-        Term::Let(_, _, _, _, _, _, _) => arbitrary_let(g, defs.clone(), ctx.clone()),
+      match freq {
+        Term::Var(_, _, _) => arbitrary_var(g, ctx.clone()),
         Term::Lam(_, _, _) => arbitrary_lam(g, defs.clone(), ctx.clone()),
-        Term::Slf(_, _, _) => arbitrary_slf(g, defs.clone(), ctx.clone()),
         Term::App(_, _, _) => Term::App(
             None,
             Box::new(arbitrary_term(g, defs.clone(), ctx.clone())),
             Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::All(_, _, _, _, _) => arbitrary_all(g, defs.clone(), ctx.clone()),
+        Term::Slf(_, _, _) => arbitrary_slf(g, defs.clone(), ctx.clone()),
+        Term::Dat(_, _) => Term::Dat(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Cse(_, _) => Term::Cse(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Ref(_, _, _, _) => arbitrary_ref(g, defs.clone(), ctx.clone()),
+        Term::Let(_, _, _, _, _, _, _) => arbitrary_let(g, defs.clone(), ctx.clone()),
+        Term::Typ(_) => Term::Typ(None),
         Term::Ann(_, _, _) => Term::Ann(
             None,
             Box::new(arbitrary_term(g, defs.clone(), ctx.clone())),
             Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::Dat(_, _) => Term::Dat(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::Cse(_, _) => Term::Cse(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-
-        Term::Typ(_) => Term::Typ(None),
-        Term::Var(_, _, _) => arbitrary_var(g, ctx.clone()),
         Term::Lit(_, _) => Term::Lit(None, Arbitrary::arbitrary(g)),
         Term::LTy(_, _) => Term::LTy(None, Arbitrary::arbitrary(g)),
-        Term::Opr(_, _) => Term::Opr(None, Arbitrary::arbitrary(g)),
-        Term::Ref(_, _, _, _) => arbitrary_ref(g, defs.clone(), ctx.clone())
-    };
-    return random_term;
-
+        Term::Opr(_, _) => Term::Opr(None, Arbitrary::arbitrary(g))
+      }
+    }
   }
 
-  pub fn frequency<G: Clone>(input: Vec<(i64, G)>) -> G {
+  pub fn frequency<G: Gen, T: Clone>(g: &mut G, input: Vec<(i64, T)>) -> T {
 
     if input.iter().any(|(v, _)| *v < 0) {
         panic!("Negative weight");
@@ -1000,8 +998,7 @@ pub mod tests {
     if sum <= 0 {
       panic!("Empty list or all weights zero");
     }
-    let mut rng = rand::thread_rng();
-    let mut weight: i64 = rng.gen_range(1,sum);
+    let mut weight: i64 = g.gen_range(1,sum);
     for i in input {
       if weight - i.0 <= 0 {
          return i.1.clone();
