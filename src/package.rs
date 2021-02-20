@@ -209,7 +209,7 @@ pub mod tests {
   pub fn test_package() -> Package {
     let source = "package Test where\n def id (A: Type) (x: A): A := x";
     let source_link = text!(String::from(source)).link();
-    let (_, (_, p)) = parse_package(
+    let (_, (_, _, p)) = parse_package(
       PackageEnv::new(PathBuf::from("Test.ya")),
       source_link,
     )(Span::new(source))
