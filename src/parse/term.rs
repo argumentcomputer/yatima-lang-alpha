@@ -89,7 +89,12 @@ pub fn parse_space(i: Span) -> IResult<Span, Vec<Span>, ParseError<Span>> {
 
 pub fn parse_name(i: Span) -> IResult<Span, String, ParseError<Span>> {
   let (i, s) = take_till1(|x| {
-    char::is_whitespace(x) | (x == ':') | (x == ';') | (x == ')') | (x == '(')
+    char::is_whitespace(x)
+      | (x == ':')
+      | (x == ';')
+      | (x == ')')
+      | (x == '(')
+      | (x == ',')
   })(i)?;
   let s: String = String::from(s.fragment().to_owned());
   if reserved_symbols().contains(&s) {

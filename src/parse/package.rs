@@ -50,7 +50,10 @@ use nom::{
     opt,
   },
   multi::separated_list0,
-  sequence::preceded,
+  sequence::{
+    preceded,
+    terminated,
+  },
   Err,
   IResult,
 };
@@ -91,8 +94,10 @@ fn parse_alias(i: Span) -> IResult<Span, String, ParseError<Span>> {
 
 fn parse_with(i: Span) -> IResult<Span, Vec<String>, ParseError<Span>> {
   let (i, _) = tag("(")(i)?;
-  let (i, ns) =
-    separated_list0(preceded(tag(","), parse_space), parse_name)(i)?;
+  let (i, ns) = separated_list0(
+    terminated(tag(","), parse_space),
+    terminated(parse_name, parse_space),
+  )(i)?;
   let (i, _) = tag(")")(i)?;
   Ok((i, ns))
 }
@@ -104,10 +109,11 @@ pub fn parse_open(
     let (i, _) = tag("open")(i)?;
     let (i, _) = parse_space(i)?;
     let (i, name) = parse_name(i)?;
-    let (i, alias) = opt(preceded(parse_space, parse_alias))(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, alias) = opt(terminated(parse_alias, parse_space))(i)?;
     let alias = alias.unwrap_or(String::from(""));
-    let (i, with) = opt(preceded(parse_space, parse_with))(i)?;
-    let (i, from) = opt(preceded(parse_space, parse_link))(i)?;
+    let (i, with) = opt(terminated(parse_with, parse_space))(i)?;
+    let (i, from) = opt(terminated(parse_link, parse_space))(i)?;
     match from {
       Some(from) => Ok((i, Declaration::Open { name, alias, with, from })),
       None => {
@@ -170,7 +176,7 @@ pub fn parse_package(
 ) -> impl Fn(Span) -> IResult<Span, (Link, Package, Defs, Refs), ParseError<Span>>
 {
   move |i: Span| {
-    let (i, _) = multispace0(i)?;
+    let (i, _) = parse_space(i)?;
     // let (i, docs) = parse_doc(
     let docs = String::from("");
     let (i, _) = tag("package")(i)?;
@@ -255,3 +261,24 @@ pub fn parse_file<'a>(env: PackageEnv) -> (Link, Package, Defs, Refs) {
 //
 //  }
 //}
+//
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+
+  #[test]
+  fn test_cases() {
+    let res = parse_with(Span::new("()"));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_with(Span::new("(a)"));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_with(Span::new("(a,b)"));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_with(Span::new("(a,b,c)"));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+  }
+}
