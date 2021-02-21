@@ -15,10 +15,14 @@ use crate::{
   term::{
     Def,
     Defs,
+    Refs,
   },
   unembed_error::UnembedError,
 };
-use im::OrdMap;
+use im::{
+  HashMap,
+  HashSet,
+};
 use std::fmt;
 
 #[derive(PartialEq, Clone, Debug)]
@@ -32,7 +36,7 @@ pub struct Package {
 #[derive(PartialEq, Clone, Debug)]
 pub enum Declaration {
   Defn { name: String, defn: Link, term: Link },
-  Open { name: String, alias: String, from: Link },
+  Open { name: String, alias: String, with: Option<Vec<String>>, from: Link },
   // Data { name: String, typ_: Term, ctors: HashMap<String, Term> },
 }
 
@@ -42,9 +46,25 @@ impl Declaration {
       Self::Defn { name, defn, term } => {
         cons!(None, symb!("defn"), symb!(name), link!(defn), link!(term))
       }
-      Self::Open { name, alias, from } => {
-        cons!(None, symb!("open"), symb!(name), symb!(alias), link!(from))
-      }
+      Self::Open { name, alias, with, from } => match with {
+        Some(ns) => {
+          let mut xs = Vec::new();
+          for n in ns {
+            xs.push(symb!(n))
+          }
+          cons!(
+            None,
+            symb!("open"),
+            symb!(name),
+            symb!(alias),
+            Expr::Cons(None, xs),
+            link!(from)
+          )
+        }
+        None => {
+          cons!(None, symb!("open"), symb!(name), symb!(alias), link!(from))
+        }
+      },
     }
   }
 
@@ -56,10 +76,39 @@ impl Declaration {
         {
           Ok(Self::Defn { name: n.to_owned(), defn: *d, term: *a })
         }
+        [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Symbol(a)), Cons(_, xs), Atom(_, Link(f))]
+          if *c == String::from("open") =>
+        {
+          let mut ns = Vec::new();
+          for x in xs {
+            match x {
+              Atom(_, Symbol(n)) => {
+                ns.push(n.to_owned());
+              }
+              _ => {
+                return Err(DecodeError::new(pos, vec![
+                  Expected::PackageOpenWith,
+                ]));
+              }
+            }
+          }
+          let with = Some(ns.to_owned());
+          Ok(Self::Open {
+            name: n.to_owned(),
+            alias: a.to_owned(),
+            with,
+            from: *f,
+          })
+        }
         [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Symbol(a)), Atom(_, Link(f))]
           if *c == String::from("open") =>
         {
-          Ok(Self::Open { name: n.to_owned(), alias: a.to_owned(), from: *f })
+          Ok(Self::Open {
+            name: n.to_owned(),
+            alias: a.to_owned(),
+            with: None,
+            from: *f,
+          })
         }
         _ => Err(DecodeError::new(pos, vec![Expected::PackageDefinition])),
       },
@@ -74,15 +123,27 @@ impl fmt::Display for Declaration {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Defn { defn, .. } => {
-        let def = Def::unembed_link(*defn).expect("unembed error");
+        let def = Def::get_link(*defn).expect("unembed error");
         write!(f, "{}", def)
       }
-      Self::Open { name, alias, from } => {
+      Self::Open { name, alias, with, from } => {
+        let with = match with {
+          None => String::from(" "),
+          Some(ns) => {
+            let mut s = String::from("(");
+            for n in ns {
+              s.push_str(n);
+              s.push_str(", ");
+            }
+            s.push_str(") ");
+            s
+          }
+        };
         if *alias == String::from("") {
-          write!(f, "open {} from {}", name, from)
+          write!(f, "open {} {}from {}", name, with, from)
         }
         else {
-          write!(f, "open {} as {} from {}", name, alias, from)
+          write!(f, "open {} as {} {}from {}", name, alias, with, from)
         }
       }
     }
@@ -139,36 +200,64 @@ impl Package {
     }
   }
 
-  pub fn defs(self) -> Result<Defs, UnembedError> {
-    let mut defs: Defs = OrdMap::new();
+  pub fn get_link(pack: Link) -> Result<Self, UnembedError> {
+    let pack = hashspace::get(pack).ok_or(UnembedError::UnknownLink(pack))?;
+    Package::decode(pack).map_err(|e| UnembedError::DecodeError(e))
+  }
+
+  pub fn refs_defs(self) -> Result<(Refs, Defs), UnembedError> {
+    let mut refs: Refs = HashMap::new();
+    let mut defs: Defs = HashMap::new();
     for d in self.decls {
       match d {
         Declaration::Defn { name, defn, term } => {
-          defs.insert(name, (defn, term));
+          refs.insert(name, (defn, term));
+          let def = Def::get_link(defn)?;
+          defs.insert(defn, def);
         }
-        Declaration::Open { alias, from, .. } => {
+        Declaration::Open { alias, from, with, .. } => {
           let pack =
             hashspace::get(from).ok_or(UnembedError::UnknownLink(from))?;
           let pack =
             Package::decode(pack).map_err(|e| UnembedError::DecodeError(e))?;
-          let import_defs = pack.defs()?;
-          defs = merge_defs(defs, import_defs, alias)
+          let (import_refs, import_defs) = pack.refs_defs()?;
+          refs = merge_refs(refs, import_refs, alias, with);
+          defs = merge_defs(defs, import_defs);
         }
       }
     }
-    Ok(defs)
+    Ok((refs, defs))
   }
 }
 
-pub fn merge_defs(left: Defs, right: Defs, alias: String) -> Defs {
-  let defs = if alias != String::from("") {
-    right.iter().map(|(k, v)| (format!("{}.{}", alias, k), *v)).collect()
+pub fn merge_refs(
+  left: Refs,
+  right: Refs,
+  alias: String,
+  with: Option<Vec<String>>,
+) -> Refs {
+  let mut refs = right;
+  match with {
+    Some(ns) => {
+      let set: HashSet<String> = ns.iter().collect();
+      refs.retain(|k, _| set.contains(k));
+      if alias != String::from("") {
+        refs =
+          refs.iter().map(|(k, v)| (format!("{}.{}", alias, k), *v)).collect();
+      }
+      left.union_with(refs, |_, right| right)
+    }
+    None => {
+      if alias != String::from("") {
+        refs =
+          refs.iter().map(|(k, v)| (format!("{}.{}", alias, k), *v)).collect();
+      }
+      left.union_with(refs, |_, right| right)
+    }
   }
-  else {
-    right
-  };
-  left.union_with(defs, |_, right| right)
 }
+
+pub fn merge_defs(left: Defs, right: Defs) -> Defs { left.union(right) }
 
 impl fmt::Display for Package {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -209,7 +298,7 @@ pub mod tests {
   pub fn test_package() -> Package {
     let source = "package Test where\n def id (A: Type) (x: A): A := x";
     let source_link = text!(String::from(source)).link();
-    let (_, (_, _, p)) = parse_package(
+    let (_, (_, p, ..)) = parse_package(
       PackageEnv::new(PathBuf::from("Test.ya")),
       source_link,
     )(Span::new(source))
