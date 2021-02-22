@@ -36,6 +36,7 @@ use std::{
 // A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
 #[derive(Clone, Copy)]
 pub enum DAG {
+  Var(NonNull<Var>),
   Leaf(NonNull<Leaf>),
   Single(NonNull<Single>),
   Branch(NonNull<Branch>),
@@ -55,6 +56,11 @@ pub enum ParentCell {
 }
 
 // The λ-DAG nodes
+pub struct Var {
+  pub name: String,
+  pub parents: Option<NonNull<Parents>>,
+}
+
 pub struct Leaf {
   pub tag: LeafTag,
   pub parents: Option<NonNull<Parents>>,
@@ -66,12 +72,11 @@ pub enum LeafTag {
   LTy(LitType),
   Lit(Literal),
   Opr(PrimOp),
-  Var(String),
   Ref(String, Link, Link),
 }
 
 pub struct Single {
-  pub var: Option<NonNull<Leaf>>,
+  pub var: Option<NonNull<Var>>,
   pub tag: SingleTag,
   pub body: DAG,
   pub body_ref: NonNull<Parents>,
@@ -88,7 +93,7 @@ pub enum SingleTag {
 }
 
 pub struct Branch {
-  pub var: Option<NonNull<Leaf>>,
+  pub var: Option<NonNull<Var>>,
   pub tag: BranchTag,
   pub left: DAG,
   pub right: DAG,
@@ -111,6 +116,7 @@ pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
   unsafe {
     match term {
       DAG::Leaf(link) => (*link.as_ptr()).parents,
+      DAG::Var(link) => (*link.as_ptr()).parents,
       DAG::Single(link) => (*link.as_ptr()).parents,
       DAG::Branch(link) => (*link.as_ptr()).parents,
     }
@@ -123,6 +129,7 @@ pub fn set_parents(term: DAG, pref: Option<NonNull<Parents>>) {
   unsafe {
     match term {
       DAG::Leaf(link) => (*link.as_ptr()).parents = pref,
+      DAG::Var(link) => (*link.as_ptr()).parents = pref,
       DAG::Single(link) => (*link.as_ptr()).parents = pref,
       DAG::Branch(link) => (*link.as_ptr()).parents = pref,
     }
@@ -142,7 +149,7 @@ pub fn add_to_parents(node: DAG, plink: NonNull<Parents>) {
 // Resets the cache slots of the app nodes.
 pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
   #[inline]
-  fn clean_up_var(var: Option<NonNull<Leaf>>) {
+  fn clean_up_var(var: Option<NonNull<Var>>) {
     match var {
       Some(var) => {
         let var = unsafe { &mut *var.as_ptr() };
@@ -213,11 +220,11 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
 // // Free parentless nodes.
 pub fn free_dead_node(node: DAG) {
   #[inline]
-  fn free_var(var: Option<NonNull<Leaf>>) {
+  fn free_var(var: Option<NonNull<Var>>) {
     match var {
       Some(var) => unsafe {
         if (*var.as_ptr()).parents.is_none() {
-          free_dead_node(DAG::Leaf(var))
+          free_dead_node(DAG::Var(var))
         }
       },
       None => (),
@@ -256,6 +263,9 @@ pub fn free_dead_node(node: DAG) {
       }
       DAG::Leaf(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Leaf>());
+      }
+      DAG::Var(link) => {
+        dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
       }
     }
   }
@@ -314,7 +324,7 @@ pub fn alloc_uninit<T>() -> NonNull<T> {
 // Parent references are not added to its children.
 #[inline]
 pub fn new_branch(
-  oldvar: Option<NonNull<Leaf>>,
+  oldvar: Option<NonNull<Var>>,
   left: DAG,
   right: DAG,
   tag: BranchTag,
@@ -336,11 +346,11 @@ pub fn new_branch(
     *right_ref.as_ptr() = DLL::singleton(ParentCell::Right(new_branch));
     match oldvar {
       Some(oldvar) => {
-        let Leaf { tag: var_tag, parents: var_parents } = &*oldvar.as_ptr();
-        let var = alloc_val(Leaf { tag: var_tag.clone(), parents: None });
+        let Var { name, parents: var_parents } = &*oldvar.as_ptr();
+        let var = alloc_val(Var { name: name.clone(), parents: None });
         (*new_branch.as_ptr()).var = Some(var);
         for parent in DLL::iter_option(*var_parents) {
-          eval::upcopy(DAG::Leaf(var), *parent)
+          eval::upcopy(DAG::Var(var), *parent)
         }
       }
       None => (),
@@ -352,7 +362,7 @@ pub fn new_branch(
 // Allocate a fresh single node
 #[inline]
 pub fn new_single(
-  oldvar: Option<NonNull<Leaf>>,
+  oldvar: Option<NonNull<Var>>,
   body: DAG,
   tag: SingleTag,
 ) -> NonNull<Single> {
@@ -364,11 +374,11 @@ pub fn new_single(
     add_to_parents(body, body_ref);
     match oldvar {
       Some(oldvar) => {
-        let Leaf { tag: var_tag, parents: var_parents } = &*oldvar.as_ptr();
-        let var = alloc_val(Leaf { tag: var_tag.clone(), parents: None });
+        let Var { name, parents: var_parents } = &*oldvar.as_ptr();
+        let var = alloc_val(Var { name: name.clone(), parents: None });
         (*new_single.as_ptr()).var = Some(var);
         for parent in DLL::iter_option(*var_parents) {
-          eval::upcopy(DAG::Leaf(var), *parent)
+          eval::upcopy(DAG::Var(var), *parent)
         }
       }
       None => (),
@@ -381,6 +391,12 @@ pub fn new_single(
 #[inline]
 pub fn new_leaf(tag: LeafTag) -> NonNull<Leaf> {
   alloc_val(Leaf { tag, parents: None })
+}
+
+// Allocate a fresh leaf node
+#[inline]
+pub fn new_var(name: String) -> NonNull<Var> {
+  alloc_val(Var { name, parents: None })
 }
 
 impl fmt::Debug for DAG {
@@ -434,10 +450,7 @@ impl fmt::Debug for DAG {
         DAG::Single(link) => unsafe {
           let Single { var, parents, body, .. } = *link.as_ptr();
           let name = match var {
-            Some(var_link) => match &(*var_link.as_ptr()).tag {
-              LeafTag::Var(name) => name.clone(),
-              _ => panic!("TODO"),
-            },
+            Some(var_link) => (*var_link.as_ptr()).name.clone(),
             _ => panic!("TODO"),
           };
           if set.get(&(link.as_ptr() as u64)).is_none() {
@@ -454,26 +467,22 @@ impl fmt::Debug for DAG {
             format!("\nSHARE<{}>", link.as_ptr() as u64)
           }
         },
-        DAG::Leaf(link) => unsafe {
-          let Leaf { parents, .. } = *link.as_ptr();
-          match &(*link.as_ptr()).tag {
-            LeafTag::Var(name) => {
-              if set.get(&(link.as_ptr() as u64)).is_none() {
-                set.insert(link.as_ptr() as u64);
-                format!(
-                  "\nVar<{}> {} parents: {}",
-                  link.as_ptr() as u64,
-                  name,
-                  stringify_parents(parents)
-                )
-              }
-              else {
-                format!("\nSHARE<{}>", link.as_ptr() as u64)
-              }
-            }
-            _ => panic!("TODO"),
+        DAG::Var(link) => unsafe {
+          let Var { parents, name, .. } = &*link.as_ptr();
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            set.insert(link.as_ptr() as u64);
+            format!(
+              "\nVar<{}> {} parents: {}",
+              link.as_ptr() as u64,
+              name,
+              stringify_parents(*parents)
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
           }
         },
+        _ => panic!("TODO"),
       }
     }
     write!(f, "{}", go(*self, &mut HashSet::new()))
@@ -488,11 +497,11 @@ impl fmt::Display for DAG {
 
 impl DAG {
   pub fn to_term(&self) -> Term {
-    let mut map: HashMap<*mut Leaf, u64> = HashMap::new();
+    let mut map: HashMap<*mut Var, u64> = HashMap::new();
 
     pub fn go(
       node: &DAG,
-      mut map: &mut HashMap<*mut Leaf, u64>,
+      mut map: &mut HashMap<*mut Var, u64>,
       depth: u64,
     ) -> Term {
       match node {
@@ -506,22 +515,19 @@ impl DAG {
             LeafTag::Ref(nam, def_link, ast_link) => {
               Term::Ref(None, nam.to_owned(), *def_link, *ast_link)
             }
-            LeafTag::Var(nam) => {
-              let level = map.get(&link.as_ptr()).unwrap();
-              Term::Var(None, nam.to_owned(), depth - level - 1)
-            }
           }
+        }
+        DAG::Var(link) => {
+          let Var { name, .. } = unsafe { &*link.as_ptr() };
+          let level = map.get(&link.as_ptr()).unwrap();
+          Term::Var(None, name.to_owned(), depth - level - 1)
         }
 
         DAG::Single(link) => {
           let Single { tag, body, var, .. } = unsafe { &*link.as_ptr() };
           match var {
             Some(var_link) => {
-              let Leaf { tag: var_tag, .. } = unsafe { &*var_link.as_ptr() };
-              let name = match var_tag {
-                LeafTag::Var(name) => name,
-                _ => panic!("Malformed DAG."),
-              };
+              let Var { name, .. } = unsafe { &*var_link.as_ptr() };
               match tag {
                 SingleTag::Lam => {
                   map.insert(var_link.as_ptr(), depth);
@@ -552,11 +558,7 @@ impl DAG {
           let Branch { tag, left, right, var, .. } = unsafe { &*link.as_ptr() };
           match var {
             Some(var_link) => {
-              let Leaf { tag: var_tag, .. } = unsafe { &*var_link.as_ptr() };
-              let name = match var_tag {
-                LeafTag::Var(name) => name,
-                _ => panic!("Malformed DAG."),
-              };
+              let Var { name, .. } = unsafe { &*var_link.as_ptr() };
               match tag {
                 BranchTag::All(uses) => {
                   map.insert(var_link.as_ptr(), depth);
@@ -596,13 +598,13 @@ impl DAG {
   pub fn from_term(tree: Term) -> DAG {
     pub fn go(
       tree: Term,
-      mut ctx: Vector<NonNull<Leaf>>,
+      mut ctx: Vector<NonNull<Var>>,
       parents: NonNull<DLL<ParentCell>>,
     ) -> DAG {
       match tree {
         Term::Lam(_, name, body) => {
           // Allocate nodes
-          let var = new_leaf(LeafTag::Var(name.clone()));
+          let var = new_var(name.clone());
           let sons_parents = alloc_uninit();
           let lam = alloc_val(Single {
             var: Some(var),
@@ -629,7 +631,7 @@ impl DAG {
         }
 
         Term::Slf(_, name, body) => {
-          let var = new_leaf(LeafTag::Var(name.clone()));
+          let var = new_var(name.clone());
           let sons_parents = alloc_uninit();
           let lam = alloc_val(Single {
             var: Some(var),
@@ -687,7 +689,7 @@ impl DAG {
 
         Term::All(_, uses, name, dom, img) => {
           // Allocation and updates
-          let var = new_leaf(LeafTag::Var(name.clone()));
+          let var = new_var(name.clone());
           let dom_parents = alloc_uninit();
           let img_parents = alloc_uninit();
           let all = alloc_val(Branch {
@@ -779,11 +781,10 @@ impl DAG {
               *var
             },
             None => {
-              let tag = LeafTag::Var(name.clone());
-              alloc_val(Leaf { tag, parents: Some(parents) })
+              alloc_val(Var { name: name.clone(), parents: Some(parents) })
             }
           };
-          DAG::Leaf(var)
+          DAG::Var(var)
         }
         Term::Typ(_) => DAG::Leaf(alloc_val(Leaf {
           tag: LeafTag::Typ,

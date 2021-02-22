@@ -8,6 +8,7 @@ use crate::core::{
     new_leaf,
     new_single,
     replace_child,
+    Var,
     Branch,
     BranchTag,
     Leaf,
@@ -84,9 +85,9 @@ pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
       Some(var) => var,
       None => return DAG::Branch(redex),
     };
-    let Leaf { parents: var_parents, .. } = *var.as_ptr();
+    let Var { parents: var_parents, .. } = *var.as_ptr();
     let ans = if DLL::is_singleton(lam_parents) {
-      replace_child(DAG::Leaf(var), arg);
+      replace_child(DAG::Var(var), arg);
       // We have to read `body` again because `lam`'s body could be mutated
       // through `replace_child`
       (*lam.as_ptr()).body
