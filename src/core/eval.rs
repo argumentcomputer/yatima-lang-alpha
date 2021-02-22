@@ -76,14 +76,13 @@ pub fn upcopy(new_child: DAG, cc: ParentCell) {
   }
 }
 
-// Contract a lambda redex, return the body.
-pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
+// Substitute a variable
+pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
   unsafe {
-    let Branch { right: arg, .. } = *redex.as_ptr();
     let Single { var, body, parents: lam_parents, .. } = *lam.as_ptr();
     let var = match var {
       Some(var) => var,
-      None => return DAG::Branch(redex),
+      None => panic!("Misuse of substitution"),
     };
     let Var { parents: var_parents, .. } = *var.as_ptr();
     let ans = if DLL::is_singleton(lam_parents) {
@@ -132,10 +131,17 @@ pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
         .map_or((), |app| clear_copies(lam.as_ref(), &mut *app.as_ptr()));
       result
     };
-    replace_child(DAG::Branch(redex), ans);
-    free_dead_node(DAG::Branch(redex));
     ans
   }
+}
+
+// Contract a lambda redex, return the body.
+pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
+  let Branch { right: arg, .. } = unsafe { &*redex.as_ptr() };
+  let top_node = subst(lam, *arg);
+  replace_child(DAG::Branch(redex), top_node);
+  free_dead_node(DAG::Branch(redex));
+  top_node
 }
 
 // Reduce term to its weak head normal form
