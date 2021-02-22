@@ -386,16 +386,16 @@ pub fn new_leaf(tag: LeafTag) -> NonNull<Leaf> {
 impl fmt::Debug for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     #[inline]
-    fn stringify_parents(dll: Option<NonNull<Parents>>) -> String {
-      #[inline]
-      fn extract_link(p: ParentCell) -> String {
-        match p {
-          ParentCell::Root => String::from("ROOT"),
-          ParentCell::Body(link) => format!("B{}", link.as_ptr() as u64),
-          ParentCell::Left(link) => format!("L{}", link.as_ptr() as u64),
-          ParentCell::Right(link) => format!("R{}", link.as_ptr() as u64),
-        }
+    fn extract_link(p: ParentCell) -> String {
+      match p {
+        ParentCell::Root => String::from("ROOT"),
+        ParentCell::Body(link) => format!("B{}", link.as_ptr() as u64),
+        ParentCell::Left(link) => format!("L{}", link.as_ptr() as u64),
+        ParentCell::Right(link) => format!("R{}", link.as_ptr() as u64),
       }
+    }
+    #[inline]
+    fn stringify_parents(dll: Option<NonNull<Parents>>) -> String {
       match dll {
         Some(dll) => unsafe {
           let mut iter = (*dll.as_ptr()).iter();
@@ -417,7 +417,7 @@ impl fmt::Debug for DAG {
           if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);
             let Branch { parents, left, right, copy, .. } = *link.as_ptr();
-            let copy = copy.map(|link| format!("{}", link.as_ptr() as u64));
+            let copy = copy.map(|link| link.as_ptr() as u64);
             format!(
               "\nApp<{}> parents: {} copy: {:?}{}{}",
               link.as_ptr() as u64,

@@ -1,3 +1,4 @@
+pub mod check;
 pub mod dag;
 pub mod dll;
 pub mod eval;

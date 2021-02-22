@@ -232,22 +232,6 @@ pub fn whnf(mut node: DAG) -> DAG {
           _ => break,
         }
       },
-
-      // TODO: All primitive operations
-      // DAG::Opr(link) => unsafe {
-      //         // TODO: (#cst (Nat 256) 0d1)
-      //         //(DAG::App(x), DAG::Lit(y)) => {
-      //         //
-      //         //}
-      //         else {
-      //           break;
-      //         }
-      //       }
-      //       _ => break,
-      //     }
-      //   }
-      //   break;
-      // },
       _ => break,
     }
   }
