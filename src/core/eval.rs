@@ -171,6 +171,7 @@ pub fn whnf(mut node: DAG) -> DAG {
       DAG::Leaf(link) => unsafe {
         let Leaf { tag, .. } = &*link.as_ptr();
         match tag {
+          // LeafTag::Ref(nam, def) =>
           LeafTag::Opr(opr) => {
             let len = trail.len();
             if len >= 1 && opr.arity() == 1 {

@@ -1,64 +1,138 @@
 use hashexpr::{
-  atom::Atom::*,
-  link::Link,
+  AVal,
+  AVal::*,
   Expr,
   Expr::*,
+  Link,
 };
-
-use im::HashMap;
 use std::fmt;
 
 use crate::{
+  anon_term::AnonTerm,
   decode_error::{
     DecodeError,
     Expected,
   },
-  defs::Defs,
+  definition::Definition,
+  hashspace,
   imports::{
     Import,
     Imports,
   },
+  term::Def,
+  unembed_error::UnembedError,
 };
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
   pub name: String,
   pub docs: String,
+  pub source: Link,
   pub imports: Imports,
-  pub defs: Defs,
+  pub decls: Vec<Declaration>,
 }
 
-impl Package {
-  pub fn encode(self) -> Expr {
-    let mut defs: Vec<Expr> = Vec::new();
-    for d in self.defs.defs {
-      defs.push(d.encode());
-    }
+#[derive(PartialEq, Clone, Debug)]
+pub enum Declaration {
+  Defn { name: String, defn: Link, term: Link },
+  /* Open { name: String, alias: String, from: Link },
+   * Data { name: String, typ_: Term, ctors: HashMap<String, Term> }, */
+}
 
-    Expr::Cons(None, vec![
-      atom!(symb!("package")),
-      atom!(symb!(self.name)),
-      atom!(text!(self.docs)),
-      Imports::encode(self.imports),
-      Expr::Cons(None, defs),
-    ])
+impl Declaration {
+  pub fn encode(self) -> Expr {
+    match self {
+      Self::Defn { name, defn, term } => {
+        cons!(None, symb!(name), link!(defn), link!(term))
+      }
+    }
   }
 
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("package") => {
+        [Atom(_, Symbol(n)), Atom(_, Link(d)), Atom(_, Link(a))] => {
+          Ok(Self::Defn { name: n.to_owned(), defn: *d, term: *a })
+        }
+        _ => Err(DecodeError::new(pos, vec![Expected::PackageDefinition])),
+      },
+      x => {
+        Err(DecodeError::new(x.position(), vec![Expected::PackageDeclaration]))
+      }
+    }
+  }
+
+  pub fn to_def(self) -> Result<Def, UnembedError> {
+    match self {
+      Self::Defn { defn, .. } => {
+        let def =
+          hashspace::get(defn).ok_or(UnembedError::UnknownLink(defn))?;
+        let def =
+          Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
+        let type_anon = hashspace::get(def.type_anon)
+          .ok_or(UnembedError::UnknownLink(defn))?;
+        let type_anon = AnonTerm::decode(type_anon)
+          .map_err(|e| UnembedError::DecodeError(e))?;
+        let term_anon = hashspace::get(def.term_anon)
+          .ok_or(UnembedError::UnknownLink(defn))?;
+        let term_anon = AnonTerm::decode(term_anon)
+          .map_err(|e| UnembedError::DecodeError(e))?;
+        Def::unembed(def, type_anon, term_anon)
+      }
+    }
+  }
+}
+
+impl fmt::Display for Declaration {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let def = self.clone().to_def().expect("unembed error");
+    write!(f, "{}", def)
+  }
+}
+
+impl Package {
+  pub fn encode(self) -> Expr {
+    let mut xs = Vec::new();
+    for d in self.decls {
+      xs.push(d.encode());
+    }
+    cons!(
+      None,
+      symb!("package"),
+      symb!(self.name),
+      text!(self.docs),
+      link!(self.source),
+      self.imports.encode(),
+      Expr::Cons(None, xs)
+    )
+  }
+
+  pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
+    match expr {
+      Cons(pos, xs) => match xs.as_slice() {
+        [Atom(_, Symbol(c)), tail @ ..] if *c == String::from("package") => {
           match tail {
-            [Atom(_, Symbol(nam)), Atom(_, Text(doc, _)), imports, defs] => {
-              let imports = Imports::decode(imports.to_owned())?;
-              let refs = HashMap::new();
-              let (defs, _) = Defs::decode(refs, defs.to_owned())?;
-              Ok(Package {
-                name: nam.to_owned(),
-                docs: doc.to_owned(),
-                imports,
-                defs,
-              })
+            [Atom(_, Symbol(n)), Atom(_, Text(d)), Atom(_, Link(s)), x, y] => {
+              let imports = Imports::decode(x.to_owned())?;
+              let mut decls = Vec::new();
+              match y {
+                Cons(_, xs) => {
+                  for x in xs {
+                    let decl = Declaration::decode(x.to_owned())?;
+                    decls.push(decl);
+                  }
+                  Ok(Package {
+                    name: n.to_owned(),
+                    docs: d.to_owned(),
+                    source: s.to_owned(),
+                    imports,
+                    decls,
+                  })
+                }
+                expr => Err(DecodeError::new(expr.position(), vec![
+                  Expected::PackageDecls,
+                ])),
+              }
             }
             _ => Err(DecodeError::new(pos, vec![Expected::PackageContents])),
           }
@@ -73,15 +147,15 @@ impl Package {
 impl fmt::Display for Package {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if self.docs.is_empty() {
-      write!(f, "package {} {}where\n{}", self.name, self.imports, self.defs)
+      write!(f, "package {} where\n", self.name)?;
     }
     else {
-      write!(
-        f,
-        "/*{}*/\npackage {} {}where\n{}",
-        self.docs, self.name, self.imports, self.defs
-      )
+      write!(f, "{{#{}#}}\npackage {}where\n", self.docs, self.name)?;
     }
+    for x in self.decls.clone() {
+      write!(f, "{}\n", x)?;
+    }
+    Ok(())
   }
 }
 
@@ -93,45 +167,47 @@ pub mod tests {
     Gen,
   };
 
-  use crate::term::tests::arbitrary_name;
+  use crate::term::{
+    tests::arbitrary_name,
+    Def,
+  };
+
+  use crate::parse::package::{
+    parse_package,
+    PackageEnv,
+  };
+
+  use hashexpr::span::Span;
+  use std::path::PathBuf;
 
   pub fn test_package() -> Package {
-    let refs: HashMap<String, Link> = HashMap::new();
-    Package {
-      name: String::from("test"),
-      docs: String::from("This is a test package"),
-      imports: Imports { imports: Vec::new() },
-      defs: Defs::decode(
-        refs,
-        hashexpr::parse(
-          "((def id \"The identity function\" (forall ω A Type A) (lambda x \
-           x)))",
-        )
-        .unwrap()
-        .1,
-      )
-      .unwrap()
-      .0,
-    }
+    let source = "package Test where\n def id (A: Type) (x: A): A := x";
+    let source_link = text!(String::from(source)).link();
+    let (_, (_, p)) = parse_package(
+      PackageEnv::new(PathBuf::from("Test.ya")),
+      source_link,
+    )(Span::new(source))
+    .unwrap();
+    p
   }
 
-  impl Arbitrary for Package {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let name = arbitrary_name(g);
-      Package {
-        name,
-        docs: String::from(""),
-        imports: Imports::new(Vec::new()),
-        defs: Arbitrary::arbitrary(g),
-      }
-    }
-  }
+  // impl Arbitrary for Package {
+  //  fn arbitrary<G: Gen>(g: &mut G) -> Self {
+  //    let name = arbitrary_name(g);
+  //    Package {
+  //      name,
+  //      docs: String::from(""),
+  //      imports: Imports::new(Vec::new()),
+  //      defs: Arbitrary::arbitrary(g),
+  //    }
+  //  }
+  //}
 
-  #[quickcheck]
-  fn package_encode_decode(x: Package) -> bool {
-    match Package::decode(x.clone().encode()) {
-      Ok(y) => x == y,
-      _ => false,
-    }
-  }
+  //#[quickcheck]
+  // fn package_encode_decode(x: Package) -> bool {
+  //  match Package::decode(x.clone().encode()) {
+  //    Ok(y) => x == y,
+  //    _ => false,
+  //  }
+  //}
 }
