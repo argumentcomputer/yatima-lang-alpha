@@ -649,11 +649,14 @@ impl DAG {
   }
 
   pub fn from_term(tree: &Term) -> DAG {
-    DAG::from_open_term(0, tree)
+    DAG::from_open_term(false, 0, tree)
   }
 
-  pub fn from_open_term(depth: u64, tree: &Term) -> DAG {
+  // Converts an open subterm to DAG and add de Bruijn levels to free `Var` nodes. The argument `depth`
+  // is the initial depth of the subterm. Setting the `no_ann` flag removes all type annotations.
+  pub fn from_open_term(no_ann: bool, depth: u64, tree: &Term) -> DAG {
     fn go(
+      no_ann: bool,
       depth: u64,
       tree: &Term,
       mut ctx: Vector<NonNull<Var>>,
@@ -679,7 +682,7 @@ impl DAG {
           }
 
           ctx.push_front(var);
-          let body = go(depth+1, &**body, ctx, sons_parents);
+          let body = go(no_ann, depth+1, &**body, ctx, sons_parents);
 
           // Update `lam` with the correct body
           unsafe {
@@ -702,7 +705,7 @@ impl DAG {
             *sons_parents.as_ptr() = DLL::singleton(ParentCell::Body(lam));
           }
           ctx.push_front(var);
-          let body = go(depth+1, &**body, ctx, sons_parents);
+          let body = go(no_ann, depth+1, &**body, ctx, sons_parents);
           unsafe {
             (*lam.as_ptr()).body = body;
           }
@@ -720,7 +723,7 @@ impl DAG {
           unsafe {
             *sons_parents.as_ptr() = DLL::singleton(ParentCell::Body(lam));
           }
-          let body = go(depth, &**body, ctx, sons_parents);
+          let body = go(no_ann, depth, &**body, ctx, sons_parents);
           unsafe {
             (*lam.as_ptr()).body = body;
           }
@@ -738,7 +741,7 @@ impl DAG {
           unsafe {
             *sons_parents.as_ptr() = DLL::singleton(ParentCell::Body(lam));
           }
-          let body = go(depth, &**body, ctx, sons_parents);
+          let body = go(no_ann, depth, &**body, ctx, sons_parents);
           unsafe {
             (*lam.as_ptr()).body = body;
           }
@@ -768,9 +771,9 @@ impl DAG {
 
           // Map `name` to `var` node
           let mut img_ctx = ctx.clone();
-          let dom = go(depth, &**dom, ctx, dom_parents);
+          let dom = go(no_ann, depth, &**dom, ctx, dom_parents);
           img_ctx.push_front(var);
-          let img = go(depth+1, &**img, img_ctx, img_parents);
+          let img = go(no_ann, depth+1, &**img, img_ctx, img_parents);
 
           // Update `all` with the correct fields
           unsafe {
@@ -797,8 +800,8 @@ impl DAG {
             *fun_parents.as_ptr() = DLL::singleton(ParentCell::Left(app));
             *arg_parents.as_ptr() = DLL::singleton(ParentCell::Right(app));
           }
-          let fun = go(depth, &**fun, ctx.clone(), fun_parents);
-          let arg = go(depth, &**arg, ctx, arg_parents);
+          let fun = go(no_ann, depth, &**fun, ctx.clone(), fun_parents);
+          let arg = go(no_ann, depth, &**arg, ctx, arg_parents);
           unsafe {
             (*app.as_ptr()).left = fun;
             (*app.as_ptr()).right = arg;
@@ -806,6 +809,9 @@ impl DAG {
           DAG::Branch(app)
         }
         Term::Ann(_, typ, exp) => {
+          if no_ann {
+            return go(no_ann, depth, &**exp, ctx, parents);
+          }
           let typ_parents = alloc_uninit();
           let exp_parents = alloc_uninit();
           let ann = alloc_val(Branch {
@@ -822,8 +828,8 @@ impl DAG {
             *typ_parents.as_ptr() = DLL::singleton(ParentCell::Left(ann));
             *exp_parents.as_ptr() = DLL::singleton(ParentCell::Right(ann));
           }
-          let typ = go(depth, &**typ, ctx.clone(), typ_parents);
-          let exp = go(depth, &**exp, ctx, exp_parents);
+          let typ = go(no_ann, depth, &**typ, ctx.clone(), typ_parents);
+          let exp = go(no_ann, depth, &**exp, ctx, exp_parents);
           unsafe {
             (*ann.as_ptr()).left = typ;
             (*ann.as_ptr()).right = exp;
@@ -872,7 +878,7 @@ impl DAG {
       }
     }
     let root = alloc_val(DLL::singleton(ParentCell::Root));
-    go(depth, tree, Vector::new(), root)
+    go(no_ann, depth, tree, Vector::new(), root)
   }
 
   // Remove the root parent

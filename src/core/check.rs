@@ -30,6 +30,14 @@ use crate::{
 type PreCtx = Vec<(String, DAG)>;
 type Ctx    = Vec<(String, Uses, DAG)>;
 
+pub fn to_ctx(pre: PreCtx) -> Ctx {
+  let mut ctx = vec![];
+  for (nam, typ) in pre {
+    ctx.push((nam, Uses::None, typ));
+  }
+  ctx
+}
+
 #[inline]
 pub fn add_ctx(ctx: &mut Ctx, ctx2: Ctx) {
   for i in 0..ctx.len() {
@@ -93,7 +101,7 @@ pub fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<C
               let mut ctx = check(pre, Uses::Once, &**term_body, *img)?;
               let (_, inf_uses, _) = ctx
                 .pop()
-                .ok_or(CheckError::GenericError(String::from("Empty context")))?;
+                .ok_or(CheckError::GenericError(String::from("Empty context.")))?;
               if Uses::gth(inf_uses, *lam_uses) {
                 Err(CheckError::GenericError(String::from("Quantity mismatch.")))
               }
@@ -124,7 +132,7 @@ pub fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<C
                   match (*var_link.as_ptr()).parents {
                     None => *slf_body,
                     Some(_) => {
-                      let mut term_dag = DAG::from_open_term(pre.len() as u64, &term);
+                      let mut term_dag = DAG::from_open_term(true, pre.len() as u64, &term);
                       term_dag.uproot();
                       subst(link, term_dag)
                     }
@@ -141,6 +149,9 @@ pub fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<C
       }
     },
 
+    Term::Let(_, _, _, _, _, _, _) => {
+      panic!("TODO")
+    }
     _ => {
       let depth = pre.len();
       let (ctx, infer_typ) = infer(pre, uses, term)?;
@@ -156,35 +167,69 @@ pub fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<C
 
 pub fn infer(mut pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), CheckError> {
   match term {
-    Term::Var(_, _, _) => {
-      panic!("TODO")
+    Term::Var(_, nam, idx) => {
+      let level = pre.len() - (*idx as usize) - 1;
+      let bind = pre
+        .get(level)
+        .ok_or(CheckError::GenericError(String::from("Unbound variable.")))?;
+      let typ = bind.1;
+      let mut ctx = to_ctx(pre);
+      ctx[*idx as usize].1 = uses;
+      Ok((ctx, typ))
     }
     Term::Ref(_, _, _, _) => {
       panic!("TODO")
     }
-    Term::Lam(_, _, _) => {
-      panic!("TODO")
-    }
-    Term::App(_, _, _) => {
-      panic!("TODO")
+    Term::App(_, func, argm) => {
+      let depth = pre.len() as u64;
+      let (mut func_ctx, func_typ) = infer(pre.clone(), uses, func)?;
+      whnf(func_typ);
+      match func_typ {
+        DAG::Branch(link) => {
+          let Branch { tag, var, left: dom, right: img, .. } = unsafe { &*link.as_ptr() };
+          match tag {
+            BranchTag::All(lam_uses) => {
+              let argm_ctx = check(pre, Uses::mul(*lam_uses, uses), argm, *dom)?;
+              add_ctx(&mut func_ctx, argm_ctx);
+              let mut argm_dag = DAG::from_open_term(true, depth, &argm);
+              argm_dag.uproot();
+              // TODO: implement subst_branch
+              // Ok((func_ctx, subst_branch(link, term_dag)))
+              panic!("TODO")
+            }
+            _ => Err(CheckError::GenericError(String::from("Tried to apply something that was not a lambda."))),
+          }
+        },
+        _ => Err(CheckError::GenericError(String::from("Tried to apply something that was not a lambda."))),
+      }
+
     }
     Term::Cse(_, _) => {
       panic!("TODO")
     }
-    Term::All(_, _, _, _, _) => {
-      panic!("TODO")
+    Term::All(_, lam_uses, name, dom, img) => {
+      let _ = check(pre.clone(), Uses::None, dom, DAG::from_term(&Term::Typ(None)))?;
+      let dom_dag = DAG::from_open_term(true, pre.len() as u64, &dom);
+      pre.push((name.to_string(), dom_dag));
+      let ctx = check(pre, Uses::None, dom, DAG::from_term(&Term::Typ(None)))?;
+      Ok((ctx, DAG::from_term(&Term::Typ(None))))
     }
-    Term::Slf(_, _, _) => {
-      panic!("TODO")
+    Term::Slf(_, name, body) => {
+      let term_dag = DAG::from_open_term(true, pre.len() as u64, &term);
+      pre.push((name.to_string(), term_dag));
+      let ctx = check(pre, Uses::None, body, DAG::from_term(&Term::Typ(None)))?;
+      Ok((ctx, DAG::from_term(&Term::Typ(None))))
     }
     Term::Let(_, _, _, _, _, _, _) => {
       panic!("TODO")
     }
     Term::Typ(_) => {
-      panic!("TODO")
+      Ok((to_ctx(pre), DAG::from_term(&Term::Typ(None))))
     }
-    Term::Ann(_, _, _) => {
-      panic!("TODO")
+    Term::Ann(_, typ, expr) => {
+      let typ_dag = DAG::from_open_term(true, pre.len() as u64, &expr);
+      let ctx = check(pre, uses, expr, typ_dag)?;
+      Ok((ctx, typ_dag))
     }
     Term::Lit(_, _) => {
       panic!("TODO")
@@ -195,8 +240,11 @@ pub fn infer(mut pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), Che
     Term::Opr(_, _) => {
       panic!("TODO")
     }
+    Term::Lam(_, _, _) => {
+      Err(CheckError::GenericError(String::from("Untyped lambda.")))
+    }
     _ => {
-      panic!("TODO")
+      Err(CheckError::GenericError(String::from("Cannot infer type.")))
     }
   }
 }
