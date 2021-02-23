@@ -8,6 +8,7 @@ use crate::core::{
     new_leaf,
     new_single,
     replace_child,
+    upcopy,
     Var,
     Branch,
     BranchTag,
@@ -24,57 +25,6 @@ use crate::core::{
     apply_una_op,
   },
 };
-
-// The core up-copy function.
-pub fn upcopy(new_child: DAG, cc: ParentCell) {
-  unsafe {
-    match cc {
-      ParentCell::Body(parent) => {
-        let Single { var, parents: grandparents, .. } = *parent.as_ptr();
-        let tag = &(*parent.as_ptr()).tag;
-        let new_single = new_single(var, new_child, tag.clone());
-        for grandparent in DLL::iter_option(grandparents) {
-          upcopy(DAG::Single(new_single), *grandparent)
-        }
-      }
-      ParentCell::Left(parent) => {
-        let Branch { var, copy, right, parents: grandparents, .. } =
-          *parent.as_ptr();
-        let tag = &(*parent.as_ptr()).tag;
-        match copy {
-          Some(cache) => {
-            (*cache.as_ptr()).left = new_child;
-          }
-          None => {
-            let new_branch = new_branch(var, new_child, right, tag.clone());
-            (*parent.as_ptr()).copy = Some(new_branch);
-            for grandparent in DLL::iter_option(grandparents) {
-              upcopy(DAG::Branch(new_branch), *grandparent)
-            }
-          }
-        }
-      }
-      ParentCell::Right(parent) => {
-        let Branch { var, copy, left, parents: grandparents, .. } =
-          *parent.as_ptr();
-        let tag = &(*parent.as_ptr()).tag;
-        match copy {
-          Some(cache) => {
-            (*cache.as_ptr()).right = new_child;
-          }
-          None => {
-            let new_branch = new_branch(var, left, new_child, tag.clone());
-            (*parent.as_ptr()).copy = Some(new_branch);
-            for grandparent in DLL::iter_option(grandparents) {
-              upcopy(DAG::Branch(new_branch), *grandparent)
-            }
-          }
-        }
-      }
-      ParentCell::Root => (),
-    }
-  }
-}
 
 // Substitute a variable
 pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
@@ -108,10 +58,8 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
             spine.push((var, tag));
           }
           DAG::Branch(branch) => {
-            let Branch { var, left, right, .. } = *branch.as_ptr();
-            let tag = &(*branch.as_ptr()).tag;
-            let new_branch = new_branch(var, left, right, tag.clone());
-            (*branch.as_ptr()).copy = Some(new_branch);
+            let Branch { left, right, .. } = *branch.as_ptr();
+            let new_branch = new_branch(branch, left, right);
             top_branch = Some(branch);
             for parent in DLL::iter_option(var_parents) {
               upcopy(arg, *parent);
@@ -284,7 +232,7 @@ mod test {
     let (i, tree) = crate::parse::term::parse(i)?;
     let (i, _) = nom::character::complete::multispace0(i)?;
     let (i, _) = nom::combinator::eof(i)?;
-    let dag = DAG::from_term(tree);
+    let dag = DAG::from_term(&tree);
     Ok((i, dag))
   }
 

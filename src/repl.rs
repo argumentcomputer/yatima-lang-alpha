@@ -32,7 +32,7 @@ pub fn main() -> rustyline::Result<()> {
         let res = parse(&line);
         match res {
           Ok((_, term)) => {
-            println!("{}", norm(DAG::from_term(term)));
+            println!("{}", norm(DAG::from_term(&term)));
           }
           Err(e) => println!("Error: {}", e),
         }
