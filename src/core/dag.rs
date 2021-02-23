@@ -1,5 +1,8 @@
 #![allow(unused_variables)]
 
+// Bottom-up reduction of lambda DAGs. Based on the paper by Olin Shivers and Mitchel Wand
+// "Bottom-up β-reduction: uplinks and λ-DAGs" (https://www.brics.dk/RS/04/38/BRICS-RS-04-38.pdf)
+
 use crate::{
   core::{
     dll::*,
@@ -58,6 +61,9 @@ pub enum ParentCell {
 // The λ-DAG nodes
 pub struct Var {
   pub name: String,
+  // The field `depth` is only used by the type checker to track free variables.
+  // Otherwise it is irrelevant.
+  pub depth: u64,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -393,8 +399,8 @@ pub fn new_branch(
     (*oldbranch.as_ptr()).copy = Some(new_branch);
     match (*oldbranch.as_ptr()).var {
       Some(oldvar) => {
-        let Var { name, parents: var_parents } = &*oldvar.as_ptr();
-        let var = alloc_val(Var { name: name.clone(), parents: None });
+        let Var { name, depth, parents: var_parents } = &*oldvar.as_ptr();
+        let var = alloc_val(Var { name: name.clone(), depth: *depth, parents: None });
         (*new_branch.as_ptr()).var = Some(var);
         for parent in DLL::iter_option(*var_parents) {
           upcopy(DAG::Var(var), *parent)
@@ -421,8 +427,8 @@ pub fn new_single(
     add_to_parents(body, body_ref);
     match oldvar {
       Some(oldvar) => {
-        let Var { name, parents: var_parents } = &*oldvar.as_ptr();
-        let var = alloc_val(Var { name: name.clone(), parents: None });
+        let Var { name, depth, parents: var_parents } = &*oldvar.as_ptr();
+        let var = alloc_val(Var { name: name.clone(), depth: *depth, parents: None });
         (*new_single.as_ptr()).var = Some(var);
         for parent in DLL::iter_option(*var_parents) {
           upcopy(DAG::Var(var), *parent)
@@ -442,8 +448,8 @@ pub fn new_leaf(tag: LeafTag) -> NonNull<Leaf> {
 
 // Allocate a fresh leaf node
 #[inline]
-pub fn new_var(name: String) -> NonNull<Var> {
-  alloc_val(Var { name, parents: None })
+pub fn new_var(name: String, depth: u64) -> NonNull<Var> {
+  alloc_val(Var { name, depth, parents: None })
 }
 
 impl fmt::Debug for DAG {
@@ -643,7 +649,12 @@ impl DAG {
   }
 
   pub fn from_term(tree: &Term) -> DAG {
+    DAG::from_open_term(0, tree)
+  }
+
+  pub fn from_open_term(depth: u64, tree: &Term) -> DAG {
     fn go(
+      depth: u64,
       tree: &Term,
       mut ctx: Vector<NonNull<Var>>,
       parents: NonNull<DLL<ParentCell>>,
@@ -651,7 +662,7 @@ impl DAG {
       match tree {
         Term::Lam(_, name, body) => {
           // Allocate nodes
-          let var = new_var(name.clone());
+          let var = new_var(name.clone(), 0);
           let sons_parents = alloc_uninit();
           let lam = alloc_val(Single {
             var: Some(var),
@@ -668,7 +679,7 @@ impl DAG {
           }
 
           ctx.push_front(var);
-          let body = go(&**body, ctx, sons_parents);
+          let body = go(depth+1, &**body, ctx, sons_parents);
 
           // Update `lam` with the correct body
           unsafe {
@@ -678,7 +689,7 @@ impl DAG {
         }
 
         Term::Slf(_, name, body) => {
-          let var = new_var(name.clone());
+          let var = new_var(name.clone(), 0);
           let sons_parents = alloc_uninit();
           let lam = alloc_val(Single {
             var: Some(var),
@@ -691,7 +702,7 @@ impl DAG {
             *sons_parents.as_ptr() = DLL::singleton(ParentCell::Body(lam));
           }
           ctx.push_front(var);
-          let body = go(&**body, ctx, sons_parents);
+          let body = go(depth+1, &**body, ctx, sons_parents);
           unsafe {
             (*lam.as_ptr()).body = body;
           }
@@ -709,7 +720,7 @@ impl DAG {
           unsafe {
             *sons_parents.as_ptr() = DLL::singleton(ParentCell::Body(lam));
           }
-          let body = go(&**body, ctx, sons_parents);
+          let body = go(depth, &**body, ctx, sons_parents);
           unsafe {
             (*lam.as_ptr()).body = body;
           }
@@ -727,7 +738,7 @@ impl DAG {
           unsafe {
             *sons_parents.as_ptr() = DLL::singleton(ParentCell::Body(lam));
           }
-          let body = go(&**body, ctx, sons_parents);
+          let body = go(depth, &**body, ctx, sons_parents);
           unsafe {
             (*lam.as_ptr()).body = body;
           }
@@ -736,7 +747,7 @@ impl DAG {
 
         Term::All(_, uses, name, dom, img) => {
           // Allocation and updates
-          let var = new_var(name.clone());
+          let var = new_var(name.clone(), 0);
           let dom_parents = alloc_uninit();
           let img_parents = alloc_uninit();
           let all = alloc_val(Branch {
@@ -757,9 +768,9 @@ impl DAG {
 
           // Map `name` to `var` node
           let mut img_ctx = ctx.clone();
-          let dom = go(&**dom, ctx, dom_parents);
+          let dom = go(depth, &**dom, ctx, dom_parents);
           img_ctx.push_front(var);
-          let img = go(&**img, img_ctx, img_parents);
+          let img = go(depth+1, &**img, img_ctx, img_parents);
 
           // Update `all` with the correct fields
           unsafe {
@@ -786,8 +797,8 @@ impl DAG {
             *fun_parents.as_ptr() = DLL::singleton(ParentCell::Left(app));
             *arg_parents.as_ptr() = DLL::singleton(ParentCell::Right(app));
           }
-          let fun = go(&**fun, ctx.clone(), fun_parents);
-          let arg = go(&**arg, ctx, arg_parents);
+          let fun = go(depth, &**fun, ctx.clone(), fun_parents);
+          let arg = go(depth, &**arg, ctx, arg_parents);
           unsafe {
             (*app.as_ptr()).left = fun;
             (*app.as_ptr()).right = arg;
@@ -811,8 +822,8 @@ impl DAG {
             *typ_parents.as_ptr() = DLL::singleton(ParentCell::Left(ann));
             *exp_parents.as_ptr() = DLL::singleton(ParentCell::Right(ann));
           }
-          let typ = go(&**typ, ctx.clone(), typ_parents);
-          let exp = go(&**exp, ctx, exp_parents);
+          let typ = go(depth, &**typ, ctx.clone(), typ_parents);
+          let exp = go(depth, &**exp, ctx, exp_parents);
           unsafe {
             (*ann.as_ptr()).left = typ;
             (*ann.as_ptr()).right = exp;
@@ -828,7 +839,11 @@ impl DAG {
               *var
             },
             None => {
-              alloc_val(Var { name: name.clone(), parents: Some(parents) })
+              alloc_val(Var {
+                name: name.clone(),
+                depth: depth-1-idx,
+                parents: Some(parents)
+              })
             }
           };
           DAG::Var(var)
@@ -857,7 +872,7 @@ impl DAG {
       }
     }
     let root = alloc_val(DLL::singleton(ParentCell::Root));
-    go(tree, Vector::new(), root)
+    go(depth, tree, Vector::new(), root)
   }
 
   // Remove the root parent

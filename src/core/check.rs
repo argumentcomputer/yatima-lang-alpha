@@ -45,7 +45,7 @@ pub fn mul_ctx(uses: Uses, ctx: &mut Ctx) {
 }
 
 #[derive(Debug)]
-enum CheckError {
+pub enum CheckError {
   GenericError(String),
 }
 
@@ -65,7 +65,11 @@ impl Error for CheckError {
   }
 }
 
-fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<Ctx, CheckError> {
+pub fn equal(a: DAG, b: DAG, dep: u64) -> bool {
+  true
+}
+
+pub fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<Ctx, CheckError> {
   match &term {
     Term::Lam(_, name, term_body) => {
       // A potential problem is that `term` might also mutate, which is an unwanted side-effect,
@@ -74,9 +78,17 @@ fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<Ctx, 
       whnf(typ);
       match typ {
         DAG::Branch(link) => {
-          let Branch { tag, left: dom, right: img, .. } = unsafe { &*link.as_ptr() };
+          let Branch { tag, var, left: dom, right: img, .. } = unsafe { &*link.as_ptr() };
           match tag {
             BranchTag::All(lam_uses) => {
+              // Annotate the depth of the node that binds var
+              match var {
+                None => panic!("Malformed DAG"),
+                Some(link) => unsafe {
+                  (*link.as_ptr()).depth = pre.len() as u64;
+                }
+              }
+              // Add the domain of the function to the precontext
               pre.push((name.to_string(), *dom));
               let mut ctx = check(pre, Uses::Once, &**term_body, *img)?;
               let (_, inf_uses, _) = ctx
@@ -101,12 +113,24 @@ fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<Ctx, 
       whnf(typ);
       match typ {
         DAG::Single(link) => {
-          let Single { tag, .. } = unsafe { &*link.as_ptr() };
+          let Single { tag, var, body: slf_body, .. } = unsafe { &*link.as_ptr() };
           match tag {
             SingleTag::Slf => {
-              let mut term_dag = DAG::from_term(&term);
-              term_dag.uproot();
-              let typ_body = subst(link, term_dag);
+              // If the self type does not bind any variable, then check the term's body
+              // against the self type's body directly. Otherwise, subsitute the variable by the term
+              let typ_body = match var {
+                None => *slf_body,
+                Some(var_link) => unsafe {
+                  match (*var_link.as_ptr()).parents {
+                    None => *slf_body,
+                    Some(_) => {
+                      let mut term_dag = DAG::from_open_term(pre.len() as u64, &term);
+                      term_dag.uproot();
+                      subst(link, term_dag)
+                    }
+                  }
+                }
+              };
               let ctx = check(pre, uses, dat_body, typ_body)?;
               Ok(ctx)
             }
@@ -117,53 +141,62 @@ fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<Ctx, 
       }
     },
 
-    _ => Err(CheckError::GenericError(String::from("TODO"))),
+    _ => {
+      let depth = pre.len();
+      let (ctx, infer_typ) = infer(pre, uses, term)?;
+      if equal(typ, infer_typ, depth as u64) {
+        Ok(ctx)
+      }
+      else {
+        Err(CheckError::GenericError(String::from("Type mismatch.")))
+      }
+    },
   }
 }
 
-fn infer(pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), CheckError> {
+pub fn infer(mut pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), CheckError> {
   match term {
     Term::Var(_, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Ref(_, _, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Lam(_, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::App(_, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Cse(_, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::All(_, _, _, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Slf(_, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Let(_, _, _, _, _, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Typ(_) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Ann(_, _, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Lit(_, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::LTy(_, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     Term::Opr(_, _) => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
     _ => {
-      Err(CheckError::GenericError(String::from("TODO")))
+      panic!("TODO")
     }
   }
 }
