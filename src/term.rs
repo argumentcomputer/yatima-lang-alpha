@@ -35,21 +35,21 @@ use im::{
   OrdMap,
   Vector,
 };
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 #[derive(Clone, Debug)]
 pub enum Term {
   Var(Option<Pos>, String, u64),
-  Lam(Option<Pos>, String, Box<Term>),
-  App(Option<Pos>, Box<Term>, Box<Term>),
-  All(Option<Pos>, Uses, String, Box<Term>, Box<Term>),
-  Slf(Option<Pos>, String, Box<Term>),
-  Dat(Option<Pos>, Box<Term>),
-  Cse(Option<Pos>, Box<Term>),
+  Lam(Option<Pos>, String, Rc<Term>),
+  App(Option<Pos>, Rc<(Term, Term)>),
+  All(Option<Pos>, Uses, String, Rc<(Term, Term)>),
+  Slf(Option<Pos>, String, Rc<Term>),
+  Dat(Option<Pos>, Rc<Term>),
+  Cse(Option<Pos>, Rc<Term>),
   Ref(Option<Pos>, String, Link, Link),
-  Let(Option<Pos>, bool, Uses, String, Box<Term>, Box<Term>, Box<Term>),
+  Let(Option<Pos>, bool, Uses, String, Rc<(Term, Term, Term)>),
   Typ(Option<Pos>),
-  Ann(Option<Pos>, Box<Term>, Box<Term>),
+  Ann(Option<Pos>, Rc<(Term, Term)>),
   Lit(Option<Pos>, Literal),
   LTy(Option<Pos>, LitType),
   Opr(Option<Pos>, PrimOp),
@@ -81,9 +81,9 @@ impl PartialEq for Term {
     match (self, other) {
       (Self::Var(_, na, ia), Self::Var(_, nb, ib)) => na == nb && ia == ib,
       (Self::Lam(_, na, ba), Self::Lam(_, nb, bb)) => na == nb && ba == bb,
-      (Self::App(_, fa, aa), Self::App(_, fb, ab)) => fa == fb && aa == ab,
-      (Self::All(_, ua, na, ta, ba), Self::All(_, ub, nb, tb, bb)) => {
-        ua == ub && na == nb && ta == tb && ba == bb
+      (Self::App(_, ta), Self::App(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
+      (Self::All(_, ua, na, ta), Self::All(_, ub, nb, tb)) => {
+        ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1
       }
       (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
       (Self::Dat(_, ba), Self::Dat(_, bb)) => ba == bb,
@@ -92,11 +92,11 @@ impl PartialEq for Term {
         na == nb && da == db && aa == ab
       }
       (
-        Self::Let(_, ra, ua, na, ta, xa, ba),
-        Self::Let(_, rb, ub, nb, tb, xb, bb),
-      ) => ra == rb && ua == ub && na == nb && ta == tb && xa == xb && ba == bb,
+        Self::Let(_, ra, ua, na, ta),
+        Self::Let(_, rb, ub, nb, tb),
+      ) => ra == rb && ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1 && ta.2 == tb.2,
       (Self::Typ(_), Self::Typ(_)) => true,
-      (Self::Ann(_, xa, ta), Self::Ann(_, xb, tb)) => xa == xb && ta == tb,
+      (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
       (Self::LTy(_, a), Self::LTy(_, b)) => a == b,
       (Self::Opr(_, a), Self::Opr(_, b)) => a == b,
@@ -142,13 +142,13 @@ impl fmt::Display for Term {
 
     fn alls(use_: &Uses, nam: &str, typ: &Term, bod: &Term) -> String {
       match bod {
-        All(_, bod_use, bod_nam, bod_typ, bod_bod) => {
+        All(_, bod_use, bod_nam, bod) => {
           format!(
             " ({}{}: {}){}",
             uses(use_),
             name(nam),
             typ,
-            alls(bod_use, bod_nam, bod_typ, bod_bod)
+            alls(bod_use, bod_nam, &bod.0, &bod.1)
           )
         }
         _ => format!(" ({}{}: {}) -> {}", uses(use_), name(nam), typ, bod),
@@ -161,14 +161,14 @@ impl fmt::Display for Term {
 
     fn apps(fun: &Term, arg: &Term) -> String {
       match (fun, arg) {
-        (App(_, ff, fa), App(_, af, aa)) => {
-          format!("{} ({})", apps(ff, fa), apps(af, aa))
+        (App(_, f), App(_, a)) => {
+          format!("{} ({})", apps(&f.0, &f.1), apps(&a.0, &a.1))
         }
-        (App(_, ff, fa), arg) => {
-          format!("{} {}", apps(ff, fa), parens(arg))
+        (App(_, f), arg) => {
+          format!("{} {}", apps(&f.0, &f.1), parens(arg))
         }
-        (fun, App(_, af, aa)) => {
-          format!("{} ({})", parens(fun), apps(af, aa))
+        (fun, App(_, a)) => {
+          format!("{} ({})", parens(fun), apps(&a.0, &a.1))
         }
         (fun, arg) => {
           format!("{} {}", parens(fun), parens(arg))
@@ -180,16 +180,16 @@ impl fmt::Display for Term {
       Var(_, nam, ..) => write!(f, "{}", nam),
       Ref(_, nam, ..) => write!(f, "{}", nam),
       Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
-      App(_, fun, arg) => write!(f, "{}", apps(fun, arg)),
-      Let(_, true, u, n, typ, exp, bod) => {
-        write!(f, "letrec {}{}: {} := {}; {}", uses(u), name(n), typ, exp, bod)
+      App(_, terms) => write!(f, "{}", apps(&terms.0, &terms.1)),
+      Let(_, true, u, n, terms) => {
+        write!(f, "letrec {}{}: {} := {}; {}", uses(u), name(n), terms.0, terms.1, terms.2)
       }
-      Let(_, false, u, n, typ, exp, bod) => {
-        write!(f, "let {}{}: {} := {}; {}", uses(u), name(n), typ, exp, bod)
+      Let(_, false, u, n, terms) => {
+        write!(f, "let {}{}: {} := {}; {}", uses(u), name(n), terms.0, terms.1, terms.2)
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
-      All(_, us_, nam, typ, bod) => write!(f, "∀{}", alls(us_, nam, typ, bod)),
-      Ann(_, typ, val) => write!(f, "({} :: {})", val, typ),
+      All(_, us_, nam, terms) => write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1)),
+      Ann(_, terms) => write!(f, "({} :: {})", terms.1, terms.0),
       Dat(_, bod) => write!(f, "data {}", bod),
       Cse(_, bod) => write!(f, "case {}", bod),
       Typ(_) => write!(f, "Type"),
@@ -205,44 +205,44 @@ impl Term {
     match self {
       Self::Var(_, nam, _) => symb!(nam),
       Self::Lam(_, nam, bod) => {
-        cons!(None, symb!("lambda"), symb!(nam), bod.encode())
+        cons!(None, symb!("lambda"), symb!(nam), Rc::clone(&bod).encode())
       }
-      Self::App(_, fun, arg) => cons!(None, fun.encode(), arg.encode()),
-      Self::All(_, uses, nam, typ, bod) => {
+      Self::App(_, terms) => cons!(None, terms.0.clone().encode(), terms.1.clone().encode()),
+      Self::All(_, uses, nam, terms) => {
         cons!(
           None,
           symb!("forall"),
           uses.encode(),
           symb!(nam),
-          typ.encode(),
-          bod.encode()
+          terms.0.clone().encode(),
+          terms.1.clone().encode()
         )
       }
       Self::Slf(_, nam, bod) => {
-        cons!(None, symb!("self"), symb!(nam), bod.encode())
+        cons!(None, symb!("self"), symb!(nam), Rc::clone(&bod).encode())
       }
       Self::Dat(_, bod) => {
-        cons!(None, symb!("data"), bod.encode())
+        cons!(None, symb!("data"), Rc::clone(&bod).encode())
       }
       Self::Cse(_, bod) => {
-        cons!(None, symb!("case"), bod.encode())
+        cons!(None, symb!("case"), Rc::clone(&bod).encode())
       }
       Self::Ref(_, nam, ..) => symb!(nam),
-      Self::Let(_, rec, uses, nam, typ, exp, bod) => {
+      Self::Let(_, rec, uses, nam, terms) => {
         let ctor = if rec { symb!("letrec") } else { symb!("let") };
         cons!(
           None,
           ctor,
           uses.encode(),
           symb!(nam),
-          typ.encode(),
-          exp.encode(),
-          bod.encode()
+          terms.0.clone().encode(),
+          terms.1.clone().encode(),
+          terms.2.clone().encode()
         )
       }
       Self::Typ(_) => symb!("Type"),
-      Self::Ann(_, typ, trm) => {
-        cons!(None, symb!("type"), typ.encode(), trm.encode())
+      Self::Ann(_, terms) => {
+        cons!(None, symb!("type"), terms.0.clone().encode(), terms.1.clone().encode())
       }
       Self::Lit(_, lit) => lit.encode(),
       Self::LTy(_, lty) => lty.encode(),
@@ -316,9 +316,7 @@ impl Term {
                 true,
                 uses,
                 nam.clone(),
-                Box::new(typ),
-                Box::new(exp),
-                Box::new(bod),
+                Rc::new((typ, exp, bod))
               ))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::LetRec])),
@@ -340,9 +338,7 @@ impl Term {
                 false,
                 uses,
                 nam.clone(),
-                Box::new(typ),
-                Box::new(exp),
-                Box::new(bod),
+                Rc::new((typ, exp, bod))
               ))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Let])),
@@ -353,7 +349,7 @@ impl Term {
             [bod] => {
               let bod =
                 Term::decode(defs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-              Ok(Self::Dat(pos, Box::new(bod)))
+              Ok(Self::Dat(pos, Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Data])),
           }
@@ -363,7 +359,7 @@ impl Term {
             [bod] => {
               let bod =
                 Term::decode(defs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-              Ok(Self::Cse(pos, Box::new(bod)))
+              Ok(Self::Cse(pos, Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Case])),
           }
@@ -374,7 +370,7 @@ impl Term {
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
               let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::Slf(pos, nam.clone(), Box::new(bod)))
+              Ok(Self::Slf(pos, nam.clone(), Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::SelfType])),
           }
@@ -385,7 +381,7 @@ impl Term {
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
               let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::Lam(pos, nam.to_owned(), Box::new(bod)))
+              Ok(Self::Lam(pos, nam.to_owned(), Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Lambda])),
           }
@@ -403,8 +399,7 @@ impl Term {
                 pos,
                 uses,
                 nam.to_owned(),
-                Box::new(typ),
-                Box::new(bod),
+                Rc::new((typ, bod)),
               ))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Forall])),
@@ -417,7 +412,7 @@ impl Term {
                 Term::decode(defs.to_owned(), ctx.to_owned(), typ.to_owned())?;
               let trm =
                 Term::decode(defs.to_owned(), ctx.to_owned(), trm.to_owned())?;
-              Ok(Self::Ann(pos, Box::new(typ), Box::new(trm)))
+              Ok(Self::Ann(pos, Rc::new((typ, trm))))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Annotation])),
           }
@@ -435,7 +430,7 @@ impl Term {
             Term::decode(defs.to_owned(), ctx.to_owned(), fun.to_owned())?;
           let arg =
             Term::decode(defs.to_owned(), ctx.to_owned(), arg.to_owned())?;
-          Ok(Self::App(pos, Box::new(fun), Box::new(arg)))
+          Ok(Self::App(pos, Rc::new((fun, arg))))
         }
 
         _ => Err(DecodeError::new(pos, vec![Expected::Constructor])),
@@ -476,7 +471,7 @@ impl Term {
         MetaTerm::Ctor(pos, vec![]),
       ),
       Self::Lam(pos, name, body) => {
-        let (anon, meta) = body.embed();
+        let (anon, meta) = Rc::clone(&body).embed();
         (
           AnonTerm::Ctor(String::from("lam"), vec![AnonTerm::Bind(Box::new(
             anon,
@@ -488,7 +483,7 @@ impl Term {
         )
       }
       Self::Slf(pos, name, body) => {
-        let (anon, meta) = body.embed();
+        let (anon, meta) = Rc::clone(&body).embed();
         (
           AnonTerm::Ctor(String::from("slf"), vec![AnonTerm::Bind(Box::new(
             anon,
@@ -499,39 +494,39 @@ impl Term {
           )]),
         )
       }
-      Self::App(pos, fun, arg) => {
-        let (fun_anon, fun_meta) = fun.embed();
-        let (arg_anon, arg_meta) = arg.embed();
+      Self::App(pos, terms) => {
+        let (fun_anon, fun_meta) = terms.0.clone().embed();
+        let (arg_anon, arg_meta) = terms.1.clone().embed();
         (
           AnonTerm::Ctor(String::from("app"), vec![fun_anon, arg_anon]),
           MetaTerm::Ctor(pos, vec![fun_meta, arg_meta]),
         )
       }
-      Self::Ann(pos, val, typ) => {
-        let (val_anon, val_meta) = val.embed();
-        let (typ_anon, typ_meta) = typ.embed();
+      Self::Ann(pos, terms) => {
+        let (val_anon, val_meta) = terms.0.clone().embed();
+        let (typ_anon, typ_meta) = terms.1.clone().embed();
         (
           AnonTerm::Ctor(String::from("ann"), vec![val_anon, typ_anon]),
           MetaTerm::Ctor(pos, vec![val_meta, typ_meta]),
         )
       }
       Self::Dat(pos, body) => {
-        let (anon, meta) = body.embed();
+        let (anon, meta) = Rc::clone(&body).embed();
         (
           AnonTerm::Ctor(String::from("dat"), vec![anon]),
           MetaTerm::Ctor(pos, vec![meta]),
         )
       }
       Self::Cse(pos, body) => {
-        let (anon, meta) = body.embed();
+        let (anon, meta) = Rc::clone(&body).embed();
         (
           AnonTerm::Ctor(String::from("cse"), vec![anon]),
           MetaTerm::Ctor(pos, vec![meta]),
         )
       }
-      Self::All(pos, uses, name, typ_, body) => {
-        let (typ_anon, typ_meta) = typ_.embed();
-        let (bod_anon, bod_meta) = body.embed();
+      Self::All(pos, uses, name, terms) => {
+        let (typ_anon, typ_meta) = terms.0.clone().embed();
+        let (bod_anon, bod_meta) = terms.1.clone().embed();
         (
           AnonTerm::Ctor(String::from("all"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -545,10 +540,10 @@ impl Term {
           ]),
         )
       }
-      Self::Let(pos, true, uses, name, typ_, expr, body) => {
-        let (typ_anon, typ_meta) = typ_.embed();
-        let (exp_anon, exp_meta) = expr.embed();
-        let (bod_anon, bod_meta) = body.embed();
+      Self::Let(pos, true, uses, name, terms) => {
+        let (typ_anon, typ_meta) = terms.0.clone().embed();
+        let (exp_anon, exp_meta) = terms.1.clone().embed();
+        let (bod_anon, bod_meta) = terms.2.clone().embed();
         (
           AnonTerm::Ctor(String::from("rec"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -564,10 +559,10 @@ impl Term {
           ]),
         )
       }
-      Self::Let(pos, false, uses, name, typ_, expr, body) => {
-        let (typ_anon, typ_meta) = typ_.embed();
-        let (exp_anon, exp_meta) = expr.embed();
-        let (bod_anon, bod_meta) = body.embed();
+      Self::Let(pos, false, uses, name, terms) => {
+        let (typ_anon, typ_meta) = terms.0.clone().embed();
+        let (exp_anon, exp_meta) = terms.1.clone().embed();
+        let (bod_anon, bod_meta) = terms.2.clone().embed();
         (
           AnonTerm::Ctor(String::from("let"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -627,33 +622,33 @@ impl Term {
           ("typ", [], []) => Ok(Term::Typ(*pos)),
           ("dat", [anon], [meta]) => {
             let body = Term::unembed(ctx, anon, meta)?;
-            Ok(Term::Dat(*pos, Box::new(body)))
+            Ok(Term::Dat(*pos, Rc::new(body)))
           }
           ("cse", [anon], [meta]) => {
             let body = Term::unembed(ctx, anon, meta)?;
-            Ok(Term::Cse(*pos, Box::new(body)))
+            Ok(Term::Cse(*pos, Rc::new(body)))
           }
           ("lam", [AnonTerm::Bind(anon)], [MetaTerm::Bind(n, meta)]) => {
             let mut new_ctx = ctx.clone();
             new_ctx.push_front(n.clone());
             let body = Term::unembed(new_ctx, &anon, meta)?;
-            Ok(Term::Lam(*pos, n.clone(), Box::new(body)))
+            Ok(Term::Lam(*pos, n.clone(), Rc::new(body)))
           }
           ("slf", [AnonTerm::Bind(anon)], [MetaTerm::Bind(n, meta)]) => {
             let mut new_ctx = ctx.clone();
             new_ctx.push_front(n.clone());
             let body = Term::unembed(new_ctx, &anon, meta)?;
-            Ok(Term::Slf(*pos, n.clone(), Box::new(body)))
+            Ok(Term::Slf(*pos, n.clone(), Rc::new(body)))
           }
           ("app", [fanon, aanon], [fmeta, ameta]) => {
             let fun = Term::unembed(ctx.clone(), fanon, fmeta)?;
             let arg = Term::unembed(ctx.clone(), aanon, ameta)?;
-            Ok(Term::App(*pos, Box::new(fun), Box::new(arg)))
+            Ok(Term::App(*pos, Rc::new((fun, arg))))
           }
           ("ann", [xanon, tanon], [xmeta, tmeta]) => {
             let xpr = Term::unembed(ctx.clone(), xanon, xmeta)?;
             let typ = Term::unembed(ctx.clone(), tanon, tmeta)?;
-            Ok(Term::Ann(*pos, Box::new(xpr), Box::new(typ)))
+            Ok(Term::Ann(*pos, Rc::new((xpr, typ))))
           }
           (
             "all",
@@ -668,7 +663,7 @@ impl Term {
             let mut new_ctx = ctx.clone();
             new_ctx.push_front(n.clone());
             let body = Term::unembed(new_ctx, banon, bmeta)?;
-            Ok(Term::All(*pos, uses, n.clone(), Box::new(typ_), Box::new(body)))
+            Ok(Term::All(*pos, uses, n.clone(), Rc::new((typ_, body))))
           }
           (
             "rec",
@@ -691,9 +686,7 @@ impl Term {
               true,
               uses,
               name.clone(),
-              Box::new(typ_),
-              Box::new(exp),
-              Box::new(body),
+              Rc::new((typ_, exp, body))
             ))
           }
           (
@@ -715,9 +708,7 @@ impl Term {
               false,
               uses,
               name.clone(),
-              Box::new(typ_),
-              Box::new(exp),
-              Box::new(body),
+              Rc::new((typ_, exp, body))
             ))
           }
           _ => Err(UnembedError::UnexpectedCtor(
@@ -866,33 +857,33 @@ pub mod tests {
     let n = arbitrary_name(g);
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
-    Lam(None, n, Box::new(arbitrary_term(g, defs, ctx2)))
+    Lam(None, n, Rc::new(arbitrary_term(g, defs, ctx2)))
   }
 
   fn arbitrary_slf<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
     let n = arbitrary_name(g);
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
-    Slf(None, n, Box::new(arbitrary_term(g, defs, ctx2)))
+    Slf(None, n, Rc::new(arbitrary_term(g, defs, ctx2)))
   }
   fn arbitrary_let<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
     let rec: bool = Arbitrary::arbitrary(g);
     let n = arbitrary_name(g);
     let u: Uses = Arbitrary::arbitrary(g);
-    let typ = Box::new(arbitrary_term(g, defs.clone(), ctx.clone()));
+    let typ = Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()));
     if rec {
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      let exp = Box::new(arbitrary_term(g, defs.clone(), ctx2.clone()));
-      let bod = Box::new(arbitrary_term(g, defs, ctx2));
-      Let(None, rec, u, n, typ, exp, bod)
+      let exp = Rc::new(arbitrary_term(g, defs.clone(), ctx2.clone()));
+      let bod = Rc::new(arbitrary_term(g, defs, ctx2));
+      Let(None, rec, u, n, Rc::new((typ, exp, bod)))
     }
     else {
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      let exp = Box::new(arbitrary_term(g, defs.clone(), ctx.clone()));
-      let bod = Box::new(arbitrary_term(g, defs, ctx2));
-      Let(None, rec, u, n, typ, exp, bod)
+      let exp = Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()));
+      let bod = Rc::new(arbitrary_term(g, defs, ctx2));
+      Let(None, rec, u, n, Rc::new((typ, exp, bod)))
     }
   }
 
@@ -905,8 +896,7 @@ pub mod tests {
       None,
       u,
       n,
-      Box::new(arbitrary_term(g, defs.clone(), ctx)),
-      Box::new(arbitrary_term(g, defs, ctx2)),
+      Rc::new((arbitrary_term(g, defs.clone(), ctx), arbitrary_term(g, defs, ctx2))),
     )
   }
 
@@ -950,16 +940,16 @@ pub mod tests {
       let freq = frequency(g,
         vec![
           (2, Term::Var(None, String::new(), 0)),
-          (2, Term::Lam(None, String::new(), Box::new(Term::Typ(None)))),
-          (2, Term::App(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
-          (1, Term::All(None, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
-          (2, Term::Slf(None, String::new(), Box::new(Term::Typ(None)))),
-          (2, Term::Dat(None, Box::new(Term::Typ(None)))),
-          (2, Term::Cse(None, Box::new(Term::Typ(None)))),
+          (2, Term::Lam(None, String::new(), Rc::new(Term::Typ(None)))),
+          (2, Term::App(None, Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
+          (1, Term::All(None, Uses::None, String::new(), Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
+          (2, Term::Slf(None, String::new(), Rc::new(Term::Typ(None)))),
+          (2, Term::Dat(None, Rc::new(Term::Typ(None)))),
+          (2, Term::Cse(None, Rc::new(Term::Typ(None)))),
           (2, Term::Ref(None, String::new(), Link::from([0;32]), Link::from([0;32]))),
-          (1, Term::Let(None, true, Uses::None, String::new(), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (1, Term::Let(None, true, Uses::None, String::new(), Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
           (2, Term::Typ(None)),
-          (2, Term::Ann(None, Box::new(Term::Typ(None)), Box::new(Term::Typ(None)))),
+          (2, Term::Ann(None, Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
           (2, Term::Lit(None, Literal::Text(String::new()))),
           (2, Term::LTy(None, LitType::Natural)),
           (2, Term::Opr(None, PrimOp::Eql))
@@ -969,19 +959,19 @@ pub mod tests {
         Term::Lam(_, _, _) => arbitrary_lam(g, defs.clone(), ctx.clone()),
         Term::App(_, _, _) => Term::App(
             None,
-            Box::new(arbitrary_term(g, defs.clone(), ctx.clone())),
-            Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone())),
+            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
         Term::All(_, _, _, _, _) => arbitrary_all(g, defs.clone(), ctx.clone()),
         Term::Slf(_, _, _) => arbitrary_slf(g, defs.clone(), ctx.clone()),
-        Term::Dat(_, _) => Term::Dat(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::Cse(_, _) => Term::Cse(None, Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Dat(_, _) => Term::Dat(None, Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+        Term::Cse(_, _) => Term::Cse(None, Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
         Term::Ref(_, _, _, _) => arbitrary_ref(g, defs.clone(), ctx.clone()),
         Term::Let(_, _, _, _, _, _, _) => arbitrary_let(g, defs.clone(), ctx.clone()),
         Term::Typ(_) => Term::Typ(None),
         Term::Ann(_, _, _) => Term::Ann(
             None,
-            Box::new(arbitrary_term(g, defs.clone(), ctx.clone())),
-            Box::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
+            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone())),
+            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
         Term::Lit(_, _) => Term::Lit(None, Arbitrary::arbitrary(g)),
         Term::LTy(_, _) => Term::LTy(None, Arbitrary::arbitrary(g)),
         Term::Opr(_, _) => Term::Opr(None, Arbitrary::arbitrary(g))
@@ -1092,9 +1082,9 @@ pub mod tests {
   #[test]
   fn term_test_cases() {
     let f =
-      Lam(None, String::from("x"), Box::new(Var(None, String::from("x"), 0)));
+      Lam(None, String::from("x"), Rc::new(Var(None, String::from("x"), 0)));
     assert_eq!("(lambda x x)", format!("{}", f.clone().encode()));
-    let b = App(None, Box::new(f.clone()), Box::new(f.clone()));
+    let b = App(None, Rc::new((f.clone(), f.clone())));
     assert_eq!(
       "((lambda x x) (lambda x x))",
       format!("{}", b.clone().encode())
@@ -1109,7 +1099,7 @@ pub mod tests {
     );
 
     let f =
-      Lam(None, String::from("x"), Box::new(Var(None, String::from("x"), 0)));
+      Lam(None, String::from("x"), Rc::new(Var(None, String::from("x"), 0)));
     assert_eq!(
       Ok(f.clone()),
       Term::decode(
@@ -1133,3 +1123,7 @@ pub mod tests {
     // assert_eq!(f.clone(), x);
   }
 }
+
+
+
+
