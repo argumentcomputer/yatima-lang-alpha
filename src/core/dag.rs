@@ -11,7 +11,6 @@ use crate::{
     primop::PrimOp,
     uses::Uses,
   },
-  term,
   term::{
     Link,
     Term,

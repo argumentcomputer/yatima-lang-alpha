@@ -1,5 +1,5 @@
 use crate::span::Span;
-use blake3;
+// use blake3;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Pos {

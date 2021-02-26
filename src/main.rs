@@ -25,10 +25,10 @@ enum Cli {
     #[structopt(parse(from_os_str))]
     input: PathBuf,
   },
-  // Run {
-  //  #[structopt(parse(from_os_str))]
-  //  input: PathBuf,
-  //},
+  Run {
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+  },
   Repl,
 }
 //
@@ -38,24 +38,21 @@ fn main() {
     Cli::Repl => repl::main().unwrap(),
     Cli::Parse { input } => {
       let env = parse::package::PackageEnv::new(input);
-      let (l, p) = parse::package::parse_file(env);
+      let (_, p, ..) = parse::package::parse_file(env);
       println!("Package parsed:\n{}", p);
     }
-    // Cli::Run { input } => {
-    //  let env = parse::package::PackageEnv::new(input);
-    //  let (l, p) = parse::package::parse_file(env);
-    //  let d = p.defs.get("main");
-    //  match d {
-    //    None => panic!(
-    //      "No `main` expression in package {} from file {:?}",
-    //      p.name, input
-    //    ),
-    //    Some((d,_)) => {
-    //      let d = hashspace::get(
-    //      println!("{}", core::eval::norm(core::dag::DAG::from_term(d.term)));
-    //    }
-    //  }
-    //}
+    Cli::Run { input } => {
+      let env = parse::package::PackageEnv::new(input.clone());
+      let (_, p, defs, refs) = parse::package::parse_file(env);
+      let (def_link, _) = refs.get("main").expect(&format!(
+        "No `main` expression in package {} from file {:?}",
+        p.name, input
+      ));
+      let def = defs.get(def_link).expect("Unknown link for `main` expression");
+      let dag = core::dag::DAG::from_term(def.to_owned().term);
+      let red = core::eval::norm(&defs, dag);
+      println!("{}", red);
+    }
     Cli::Save { input } => {
       let string = fs::read_to_string(input).unwrap();
       let expr = hashexpr::parse(&string).unwrap().1;
