@@ -205,7 +205,7 @@ impl Term {
     match self {
       Self::Var(_, nam, _) => symb!(nam),
       Self::Lam(_, nam, bod) => {
-        cons!(None, symb!("lambda"), symb!(nam), Rc::clone(&bod).encode())
+        cons!(None, symb!("lambda"), symb!(nam), (*bod).clone().encode())
       }
       Self::App(_, terms) => cons!(None, terms.0.clone().encode(), terms.1.clone().encode()),
       Self::All(_, uses, nam, terms) => {
@@ -219,13 +219,13 @@ impl Term {
         )
       }
       Self::Slf(_, nam, bod) => {
-        cons!(None, symb!("self"), symb!(nam), Rc::clone(&bod).encode())
+        cons!(None, symb!("self"), symb!(nam), (*bod).clone().encode())
       }
       Self::Dat(_, bod) => {
-        cons!(None, symb!("data"), Rc::clone(&bod).encode())
+        cons!(None, symb!("data"), (*bod).clone().encode())
       }
       Self::Cse(_, bod) => {
-        cons!(None, symb!("case"), Rc::clone(&bod).encode())
+        cons!(None, symb!("case"), (*bod).clone().encode())
       }
       Self::Ref(_, nam, ..) => symb!(nam),
       Self::Let(_, rec, uses, nam, terms) => {
@@ -471,7 +471,7 @@ impl Term {
         MetaTerm::Ctor(pos, vec![]),
       ),
       Self::Lam(pos, name, body) => {
-        let (anon, meta) = Rc::clone(&body).embed();
+        let (anon, meta) = (*body).clone().embed();
         (
           AnonTerm::Ctor(String::from("lam"), vec![AnonTerm::Bind(Box::new(
             anon,
@@ -483,7 +483,7 @@ impl Term {
         )
       }
       Self::Slf(pos, name, body) => {
-        let (anon, meta) = Rc::clone(&body).embed();
+        let (anon, meta) = (*body).clone().embed();
         (
           AnonTerm::Ctor(String::from("slf"), vec![AnonTerm::Bind(Box::new(
             anon,
@@ -511,14 +511,14 @@ impl Term {
         )
       }
       Self::Dat(pos, body) => {
-        let (anon, meta) = Rc::clone(&body).embed();
+        let (anon, meta) = (*body).clone().embed();
         (
           AnonTerm::Ctor(String::from("dat"), vec![anon]),
           MetaTerm::Ctor(pos, vec![meta]),
         )
       }
       Self::Cse(pos, body) => {
-        let (anon, meta) = Rc::clone(&body).embed();
+        let (anon, meta) = (*body).clone().embed();
         (
           AnonTerm::Ctor(String::from("cse"), vec![anon]),
           MetaTerm::Ctor(pos, vec![meta]),
