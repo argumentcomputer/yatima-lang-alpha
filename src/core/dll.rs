@@ -120,7 +120,7 @@ impl<T> DLL<T> {
   pub fn concat(
     dll: NonNull<Self>,
     rest: Option<NonNull<Self>>,
-  ) -> NonNull<Self> {
+  ) {
     let last = DLL::last(dll);
     let first = rest.map(|dll| DLL::first(dll));
     unsafe {
@@ -129,7 +129,6 @@ impl<T> DLL<T> {
     first.map_or((), |first| unsafe {
       (*first.as_ptr()).prev = Some(last);
     });
-    NonNull::dangling()
   }
 
   #[inline]
