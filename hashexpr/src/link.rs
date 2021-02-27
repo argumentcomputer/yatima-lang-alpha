@@ -3,7 +3,9 @@ use crate::{
   base::Base,
   error::{
     DeserialError,
+    DeserialErrorKind,
     ParseError,
+    ParseErrorKind,
   },
   span::Span,
   AVal,
@@ -41,7 +43,9 @@ impl Link {
   pub fn deserialize(i: &[u8]) -> IResult<&[u8], Link, DeserialError<&[u8]>> {
     match Expr::deserialize(i) {
       Ok((i, Expr::Atom(_, AVal::Link(x)))) => Ok((i, x)),
-      Ok((i, _)) => Err(Error(DeserialError::ExpectedLink(i))),
+      Ok((i, _)) => {
+        Err(Error(DeserialError::new(i, DeserialErrorKind::ExpectedLink)))
+      }
       Err(e) => Err(e),
     }
   }
@@ -52,12 +56,14 @@ impl Link {
     let (i, (_, raw)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
     let (_, x) = Link::deserialize(&raw).map_err(|e| match e {
       Err::Incomplete(n) => Err::Incomplete(n),
-      Err::Error(e) => {
-        Err::Error(ParseError::DeserialErr(i, e.to_owned().input_as_bytes()))
-      }
-      Err::Failure(e) => {
-        Err::Failure(ParseError::DeserialErr(i, e.to_owned().input_as_bytes()))
-      }
+      Err::Error(e) => Err::Error(ParseError::new(
+        i,
+        ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
+      )),
+      Err::Failure(e) => Err::Error(ParseError::new(
+        i,
+        ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
+      )),
     })?;
     Ok((i, x))
   }

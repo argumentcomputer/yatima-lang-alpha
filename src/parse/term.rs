@@ -1,5 +1,11 @@
 use crate::{
-  parse::error::ParseError,
+  parse::{
+    error,
+    error::{
+      ParseError,
+      ParseErrorKind,
+    },
+  },
   term::{
     LitType,
     Literal,
@@ -34,9 +40,11 @@ use nom::{
   },
   combinator::{
     map,
+    opt,
     success,
     value,
   },
+  error::context,
   multi::{
     many0,
     many1,
@@ -87,6 +95,12 @@ pub fn parse_space(i: Span) -> IResult<Span, Vec<Span>, ParseError<Span>> {
   Ok((i, com))
 }
 
+pub fn parse_space1(i: Span) -> IResult<Span, Vec<Span>, ParseError<Span>> {
+  let (i, _) = multispace1(i)?;
+  let (i, com) = many0(terminated(parse_line_comment, multispace1))(i)?;
+  Ok((i, com))
+}
+
 pub fn parse_name(i: Span) -> IResult<Span, String, ParseError<Span>> {
   let (i, s) = take_till1(|x| {
     char::is_whitespace(x)
@@ -98,14 +112,14 @@ pub fn parse_name(i: Span) -> IResult<Span, String, ParseError<Span>> {
   })(i)?;
   let s: String = String::from(s.fragment().to_owned());
   if reserved_symbols().contains(&s) {
-    Err(Err::Error(ParseError::ReservedSymbol(i, s)))
+    Err(Err::Error(ParseError::new(i, ParseErrorKind::ReservedSymbol(s))))
   }
   else if s.starts_with("#") {
     // TODO: more specific error for literal overlap
-    Err(Err::Error(ParseError::ReservedSymbol(i, s)))
+    Err(Err::Error(ParseError::new(i, ParseErrorKind::ReservedSymbol(s))))
   }
   else if !hashexpr::is_valid_symbol_string(&s) {
-    Err(Err::Error(ParseError::ReservedSymbol(i, s)))
+    Err(Err::Error(ParseError::new(i, ParseErrorKind::ReservedSymbol(s))))
   }
   else {
     Ok((i, s))
@@ -123,10 +137,9 @@ pub fn parse_var(
       Some((idx, _)) => Ok((upto, Term::Var(pos, nam.clone(), idx as u64))),
       None => match refs.get(&nam) {
         Some((d, a)) => Ok((upto, Term::Ref(pos, nam.clone(), *d, *a))),
-        None => Err(Err::Error(ParseError::UndefinedReference(
+        None => Err(Err::Error(ParseError::new(
           upto,
-          nam.clone(),
-          ctx.to_owned(),
+          ParseErrorKind::UndefinedReference(nam.clone(), ctx.to_owned()),
         ))),
       },
     }
@@ -343,7 +356,10 @@ pub fn parse_typed_definition(
   move |from: Span| {
     let (i, nam) = parse_name(from)?;
     if refs.get(&nam).is_some() && !shadow {
-      Err(Err::Error(ParseError::TopLevelRedefinition(from, nam.clone())))
+      Err(Err::Error(ParseError::new(
+        from,
+        ParseErrorKind::TopLevelRedefinition(nam.clone()),
+      )))
     }
     else {
       let (i, _) = parse_space(i)?;
@@ -445,9 +461,10 @@ pub fn parse_lty(
       "#Exception" => {
         Ok((upto, Term::LTy(pos, crate::term::LitType::Exception)))
       }
-      e => {
-        Err(Err::Error(ParseError::UnknownLiteralType(upto, String::from(e))))
-      }
+      e => Err(Err::Error(ParseError::new(
+        upto,
+        ParseErrorKind::UnknownLiteralType(String::from(e)),
+      ))),
     }
   }
 }
@@ -458,8 +475,8 @@ pub fn parse_exception(
   move |from: Span| {
     let (i, _) = tag("#!")(from)?;
     let p = |i| hashexpr::string::parse_string("\"", i);
-    let (upto, val) =
-      delimited(tag("\""), p, tag("\""))(i).map_err(|e| Err::convert(e))?;
+    let (upto, val) = delimited(tag("\""), p, tag("\""))(i)
+      .map_err(|e| error::convert(i, e))?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Lit(pos, Literal::Exception(val))))
   }
@@ -478,7 +495,7 @@ pub fn parse_lit(
       hashexpr::parse_text,
       hashexpr::parse_char,
     ))(from)
-    .map_err(|e| nom::Err::convert(e))?;
+    .map_err(|e| error::convert(from, e))?;
     let pos = Some(Pos::from_upto(from, upto));
     match atom {
       Expr::Atom(_, Link(x)) => Ok((upto, Term::Lit(pos, Literal::Link(x)))),
@@ -489,7 +506,10 @@ pub fn parse_lit(
       Expr::Atom(_, Char(x)) => Ok((upto, Term::Lit(pos, Literal::Char(x)))),
       Expr::Atom(_, Nat(x)) => Ok((upto, Term::Lit(pos, Literal::Natural(x)))),
       Expr::Atom(_, Int(x)) => Ok((upto, Term::Lit(pos, Literal::Integer(x)))),
-      e => Err(Err::Error(ParseError::UnexpectedLiteral(upto, e))),
+      e => Err(Err::Error(ParseError::new(
+        upto,
+        ParseErrorKind::UnexpectedLiteral(e),
+      ))),
     }
   }
 }
@@ -524,21 +544,6 @@ pub fn parse_opr(
   }
 }
 
-pub fn parse_ann(
-  refs: Refs,
-  ctx: Vector<String>,
-) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
-  move |from: Span| {
-    let (i, trm) = parse_term(refs.clone(), ctx.clone())(from)?;
-    let (i, _) = parse_space(i)?;
-    let (i, _) = tag("::")(i)?;
-    let (i, _) = parse_space(i)?;
-    let (upto, typ) = parse_term(refs.to_owned(), ctx.to_owned())(i)?;
-    let pos = Some(Pos::from_upto(from, upto));
-    Ok((upto, Term::Ann(pos, Box::new(typ), Box::new(trm))))
-  }
-}
-
 pub fn parse_term(
   refs: Refs,
   ctx: Vector<String>,
@@ -547,14 +552,31 @@ pub fn parse_term(
     let (i, fun) = parse_term_inner(refs.clone(), ctx.clone())(from)?;
     let (i, _) = parse_space(i)?;
     let (upto, args) = separated_list0(
-      multispace1,
+      parse_space1,
       parse_term_inner(refs.to_owned(), ctx.to_owned()),
     )(i)?;
+    let (i, has_ann) = opt(tag("::"))(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     let trm = args
       .into_iter()
       .fold(fun, |acc, arg| Term::App(pos, Box::new(acc), Box::new(arg)));
-    Ok((upto, trm))
+    if let Some(_) = has_ann {
+      let (i, _) = parse_space(i)?;
+      let (i, fun) = parse_term(refs.clone(), ctx.clone())(i)?;
+      let (i, _) = parse_space(i)?;
+      let (upto, args) = separated_list0(
+        parse_space1,
+        parse_term_inner(refs.to_owned(), ctx.to_owned()),
+      )(i)?;
+      let pos = Some(Pos::from_upto(from, upto));
+      let typ = args
+        .into_iter()
+        .fold(fun, |acc, arg| Term::App(pos, Box::new(acc), Box::new(arg)));
+      Ok((upto, Term::Ann(pos, Box::new(typ), Box::new(trm))))
+    }
+    else {
+      Ok((upto, trm))
+    }
   }
 }
 
@@ -566,15 +588,10 @@ pub fn parse_term_inner(
     alt((
       delimited(
         preceded(tag("("), parse_space),
-        parse_ann(refs.clone(), ctx.clone()),
-        tag(")"),
-      ),
-      delimited(
-        preceded(tag("("), parse_space),
         parse_term(refs.clone(), ctx.clone()),
-        tag(")"),
+        preceded(parse_space, tag(")")),
       ),
-      parse_self(refs.clone(), ctx.clone()),
+      context("self-type", parse_self(refs.clone(), ctx.clone())),
       parse_data(refs.clone(), ctx.clone()),
       parse_case(refs.clone(), ctx.clone()),
       parse_all(refs.clone(), ctx.clone()),
@@ -600,6 +617,27 @@ pub mod tests {
 
   #[test]
   fn test_cases() {
+    let res =
+      parse_term(HashMap::new(), Vector::new())(Span::new("(Type :: Type)"));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_term(HashMap::new(), Vector::new())(Span::new(
+      "(Type (Type Type)  )",
+    ));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_term(HashMap::new(), Vector::new())(Span::new(
+      "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
+       x (c x (c x (c x n)))))))))))))))",
+    ));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_term(HashMap::new(), Vector::new())(Span::new(
+      "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
+       x (c x (c x (c x n)))))))))))))))",
+    ));
+    println!("res2: {:?}", res);
+    assert!(res.is_ok());
     let res = parse_binder_full(HashMap::new(), Vector::new())(Span::new(
       "(a b c: Type)",
     ));

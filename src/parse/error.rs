@@ -4,47 +4,47 @@ use crate::{
 };
 use im::Vector;
 use nom::{
-  error::ErrorKind,
+  error::{
+    ErrorKind,
+    VerboseErrorKind,
+  },
   AsBytes,
+  Err,
   InputLength,
 };
-use std::path::PathBuf;
+use std::{
+  cmp::Ordering,
+  path::PathBuf,
+};
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum ParseError<I: AsBytes> {
-  UndefinedReference(I, String, Vector<String>),
-  TopLevelRedefinition(I, String),
-  UnknownLiteralType(I, String),
-  UnexpectedLiteral(I, hashexpr::Expr),
-  LiteralError(I, hashexpr::error::ParseError<I>),
-  ReservedSymbol(I, String),
-  ExpectedImportLink(I, hashexpr::Expr),
-  UnknownImportLink(I, Link),
-  MisnamedPackage(I, String),
-  MisnamedImport(I, String, String),
-  MalformedPath(I),
-  ImportCycle(I, PathBuf),
-  EmbeddingError(I, UnembedError),
-  NomErr(I, ErrorKind),
+pub enum ParseErrorKind<I: AsBytes> {
+  UndefinedReference(String, Vector<String>),
+  TopLevelRedefinition(String),
+  UnknownLiteralType(String),
+  UnexpectedLiteral(hashexpr::Expr),
+  LiteralError(hashexpr::error::ParseError<I>),
+  ReservedSymbol(String),
+  ExpectedImportLink(hashexpr::Expr),
+  UnknownImportLink(Link),
+  MisnamedPackage(String),
+  MisnamedImport(String, String),
+  MalformedPath,
+  ImportCycle(PathBuf),
+  EmbeddingError(UnembedError),
+  Context(&'static str),
+  Nom(ErrorKind),
 }
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ParseError<I: AsBytes> {
+  pub input: I,
+  pub context: Vec<ParseErrorKind<I>>,
+}
+
 impl<I: AsBytes> ParseError<I> {
-  pub fn rest(self) -> I {
-    match self {
-      Self::UndefinedReference(i, ..) => i,
-      Self::ReservedSymbol(i, ..) => i,
-      Self::TopLevelRedefinition(i, ..) => i,
-      Self::UnknownLiteralType(i, ..) => i,
-      Self::UnknownImportLink(i, ..) => i,
-      Self::EmbeddingError(i, ..) => i,
-      Self::UnexpectedLiteral(i, ..) => i,
-      Self::ImportCycle(i, ..) => i,
-      Self::MisnamedPackage(i, ..) => i,
-      Self::MisnamedImport(i, ..) => i,
-      Self::MalformedPath(i) => i,
-      Self::LiteralError(i, ..) => i,
-      Self::ExpectedImportLink(i, ..) => i,
-      Self::NomErr(i, _) => i,
-    }
+  pub fn new(input: I, error: ParseErrorKind<I>) -> Self {
+    ParseError { input, context: vec![error] }
   }
 }
 
@@ -54,37 +54,56 @@ where
   I: Clone,
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-    ParseError::NomErr(input, kind)
+    ParseError::new(input, ParseErrorKind::Nom(kind))
   }
 
-  fn append(i: I, k: ErrorKind, other: Self) -> Self {
-    if i.clone().input_len() < other.clone().rest().input_len() {
-      ParseError::NomErr(i, k)
-    }
-    else {
-      other
+  fn append(input: I, kind: ErrorKind, mut other: Self) -> Self {
+    match input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => ParseError::new(input, ParseErrorKind::Nom(kind)),
+      Ordering::Equal => {
+        other.context.push(ParseErrorKind::Nom(kind));
+        other
+      }
+      Ordering::Greater => other,
     }
   }
 
-  fn or(self, other: Self) -> Self {
-    if self.clone().rest().input_len() < other.clone().rest().input_len() {
-      self
-    }
-    else {
-      other
+  fn or(self, mut other: Self) -> Self {
+    match self.input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => self,
+      Ordering::Equal => {
+        for x in self.context {
+          other.context.push(x);
+        }
+        other
+      }
+      Ordering::Greater => other,
     }
   }
 }
 
-impl<I: Clone + AsBytes> From<hashexpr::error::ParseError<I>>
-  for ParseError<I>
+impl<I: AsBytes> nom::error::ContextError<I> for ParseError<I>
+where
+  I: InputLength,
+  I: Clone,
 {
-  fn from(x: hashexpr::error::ParseError<I>) -> Self {
-    match x {
-      hashexpr::error::ParseError::NomErr(i, e) => {
-        ParseError::NomErr(i.into(), e)
-      }
-      e => ParseError::LiteralError(e.clone().rest().into(), e),
+  fn add_context(input: I, ctx: &'static str, mut other: Self) -> Self {
+    other.context.push(ParseErrorKind::Context(ctx));
+    other
+  }
+}
+
+pub fn convert<I: AsBytes>(
+  from: I,
+  x: Err<hashexpr::error::ParseError<I>>,
+) -> Err<ParseError<I>> {
+  match x {
+    Err::Incomplete(n) => Err::Incomplete(n),
+    Err::Error(e) => {
+      Err::Error(ParseError::new(from, ParseErrorKind::LiteralError(e)))
+    }
+    Err::Failure(e) => {
+      Err::Failure(ParseError::new(from, ParseErrorKind::LiteralError(e)))
     }
   }
 }

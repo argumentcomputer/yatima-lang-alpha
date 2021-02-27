@@ -50,7 +50,9 @@ pub mod string;
 use base::Base;
 use error::{
   DeserialError,
+  DeserialErrorKind,
   ParseError,
+  ParseErrorKind,
 };
 pub use link::Link;
 use string::parse_string;
@@ -207,34 +209,47 @@ impl Expr {
       match type_code {
         [0x00] => {
           let data: [u8; 32] = data.try_into().map_err(|_| {
-            Error(DeserialError::BadLinkLength(i_type, data_bitlen))
+            Error(DeserialError::new(
+              i_type,
+              DeserialErrorKind::BadLinkLength(data_bitlen),
+            ))
           })?;
           Ok((i, link!(Link::from(data))))
         }
         [0x01] => Ok((i, bits!(data.to_owned()))),
         [0x02] => match String::from_utf8(data.to_owned()) {
           Ok(s) => Ok((i, symb!(s))),
-          Err(e) => Err(Error(DeserialError::Utf8Error(i, e))),
+          Err(e) => {
+            Err(Error(DeserialError::new(i, DeserialErrorKind::Utf8Error(e))))
+          }
         },
         [0x03] => match String::from_utf8(data.to_owned()) {
           Ok(s) => Ok((i, text!(s))),
-          Err(e) => Err(Error(DeserialError::Utf8Error(i, e))),
+          Err(e) => {
+            Err(Error(DeserialError::new(i, DeserialErrorKind::Utf8Error(e))))
+          }
         },
         [0x04] => {
           let data: [u8; 4] = data.try_into().map_err(|_| {
-            Error(DeserialError::BadCharLength(i_type, data_bitlen))
+            Error(DeserialError::new(
+              i_type,
+              DeserialErrorKind::BadCharLength(data_bitlen),
+            ))
           })?;
           let data: u32 = u32::from_be_bytes(data);
           match std::char::from_u32(data) {
             Some(c) => Ok((i, char!(c))),
-            None => Err(Error(DeserialError::InvalidUnicodeCodepoint(i, data))),
+            None => Err(Error(DeserialError::new(
+              i_type,
+              DeserialErrorKind::InvalidUnicodeCodepoint(data),
+            ))),
           }
         }
         [0x05] => Ok((i, nat!(BigUint::from_bytes_be(data)))),
         [0x06] => Ok((i, int!(BigInt::from_signed_bytes_be(data)))),
-        _ => Err(Error(DeserialError::UnknownTypeCode(
+        _ => Err(Error(DeserialError::new(
           i_type,
-          type_code.to_owned(),
+          DeserialErrorKind::UnknownTypeCode(type_code.to_owned()),
         ))),
       }
     }
@@ -307,12 +322,14 @@ pub fn parse_raw(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (upto, (_, raw)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
   let (_, x) = Expr::deserialize(&raw).map_err(|e| match e {
     Err::Incomplete(n) => Err::Incomplete(n),
-    Err::Error(e) => {
-      Err::Error(ParseError::DeserialErr(i, e.to_owned().input_as_bytes()))
-    }
-    Err::Failure(e) => {
-      Err::Failure(ParseError::DeserialErr(i, e.to_owned().input_as_bytes()))
-    }
+    Err::Error(e) => Err::Error(ParseError::new(
+      i,
+      ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
+    )),
+    Err::Failure(e) => Err::Error(ParseError::new(
+      i,
+      ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
+    )),
   })?;
   Ok((upto, x.set_postion(Pos::from_upto(from, upto))))
 }
@@ -343,7 +360,10 @@ pub fn parse_char(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (upto, _) = opt(tag(":char"))(i_err)?;
   let s: Vec<char> = c.chars().collect();
   if s.len() != 1 {
-    Err(Err::Error(ParseError::ExpectedSingleChar(i_err, s)))
+    Err(Err::Error(ParseError::new(
+      i_err,
+      ParseErrorKind::ExpectedSingleChar(s),
+    )))
   }
   else {
     Ok((upto, char!(Some(Pos::from_upto(from, upto)), s[0])))
