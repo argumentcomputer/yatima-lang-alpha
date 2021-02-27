@@ -295,7 +295,7 @@ pub mod tests {
   };
   use rand::Rng;
   impl Arbitrary for PrimOp {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
       let gen = g.gen_range(0, 19);
       match gen {
         0 => Self::Eql,

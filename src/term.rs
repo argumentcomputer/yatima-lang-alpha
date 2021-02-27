@@ -36,6 +36,7 @@ use im::{
   HashMap,
   Vector,
 };
+
 use std::{fmt, rc::Rc};
 
 #[derive(Clone, Debug)]
@@ -911,20 +912,20 @@ pub mod tests {
       let rec: bool = Arbitrary::arbitrary(g);
       let n = arbitrary_name(g);
       let u: Uses = Arbitrary::arbitrary(g);
-      let typ = Box::new(arbitrary_term(g, refs.clone(), ctx.clone()));
+      let typ = arbitrary_term(g, refs.clone(), ctx.clone());
       if rec {
         let mut ctx2 = ctx.clone();
         ctx2.push_front(n.clone());
-        let exp = Box::new(arbitrary_term(g, refs.clone(), ctx2.clone()));
-        let bod = Box::new(arbitrary_term(g, refs.clone(), ctx2));
-        Let(None, rec, u, n, typ, exp, bod)
+        let exp = arbitrary_term(g, refs.clone(), ctx2.clone());
+        let bod = arbitrary_term(g, refs.clone(), ctx2);
+        Let(None, rec, u, n, Rc::new((typ, exp, bod)))
       }
       else {
         let mut ctx2 = ctx.clone();
         ctx2.push_front(n.clone());
-        let exp = Box::new(arbitrary_term(g, refs.clone(), ctx.clone()));
-        let bod = Box::new(arbitrary_term(g, refs.clone(), ctx2));
-        Let(None, rec, u, n, typ, exp, bod)
+        let exp = arbitrary_term(g, refs.clone(), ctx.clone());
+        let bod = arbitrary_term(g, refs.clone(), ctx2);
+        Let(None, rec, u, n, Rc::new((typ, exp, bod)))
       }
     })
   }
@@ -942,7 +943,7 @@ pub mod tests {
         None,
         u,
         n,
-        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone())), Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
+        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx2)))
       )
     })
   }
@@ -957,7 +958,7 @@ pub mod tests {
     refs
   }
 
-  fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut G) -> Term> {
+  fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| match ctx.iter().choose(g) {
       Some(n) => {
         let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
@@ -986,7 +987,7 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::App(
         None,
-        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone())), Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
       )
     })
   }
@@ -998,7 +999,7 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::Ann(
         None,
-        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone())), Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
       )
     })
   }
@@ -1018,13 +1019,6 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::Cse(None, Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
     })
-  }
-
-  fn arbitrary_ref(g: &mut Gen, defs: Defs, ctx: Vector<String>) -> Term {
-    match defs.iter().filter(|(n, _)| !ctx.contains(n)).choose(g) {
-      Some((n, (d, a))) => Ref(None, n.clone(), *d, *a),
-      None => Term::Typ(None),
-    }
   }
 
   pub fn frequency<T, F: Fn(&mut Gen) -> T>(
@@ -1047,8 +1041,8 @@ pub mod tests {
     panic!("Calculation error for weight = {}", weight);
   }
 
-  pub fn arbitrary_term<G: Gen>(
-    g: &mut G,
+  pub fn arbitrary_term(
+    g: &mut Gen,
     refs: Refs,
     ctx: Vector<String>,
   ) -> Term {

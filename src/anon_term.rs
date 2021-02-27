@@ -90,7 +90,7 @@ pub mod tests {
     arbitrary_name,
   };
 
-  pub fn arbitrary_anon_term<G: Gen>(g: &mut G, ctx: u64) -> AnonTerm {
+  pub fn arbitrary_anon_term(g: &mut Gen, ctx: u64) -> AnonTerm {
     let x: u32 = g.gen_range(0, 6);
     match x {
       0 => {
@@ -109,7 +109,7 @@ pub mod tests {
   }
 
   impl Arbitrary for AnonTerm {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self { arbitrary_anon_term(g, 0) }
+    fn arbitrary(g: &mut Gen) -> Self { arbitrary_anon_term(g, 0) }
   }
   #[quickcheck]
   fn anon_term_encode_decode(x: AnonTerm) -> bool {

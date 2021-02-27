@@ -86,7 +86,7 @@ pub mod tests {
   };
 
   impl Arbitrary for MetaTerm {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
       let x: u32 = g.gen_range(0, 45);
       match x {
         0 => {

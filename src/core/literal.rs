@@ -161,29 +161,29 @@ pub mod tests {
 
   use crate::term::tests::arbitrary_link;
 
-  pub fn arbitrary_bits<G: Gen>(g: &mut G) -> Literal {
+  pub fn arbitrary_bits(g: &mut Gen) -> Literal {
     let x: Vec<u8> = Arbitrary::arbitrary(g);
     Literal::BitString(x)
   }
 
-  pub fn arbitrary_text<G: Gen>(g: &mut G) -> Literal {
+  pub fn arbitrary_text(g: &mut Gen) -> Literal {
     let x: String = Arbitrary::arbitrary(g);
     Literal::Text(x)
   }
-  pub fn arbitrary_nat<G: Gen>(g: &mut G) -> Literal {
+  pub fn arbitrary_nat(g: &mut Gen) -> Literal {
     let v: Vec<u8> = Arbitrary::arbitrary(g);
     let x: BigUint = BigUint::from_bytes_be(&v);
     Literal::Natural(x)
   }
 
-  pub fn arbitrary_int<G: Gen>(g: &mut G) -> Literal {
+  pub fn arbitrary_int(g: &mut Gen) -> Literal {
     let v: Vec<u8> = Arbitrary::arbitrary(g);
     let x: BigInt = BigInt::from_signed_bytes_be(&v);
     Literal::Integer(x)
   }
 
   impl Arbitrary for Literal {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
       let gen = g.gen_range(0, 7);
       match gen {
         0 => arbitrary_nat(g),
@@ -205,7 +205,7 @@ pub mod tests {
   }
 
   impl Arbitrary for LitType {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut Gen) -> Self {
       let gen = g.gen_range(0, 7);
       match gen {
         1 => Self::Natural,
