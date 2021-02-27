@@ -10,6 +10,9 @@ use crate::{
   },
   core::{
     dag::{
+      replace_child,
+      get_parents,
+      free_dead_node,
       Branch,
       BranchTag,
       Leaf,
@@ -124,22 +127,29 @@ pub fn check(mut pre: PreCtx, uses: Uses, term: &Term, mut typ: DAG) -> Result<C
           let Single { tag, var, body: slf_body, .. } = unsafe { &*link.as_ptr() };
           match tag {
             SingleTag::Slf => {
-              // If the self type does not bind any variable, then check the term's body
-              // against the self type's body directly. Otherwise, subsitute the variable by the term
-              let typ_body = match var {
-                None => *slf_body,
-                Some(var_link) => unsafe {
-                  match (*var_link.as_ptr()).parents {
-                    None => *slf_body,
-                    Some(_) => {
-                      let mut term_dag = DAG::from_open_term(true, pre.len() as u64, &term);
-                      term_dag.uproot();
-                      subst(link, term_dag)
-                    }
-                  }
-                }
+              // Copy the self type
+              let new_link = match typ.full_copy() {
+                DAG::Single(link) => link,
+                _ => panic!("Error in the full_copy implementation")
               };
-              let ctx = check(pre, uses, dat_body, typ_body)?;
+              let Single { var: new_var, body: new_body, .. } = unsafe { &*new_link.as_ptr() };
+              // Substitute the term for its variable
+              new_var.map(|var| {
+                if get_parents(DAG::Var(var)).is_some() {
+                  // Create the term DAG and remove its root node
+                  let mut term_dag = DAG::from_open_term(true, pre.len() as u64, &term);
+                  term_dag.uproot();
+                  replace_child(DAG::Var(var), term_dag);
+                }
+              });
+              // Replace the copied self type with its body and free the dead nodes
+              replace_child(DAG::Single(new_link), *new_body);
+              free_dead_node(DAG::Single(new_link));
+
+              // Check against `new_body` and free it later
+              let ctx = check(pre, uses, dat_body, *new_body)?;
+              new_body.uproot();
+              free_dead_node(*new_body);
               Ok(ctx)
             }
             _ => Err(CheckError::GenericError(String::from("The type of data must be a self."))),
@@ -191,21 +201,67 @@ pub fn infer(mut pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), Che
             BranchTag::All(lam_uses) => {
               let argm_ctx = check(pre, Uses::mul(*lam_uses, uses), argm, *dom)?;
               add_ctx(&mut func_ctx, argm_ctx);
-              let mut argm_dag = DAG::from_open_term(true, depth, &argm);
-              argm_dag.uproot();
-              // TODO: implement subst_branch
-              // Ok((func_ctx, subst_branch(link, term_dag)))
-              panic!("TODO")
+
+              // Copy the All type (in a efficient implementation, only image is copied)
+              let new_link = match func_typ.full_copy() {
+                DAG::Branch(link) => link,
+                _ => panic!("Error in the full_copy implementation")
+              };
+              let Branch { var: new_var, right: new_img, .. } = unsafe { &*new_link.as_ptr() };
+              // Substitute the argument for the image's variable
+              new_var.map(|var| {
+                if get_parents(DAG::Var(var)).is_some() {
+                  // Create the argument DAG and remove its root node
+                  let mut argm_dag = DAG::from_open_term(true, depth, &argm);
+                  argm_dag.uproot();
+                  replace_child(DAG::Var(var), argm_dag);
+                }
+              });
+              // Replace the copied type with the new image and free the dead nodes
+              replace_child(DAG::Branch(new_link), *new_img);
+              free_dead_node(DAG::Branch(new_link));
+
+              Ok((func_ctx, *new_img))
             }
-            _ => Err(CheckError::GenericError(String::from("Tried to apply something that was not a lambda."))),
+            _ => Err(CheckError::GenericError(String::from("Tried to apply something that isn't a lambda."))),
           }
         },
-        _ => Err(CheckError::GenericError(String::from("Tried to apply something that was not a lambda."))),
+        _ => Err(CheckError::GenericError(String::from("Tried to apply something that isn't a lambda."))),
       }
 
     }
-    Term::Cse(_, _) => {
-      panic!("TODO")
+    Term::Cse(_, expr) => {
+      let depth = pre.len() as u64;
+      let (mut expr_ctx, expr_typ) = infer(pre, uses, expr)?;
+      whnf(expr_typ);
+      match expr_typ {
+        DAG::Single(link) => {
+          let Single { tag, var, body, .. } = unsafe { &*link.as_ptr() };
+          match tag {
+            SingleTag::Slf => {
+              let new_link = match expr_typ.full_copy() {
+                DAG::Single(link) => link,
+                _ => panic!("Error in the full_copy implementation")
+              };
+              let Single { var: new_var, body: new_body, .. } = unsafe { &*new_link.as_ptr() };
+              new_var.map(|var| {
+                if get_parents(DAG::Var(var)).is_some() {
+                  let mut expr_dag = DAG::from_open_term(true, depth, &expr);
+                  expr_dag.uproot();
+                  replace_child(DAG::Var(var), expr_dag);
+                }
+              });
+              replace_child(DAG::Single(new_link), *new_body);
+              free_dead_node(DAG::Single(new_link));
+
+              Ok((expr_ctx, *new_body))
+            }
+            _ => Err(CheckError::GenericError(String::from("Tried to case on something that isn't a datatype."))),
+          }
+        },
+        _ => Err(CheckError::GenericError(String::from("Tried to case on something that isn't a datatype."))),
+      }
+
     }
     Term::All(_, lam_uses, name, dom, img) => {
       let _ = check(pre.clone(), Uses::None, dom, DAG::from_term(&Term::Typ(None)))?;
