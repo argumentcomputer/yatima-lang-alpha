@@ -22,7 +22,6 @@ pub mod core;
 pub mod decode_error;
 pub mod definition;
 pub mod hashspace;
-pub mod imports;
 pub mod meta_term;
 pub mod package;
 pub mod parse;

@@ -5,6 +5,7 @@ use crate::{
     Expected,
   },
   definition::Definition,
+  hashspace,
   unembed_error::UnembedError,
 };
 
@@ -32,7 +33,7 @@ use hashexpr::{
 };
 
 use im::{
-  OrdMap,
+  HashMap,
   Vector,
 };
 use std::{fmt, rc::Rc};
@@ -74,7 +75,8 @@ impl PartialEq for Def {
 
 /// A map of names to pairs of links. The first link points to the
 /// Definition, the second to the AnonTerm
-pub type Defs = OrdMap<String, (Link, Link)>;
+pub type Refs = HashMap<String, (Link, Link)>;
+pub type Defs = HashMap<Link, Def>;
 
 impl PartialEq for Term {
   fn eq(&self, other: &Self) -> bool {
@@ -251,7 +253,7 @@ impl Term {
   }
 
   pub fn decode(
-    defs: Defs,
+    refs: Refs,
     ctx: Vector<String>,
     expr: Expr,
   ) -> Result<Self, DecodeError> {
@@ -273,7 +275,7 @@ impl Term {
         };
         let decode_ref = |val| match val {
           Symbol(n) => {
-            let (def_link, ast_link) = defs
+            let (def_link, ast_link) = refs
               .get(&n)
               .ok_or(DecodeError::new(pos, vec![Expected::DefinedRef]))?;
             Ok(Self::Ref(pos, n.to_owned(), *def_link, *ast_link))
@@ -305,12 +307,12 @@ impl Term {
             [uses, Atom(_, Symbol(nam)), typ, exp, bod] => {
               let uses = Uses::decode(uses.to_owned())?;
               let typ =
-                Term::decode(defs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
               let exp =
-                Term::decode(defs.to_owned(), new_ctx.clone(), exp.to_owned())?;
-              let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
+                Term::decode(refs.to_owned(), new_ctx.clone(), exp.to_owned())?;
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
               Ok(Self::Let(
                 pos,
                 true,
@@ -327,12 +329,12 @@ impl Term {
             [uses, Atom(_, Symbol(nam)), typ, exp, bod] => {
               let uses = Uses::decode(uses.to_owned())?;
               let typ =
-                Term::decode(defs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
               let exp =
-                Term::decode(defs.to_owned(), ctx.to_owned(), exp.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
-              let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
               Ok(Self::Let(
                 pos,
                 false,
@@ -391,10 +393,10 @@ impl Term {
             [uses, Atom(_, Symbol(nam)), typ, bod] => {
               let uses = Uses::decode(uses.to_owned())?;
               let typ =
-                Term::decode(defs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
-              let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
               Ok(Self::All(
                 pos,
                 uses,
@@ -409,7 +411,7 @@ impl Term {
           match tail {
             [typ, trm] => {
               let typ =
-                Term::decode(defs.to_owned(), ctx.to_owned(), typ.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
               let trm =
                 Term::decode(refs.to_owned(), ctx.to_owned(), trm.to_owned())?;
               Ok(Self::Ann(pos, Rc::new((typ, trm))))
@@ -427,7 +429,7 @@ impl Term {
         }
         [fun, arg] => {
           let fun =
-            Term::decode(defs.to_owned(), ctx.to_owned(), fun.to_owned())?;
+            Term::decode(refs.to_owned(), ctx.to_owned(), fun.to_owned())?;
           let arg =
             Term::decode(refs.to_owned(), ctx.to_owned(), arg.to_owned())?;
           Ok(Self::App(pos, Rc::new((fun, arg))))
@@ -745,7 +747,7 @@ impl Def {
     ])
   }
 
-  pub fn decode(defs: Defs, expr: Expr) -> Result<Self, DecodeError> {
+  pub fn decode(refs: Refs, expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Expr::Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("def") => {
@@ -753,9 +755,9 @@ impl Def {
             [Atom(_, Symbol(name)), Atom(_, Text(docs)), typ_, term] => {
               let mut ctx = Vector::new();
               let typ_ =
-                Term::decode(defs.to_owned(), ctx.to_owned(), typ_.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), typ_.to_owned())?;
               ctx.push_front(name.clone());
-              let term = Term::decode(defs, ctx, term.to_owned())?;
+              let term = Term::decode(refs, ctx, term.to_owned())?;
               Ok(Def::new(
                 pos.to_owned(),
                 name.to_owned(),
@@ -801,6 +803,30 @@ impl Def {
     )?;
     Ok(Def::new(def.pos, def.name, def.docs, typ_, term))
   }
+
+  pub fn get_link(defn: Link) -> Result<Self, UnembedError> {
+    let def = hashspace::get(defn).ok_or(UnembedError::UnknownLink(defn))?;
+    let def =
+      Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
+    let type_anon =
+      hashspace::get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
+    let type_anon =
+      AnonTerm::decode(type_anon).map_err(|e| UnembedError::DecodeError(e))?;
+    let term_anon =
+      hashspace::get(def.term_anon).ok_or(UnembedError::UnknownLink(defn))?;
+    let term_anon =
+      AnonTerm::decode(term_anon).map_err(|e| UnembedError::DecodeError(e))?;
+    Def::unembed(def, type_anon, term_anon)
+  }
+}
+
+pub fn refs_to_defs(refs: Refs) -> Result<Defs, UnembedError> {
+  let mut def_map = HashMap::new();
+  for (_, (d, _)) in refs {
+    let def = Def::get_link(d)?;
+    def_map.insert(d, def);
+  }
+  Ok(def_map)
 }
 
 impl fmt::Display for Def {
@@ -876,6 +902,7 @@ pub mod tests {
       Slf(None, n, Box::new(arbitrary_term(g, refs.clone(), ctx2)))
     })
   }
+
   fn arbitrary_let(
     refs: Refs,
     ctx: Vector<String>,
@@ -930,8 +957,8 @@ pub mod tests {
     refs
   }
 
-  fn arbitrary_var(g: &mut Gen, ctx: Vector<String>) -> Term {
-    match ctx.iter().choose(g) {
+  fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut Gen| match ctx.iter().choose(g) {
       Some(n) => {
         let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
         Var(None, n.clone(), i as u64)
@@ -1000,107 +1027,84 @@ pub mod tests {
     }
   }
 
-  pub fn arbitrary_term(
+  pub fn frequency<T, F: Fn(&mut Gen) -> T>(
     g: &mut Gen,
-    defs: Defs,
-    ctx: Vector<String>,
-  ) -> Term {
-    let len = ctx.len();
-    if len == 0 {
-      arbitrary_lam(g, defs, ctx)
+    gens: Vec<(i64, F)>,
+  ) -> T {
+    if gens.iter().any(|(v, _)| *v < 0) {
+      panic!("Negative weight");
     }
-    else {
-      let freq = frequency(g,
-        vec![
-          (2, Term::Var(None, String::new(), 0)),
-          (2, Term::Lam(None, String::new(), Rc::new(Term::Typ(None)))),
-          (2, Term::App(None, Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
-          (1, Term::All(None, Uses::None, String::new(), Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
-          (2, Term::Slf(None, String::new(), Rc::new(Term::Typ(None)))),
-          (2, Term::Dat(None, Rc::new(Term::Typ(None)))),
-          (2, Term::Cse(None, Rc::new(Term::Typ(None)))),
-          (2, Term::Ref(None, String::new(), Link::from([0;32]), Link::from([0;32]))),
-          (1, Term::Let(None, true, Uses::None, String::new(), Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
-          (2, Term::Typ(None)),
-          (2, Term::Ann(None, Rc::new(Term::Typ(None)), Rc::new(Term::Typ(None)))),
-          (2, Term::Lit(None, Literal::Text(String::new()))),
-          (2, Term::LTy(None, LitType::Natural)),
-          (2, Term::Opr(None, PrimOp::Eql))
-        ]);
-      match freq {
-        Term::Var(_, _, _) => arbitrary_var(g, ctx.clone()),
-        Term::Lam(_, _, _) => arbitrary_lam(g, defs.clone(), ctx.clone()),
-        Term::App(_, _, _) => Term::App(
-            None,
-            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone())),
-            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::All(_, _, _, _, _) => arbitrary_all(g, defs.clone(), ctx.clone()),
-        Term::Slf(_, _, _) => arbitrary_slf(g, defs.clone(), ctx.clone()),
-        Term::Dat(_, _) => Term::Dat(None, Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::Cse(_, _) => Term::Cse(None, Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::Ref(_, _, _, _) => arbitrary_ref(g, defs.clone(), ctx.clone()),
-        Term::Let(_, _, _, _, _, _, _) => arbitrary_let(g, defs.clone(), ctx.clone()),
-        Term::Typ(_) => Term::Typ(None),
-        Term::Ann(_, _, _) => Term::Ann(
-            None,
-            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone())),
-            Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()))),
-        Term::Lit(_, _) => Term::Lit(None, Arbitrary::arbitrary(g)),
-        Term::LTy(_, _) => Term::LTy(None, Arbitrary::arbitrary(g)),
-        Term::Opr(_, _) => Term::Opr(None, Arbitrary::arbitrary(g))
-      }
-    }
-  }
-
-  pub fn frequency<G: Gen, T: Clone>(g: &mut Gen, input: Vec<(i64, T)>) -> T {
-
-    if input.iter().any(|(v, _)| *v < 0) {
-        panic!("Negative weight");
-    }
-    let sum: i64 = input.iter().map(|x| x.0).sum();
-    if sum <= 0 {
-      panic!("Empty list or all weights zero");
-    }
-    let mut weight: i64 = g.gen_range(1,sum);
-    for i in input {
-      if weight - i.0 <= 0 {
-         return i.1.clone();
+    let sum: i64 = gens.iter().map(|x| x.0).sum();
+    let mut weight: i64 = g.gen_range(1, sum);
+    for gen in gens {
+      if weight - gen.0 <= 0 {
+        return gen.1(g);
       }
       else {
-        weight -= i.0;
+        weight -= gen.0;
       }
     }
     panic!("Calculation error for weight = {}", weight);
   }
 
-  impl Arbitrary for Term {
-    fn arbitrary(g: &mut Gen) -> Self {
-      arbitrary_term(g, test_defs(), Vector::new())
+  pub fn arbitrary_term<G: Gen>(
+    g: &mut G,
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Term {
+    let len = ctx.len();
+    if len == 0 {
+      arbitrary_lam(refs, ctx)(g)
+    }
+    else {
+      frequency(g, vec![
+        (100, arbitrary_var(ctx.clone())),
+        (100, arbitrary_ref(refs.clone(), ctx.clone())),
+        (100, Box::new(|_| Term::Typ(None))),
+        (100, Box::new(|g| Term::Lit(None, Arbitrary::arbitrary(g)))),
+        (100, Box::new(|g| Term::LTy(None, Arbitrary::arbitrary(g)))),
+        (100, Box::new(|g| Term::Opr(None, Arbitrary::arbitrary(g)))),
+        (100, arbitrary_lam(refs.clone(), ctx.clone())),
+        (100, arbitrary_dat(refs.clone(), ctx.clone())),
+        (100, arbitrary_cse(refs.clone(), ctx.clone())),
+        (100, arbitrary_slf(refs.clone(), ctx.clone())),
+        (90, arbitrary_all(refs.clone(), ctx.clone())),
+        (90, arbitrary_app(refs.clone(), ctx.clone())),
+        (90, arbitrary_ann(refs.clone(), ctx.clone())),
+      ])
     }
   }
 
-  pub fn arbitrary_def(g: &mut Gen, defs: Defs, name: String) -> Def {
+  impl Arbitrary for Term {
+    fn arbitrary(g: &mut Gen) -> Self {
+      arbitrary_term(g, test_refs(), Vector::new())
+    }
+  }
+
+  pub fn arbitrary_def(g: &mut Gen, refs: Refs, name: String) -> Def {
     let mut ctx = Vector::new();
     ctx.push_front(name.clone());
     Def {
       pos: None,
       name,
       docs: String::from(""),
-      typ_: arbitrary_term(g, defs.clone(), Vector::new()),
-      term: arbitrary_term(g, defs, ctx),
+      typ_: arbitrary_term(g, refs.clone(), Vector::new()),
+      term: arbitrary_term(g, refs, ctx),
     }
   }
 
   impl Arbitrary for Def {
     fn arbitrary(g: &mut Gen) -> Self {
       let name = arbitrary_name(g);
-      arbitrary_def(g, OrdMap::new(), name)
+      arbitrary_def(g, HashMap::new(), name)
     }
   }
 
   #[quickcheck]
   fn term_encode_decode(x: Term) -> bool {
-    match Term::decode(test_defs(), Vector::new(), x.clone().encode()) {
+    // println!("x: {}", x);
+    match Term::decode(test_refs(), Vector::new(), x.clone().encode()) {
+      // Ok(y) => false,
       Ok(y) => x == y,
       _ => false,
     }
@@ -1165,7 +1169,7 @@ pub mod tests {
     assert_eq!(
       Ok(Var(None, String::from("x"), 0)),
       Term::decode(
-        OrdMap::new(),
+        HashMap::new(),
         vec![String::from("x")].into(),
         hashexpr::parse("x").unwrap().1,
       )
@@ -1176,7 +1180,7 @@ pub mod tests {
     assert_eq!(
       Ok(f.clone()),
       Term::decode(
-        OrdMap::new(),
+        HashMap::new(),
         Vector::new(),
         hashexpr::parse("(lambda x x)").unwrap().1
       )
@@ -1185,7 +1189,7 @@ pub mod tests {
     assert_eq!(
       Ok(b.clone()),
       Term::decode(
-        OrdMap::new(),
+        HashMap::new(),
         Vector::new(),
         hashexpr::parse("((lambda x x) (lambda x x))").unwrap().1
       )
