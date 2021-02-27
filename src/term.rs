@@ -348,7 +348,7 @@ impl Term {
           match tail {
             [bod] => {
               let bod =
-                Term::decode(defs.to_owned(), ctx.to_owned(), bod.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
               Ok(Self::Dat(pos, Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Data])),
@@ -358,7 +358,7 @@ impl Term {
           match tail {
             [bod] => {
               let bod =
-                Term::decode(defs.to_owned(), ctx.to_owned(), bod.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
               Ok(Self::Cse(pos, Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Case])),
@@ -369,7 +369,7 @@ impl Term {
             [Atom(_, Symbol(nam)), bod] => {
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
-              let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
               Ok(Self::Slf(pos, nam.clone(), Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::SelfType])),
@@ -380,7 +380,7 @@ impl Term {
             [Atom(_, Symbol(nam)), bod] => {
               let mut new_ctx = ctx.clone();
               new_ctx.push_front(nam.clone());
-              let bod = Term::decode(defs.to_owned(), new_ctx, bod.to_owned())?;
+              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
               Ok(Self::Lam(pos, nam.to_owned(), Rc::new(bod)))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Lambda])),
@@ -411,7 +411,7 @@ impl Term {
               let typ =
                 Term::decode(defs.to_owned(), ctx.to_owned(), typ.to_owned())?;
               let trm =
-                Term::decode(defs.to_owned(), ctx.to_owned(), trm.to_owned())?;
+                Term::decode(refs.to_owned(), ctx.to_owned(), trm.to_owned())?;
               Ok(Self::Ann(pos, Rc::new((typ, trm))))
             }
             _ => Err(DecodeError::new(pos, vec![Expected::Annotation])),
@@ -429,7 +429,7 @@ impl Term {
           let fun =
             Term::decode(defs.to_owned(), ctx.to_owned(), fun.to_owned())?;
           let arg =
-            Term::decode(defs.to_owned(), ctx.to_owned(), arg.to_owned())?;
+            Term::decode(refs.to_owned(), ctx.to_owned(), arg.to_owned())?;
           Ok(Self::App(pos, Rc::new((fun, arg))))
         }
 
@@ -853,51 +853,78 @@ pub mod tests {
     format!("_{}", s)
   }
 
-  fn arbitrary_lam<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
-    let n = arbitrary_name(g);
-    let mut ctx2 = ctx.clone();
-    ctx2.push_front(n.clone());
-    Lam(None, n, Rc::new(arbitrary_term(g, defs, ctx2)))
+  fn arbitrary_lam<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      let n = arbitrary_name(g);
+      let mut ctx2 = ctx.clone();
+      ctx2.push_front(n.clone());
+      Lam(None, n, Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
+    })
   }
 
   fn arbitrary_slf<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
     let n = arbitrary_name(g);
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
-    Slf(None, n, Rc::new(arbitrary_term(g, defs, ctx2)))
-  }
-  fn arbitrary_let<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
-    let rec: bool = Arbitrary::arbitrary(g);
-    let n = arbitrary_name(g);
-    let u: Uses = Arbitrary::arbitrary(g);
-    let typ = Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()));
-    if rec {
-      let mut ctx2 = ctx.clone();
-      ctx2.push_front(n.clone());
-      let exp = Rc::new(arbitrary_term(g, defs.clone(), ctx2.clone()));
-      let bod = Rc::new(arbitrary_term(g, defs, ctx2));
-      Let(None, rec, u, n, Rc::new((typ, exp, bod)))
-    }
-    else {
-      let mut ctx2 = ctx.clone();
-      ctx2.push_front(n.clone());
-      let exp = Rc::new(arbitrary_term(g, defs.clone(), ctx.clone()));
-      let bod = Rc::new(arbitrary_term(g, defs, ctx2));
-      Let(None, rec, u, n, Rc::new((typ, exp, bod)))
-    }
+      Slf(None, n, Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
+    })
   }
 
-  fn arbitrary_all<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
-    let n = arbitrary_name(g);
-    let u: Uses = Arbitrary::arbitrary(g);
-    let mut ctx2 = ctx.clone();
-    ctx2.push_front(n.clone());
-    All(
-      None,
-      u,
-      n,
-      Rc::new((arbitrary_term(g, defs.clone(), ctx), arbitrary_term(g, defs, ctx2))),
-    )
+  fn arbitrary_let<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      let rec: bool = Arbitrary::arbitrary(g);
+      let n = arbitrary_name(g);
+      let u: Uses = Arbitrary::arbitrary(g);
+      let typ = Box::new(arbitrary_term(g, refs.clone(), ctx.clone()));
+      if rec {
+        let mut ctx2 = ctx.clone();
+        ctx2.push_front(n.clone());
+        let exp = Box::new(arbitrary_term(g, refs.clone(), ctx2.clone()));
+        let bod = Box::new(arbitrary_term(g, refs.clone(), ctx2));
+        Let(None, rec, u, n, typ, exp, bod)
+      }
+      else {
+        let mut ctx2 = ctx.clone();
+        ctx2.push_front(n.clone());
+        let exp = Box::new(arbitrary_term(g, refs.clone(), ctx.clone()));
+        let bod = Box::new(arbitrary_term(g, refs.clone(), ctx2));
+        Let(None, rec, u, n, typ, exp, bod)
+      }
+    })
+  }
+
+  fn arbitrary_all<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      let n = arbitrary_name(g);
+      let u: Uses = Arbitrary::arbitrary(g);
+      let mut ctx2 = ctx.clone();
+      ctx2.push_front(n.clone());
+      All(
+        None,
+        u,
+        n,
+        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone())), Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
+      )
+    })
+  }
+
+  pub fn test_refs() -> Refs {
+    let inp = "(def id \"\" (forall ω A Type A) (lambda x x))";
+    let d =
+      Def::decode(HashMap::new(), hashexpr::parse(inp).unwrap().1).unwrap();
+    let (d, _, t) = d.embed();
+    let mut refs = HashMap::new();
+    refs.insert(String::from("id"), (d.encode().link(), t.encode().link()));
+    refs
   }
 
   fn arbitrary_var<G: Gen>(g: &mut G, ctx: Vector<String>) -> Term {
@@ -907,17 +934,60 @@ pub mod tests {
         Var(None, n.clone(), i as u64)
       }
       None => Term::Typ(None),
-    }
+    })
   }
 
-  pub fn test_defs() -> Defs {
-    let inp = "(def id \"\" (forall ω A Type A) (lambda x x))";
-    let d =
-      Def::decode(OrdMap::new(), hashexpr::parse(inp).unwrap().1).unwrap();
-    let (d, _, t) = d.embed();
-    let mut defs = OrdMap::new();
-    defs.insert(String::from("id"), (d.encode().link(), t.encode().link()));
-    defs
+  fn arbitrary_ref<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      match refs.iter().filter(|(n, _)| !ctx.contains(n)).choose(g) {
+        Some((n, (d, a))) => Ref(None, n.clone(), *d, *a),
+        None => Term::Typ(None),
+      }
+    })
+  }
+
+  fn arbitrary_app<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      Term::App(
+        None,
+        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone())), Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+      )
+    })
+  }
+
+  fn arbitrary_ann<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      Term::Ann(
+        None,
+        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone())), Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+      )
+    })
+  }
+
+  fn arbitrary_dat<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      Term::Dat(None, Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+    })
+  }
+  fn arbitrary_cse<G: Gen>(
+    refs: Refs,
+    ctx: Vector<String>,
+  ) -> Box<dyn Fn(&mut G) -> Term> {
+    Box::new(move |g: &mut G| {
+      Term::Cse(None, Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+    })
   }
 
   fn arbitrary_ref<G: Gen>(g: &mut G, defs: Defs, ctx: Vector<String>) -> Term {
