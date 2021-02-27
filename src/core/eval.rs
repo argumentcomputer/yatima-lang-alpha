@@ -1,30 +1,38 @@
 use core::ptr::NonNull;
 
-use crate::core::{
-  dag::{
-    clear_copies,
-    free_dead_node,
-    new_branch,
-    new_leaf,
-    new_single,
-    replace_child,
-    upcopy,
-    Var,
-    Branch,
-    BranchTag,
-    Leaf,
-    LeafTag,
-    ParentCell,
-    Single,
-    SingleTag,
-    DAG,
+use crate::{
+  core::{
+    dag::{
+      clear_copies,
+      free_dead_node,
+      new_branch,
+      new_leaf,
+      new_single,
+      replace_child,
+      upcopy,
+      Var,
+      Branch,
+      BranchTag,
+      Leaf,
+      LeafTag,
+      ParentCell,
+      Single,
+      SingleTag,
+      DAG,
+    },
+    dll::*,
+    primop::{
+      apply_bin_op,
+      apply_una_op,
+    },
   },
-  dll::*,
-  primop::{
-    apply_bin_op,
-    apply_una_op,
+  term::{
+    Def,
+    Link,
   },
 };
+
+use im::HashMap;
 
 // Substitute a variable
 pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
@@ -93,7 +101,7 @@ pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
 }
 
 // Reduce term to its weak head normal form
-pub fn whnf(mut node: DAG) -> DAG {
+pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
   let mut trail = vec![];
   loop {
     match node {
@@ -126,11 +134,18 @@ pub fn whnf(mut node: DAG) -> DAG {
       DAG::Leaf(link) => unsafe {
         let Leaf { tag, .. } = &*link.as_ptr();
         match tag {
-          // LeafTag::Ref(nam, def) =>
+          LeafTag::Ref(nam, def_link, _) => {
+            if let Some(def) = defs.get(def_link) {
+              node = DAG::from_term(&def.clone().term)
+            }
+            else {
+              panic!("undefined runtime reference: {}, {}", nam, def_link);
+            }
+          }
           LeafTag::Opr(opr) => {
             let len = trail.len();
             if len >= 1 && opr.arity() == 1 {
-              let arg = whnf((*trail[len - 1].as_ptr()).right);
+              let arg = whnf(defs, (*trail[len - 1].as_ptr()).right);
               match arg {
                 DAG::Leaf(x) => {
                   let x = (*x.as_ptr()).tag.clone();
@@ -155,8 +170,8 @@ pub fn whnf(mut node: DAG) -> DAG {
               }
             }
             else if len >= 2 && opr.arity() == 2 {
-              let arg1 = whnf((*trail[len - 2].as_ptr()).right);
-              let arg2 = whnf((*trail[len - 1].as_ptr()).right);
+              let arg1 = whnf(defs, (*trail[len - 2].as_ptr()).right);
+              let arg2 = whnf(defs, (*trail[len - 1].as_ptr()).right);
               match (arg1, arg2) {
                 (DAG::Leaf(x), DAG::Leaf(y)) => {
                   let x = (*x.as_ptr()).tag.clone();
@@ -188,6 +203,22 @@ pub fn whnf(mut node: DAG) -> DAG {
           _ => break,
         }
       },
+
+      // TODO: All primitive operations
+      // DAG::Opr(link) => unsafe {
+      //         // TODO: (#cst (Nat 256) 0d1)
+      //         //(DAG::App(x), DAG::Lit(y)) => {
+      //         //
+      //         //}
+      //         else {
+      //           break;
+      //         }
+      //       }
+      //       _ => break,
+      //     }
+      //   }
+      //   break;
+      // },
       _ => break,
     }
   }
@@ -198,19 +229,19 @@ pub fn whnf(mut node: DAG) -> DAG {
 }
 
 // Reduce term to its normal form
-pub fn norm(mut top_node: DAG) -> DAG {
-  top_node = whnf(top_node);
+pub fn norm(defs: &HashMap<Link, Def>, mut top_node: DAG) -> DAG {
+  top_node = whnf(defs, top_node);
   let mut trail = vec![top_node];
   while let Some(node) = trail.pop() {
     match node {
       DAG::Branch(link) => unsafe {
         let branch = &mut *link.as_ptr();
-        trail.push(whnf(branch.left));
-        trail.push(whnf(branch.right));
+        trail.push(whnf(defs, branch.left));
+        trail.push(whnf(defs, branch.right));
       },
       DAG::Single(link) => unsafe {
         let single = &mut *link.as_ptr();
-        trail.push(whnf(single.body));
+        trail.push(whnf(defs, single.body));
       },
       _ => (),
     }
@@ -225,6 +256,7 @@ mod test {
     DAG,
   };
   use hashexpr::span::Span;
+  use im::HashMap;
 
   pub fn parse(
     i: &str,
@@ -254,7 +286,9 @@ mod test {
   pub fn reducer() {
     fn norm_assert(input: &str, result: &str) {
       match parse(&input) {
-        Ok((_, dag)) => assert_eq!(format!("{}", norm(dag)), result),
+        Ok((_, dag)) => {
+          assert_eq!(format!("{}", norm(&HashMap::new(), dag)), result)
+        }
         Err(_) => panic!("Did not parse."),
       }
     }

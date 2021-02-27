@@ -30,6 +30,7 @@ pub enum Expected {
   Package,
   PackageDecls,
   PackageDeclaration,
+  PackageOpenWith,
   PackageDefinition,
   PackageContents,
   AnonTermCons,

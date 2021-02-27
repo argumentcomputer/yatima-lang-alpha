@@ -5,7 +5,7 @@ use crate::{
   term::Link,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum UnembedError {
   FreeVariable,
   DecodeError(DecodeError),
