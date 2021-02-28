@@ -15,7 +15,6 @@ use crate::{
       BranchTag,
       Leaf,
       LeafTag,
-      ParentCell,
       Single,
       SingleTag,
       DAG,
@@ -88,7 +87,7 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
         result = DAG::Single(new_single(var, result, tag.clone()));
       }
       top_branch
-        .map_or((), |app| clear_copies(lam.as_ref(), &mut *app.as_ptr()));
+        .map_or((), |mut app| clear_copies(lam.as_ref(), app.as_mut()));
       result
     };
     ans
@@ -97,7 +96,7 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
 
 // Contract a lambda redex, return the body.
 pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
-  let Branch { right: arg, .. } = unsafe { &*redex.as_ptr() };
+  let Branch { right: arg, .. } = unsafe { redex.as_ref() };
   let top_node = subst(lam, *arg);
   replace_child(DAG::Branch(redex), top_node);
   free_dead_node(DAG::Branch(redex));
@@ -105,22 +104,23 @@ pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
 }
 
 // Reduce term to its weak head normal form
-pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
+pub fn whnf(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
+  let mut node = *dag;
   let mut trail = vec![];
   loop {
     match node {
       DAG::Branch(link) => unsafe {
-        let Branch { left, tag, .. } = &*link.as_ptr();
+        let Branch { left, tag, .. } = *link.as_ptr();
         match tag {
           BranchTag::App => {
             trail.push(link);
-            node = *left;
+            node = left;
           }
           _ => break,
         }
       },
       DAG::Single(link) => unsafe {
-        let Single { tag, .. } = &*link.as_ptr();
+        let Single { tag, mut body, .. } = *link.as_ptr();
         match tag {
           SingleTag::Lam => {
             if let Some(app_link) = trail.pop() {
@@ -130,12 +130,28 @@ pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
               break;
             }
           }
-          // TODO: Add the `Fix` case.
+          SingleTag::Cse => {
+            whnf(defs, &mut body);
+            match body {
+              DAG::Single(body_link) => {
+                let Single { tag: single_tag, body: single_body, .. } = *body_link.as_ptr();
+                if single_tag == SingleTag::Dat {
+                  replace_child(node, single_body);
+                  free_dead_node(node);
+                  node = single_body;
+                }
+                else {
+                  break
+                }
+              },
+              _ => break,
+            }
+          },
           _ => break,
         }
       },
       DAG::Leaf(link) => unsafe {
-        let Leaf { tag, .. } = &*link.as_ptr();
+        let Leaf { tag, .. } = link.as_ref();
         match tag {
           LeafTag::Ref(nam, def_link, typ_link) => {
             if let Some(def) = defs.get(def_link) {
@@ -153,7 +169,7 @@ pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
           LeafTag::Opr(opr) => {
             let len = trail.len();
             if len >= 1 && opr.arity() == 1 {
-              let arg = whnf(defs, (*trail[len - 1].as_ptr()).right);
+              let arg = whnf(defs, &mut (*trail[len - 1].as_ptr()).right);
               match arg {
                 DAG::Leaf(x) => {
                   let x = (*x.as_ptr()).tag.clone();
@@ -178,8 +194,8 @@ pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
               }
             }
             else if len >= 2 && opr.arity() == 2 {
-              let arg1 = whnf(defs, (*trail[len - 2].as_ptr()).right);
-              let arg2 = whnf(defs, (*trail[len - 1].as_ptr()).right);
+              let arg1 = whnf(defs, &mut (*trail[len - 2].as_ptr()).right);
+              let arg2 = whnf(defs, &mut (*trail[len - 1].as_ptr()).right);
               match (arg1, arg2) {
                 (DAG::Leaf(x), DAG::Leaf(y)) => {
                   let x = (*x.as_ptr()).tag.clone();
@@ -231,25 +247,28 @@ pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
     }
   }
   if trail.is_empty() {
-    return node;
+    *dag = node;
   }
-  DAG::Branch(trail[0])
+  else {
+    *dag = DAG::Branch(trail[0]);
+  }
+  *dag
 }
 
 // Reduce term to its normal form
-pub fn norm(defs: &HashMap<Link, Def>, mut top_node: DAG) -> DAG {
-  top_node = whnf(defs, top_node);
+pub fn norm(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
+  let top_node = whnf(defs, dag);
   let mut trail = vec![top_node];
   while let Some(node) = trail.pop() {
     match node {
-      DAG::Branch(link) => unsafe {
-        let branch = &mut *link.as_ptr();
-        trail.push(whnf(defs, branch.left));
-        trail.push(whnf(defs, branch.right));
+      DAG::Branch(mut link) => unsafe {
+        let branch = link.as_mut();
+        trail.push(whnf(defs, &mut branch.left));
+        trail.push(whnf(defs, &mut branch.right));
       },
-      DAG::Single(link) => unsafe {
-        let single = &mut *link.as_ptr();
-        trail.push(whnf(defs, single.body));
+      DAG::Single(mut link) => unsafe {
+        let single = link.as_mut();
+        trail.push(whnf(defs, &mut single.body));
       },
       _ => (),
     }
@@ -294,8 +313,8 @@ mod test {
   pub fn reducer() {
     fn norm_assert(input: &str, result: &str) {
       match parse(&input) {
-        Ok((_, dag)) => {
-          assert_eq!(format!("{}", norm(&HashMap::new(), dag)), result)
+        Ok((_, mut dag)) => {
+          assert_eq!(format!("{}", norm(&HashMap::new(), &mut dag)), result)
         }
         Err(_) => panic!("Did not parse."),
       }
@@ -308,8 +327,6 @@ mod test {
     norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
     // // Church arithmetic
     let zero = "λ s z => z";
-    let one = "λ s z => (s z)";
-    let two = "λ s z => s (s z)";
     let three = "λ s z => s (s (s z))";
     let four = "λ s z => s (s (s (s z)))";
     let seven = "λ s z => s (s (s (s (s (s (s z))))))";

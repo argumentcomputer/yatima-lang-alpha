@@ -49,8 +49,8 @@ fn main() {
         p.name, input
       ));
       let def = defs.get(def_link).expect("Unknown link for `main` expression");
-      let dag = core::dag::DAG::from_term(&def.to_owned().term);
-      let red = core::eval::norm(&defs, dag);
+      let mut dag = core::dag::DAG::from_term(&def.to_owned().term);
+      let red = core::eval::norm(&defs, &mut dag);
       println!("{}", red);
     }
     Cli::Save { input } => {

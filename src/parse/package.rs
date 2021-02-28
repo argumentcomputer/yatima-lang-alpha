@@ -16,7 +16,7 @@ use crate::{
     Link,
     Refs,
   },
-  unembed_error::UnembedError,
+  // unembed_error::UnembedError,
 };
 
 use std::{
@@ -42,7 +42,7 @@ use nom::{
   branch::alt,
   bytes::complete::tag,
   character::complete::{
-    multispace0,
+    // multispace0,
     multispace1,
   },
   combinator::{
@@ -51,7 +51,7 @@ use nom::{
   },
   multi::separated_list0,
   sequence::{
-    preceded,
+    // preceded,
     terminated,
   },
   Err,

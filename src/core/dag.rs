@@ -6,7 +6,6 @@
 use crate::{
   core::{
     dll::*,
-    eval,
     literal::{
       LitType,
       Literal,
@@ -88,10 +87,9 @@ pub struct Single {
   pub parents: Option<NonNull<Parents>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum SingleTag {
   Lam,
-  Fix,
   Slf,
   Cse,
   Dat,
@@ -156,8 +154,8 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
   #[inline]
   fn clean_up_var(var: Option<NonNull<Var>>) {
     match var {
-      Some(var) => {
-        let var = unsafe { &mut *var.as_ptr() };
+      Some(mut var) => {
+        let var = unsafe { var.as_mut() };
         for var_parent in DLL::iter_option((*var).parents) {
           clean_up(var_parent);
         }
@@ -167,8 +165,8 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
   }
   fn clean_up(cc: &ParentCell) {
     match cc {
-      ParentCell::Left(parent) => unsafe {
-        let parent = &mut *parent.as_ptr();
+      ParentCell::Left(mut parent) => unsafe {
+        let parent = parent.as_mut();
         parent.copy.map_or((), |branch| {
           parent.copy = None;
           let Branch { var, left, left_ref, right, right_ref, .. } =
@@ -181,8 +179,8 @@ pub fn clear_copies(mut spine: &Single, top_branch: &mut Branch) {
           }
         })
       },
-      ParentCell::Right(parent) => unsafe {
-        let parent = &mut *parent.as_ptr();
+      ParentCell::Right(mut parent) => unsafe {
+        let parent = parent.as_mut();
         parent.copy.map_or((), |branch| {
           parent.copy = None;
           let Branch { var, left, left_ref, right, right_ref, .. } =
@@ -551,7 +549,7 @@ impl DAG {
   pub fn full_copy(&self) -> DAG {
     fn go(
       node: DAG,
-      mut map: &mut HashMap<DAG, DAG>,
+      map: &mut HashMap<DAG, DAG>,
       parents: NonNull<Parents>,
     ) -> DAG {
       // If the node is in the hash map then it was already copied,
@@ -684,7 +682,6 @@ impl DAG {
                   let body = go(body, &mut map, depth + 1);
                   Term::Slf(None, name.clone(), Box::new(body))
                 }
-                SingleTag::Fix => panic!("TODO: Add Fix to Term."),
                 _ => panic!("Malformed DAG."),
               }
             }
@@ -878,7 +875,7 @@ impl DAG {
 
       Term::Var(_, name, idx) => {
         match ctx.get(*idx as usize) {
-          Some(val) => unsafe {
+          Some(val) => {
             if let Some(parents) = parents {
               DLL::concat(parents, get_parents(*val));
               set_parents(*val, Some(parents));
