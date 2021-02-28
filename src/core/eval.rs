@@ -27,12 +27,16 @@ use crate::{
     },
   },
   term::{
+    Term,
     Def,
     Link,
   },
 };
 
-use im::HashMap;
+use im::{
+  Vector,
+  HashMap,
+};
 
 // Substitute a variable
 pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
@@ -112,7 +116,6 @@ pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
             trail.push(link);
             node = *left;
           }
-          // TODO: Add the `Ann` and `Let` cases
           _ => break,
         }
       },
@@ -134,9 +137,14 @@ pub fn whnf(defs: &HashMap<Link, Def>, mut node: DAG) -> DAG {
       DAG::Leaf(link) => unsafe {
         let Leaf { tag, .. } = &*link.as_ptr();
         match tag {
-          LeafTag::Ref(nam, def_link, _) => {
+          LeafTag::Ref(nam, def_link, typ_link) => {
             if let Some(def) = defs.get(def_link) {
-              node = DAG::from_term(&def.clone().term)
+              let new_ref = &Term::Ref(None, nam.clone(), *def_link, *typ_link);
+              let new_ref = DAG::from_subterm(0, new_ref, Vector::new(), None);
+              let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(new_ref), None);
+              replace_child(node, new_node);
+              free_dead_node(node);
+              node = new_node;
             }
             else {
               panic!("undefined runtime reference: {}, {}", nam, def_link);

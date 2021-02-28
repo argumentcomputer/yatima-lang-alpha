@@ -111,7 +111,7 @@ pub struct Branch {
 #[derive(Clone, Copy)]
 pub enum BranchTag {
   App,
-  Ann,
+  Let,
   All(Uses),
 }
 
@@ -726,11 +726,7 @@ impl DAG {
                 let arg = go(right, &mut map, depth);
                 Term::App(None, Box::new(fun), Box::new(arg))
               }
-              BranchTag::Ann => {
-                let typ = go(left, &mut map, depth);
-                let trm = go(right, &mut map, depth);
-                Term::Ann(None, Box::new(typ), Box::new(trm))
-              }
+              BranchTag::Let => panic!("TODO"),
               _ => panic!("Malformed DAG."),
             },
           }
@@ -742,17 +738,23 @@ impl DAG {
   }
 
   pub fn from_term(tree: &Term) -> DAG {
-    DAG::from_open_term(false, 0, tree)
+    let root = alloc_val(DLL::singleton(ParentCell::Root));
+    DAG::from_subterm(0, tree, Vector::new(), Some(root))
   }
 
   // Converts an open subterm to DAG and add de Bruijn levels to free `Var` nodes. The argument `depth`
-  // is the initial depth of the subterm. Setting the `no_ann` flag removes all type annotations.
-  pub fn from_open_term(no_ann: bool, depth: u64, tree: &Term) -> DAG {
+  // is the initial depth of the subterm. Takes an initial context.
+  pub fn from_subterm(
+    depth: u64,
+    tree: &Term,
+    mut ctx: Vector<DAG>,
+    parents: Option<NonNull<Parents>>,
+  ) -> DAG {
     #[inline]
     fn allocate_single(
       var: Option<NonNull<Var>>,
       tag: SingleTag,
-      parents: NonNull<Parents>
+      parents: Option<NonNull<Parents>>
     ) -> NonNull<Single> {
       // Allocate nodes
       let body_parents = alloc_uninit();
@@ -762,7 +764,7 @@ impl DAG {
         // Temporary, dangling DAG pointer
         body: DAG::Leaf(NonNull::dangling()),
         body_ref: body_parents,
-        parents: Some(parents),
+        parents,
       });
       // Update `body_parents` to refer to current node
       unsafe {
@@ -774,8 +776,8 @@ impl DAG {
     fn allocate_branch(
       var: Option<NonNull<Var>>,
       tag: BranchTag,
-      parents: NonNull<Parents>
-    ) -> NonNull<Branch> {
+      parents: Option<NonNull<Parents>>
+    ) -> NonNull<Branch>{
       // Allocation and updates
       let left_parents = alloc_uninit();
       let right_parents = alloc_uninit();
@@ -788,7 +790,7 @@ impl DAG {
         left_ref: left_parents,
         right_ref: right_parents,
         copy: None,
-        parents: Some(parents),
+        parents,
       });
       unsafe {
         *left_parents.as_ptr() = DLL::singleton(ParentCell::Left(branch));
@@ -796,130 +798,125 @@ impl DAG {
       }
       branch
     }
-    fn go(
-      no_ann: bool,
-      depth: u64,
-      tree: &Term,
-      mut ctx: Vector<NonNull<Var>>,
-      parents: NonNull<Parents>,
-    ) -> DAG {
-      match tree {
-        Term::Lam(_, name, body) => unsafe {
-          let var = new_var(name.clone(), 0);
-          let lam = allocate_single(Some(var), SingleTag::Lam, parents);
-          let body_parents = (*lam.as_ptr()).body_ref;
-          ctx.push_front(var);
-          let body = go(no_ann, depth+1, &**body, ctx, body_parents);
-          // Update `lam` with the correct fields
-          (*lam.as_ptr()).body = body;
-          DAG::Single(lam)
-        }
-
-        Term::Slf(_, name, body) => unsafe {
-          let var = new_var(name.clone(), 0);
-          let slf = allocate_single(Some(var), SingleTag::Slf, parents);
-          let body_parents = (*slf.as_ptr()).body_ref;
-          ctx.push_front(var);
-          let body = go(no_ann, depth+1, &**body, ctx, body_parents);
-          (*slf.as_ptr()).body = body;
-          DAG::Single(slf)
-        }
-        Term::Dat(_, body) => unsafe {
-          let dat = allocate_single(None, SingleTag::Dat, parents);
-          let body_parents = (*dat.as_ptr()).body_ref;
-          let body = go(no_ann, depth, &**body, ctx, body_parents);
-          (*dat.as_ptr()).body = body;
-          DAG::Single(dat)
-        }
-        Term::Cse(_, body) => unsafe {
-          let cse = allocate_single(None, SingleTag::Cse, parents);
-          let body_parents = (*cse.as_ptr()).body_ref;
-          let body = go(no_ann, depth, &**body, ctx, body_parents);
-          (*cse.as_ptr()).body = body;
-          DAG::Single(cse)
-        }
-
-        Term::All(_, uses, name, dom, img) => unsafe {
-          let var = new_var(name.clone(), 0);
-          let all = allocate_branch(Some(var), BranchTag::All(*uses), parents);
-          let mut img_ctx = ctx.clone();
-          let dom_parents = (*all.as_ptr()).left_ref;
-          let dom = go(no_ann, depth, &**dom, ctx, dom_parents);
-          img_ctx.push_front(var);
-          let img_parents = (*all.as_ptr()).right_ref;
-          let img = go(no_ann, depth+1, &**img, img_ctx, img_parents);
-          // Update `all` with the correct fields
-          (*all.as_ptr()).left = dom;
-          (*all.as_ptr()).right = img;
-          DAG::Branch(all)
-        }
-
-        Term::App(_, fun, arg) => unsafe {
-          let app = allocate_branch(None, BranchTag::App, parents);
-          let fun_parents = (*app.as_ptr()).left_ref;
-          let fun = go(no_ann, depth, &**fun, ctx.clone(), fun_parents);
-          let arg_parents = (*app.as_ptr()).right_ref;
-          let arg = go(no_ann, depth, &**arg, ctx, arg_parents);
-          (*app.as_ptr()).left = fun;
-          (*app.as_ptr()).right = arg;
-          DAG::Branch(app)
-        }
-        Term::Ann(_, typ, exp) => unsafe {
-          if no_ann {
-            return go(no_ann, depth, &**exp, ctx, parents);
-          }
-          let ann = allocate_branch(None, BranchTag::Ann, parents);
-          let typ_parents = (*ann.as_ptr()).left_ref;
-          let typ = go(no_ann, depth, &**typ, ctx.clone(), typ_parents);
-          let exp_parents = (*ann.as_ptr()).right_ref;
-          let exp = go(no_ann, depth, &**exp, ctx, exp_parents);
-          (*ann.as_ptr()).left = typ;
-          (*ann.as_ptr()).right = exp;
-          DAG::Branch(ann)
-        }
-
-        Term::Var(_, name, idx) => {
-          let var = match ctx.get(*idx as usize) {
-            Some(var) => unsafe {
-              DLL::concat(parents, (*var.as_ptr()).parents);
-              (*var.as_ptr()).parents = Some(parents);
-              *var
-            },
-            None => {
-              alloc_val(Var {
-                name: name.clone(),
-                depth: depth-1-idx,
-                parents: Some(parents)
-              })
-            }
-          };
-          DAG::Var(var)
-        }
-        Term::Typ(_) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::Typ,
-          parents: Some(parents),
-        })),
-        Term::LTy(_, lty) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::LTy(*lty),
-          parents: Some(parents),
-        })),
-        Term::Lit(_, lit) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::Lit(lit.clone()),
-          parents: Some(parents),
-        })),
-        Term::Opr(_, opr) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::Opr(*opr),
-          parents: Some(parents),
-        })),
-        Term::Ref(_, name, def_link, ast_link) => DAG::Leaf(alloc_val(Leaf {
-          tag: LeafTag::Ref(name.to_string(), *def_link, *ast_link),
-          parents: Some(parents),
-        })),
-        _ => panic!("TODO: implement Term::to_dag variants"),
+    match tree {
+      Term::Lam(_, name, body) => unsafe {
+        let var = new_var(name.clone(), 0);
+        let lam = allocate_single(Some(var), SingleTag::Lam, parents);
+        let body_parents = (*lam.as_ptr()).body_ref;
+        ctx.push_front(DAG::Var(var));
+        let body = DAG::from_subterm(depth+1, &**body, ctx, Some(body_parents));
+        // Update `lam` with the correct fields
+        (*lam.as_ptr()).body = body;
+        DAG::Single(lam)
       }
+
+      Term::Slf(_, name, body) => unsafe {
+        let var = new_var(name.clone(), 0);
+        let slf = allocate_single(Some(var), SingleTag::Slf, parents);
+        let body_parents = (*slf.as_ptr()).body_ref;
+        ctx.push_front(DAG::Var(var));
+        let body = DAG::from_subterm(depth+1, &**body, ctx, Some(body_parents));
+        (*slf.as_ptr()).body = body;
+        DAG::Single(slf)
+      }
+      Term::Dat(_, body) => unsafe {
+        let dat = allocate_single(None, SingleTag::Dat, parents);
+        let body_parents = (*dat.as_ptr()).body_ref;
+        let body = DAG::from_subterm(depth, &**body, ctx, Some(body_parents));
+        (*dat.as_ptr()).body = body;
+        DAG::Single(dat)
+      }
+      Term::Cse(_, body) => unsafe {
+        let cse = allocate_single(None, SingleTag::Cse, parents);
+        let body_parents = (*cse.as_ptr()).body_ref;
+        let body = DAG::from_subterm(depth, &**body, ctx, Some(body_parents));
+        (*cse.as_ptr()).body = body;
+        DAG::Single(cse)
+      }
+
+      Term::All(_, uses, name, dom, img) => unsafe {
+        let var = new_var(name.clone(), 0);
+        let all = allocate_branch(Some(var), BranchTag::All(*uses), parents);
+        let mut img_ctx = ctx.clone();
+        let dom_parents = (*all.as_ptr()).left_ref;
+        let dom = DAG::from_subterm(depth, &**dom, ctx, Some(dom_parents));
+        img_ctx.push_front(DAG::Var(var));
+        let img_parents = (*all.as_ptr()).right_ref;
+        let img = DAG::from_subterm(depth+1, &**img, img_ctx, Some(img_parents));
+        // Update `all` with the correct fields
+        (*all.as_ptr()).left = dom;
+        (*all.as_ptr()).right = img;
+        DAG::Branch(all)
+      }
+
+      Term::App(_, fun, arg) => unsafe {
+        let app = allocate_branch(None, BranchTag::App, parents);
+        let fun_parents = (*app.as_ptr()).left_ref;
+        let fun = DAG::from_subterm(depth, &**fun, ctx.clone(), Some(fun_parents));
+        let arg_parents = (*app.as_ptr()).right_ref;
+        let arg = DAG::from_subterm(depth, &**arg, ctx, Some(arg_parents));
+        (*app.as_ptr()).left = fun;
+        (*app.as_ptr()).right = arg;
+        DAG::Branch(app)
+      }
+      Term::Let(_, rec, _, name, _, expr, body) => unsafe {
+        if *rec {
+          panic!("TODO: Add letrec")
+        }
+        let var = new_var(name.clone(), 0);
+        let let_node = allocate_branch(Some(var), BranchTag::Let, parents);
+        let mut body_ctx = ctx.clone();
+        let expr_parents = (*let_node.as_ptr()).left_ref;
+        let expr = DAG::from_subterm(depth, &**expr, ctx, Some(expr_parents));
+        body_ctx.push_front(DAG::Var(var));
+        let body_parents = (*let_node.as_ptr()).right_ref;
+        let body = DAG::from_subterm(depth+1, &**body, body_ctx, Some(body_parents));
+        (*let_node.as_ptr()).left = expr;
+        (*let_node.as_ptr()).right = body;
+        DAG::Branch(let_node)
+      }
+
+      Term::Var(_, name, idx) => {
+        match ctx.get(*idx as usize) {
+          Some(val) => unsafe {
+            if let Some(parents) = parents {
+              DLL::concat(parents, get_parents(*val));
+              set_parents(*val, Some(parents));
+            }
+            *val
+          },
+          None => {
+            let var = alloc_val(Var {
+              name: name.clone(),
+              depth: depth-1-idx,
+              parents,
+            });
+            DAG::Var(var)
+          }
+        }
+      }
+      Term::Typ(_) => DAG::Leaf(alloc_val(Leaf {
+        tag: LeafTag::Typ,
+        parents,
+      })),
+      Term::LTy(_, lty) => DAG::Leaf(alloc_val(Leaf {
+        tag: LeafTag::LTy(*lty),
+        parents,
+      })),
+      Term::Lit(_, lit) => DAG::Leaf(alloc_val(Leaf {
+        tag: LeafTag::Lit(lit.clone()),
+        parents,
+      })),
+      Term::Opr(_, opr) => DAG::Leaf(alloc_val(Leaf {
+        tag: LeafTag::Opr(*opr),
+        parents,
+      })),
+      Term::Ref(_, name, def_link, ast_link) => DAG::Leaf(alloc_val(Leaf {
+        tag: LeafTag::Ref(name.to_string(), *def_link, *ast_link),
+        parents,
+      })),
+      _ => panic!("TODO: implement Term::to_dag variants"),
     }
-    let root = alloc_val(DLL::singleton(ParentCell::Root));
-    go(no_ann, depth, tree, Vector::new(), root)
   }
 
   // Remove the root parent
@@ -948,13 +945,14 @@ mod test {
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
   }
 
-  #[quickcheck]
-  fn term_encode_decode(x: Term) -> bool {
-    println!("x: {}", x);
-    println!("x: {:?}", x);
-    let y = DAG::to_term(&DAG::from_term(&x));
-    println!("y: {}", y);
-    println!("y: {:?}", y);
-    x == y
-  }
+  // DAG is not isomorphic to Term anymore
+  // #[quickcheck]
+  // fn term_encode_decode(x: Term) -> bool {
+  //   println!("x: {}", x);
+  //   println!("x: {:?}", x);
+  //   let y = DAG::to_term(&DAG::from_term(&x));
+  //   println!("y: {}", y);
+  //   println!("y: {:?}", y);
+  //   x == y
+  // }
 }
