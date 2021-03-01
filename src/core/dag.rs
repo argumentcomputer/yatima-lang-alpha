@@ -742,12 +742,14 @@ impl DAG {
 
   pub fn from_term(tree: &Term) -> DAG {
     let root = alloc_val(DLL::singleton(ParentCell::Root));
-    DAG::from_subterm(0, tree, Vector::new(), Some(root))
+    DAG::from_subterm(None, 0, tree, Vector::new(), Some(root))
   }
 
   // Converts an open subterm to DAG and add de Bruijn levels to free `Var` nodes. The argument `depth`
   // is the initial depth of the subterm. Takes an initial context.
   pub fn from_subterm(
+    // `fix` is the term that substitutes the implicit fix variable of definitions, usually a Ref
+    fix: Option<DAG>,
     depth: u64,
     tree: &Term,
     mut ctx: Vector<DAG>,
@@ -807,7 +809,7 @@ impl DAG {
         let lam = allocate_single(Some(var), SingleTag::Lam, parents);
         let body_parents = (*lam.as_ptr()).body_ref;
         ctx.push_front(DAG::Var(var));
-        let body = DAG::from_subterm(depth+1, &**body, ctx, Some(body_parents));
+        let body = DAG::from_subterm(fix, depth+1, &**body, ctx, Some(body_parents));
         // Update `lam` with the correct fields
         (*lam.as_ptr()).body = body;
         DAG::Single(lam)
@@ -818,21 +820,21 @@ impl DAG {
         let slf = allocate_single(Some(var), SingleTag::Slf, parents);
         let body_parents = (*slf.as_ptr()).body_ref;
         ctx.push_front(DAG::Var(var));
-        let body = DAG::from_subterm(depth+1, &**body, ctx, Some(body_parents));
+        let body = DAG::from_subterm(fix, depth+1, &**body, ctx, Some(body_parents));
         (*slf.as_ptr()).body = body;
         DAG::Single(slf)
       }
       Term::Dat(_, body) => unsafe {
         let dat = allocate_single(None, SingleTag::Dat, parents);
         let body_parents = (*dat.as_ptr()).body_ref;
-        let body = DAG::from_subterm(depth, &**body, ctx, Some(body_parents));
+        let body = DAG::from_subterm(fix, depth, &**body, ctx, Some(body_parents));
         (*dat.as_ptr()).body = body;
         DAG::Single(dat)
       }
       Term::Cse(_, body) => unsafe {
         let cse = allocate_single(None, SingleTag::Cse, parents);
         let body_parents = (*cse.as_ptr()).body_ref;
-        let body = DAG::from_subterm(depth, &**body, ctx, Some(body_parents));
+        let body = DAG::from_subterm(fix, depth, &**body, ctx, Some(body_parents));
         (*cse.as_ptr()).body = body;
         DAG::Single(cse)
       }
@@ -842,10 +844,10 @@ impl DAG {
         let all = allocate_branch(Some(var), BranchTag::All(*uses), parents);
         let mut img_ctx = ctx.clone();
         let dom_parents = (*all.as_ptr()).left_ref;
-        let dom = DAG::from_subterm(depth, &**dom, ctx, Some(dom_parents));
+        let dom = DAG::from_subterm(fix, depth, &**dom, ctx, Some(dom_parents));
         img_ctx.push_front(DAG::Var(var));
         let img_parents = (*all.as_ptr()).right_ref;
-        let img = DAG::from_subterm(depth+1, &**img, img_ctx, Some(img_parents));
+        let img = DAG::from_subterm(fix, depth+1, &**img, img_ctx, Some(img_parents));
         // Update `all` with the correct fields
         (*all.as_ptr()).left = dom;
         (*all.as_ptr()).right = img;
@@ -855,9 +857,9 @@ impl DAG {
       Term::App(_, fun, arg) => unsafe {
         let app = allocate_branch(None, BranchTag::App, parents);
         let fun_parents = (*app.as_ptr()).left_ref;
-        let fun = DAG::from_subterm(depth, &**fun, ctx.clone(), Some(fun_parents));
+        let fun = DAG::from_subterm(fix, depth, &**fun, ctx.clone(), Some(fun_parents));
         let arg_parents = (*app.as_ptr()).right_ref;
-        let arg = DAG::from_subterm(depth, &**arg, ctx, Some(arg_parents));
+        let arg = DAG::from_subterm(fix, depth, &**arg, ctx, Some(arg_parents));
         (*app.as_ptr()).left = fun;
         (*app.as_ptr()).right = arg;
         DAG::Branch(app)
@@ -870,10 +872,10 @@ impl DAG {
         let let_node = allocate_branch(Some(var), BranchTag::Let, parents);
         let mut body_ctx = ctx.clone();
         let expr_parents = (*let_node.as_ptr()).left_ref;
-        let expr = DAG::from_subterm(depth, &**expr, ctx, Some(expr_parents));
+        let expr = DAG::from_subterm(fix, depth, &**expr, ctx, Some(expr_parents));
         body_ctx.push_front(DAG::Var(var));
         let body_parents = (*let_node.as_ptr()).right_ref;
-        let body = DAG::from_subterm(depth+1, &**body, body_ctx, Some(body_parents));
+        let body = DAG::from_subterm(fix, depth+1, &**body, body_ctx, Some(body_parents));
         (*let_node.as_ptr()).left = expr;
         (*let_node.as_ptr()).right = body;
         DAG::Branch(let_node)
@@ -889,12 +891,22 @@ impl DAG {
             *val
           },
           None => {
-            let var = alloc_val(Var {
-              name: name.clone(),
-              depth: depth-1-idx,
-              parents,
-            });
-            DAG::Var(var)
+            if depth == *idx && fix.is_some() {
+              let val = fix.unwrap();
+              if let Some(parents) = parents {
+                DLL::concat(parents, get_parents(val));
+                set_parents(val, Some(parents));
+              }
+              val
+            }
+            else {
+              let var = alloc_val(Var {
+                name: name.clone(),
+                depth: depth-1-idx,
+                parents,
+              });
+              DAG::Var(var)
+            }
           }
         }
       }

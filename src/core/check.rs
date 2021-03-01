@@ -35,7 +35,7 @@ pub fn to_ctx(pre: PreCtx) -> Ctx {
 #[inline]
 pub fn add_ctx(ctx: &mut Ctx, ctx2: Ctx) {
   for i in 0..ctx.len() {
-    ctx[i].1 = Uses::add(ctx[0].1, ctx2[0].1)
+    ctx[i].1 = Uses::add(ctx[i].1, ctx2[i].1)
   }
 }
 
@@ -133,7 +133,7 @@ pub fn check(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, t
               new_var.map(|var| {
                 if get_parents(DAG::Var(var)).is_some() {
                   // Create the term DAG
-                  let term_dag = DAG::from_subterm(pre.len() as u64, &term, Vector::unit(refr), None);
+                  let term_dag = DAG::from_subterm(Some(refr), pre.len() as u64, &term, Vector::new(), None);
                   replace_child(DAG::Var(var), term_dag);
                 }
               });
@@ -190,7 +190,7 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
         let ctx = to_ctx(pre);
         let root = alloc_val(DLL::singleton(ParentCell::Root));
         let var = new_var(nam.clone(), 0);
-        let body = DAG::from_subterm(0, &def.clone().typ_, Vector::unit(DAG::Var(var)), Some(root));
+        let body = DAG::from_subterm(Some(refr), 0, &def.clone().typ_, Vector::unit(DAG::Var(var)), Some(root));
         let typ_ref = alloc_uninit();
         let typ = alloc_val(Single {
           tag: SingleTag::Fix,
@@ -231,7 +231,7 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
               new_var.map(|var| {
                 if get_parents(DAG::Var(var)).is_some() {
                   // Create the argument DAG
-                  let argm_dag = DAG::from_subterm(depth, &argm, Vector::unit(refr), None);
+                  let argm_dag = DAG::from_subterm(Some(refr), depth, &argm, Vector::new(), None);
                   replace_child(DAG::Var(var), argm_dag);
                 }
               });
@@ -264,7 +264,7 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
               let Single { var: new_var, body: new_body, .. } = unsafe { &*new_link.as_ptr() };
               new_var.map(|var| {
                 if get_parents(DAG::Var(var)).is_some() {
-                  let expr_dag = DAG::from_subterm(depth, &expr, Vector::unit(refr), None);
+                  let expr_dag = DAG::from_subterm(Some(refr), depth, &expr, Vector::new(), None);
                   replace_child(DAG::Var(var), expr_dag);
                 }
               });
@@ -284,7 +284,7 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
       let mut typ = DAG::from_term(&Term::Typ(None));
       let _ = check(refr, defs, pre.clone(), Uses::None, dom, &mut typ)?;
       let root = alloc_val(DLL::singleton(ParentCell::Root));
-      let dom_dag = DAG::from_subterm(pre.len() as u64, &dom, Vector::unit(refr), Some(root));
+      let dom_dag = DAG::from_subterm(Some(refr), pre.len() as u64, &dom, Vector::new(), Some(root));
       pre.push((name.to_string(), dom_dag));
       let ctx = check(refr, defs, pre, Uses::None, img, &mut typ)?;
       Ok((ctx, typ))
@@ -292,7 +292,7 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
     Term::Slf(_, name, body) => {
       let mut typ = DAG::from_term(&Term::Typ(None));
       let root = alloc_val(DLL::singleton(ParentCell::Root));
-      let term_dag = DAG::from_subterm(pre.len() as u64, &term, Vector::unit(refr), Some(root));
+      let term_dag = DAG::from_subterm(Some(refr), pre.len() as u64, &term, Vector::new(), Some(root));
       pre.push((name.to_string(), term_dag));
       let ctx = check(refr, defs, pre, Uses::None, body, &mut typ)?;
       Ok((ctx, typ))
@@ -305,7 +305,7 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
     }
     Term::Ann(_, typ, expr) => {
       let root = alloc_val(DLL::singleton(ParentCell::Root));
-      let mut typ_dag = DAG::from_subterm(pre.len() as u64, &typ, Vector::unit(refr), Some(root));
+      let mut typ_dag = DAG::from_subterm(Some(refr), pre.len() as u64, &typ, Vector::new(), Some(root));
       let ctx = check(refr, defs, pre, uses, expr, &mut typ_dag)?;
       Ok((ctx, typ_dag))
     }
@@ -336,6 +336,6 @@ pub fn check_def(defs: &Defs, refs: &Refs, name: &String) -> Result<(), CheckErr
     .ok_or(CheckError::GenericError(String::from("Undefined reference.")))?;
   let refr = DAG::Leaf(new_leaf(LeafTag::Ref(name.clone(), *def_link, *ast_link)));
   let mut typ = DAG::from_term(&def.typ_);
-  let _ = check(refr, &defs, vec![], Uses::Once, &def.term, &mut typ)?;
+  let _ = check(refr, &defs, vec![(name.clone(), typ)], Uses::Once, &def.term, &mut typ)?;
   Ok(())
 }

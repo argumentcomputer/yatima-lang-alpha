@@ -204,7 +204,7 @@ pub fn whnf(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
             if let Some(def) = defs.get(def_link) {
               // Using Fix:
               let new_var = new_var(nam.clone(), 0);
-              let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(DAG::Var(new_var)), None);
+              let new_node = DAG::from_subterm(None, 0, &def.clone().term, Vector::unit(DAG::Var(new_var)), None);
               let fix_ref = alloc_uninit();
               let new_fix = alloc_val(Single {
                 tag: SingleTag::Fix,
