@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use std::error::Error;
 use std::fmt;
 
@@ -7,25 +5,11 @@ use crate::{
   term::{
     Term,
     Defs,
-    Def,
-    Link,
+    Refs,
   },
   core::{
     dll::*,
-    dag::{
-      alloc_val,
-      replace_child,
-      get_parents,
-      free_dead_node,
-      Branch,
-      BranchTag,
-      // Leaf,
-      // LeafTag,
-      ParentCell,
-      Single,
-      SingleTag,
-      DAG,
-    },
+    dag::*,
     eval::{
       whnf,
     },
@@ -34,7 +18,6 @@ use crate::{
 };
 
 use im::{
-  HashMap,
   Vector,
 };
 
@@ -52,7 +35,7 @@ pub fn to_ctx(pre: PreCtx) -> Ctx {
 #[inline]
 pub fn add_ctx(ctx: &mut Ctx, ctx2: Ctx) {
   for i in 0..ctx.len() {
-    ctx[0].1 = Uses::add(ctx[0].1, ctx2[0].1)
+    ctx[i].1 = Uses::add(ctx[0].1, ctx2[0].1)
   }
 }
 
@@ -84,11 +67,11 @@ impl Error for CheckError {
   }
 }
 
-pub fn equal(a: DAG, b: DAG, dep: u64) -> bool {
+pub fn equal(_a: DAG, _b: DAG, _dep: u64) -> bool {
   true
 }
 
-pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DAG) -> Result<Ctx, CheckError> {
+pub fn check(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DAG) -> Result<Ctx, CheckError> {
   match &term {
     Term::Lam(_, name, term_body) => {
       // A potential problem is that `term` might also mutate, which is an unwanted side-effect,
@@ -109,7 +92,7 @@ pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DA
               }
               // Add the domain of the function to the precontext
               pre.push((name.to_string(), *dom));
-              let mut ctx = check(defs, pre, Uses::Once, &**term_body, img)?;
+              let mut ctx = check(refr, defs, pre, Uses::Once, &**term_body, img)?;
               let (_, infer_uses, infer_typ) = ctx
                 .pop()
                 .ok_or(CheckError::GenericError(String::from("Empty context.")))?;
@@ -137,7 +120,7 @@ pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DA
       whnf(defs, typ);
       match typ {
         DAG::Single(link) => {
-          let Single { tag, var, body: slf_body, .. } = unsafe { &*link.as_ptr() };
+          let Single { tag, .. } = unsafe { &*link.as_ptr() };
           match tag {
             SingleTag::Slf => {
               // Copy the self type
@@ -150,7 +133,7 @@ pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DA
               new_var.map(|var| {
                 if get_parents(DAG::Var(var)).is_some() {
                   // Create the term DAG
-                  let term_dag = DAG::from_subterm(pre.len() as u64, &term, Vector::new(), None);
+                  let term_dag = DAG::from_subterm(pre.len() as u64, &term, Vector::unit(refr), None);
                   replace_child(DAG::Var(var), term_dag);
                 }
               });
@@ -159,7 +142,7 @@ pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DA
               free_dead_node(DAG::Single(new_link));
 
               // Check against `new_body` and free it later
-              let ctx = check(defs, pre, uses, dat_body, new_body)?;
+              let ctx = check(refr, defs, pre, uses, dat_body, new_body)?;
               new_body.uproot();
               free_dead_node(*new_body);
               Ok(ctx)
@@ -176,7 +159,7 @@ pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DA
     }
     _ => {
       let depth = pre.len();
-      let (ctx, infer_typ) = infer(defs, pre, uses, term)?;
+      let (ctx, infer_typ) = infer(refr, defs, pre, uses, term)?;
       let eq = equal(*typ, infer_typ, depth as u64);
       infer_typ.uproot();
       free_dead_node(infer_typ);
@@ -190,9 +173,9 @@ pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DA
   }
 }
 
-pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), CheckError> {
+pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -> Result<(Ctx, DAG), CheckError> {
   match term {
-    Term::Var(_, nam, idx) => {
+    Term::Var(_, _, idx) => {
       let level = pre.len() - (*idx as usize) - 1;
       let bind = pre
         .get(level)
@@ -205,8 +188,22 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
     Term::Ref(_, nam, def_link, _) => {
       if let Some(def) = defs.get(def_link) {
         let ctx = to_ctx(pre);
-        let typ = DAG::from_term(&Term::Typ(None));
-        Ok((ctx, typ))
+        let root = alloc_val(DLL::singleton(ParentCell::Root));
+        let var = new_var(nam.clone(), 0);
+        let body = DAG::from_subterm(0, &def.clone().typ_, Vector::unit(DAG::Var(var)), Some(root));
+        let typ_ref = alloc_uninit();
+        let typ = alloc_val(Single {
+          tag: SingleTag::Fix,
+          var: Some(var),
+          body,
+          body_ref: typ_ref,
+          parents: None
+        });
+        unsafe {
+          *typ_ref.as_ptr() = DLL::singleton(ParentCell::Body(typ));
+        }
+        add_to_parents(body, typ_ref);
+        Ok((ctx, DAG::Single(typ)))
       }
       else {
         panic!("Undefined reference: {}, {}", nam, def_link);
@@ -214,14 +211,14 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
     }
     Term::App(_, func, argm) => {
       let depth = pre.len() as u64;
-      let (mut func_ctx, mut func_typ) = infer(defs, pre.clone(), uses, func)?;
+      let (mut func_ctx, mut func_typ) = infer(refr, defs, pre.clone(), uses, func)?;
       whnf(defs, &mut func_typ);
       match func_typ {
         DAG::Branch(mut link) => {
-          let Branch { tag, var, left: dom, right: img, .. } = unsafe { link.as_mut() };
+          let Branch { tag, left: dom, .. } = unsafe { link.as_mut() };
           match tag {
             BranchTag::All(lam_uses) => {
-              let argm_ctx = check(defs, pre, Uses::mul(*lam_uses, uses), argm, dom)?;
+              let argm_ctx = check(refr, defs, pre, Uses::mul(*lam_uses, uses), argm, dom)?;
               add_ctx(&mut func_ctx, argm_ctx);
 
               // Copy the All type (in a efficient implementation, only image is copied)
@@ -234,7 +231,7 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
               new_var.map(|var| {
                 if get_parents(DAG::Var(var)).is_some() {
                   // Create the argument DAG
-                  let argm_dag = DAG::from_subterm(depth, &argm, Vector::new(), None);
+                  let argm_dag = DAG::from_subterm(depth, &argm, Vector::unit(refr), None);
                   replace_child(DAG::Var(var), argm_dag);
                 }
               });
@@ -253,11 +250,11 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
     }
     Term::Cse(_, expr) => {
       let depth = pre.len() as u64;
-      let (expr_ctx, mut expr_typ) = infer(defs, pre, uses, expr)?;
+      let (expr_ctx, mut expr_typ) = infer(refr, defs, pre, uses, expr)?;
       whnf(defs, &mut expr_typ);
       match expr_typ {
         DAG::Single(link) => {
-          let Single { tag, var, body, .. } = unsafe { &*link.as_ptr() };
+          let Single { tag, .. } = unsafe { &*link.as_ptr() };
           match tag {
             SingleTag::Slf => {
               let new_link = match expr_typ.full_copy() {
@@ -267,7 +264,7 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
               let Single { var: new_var, body: new_body, .. } = unsafe { &*new_link.as_ptr() };
               new_var.map(|var| {
                 if get_parents(DAG::Var(var)).is_some() {
-                  let expr_dag = DAG::from_subterm(depth, &expr, Vector::new(), None);
+                  let expr_dag = DAG::from_subterm(depth, &expr, Vector::unit(refr), None);
                   replace_child(DAG::Var(var), expr_dag);
                 }
               });
@@ -283,21 +280,21 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
       }
 
     }
-    Term::All(_, lam_uses, name, dom, img) => {
+    Term::All(_, _, name, dom, img) => {
       let mut typ = DAG::from_term(&Term::Typ(None));
-      let _ = check(defs, pre.clone(), Uses::None, dom, &mut typ)?;
+      let _ = check(refr, defs, pre.clone(), Uses::None, dom, &mut typ)?;
       let root = alloc_val(DLL::singleton(ParentCell::Root));
-      let dom_dag = DAG::from_subterm(pre.len() as u64, &dom, Vector::new(), Some(root));
+      let dom_dag = DAG::from_subterm(pre.len() as u64, &dom, Vector::unit(refr), Some(root));
       pre.push((name.to_string(), dom_dag));
-      let ctx = check(defs, pre, Uses::None, dom, &mut typ)?;
+      let ctx = check(refr, defs, pre, Uses::None, img, &mut typ)?;
       Ok((ctx, typ))
     }
     Term::Slf(_, name, body) => {
       let mut typ = DAG::from_term(&Term::Typ(None));
       let root = alloc_val(DLL::singleton(ParentCell::Root));
-      let term_dag = DAG::from_subterm(pre.len() as u64, &term, Vector::new(), Some(root));
+      let term_dag = DAG::from_subterm(pre.len() as u64, &term, Vector::unit(refr), Some(root));
       pre.push((name.to_string(), term_dag));
-      let ctx = check(defs, pre, Uses::None, body, &mut typ)?;
+      let ctx = check(refr, defs, pre, Uses::None, body, &mut typ)?;
       Ok((ctx, typ))
     }
     Term::Let(_, _, _, _, _, _, _) => {
@@ -308,8 +305,8 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
     }
     Term::Ann(_, typ, expr) => {
       let root = alloc_val(DLL::singleton(ParentCell::Root));
-      let mut typ_dag = DAG::from_subterm(pre.len() as u64, &expr, Vector::new(), Some(root));
-      let ctx = check(defs, pre, uses, expr, &mut typ_dag)?;
+      let mut typ_dag = DAG::from_subterm(pre.len() as u64, &typ, Vector::unit(refr), Some(root));
+      let ctx = check(refr, defs, pre, uses, expr, &mut typ_dag)?;
       Ok((ctx, typ_dag))
     }
     Term::Lit(_, _) => {
@@ -330,6 +327,15 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
   }
 }
 
-// pub fn check_def(defs: &HashMap<Link, Def>, ) -> Result<(), CheckError> {
-  
-// }
+pub fn check_def(defs: &Defs, refs: &Refs, name: &String) -> Result<(), CheckError> {
+  let (def_link, ast_link) = refs
+    .get(name)
+    .ok_or(CheckError::GenericError(String::from("Undefined reference.")))?;
+  let def = defs
+    .get(def_link)
+    .ok_or(CheckError::GenericError(String::from("Undefined reference.")))?;
+  let refr = DAG::Leaf(new_leaf(LeafTag::Ref(name.clone(), *def_link, *ast_link)));
+  let mut typ = DAG::from_term(&def.typ_);
+  let _ = check(refr, &defs, vec![], Uses::Once, &def.term, &mut typ)?;
+  Ok(())
+}
