@@ -20,7 +20,6 @@ use crate::{
     Link,
     Refs,
   },
-  unembed_error::UnembedError,
 };
 
 use std::{
@@ -30,10 +29,10 @@ use std::{
 };
 
 use hashexpr::{
+  atom,
+  atom::Atom::*,
   position::Pos,
   span::Span,
-  AVal,
-  AVal::*,
   Expr,
 };
 
@@ -45,10 +44,7 @@ use im::{
 use nom::{
   branch::alt,
   bytes::complete::tag,
-  character::complete::{
-    multispace0,
-    multispace1,
-  },
+  character::complete::multispace1,
   combinator::{
     eof,
     opt,

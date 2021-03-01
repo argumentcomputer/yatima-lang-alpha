@@ -13,7 +13,7 @@ use crate::decode_error::{
   Expected,
 };
 use hashexpr::{
-  AVal::*,
+  atom::Atom::*,
   Expr,
   Expr::Atom,
 };
@@ -128,12 +128,12 @@ impl PrimOp {
     }
   }
 
-  pub fn encode(self) -> Expr { Atom(None, Symbol(self.symbol())) }
+  pub fn encode(self) -> Expr { Atom(None, Text(self.symbol())) }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     let err = |pos| DecodeError::new(pos, vec![Expected::PrimOp]);
     match x {
-      Atom(pos, Symbol(n)) => Self::from_symbol(n).ok_or(err(pos)),
+      Atom(pos, Text(n)) => Self::from_symbol(n).ok_or(err(pos)),
       x => Err(err(x.position())),
     }
   }
@@ -184,7 +184,6 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (Eql, BitString(x), BitString(y)) => Some(ite(x == y)),
     (Eql, Text(x), Text(y)) => Some(ite(x == y)),
     (Eql, Char(x), Char(y)) => Some(ite(x == y)),
-    (Eql, Exception(x), Exception(y)) => Some(ite(x == y)),
     // Lth
     (Lth, Natural(x), Natural(y)) => Some(ite(x < y)),
     (Lth, Integer(x), Integer(y)) => Some(ite(x < y)),

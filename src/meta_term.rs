@@ -1,7 +1,7 @@
 use hashexpr::{
+  atom,
+  atom::Atom::*,
   position::Pos,
-  AVal,
-  AVal::*,
   Expr,
   Expr::{
     Atom,
@@ -35,9 +35,9 @@ impl MetaTerm {
         }
         Expr::Cons(*pos, ys)
       }
-      Self::Bind(n, x) => cons!(None, symb!(n.clone()), x.encode()),
+      Self::Bind(n, x) => cons!(None, text!(n.clone()), x.encode()),
       Self::Link(n, l) => {
-        cons!(None, symb!(n.clone()), link!(*l))
+        cons!(None, text!(n.clone()), link!(*l))
       }
       Self::Leaf => bits!(vec![]),
     }
@@ -46,10 +46,10 @@ impl MetaTerm {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(name)), Atom(_, Link(l))] => {
+        [Atom(_, Text(name)), Atom(_, Link(l))] => {
           Ok(Self::Link(name.to_owned(), *l))
         }
-        [Atom(_, Symbol(name)), bound] => {
+        [Atom(_, Text(name)), bound] => {
           let bound = MetaTerm::decode(bound.to_owned())?;
           Ok(Self::Bind(name.to_owned(), Box::new(bound)))
         }

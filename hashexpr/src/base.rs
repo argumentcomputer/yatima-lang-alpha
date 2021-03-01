@@ -1,14 +1,17 @@
-use crate::span::Span;
+use crate::{
+  error::{
+    ParseError,
+    ParseErrorKind,
+  },
+  span::Span,
+};
 use core::fmt;
 use nom::{
   self,
   branch::alt,
   bytes::complete::tag,
   combinator::value,
-  error::ErrorKind,
-  AsBytes,
   IResult,
-  InputLength,
   InputTakeAtPosition,
 };
 
@@ -37,49 +40,6 @@ impl fmt::Display for Base {
       Self::_32 => write!(f, "#base32"),
       Self::_58 => write!(f, "#base58"),
       Self::_64 => write!(f, "#base64"),
-    }
-  }
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub enum ParseError<I: AsBytes> {
-  InvalidEncoding(I, Base),
-  NomErr(I, ErrorKind),
-}
-
-impl<I: AsBytes> ParseError<I> {
-  pub fn rest(self) -> I {
-    match self {
-      Self::InvalidEncoding(i, _) => i,
-      Self::NomErr(i, _) => i,
-    }
-  }
-}
-
-impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
-where
-  I: InputLength,
-  I: Clone,
-{
-  fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-    ParseError::NomErr(input, kind)
-  }
-
-  fn append(i: I, k: ErrorKind, other: Self) -> Self {
-    if i.clone().input_len() < other.clone().rest().input_len() {
-      ParseError::NomErr(i, k)
-    }
-    else {
-      other
-    }
-  }
-
-  fn or(self, other: Self) -> Self {
-    if self.clone().rest().input_len() < other.clone().rest().input_len() {
-      self
-    }
-    else {
-      other
     }
   }
 }
@@ -139,9 +99,10 @@ impl Base {
     let (i, o) = input.split_at_position_complete(|x| !self.is_digit(x))?;
     match base_x::decode(self.base_digits(), o.fragment()) {
       Ok(bytes) => Ok((i, bytes)),
-      Err(_) => {
-        Err(nom::Err::Error(ParseError::InvalidEncoding(i, self.clone())))
-      }
+      Err(_) => Err(nom::Err::Error(ParseError::new(
+        i,
+        ParseErrorKind::InvalidBaseEncoding(self.clone()),
+      ))),
     }
   }
 }

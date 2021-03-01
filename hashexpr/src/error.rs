@@ -88,7 +88,7 @@ pub enum ParseErrorKind {
   InvalidBase16EscapeSequence(String),
   DeserialErr(DeserialError<ByteVec>),
   ParseIntErr(ParseIntError),
-  LengthTooSmall(Vec<u8>, u64),
+  // LengthTooSmall(Vec<u8>, u64),
   Nom(ErrorKind),
 }
 
@@ -138,19 +138,19 @@ where
   }
 }
 
-impl<I: Clone + AsBytes> From<base::ParseError<I>> for ParseError<I> {
-  fn from(x: base::ParseError<I>) -> Self {
-    match x {
-      base::ParseError::InvalidEncoding(i, b) => ParseError {
-        input: i,
-        context: vec![ParseErrorKind::InvalidBaseEncoding(b)],
-      },
-      base::ParseError::NomErr(i, e) => {
-        ParseError { input: i, context: vec![ParseErrorKind::Nom(e)] }
-      }
-    }
-  }
-}
+// impl<I: Clone + AsBytes> From<base::ParseError<I>> for ParseError<I> {
+//  fn from(x: base::ParseError<I>) -> Self {
+//    match x {
+//      base::ParseError::InvalidEncoding(i, b) => ParseError {
+//        input: i,
+//        context: vec![ParseErrorKind::InvalidBaseEncoding(b)],
+//      },
+//      base::ParseError::NomErr(i, e) => {
+//        ParseError { input: i, context: vec![ParseErrorKind::Nom(e)] }
+//      }
+//    }
+//  }
+//}
 
 impl<'a, I: Clone + AsBytes> FromExternalError<I, ParseIntError>
   for ParseError<I>

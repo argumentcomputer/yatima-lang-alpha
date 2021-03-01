@@ -4,10 +4,7 @@ use crate::{
 };
 use im::Vector;
 use nom::{
-  error::{
-    ErrorKind,
-    VerboseErrorKind,
-  },
+  error::ErrorKind,
   AsBytes,
   Err,
   InputLength,
@@ -39,12 +36,13 @@ pub enum ParseErrorKind<I: AsBytes> {
 #[derive(PartialEq, Debug, Clone)]
 pub struct ParseError<I: AsBytes> {
   pub input: I,
-  pub context: Vec<ParseErrorKind<I>>,
+  pub expected: Vec<&'static str>,
+  pub errors: Vec<ParseErrorKind<I>>,
 }
 
 impl<I: AsBytes> ParseError<I> {
   pub fn new(input: I, error: ParseErrorKind<I>) -> Self {
-    ParseError { input, context: vec![error] }
+    ParseError { input, expected: vec![], errors: vec![error] }
   }
 }
 
@@ -61,7 +59,7 @@ where
     match input.input_len().cmp(&other.input.input_len()) {
       Ordering::Less => ParseError::new(input, ParseErrorKind::Nom(kind)),
       Ordering::Equal => {
-        other.context.push(ParseErrorKind::Nom(kind));
+        other.errors.push(ParseErrorKind::Nom(kind));
         other
       }
       Ordering::Greater => other,
@@ -72,8 +70,11 @@ where
     match self.input.input_len().cmp(&other.input.input_len()) {
       Ordering::Less => self,
       Ordering::Equal => {
-        for x in self.context {
-          other.context.push(x);
+        for x in self.errors {
+          other.errors.push(x);
+        }
+        for x in self.expected {
+          other.expected.push(x);
         }
         other
       }
@@ -88,8 +89,16 @@ where
   I: Clone,
 {
   fn add_context(input: I, ctx: &'static str, mut other: Self) -> Self {
-    other.context.push(ParseErrorKind::Context(ctx));
-    other
+    match input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => {
+        ParseError { input, expected: vec![ctx], errors: vec![] }
+      }
+      Ordering::Equal => {
+        other.expected.push(ctx);
+        other
+      }
+      Ordering::Greater => other,
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 use hashexpr::{
-  AVal,
-  AVal::*,
+  atom,
+  atom::Atom::*,
   Expr,
   Expr::{
     Atom,
@@ -30,7 +30,7 @@ impl AnonTerm {
     match self {
       Self::Ctor(ctor, xs) => {
         let mut ys = Vec::new();
-        ys.push(symb!(ctor));
+        ys.push(text!(ctor));
         for x in xs {
           ys.push(x.encode());
         }
@@ -46,7 +46,7 @@ impl AnonTerm {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(ctor)), tail @ ..] => {
+        [Atom(_, Text(ctor)), tail @ ..] => {
           let mut xs = Vec::new();
           for y in tail {
             let x = AnonTerm::decode(y.to_owned())?;
