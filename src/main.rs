@@ -25,6 +25,10 @@ enum Cli {
     #[structopt(parse(from_os_str))]
     input: PathBuf,
   },
+  Check {
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+  },
   Run {
     #[structopt(parse(from_os_str))]
     input: PathBuf,
@@ -40,6 +44,10 @@ fn main() {
       let env = parse::package::PackageEnv::new(input);
       let (_, p, ..) = parse::package::parse_file(env);
       println!("Package parsed:\n{}", p);
+    }
+    Cli::Check { input: _ } => {
+      // let env = parse::package::PackageEnv::new(input.clone());
+      // let (_, p, defs, refs) = parse::package::parse_file(env);
     }
     Cli::Run { input } => {
       let env = parse::package::PackageEnv::new(input.clone());

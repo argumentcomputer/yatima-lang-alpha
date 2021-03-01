@@ -48,7 +48,7 @@ type Parents = DLL<ParentCell>;
 
 // A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
 // the child and the parent.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ParentCell {
   Root,
   Body(NonNull<Single>),
@@ -87,12 +87,13 @@ pub struct Single {
   pub parents: Option<NonNull<Parents>>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SingleTag {
   Lam,
   Slf,
   Cse,
   Dat,
+  Fix,
 }
 
 pub struct Branch {
@@ -501,7 +502,7 @@ impl fmt::Debug for DAG {
           let Single { var, parents, body, .. } = *link.as_ptr();
           let name = match var {
             Some(var_link) => (*var_link.as_ptr()).name.clone(),
-            _ => panic!("TODO"),
+            _ => String::from(""),
           };
           if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);
@@ -532,7 +533,7 @@ impl fmt::Debug for DAG {
             format!("\nSHARE<{}>", link.as_ptr() as u64)
           }
         },
-        _ => panic!("TODO"),
+        _ => format!("\nOTHER"),
       }
     }
     write!(f, "{}", go(*self, &mut HashSet::new()))
@@ -661,9 +662,13 @@ impl DAG {
           }
         }
         DAG::Var(link) => {
-          let Var { name, .. } = unsafe { &*link.as_ptr() };
-          let level = map.get(&link.as_ptr()).unwrap();
-          Term::Var(None, name.to_owned(), depth - level - 1)
+          let Var { name, depth: var_depth, .. } = unsafe { &*link.as_ptr() };
+          if let Some(level) = map.get(&link.as_ptr()){
+            Term::Var(None, name.to_owned(), depth - level - 1)
+          }
+          else {
+            Term::Var(None, name.to_owned(), *var_depth)
+          }
         }
 
         DAG::Single(link) => {
@@ -682,6 +687,7 @@ impl DAG {
                   let body = go(body, &mut map, depth + 1);
                   Term::Slf(None, name.clone(), Box::new(body))
                 }
+                SingleTag::Fix => panic!("Fix TODO"),
                 _ => panic!("Malformed DAG."),
               }
             }
@@ -723,7 +729,7 @@ impl DAG {
                 let arg = go(right, &mut map, depth);
                 Term::App(None, Box::new(fun), Box::new(arg))
               }
-              BranchTag::Let => panic!("TODO"),
+              BranchTag::Let => panic!("Let TODO"),
               _ => panic!("Malformed DAG."),
             },
           }
@@ -913,6 +919,16 @@ impl DAG {
         parents,
       })),
       _ => panic!("TODO: implement Term::to_dag variants"),
+    }
+  }
+
+  // Check whether a term is a root node
+  pub fn is_root(self) -> bool {
+    match get_parents(self){
+      None => false,
+      Some(pref) => unsafe {
+        (*pref.as_ptr()).elem == ParentCell::Root
+      },
     }
   }
 

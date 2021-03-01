@@ -6,6 +6,7 @@ use std::fmt;
 use crate::{
   term::{
     Term,
+    Defs,
     Def,
     Link,
   },
@@ -87,7 +88,7 @@ pub fn equal(a: DAG, b: DAG, dep: u64) -> bool {
   true
 }
 
-pub fn check(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DAG) -> Result<Ctx, CheckError> {
+pub fn check(defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, typ: &mut DAG) -> Result<Ctx, CheckError> {
   match &term {
     Term::Lam(_, name, term_body) => {
       // A potential problem is that `term` might also mutate, which is an unwanted side-effect,
@@ -109,10 +110,15 @@ pub fn check(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
               // Add the domain of the function to the precontext
               pre.push((name.to_string(), *dom));
               let mut ctx = check(defs, pre, Uses::Once, &**term_body, img)?;
-              let (_, inf_uses, _) = ctx
+              let (_, infer_uses, infer_typ) = ctx
                 .pop()
                 .ok_or(CheckError::GenericError(String::from("Empty context.")))?;
-              if Uses::gth(inf_uses, *lam_uses) {
+              // Discard the popped type if it is not connected to another DAG
+              if infer_typ.is_root() {
+                infer_typ.uproot();
+                free_dead_node(infer_typ);
+              }
+              if Uses::gth(infer_uses, *lam_uses) {
                 Err(CheckError::GenericError(String::from("Quantity mismatch.")))
               }
               else {
@@ -171,7 +177,10 @@ pub fn check(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
     _ => {
       let depth = pre.len();
       let (ctx, infer_typ) = infer(defs, pre, uses, term)?;
-      if equal(*typ, infer_typ, depth as u64) {
+      let eq = equal(*typ, infer_typ, depth as u64);
+      infer_typ.uproot();
+      free_dead_node(infer_typ);
+      if eq {
         Ok(ctx)
       }
       else {
@@ -191,10 +200,17 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
       let typ = bind.1;
       let mut ctx = to_ctx(pre);
       ctx[*idx as usize].1 = uses;
-      Ok((ctx, typ))
+      Ok((ctx, typ.full_copy()))
     }
-    Term::Ref(_, _, _, _) => {
-      panic!("TODO")
+    Term::Ref(_, nam, def_link, _) => {
+      if let Some(def) = defs.get(def_link) {
+        let ctx = to_ctx(pre);
+        let typ = DAG::from_term(&Term::Typ(None));
+        Ok((ctx, typ))
+      }
+      else {
+        panic!("Undefined reference: {}, {}", nam, def_link);
+      }
     }
     Term::App(_, func, argm) => {
       let depth = pre.len() as u64;
@@ -313,3 +329,7 @@ pub fn infer(defs: &HashMap<Link, Def>, mut pre: PreCtx, uses: Uses, term: &Term
     }
   }
 }
+
+// pub fn check_def(defs: &HashMap<Link, Def>, ) -> Result<(), CheckError> {
+  
+// }

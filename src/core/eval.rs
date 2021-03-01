@@ -2,23 +2,7 @@ use core::ptr::NonNull;
 
 use crate::{
   core::{
-    dag::{
-      clear_copies,
-      free_dead_node,
-      new_branch,
-      new_leaf,
-      new_single,
-      replace_child,
-      upcopy,
-      Var,
-      Branch,
-      BranchTag,
-      Leaf,
-      LeafTag,
-      Single,
-      SingleTag,
-      DAG,
-    },
+    dag::*,
     dll::*,
     primop::{
       apply_bin_op,
@@ -26,7 +10,7 @@ use crate::{
     },
   },
   term::{
-    Term,
+    // Term,
     Def,
     Link,
   },
@@ -120,7 +104,7 @@ pub fn whnf(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
         }
       },
       DAG::Single(link) => unsafe {
-        let Single { tag, mut body, .. } = *link.as_ptr();
+        let Single { tag, mut body, var, .. } = *link.as_ptr();
         match tag {
           SingleTag::Lam => {
             if let Some(app_link) = trail.pop() {
@@ -147,20 +131,102 @@ pub fn whnf(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
               _ => break,
             }
           },
+          SingleTag::Fix => {
+            match var {
+              None => panic!("Malformed Fix"),
+              Some(var) => {
+                let Var { parents: var_parents, depth: var_depth, .. } = *var.as_ptr();
+                let var_name = &(*var.as_ptr()).name;
+                replace_child(node, body);
+                if !var_parents.is_none() {
+                  let new_var = new_var(var_name.clone(), var_depth);
+                  let mut input = body;
+                  let mut top_branch = None;
+                  let mut result = DAG::Var(new_var);
+                  let mut spine = vec![];
+                  loop {
+                    match input {
+                      DAG::Single(single) => {
+                        let Single { var, body, .. } = *single.as_ptr();
+                        let tag = &(*single.as_ptr()).tag;
+                        input = body;
+                        spine.push((var, tag));
+                      }
+                      DAG::Branch(branch) => {
+                        let Branch { left, right, .. } = *branch.as_ptr();
+                        let new_branch = new_branch(branch, left, right);
+                        top_branch = Some(branch);
+                        for parent in DLL::iter_option(var_parents) {
+                          upcopy(DAG::Var(new_var), *parent);
+                        }
+                        result = DAG::Branch(new_branch);
+                        break;
+                      }
+                      // Otherwise it must be `var`, since `var` necessarily appears inside
+                      // `body`
+                      _ => break,
+                    }
+                  }
+                  if top_branch.is_none() && spine.is_empty() {
+                    panic!("Infinite loop found");
+                  }
+                  while let Some((var, tag)) = spine.pop() {
+                    result = DAG::Single(new_single(var, result, tag.clone()));
+                  }
+                  top_branch
+                    .map_or((), |mut app| clear_copies(link.as_ref(), app.as_mut()));
+
+                  // Create a new fix node with the result of the copy
+                  let fix_ref = alloc_uninit();
+                  let new_fix = alloc_val(Single {
+                    tag: SingleTag::Fix,
+                    var: Some(new_var),
+                    body: result,
+                    body_ref: fix_ref,
+                    parents: None
+                  });
+                  *fix_ref.as_ptr() = DLL::singleton(ParentCell::Body(new_fix));
+                  add_to_parents(result, fix_ref);
+                  replace_child(DAG::Var(var), DAG::Single(new_fix));
+                }
+                free_dead_node(node);
+                node = body;
+              },
+            };
+          }
           _ => break,
         }
       },
       DAG::Leaf(link) => unsafe {
         let Leaf { tag, .. } = link.as_ref();
         match tag {
-          LeafTag::Ref(nam, def_link, typ_link) => {
+          LeafTag::Ref(nam, def_link, _anon_link) => {
             if let Some(def) = defs.get(def_link) {
-              let new_ref = &Term::Ref(None, nam.clone(), *def_link, *typ_link);
-              let new_ref = DAG::from_subterm(0, new_ref, Vector::new(), None);
-              let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(new_ref), None);
-              replace_child(node, new_node);
+              // Using Fix:
+              let new_var = new_var(nam.clone(), 0);
+              let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(DAG::Var(new_var)), None);
+              let fix_ref = alloc_uninit();
+              let new_fix = alloc_val(Single {
+                tag: SingleTag::Fix,
+                var: Some(new_var),
+                body: new_node,
+                body_ref: fix_ref,
+                parents: None
+              });
+              *fix_ref.as_ptr() = DLL::singleton(ParentCell::Body(new_fix));
+              add_to_parents(new_node, fix_ref);
+              replace_child(node, DAG::Single(new_fix));
               free_dead_node(node);
-              node = new_node;
+              node = DAG::Single(new_fix);
+              
+              // Without using Fix:
+              // let new_ref = &Term::Ref(None, nam.clone(), *def_link, *anon_link);
+              // let new_ref = DAG::from_subterm(0, new_ref, Vector::new(), None);
+              // let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(new_ref), None);
+              // replace_child(node, new_node);
+              // free_dead_node(node);
+              // node = new_node;
+
             }
             else {
               panic!("undefined runtime reference: {}, {}", nam, def_link);
