@@ -139,9 +139,10 @@ pub fn equal(defs:&Defs, a: DAG, b: DAG, dep: u64) -> bool {
   while let Some ((mut a, mut b, dep)) = triples.pop() {
     whnf(defs, &mut a);
     whnf(defs, &mut b);
-    let hash_ab = stringify(a, dep, dep)
-      .push_str(&stringify(b, dep, dep));
-    let eq = set.contains(&hash_ab);
+    let hash_a = stringify(a, dep, dep);
+    let hash_b = stringify(b, dep, dep);
+    let hash_ab = format!("{}{}", hash_a, hash_b);
+    let eq = hash_a == hash_b || set.contains(&hash_ab);
     set.insert(hash_ab);
     if !eq {
       match (a, b) {
