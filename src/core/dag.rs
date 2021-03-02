@@ -107,7 +107,7 @@ pub struct Branch {
   pub parents: Option<NonNull<Parents>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BranchTag {
   App,
   Let,
@@ -805,7 +805,7 @@ impl DAG {
     }
     match tree {
       Term::Lam(_, name, body) => unsafe {
-        let var = new_var(name.clone(), 0);
+        let var = new_var(name.clone(), depth);
         let lam = allocate_single(Some(var), SingleTag::Lam, parents);
         let body_parents = (*lam.as_ptr()).body_ref;
         ctx.push_front(DAG::Var(var));
@@ -816,7 +816,7 @@ impl DAG {
       }
 
       Term::Slf(_, name, body) => unsafe {
-        let var = new_var(name.clone(), 0);
+        let var = new_var(name.clone(), depth);
         let slf = allocate_single(Some(var), SingleTag::Slf, parents);
         let body_parents = (*slf.as_ptr()).body_ref;
         ctx.push_front(DAG::Var(var));
@@ -840,7 +840,7 @@ impl DAG {
       }
 
       Term::All(_, uses, name, dom, img) => unsafe {
-        let var = new_var(name.clone(), 0);
+        let var = new_var(name.clone(), depth);
         let all = allocate_branch(Some(var), BranchTag::All(*uses), parents);
         let mut img_ctx = ctx.clone();
         let dom_parents = (*all.as_ptr()).left_ref;
@@ -868,7 +868,7 @@ impl DAG {
         if *rec {
           panic!("TODO: Add letrec")
         }
-        let var = new_var(name.clone(), 0);
+        let var = new_var(name.clone(), depth);
         let let_node = allocate_branch(Some(var), BranchTag::Let, parents);
         let mut body_ctx = ctx.clone();
         let expr_parents = (*let_node.as_ptr()).left_ref;
@@ -902,6 +902,7 @@ impl DAG {
             else {
               let var = alloc_val(Var {
                 name: name.clone(),
+                // de Bruijn levels
                 depth: depth-1-idx,
                 parents,
               });

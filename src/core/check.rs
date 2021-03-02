@@ -20,6 +20,8 @@ use crate::{
 use im::{
   Vector,
 };
+use core::ptr::NonNull;
+use std::collections::HashSet;
 
 type PreCtx = Vec<(String, DAG)>;
 type Ctx    = Vec<(String, Uses, DAG)>;
@@ -67,7 +69,105 @@ impl Error for CheckError {
   }
 }
 
-pub fn equal(_a: DAG, _b: DAG, _dep: u64) -> bool {
+
+// TODO: quickly return the values of nodes that were previously computed
+pub fn stringify(a: DAG, ini: u64, dep: u64) -> String {
+  #[inline]
+  fn update_index(var: Option<NonNull<Var>>, dep: u64) {
+    match var {
+      Some(link) => unsafe {
+        (*link.as_ptr()).depth = dep;
+      },
+      _ => (),
+    }
+  }
+  match a {
+    DAG::Var(link) => unsafe {
+      let Var { depth, .. } = *link.as_ptr();
+      if depth < ini {
+        format!("#{}", depth)
+      }
+      else {
+        format!("^{}", dep-1-depth)
+      }
+    },
+    DAG::Leaf(link) => unsafe {
+      let Leaf { tag, .. } = &*link.as_ptr();
+      match tag {
+        LeafTag::Typ => String::from("*"),
+        LeafTag::Ref(name, _, _) => format!("<{}>", name),
+        _ => panic!("TODO: complete stringify"),
+      }
+    },
+    DAG::Single(link) => unsafe {
+      let Single { tag, body, var, .. } = *link.as_ptr();
+      update_index(var, dep);
+      let prefix = match tag {
+        SingleTag::Lam => "λ",
+        SingleTag::Slf => "$",
+        SingleTag::Cse => "C",
+        SingleTag::Dat => "D",
+        SingleTag::Fix => "μ",
+      };
+      let dep = if var.is_some() { dep+1 } else { dep };
+      format!("{}{}", prefix, stringify(body, ini, dep))
+    },
+    DAG::Branch(link) => unsafe {
+      let Branch { tag, left, right, var, .. } = *link.as_ptr();
+      update_index(var, dep);
+      let prefix = match tag {
+        BranchTag::App => "@",
+        BranchTag::All(uses) => {
+          match uses {
+            Uses::None => "∀0",
+            Uses::Once => "∀1",
+            Uses::Affi => "∀&",
+            Uses::Many => "∀ω",
+          }
+        },
+        BranchTag::Let => "L",
+      };
+      let right_dep = if var.is_some() { dep+1 } else { dep };
+      format!("{}{}{}", prefix, stringify(left, ini, dep), stringify(right, ini, right_dep))
+    },
+  }
+}
+
+pub fn equal(defs:&Defs, a: DAG, b: DAG, dep: u64) -> bool {
+  let mut triples = vec![(a, b, dep)];
+  let mut set = HashSet::new();
+  while let Some ((mut a, mut b, dep)) = triples.pop() {
+    whnf(defs, &mut a);
+    whnf(defs, &mut b);
+    let hash_ab = stringify(a, dep, dep)
+      .push_str(&stringify(b, dep, dep));
+    let eq = set.contains(&hash_ab);
+    set.insert(hash_ab);
+    if !eq {
+      match (a, b) {
+        (DAG::Single(a_link),DAG::Single(b_link)) => unsafe {
+          let Single { tag: a_tag, body: a_body, var, .. } = *a_link.as_ptr();
+          let Single { tag: b_tag, body: b_body, .. } = *b_link.as_ptr();
+          if a_tag != b_tag {
+            return false
+          }
+          let dep = if var.is_some() { dep+1 } else { dep };
+          triples.push((a_body, b_body, dep));
+        },
+        (DAG::Branch(a_link),DAG::Branch(b_link)) => unsafe {
+          let Branch { tag: a_tag, left: a_left, right: a_right, var, .. } = *a_link.as_ptr();
+          let Branch { tag: b_tag, left: b_left, right: b_right, .. } = *b_link.as_ptr();
+          if a_tag != b_tag {
+            return false
+          }
+          let right_dep = if var.is_some() { dep+1 } else { dep };
+          triples.push((a_left, b_left, dep));
+          triples.push((a_right, b_right, right_dep));
+        },
+        _ => return false,
+      }
+    }
+  }
   true
 }
 
@@ -160,7 +260,7 @@ pub fn check(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term, t
     _ => {
       let depth = pre.len();
       let (ctx, infer_typ) = infer(refr, defs, pre, uses, term)?;
-      let eq = equal(*typ, infer_typ, depth as u64);
+      let eq = equal(defs, *typ, infer_typ, depth as u64);
       infer_typ.uproot();
       free_dead_node(infer_typ);
       if eq {
@@ -328,6 +428,11 @@ pub fn infer(refr: DAG, defs: &Defs, mut pre: PreCtx, uses: Uses, term: &Term) -
 }
 
 pub fn check_def(defs: &Defs, refs: &Refs, name: &String) -> Result<(), CheckError> {
+  #[inline]
+  fn free(a: DAG) {
+    a.uproot();
+    free_dead_node(a);
+  }
   let (def_link, ast_link) = refs
     .get(name)
     .ok_or(CheckError::GenericError(String::from("Undefined reference.")))?;
@@ -336,6 +441,12 @@ pub fn check_def(defs: &Defs, refs: &Refs, name: &String) -> Result<(), CheckErr
     .ok_or(CheckError::GenericError(String::from("Undefined reference.")))?;
   let refr = DAG::Leaf(new_leaf(LeafTag::Ref(name.clone(), *def_link, *ast_link)));
   let mut typ = DAG::from_term(&def.typ_);
-  let _ = check(refr, &defs, vec![(name.clone(), typ)], Uses::Once, &def.term, &mut typ)?;
+  let ctx = check(refr, &defs, vec![(name.clone(), typ)], Uses::Once, &def.term, &mut typ)?;
+  for (_, _, dag) in ctx {
+    if dag.is_root(){
+      free(dag);
+    }
+  }
+  free(typ);
   Ok(())
 }
