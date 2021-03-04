@@ -900,7 +900,7 @@ pub mod tests {
       let n = arbitrary_name(g);
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      Slf(None, n, Box::new(arbitrary_term(g, refs.clone(), ctx2)))
+      Slf(None, n, Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
     })
   }
 
@@ -959,12 +959,12 @@ pub mod tests {
   }
 
   fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| match ctx.iter().choose(g) {
-      Some(n) => {
-        let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
-        Var(None, n.clone(), i as u64)
-      }
-      None => Term::Typ(None),
+    let mut rng = rand::thread_rng();
+    let gen = rng.gen_range(0, ctx.len());
+    Box::new(move |g: &mut Gen| {
+      let n = &ctx[gen];
+      let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
+      Var(None, n.clone(), i as u64)
     })
   }
 
@@ -973,7 +973,11 @@ pub mod tests {
     ctx: Vector<String>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
-      match refs.iter().filter(|(n, _)| !ctx.contains(n)).choose(g) {
+      let mut rng = rand::thread_rng();
+      let mut ref_iter = refs.iter().filter(|(n, _)| !ctx.contains(n));
+      let len = refs.iter().filter(|(n, _)| !ctx.contains(n)).count();
+      let gen = rng.gen_range(0, len);
+      match ref_iter.nth(gen) {
         Some((n, (d, a))) => Ref(None, n.clone(), *d, *a),
         None => Term::Typ(None),
       }
@@ -1029,7 +1033,9 @@ pub mod tests {
       panic!("Negative weight");
     }
     let sum: i64 = gens.iter().map(|x| x.0).sum();
-    let mut weight: i64 = g.gen_range(1, sum);
+    let mut rng = rand::thread_rng();
+    let mut weight: i64 = rng.gen_range(1, sum);
+    //let mut weight: i64 = g.rng.gen_range(1, sum);
     for gen in gens {
       if weight - gen.0 <= 0 {
         return gen.1(g);

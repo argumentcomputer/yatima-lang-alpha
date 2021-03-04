@@ -83,7 +83,9 @@ pub mod tests {
 
   impl Arbitrary for Uses {
     fn arbitrary(g: &mut Gen) -> Self {
-      let x: u32 = g.gen_range(0, 3);
+      let mut rng = rand::thread_rng();
+      let x: u32 = rng.gen_range(0, 3);
+      //let x: u32 = g.gen_range(0, 3);
       match x {
         0 => Uses::None,
         1 => Uses::Affi,

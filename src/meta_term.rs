@@ -87,10 +87,14 @@ pub mod tests {
 
   impl Arbitrary for MetaTerm {
     fn arbitrary(g: &mut Gen) -> Self {
-      let x: u32 = g.gen_range(0, 45);
+      let mut rng = rand::thread_rng();
+      let x: u32 = rng.gen_range(0, 45);
+      //let x: u32 = g.gen_range(0, 45);
       match x {
         0 => {
-          let n: u32 = g.gen_range(0, 10);
+          let mut rng = rand::thread_rng();
+          let n: u32 = rng.gen_range(0, 10);
+          //let n: u32 = g.gen_range(0, 10);
           let mut xs = Vec::new();
           for _ in 0..n {
             xs.push(Arbitrary::arbitrary(g))
