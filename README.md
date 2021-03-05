@@ -125,8 +125,6 @@ yatima repl
 
 ## Motivation
 
-## Motivation
-
 We're still in the early days of the Computing Revolution. The first
 general-purpose digital computers were only switched on about 75 years ago.
 The living memory of your parents and grandparents extends into the past
