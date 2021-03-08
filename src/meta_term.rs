@@ -15,6 +15,8 @@ use crate::decode_error::{
   Expected,
 };
 
+use std::fmt;
+
 /// The computationally irrelevant naming metadata of a term in a lambda-like
 /// language
 #[derive(Debug, Clone, PartialEq)]
@@ -68,11 +70,34 @@ impl MetaTerm {
   }
 }
 
+impl fmt::Display for MetaTerm {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use MetaTerm::*;
+    match self {
+      Leaf => write!(f, "leaf"),
+      Link(n, l) => write!(f, "(link \"{}\" {})", n, l),
+      Bind(n, x) => write!(f, "(bind \"{}\" ({}))", n, x),
+      Ctor(p, xs) => {
+        let mut res = String::new();
+        for x in xs {
+          res.push_str(" ");
+          res.push_str(&format!("{}", x));
+        }
+        match p {
+          Some(p) => write!(f, "(ctor ({}){})", p, res),
+          None => write!(f, "(ctor (){})", res),
+        }
+      }
+    }
+  }
+}
+
 #[cfg(test)]
 pub mod tests {
   use super::{
     MetaTerm,
     MetaTerm::*,
+    Pos,
   };
   use quickcheck::{
     Arbitrary,
@@ -110,5 +135,27 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[test]
+  fn test_cases() {
+    let f = Ctor(None, vec![Bind(format!("x"), Box::new(Leaf))]);
+    assert_eq!(
+      String::from(r##"(ctor () (bind "x" (leaf)))"##),
+      format!("{}", f)
+    );
+    let p = Pos {
+      from_offset: 0,
+      from_line: 1,
+      from_column: 1,
+      upto_offset: 10,
+      upto_line: 2,
+      upto_column: 1,
+    };
+    let f = Ctor(Some(p), vec![Bind(format!("x"), Box::new(Leaf))]);
+    assert_eq!(
+      String::from(r##"(ctor (1:1-2:1) (bind "x" (leaf)))"##),
+      format!("{}", f)
+    )
   }
 }

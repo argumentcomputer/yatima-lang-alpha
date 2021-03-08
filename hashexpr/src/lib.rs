@@ -35,6 +35,7 @@ use nom::{
   },
   sequence::{
     delimited,
+    preceded,
     terminated,
   },
   Err,
@@ -294,8 +295,9 @@ pub fn parse_text(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 }
 
 pub fn parse_nat(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
-  let (i, _) = tag("0")(from)?;
-  let (upto, (_, val)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
+  let (i, base) = opt(preceded(tag("0"), base::Base::parse_code))(from)?;
+  let base = base.unwrap_or(Base::_10);
+  let (upto, val) = base.decode1(i).map_err(|e| nom::Err::convert(e))?;
   Ok((
     upto,
     nat!(Some(Pos::from_upto(from, upto)), BigUint::from_bytes_be(&val)),
@@ -305,8 +307,9 @@ pub fn parse_nat(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 pub fn parse_int(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (i, s) =
     alt((value(Sign::Minus, tag("-")), value(Sign::Plus, tag("+"))))(from)?;
-  let (i, _) = tag("0")(i)?;
-  let (upto, (_, val)) = base::parse(i)?;
+  let (i, base) = opt(preceded(tag("0"), base::Base::parse_code))(i)?;
+  let base = base.unwrap_or(Base::_10);
+  let (upto, val) = base.decode1(i).map_err(|e| nom::Err::convert(e))?;
   Ok((
     upto,
     int!(Some(Pos::from_upto(from, upto)), BigInt::from_bytes_be(s, &val)),
@@ -329,7 +332,7 @@ pub fn parse_cons(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 }
 pub fn parse_expr(i: Span) -> IResult<Span, Expr, ParseError<Span>> {
   alt((
-    parse_bits, parse_raw, parse_nat, parse_int, parse_text, parse_char,
+    parse_bits, parse_raw, parse_text, parse_char, parse_int, parse_nat,
     parse_cons,
   ))(i)
 }
@@ -584,8 +587,8 @@ pub mod tests {
         .unwrap(),
       (b"".as_ref(), c.clone())
     );
-    assert_eq!("-0d23", format!("{}", int!(BigInt::from(-23))));
-    assert_eq!("+0d23", format!("{}", int!(BigInt::from(23))));
+    assert_eq!("-23", format!("{}", int!(BigInt::from(-23))));
+    assert_eq!("+23", format!("{}", int!(BigInt::from(23))));
   }
 
   #[quickcheck]

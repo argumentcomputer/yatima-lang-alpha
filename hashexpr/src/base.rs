@@ -105,6 +105,23 @@ impl Base {
       ))),
     }
   }
+
+  pub fn decode1<'a>(
+    &self,
+    input: Span<'a>,
+  ) -> IResult<Span<'a>, Vec<u8>, ParseError<Span<'a>>> {
+    let (i, o) = input.split_at_position1_complete(
+      |x| !self.is_digit(x),
+      nom::error::ErrorKind::Digit,
+    )?;
+    match base_x::decode(self.base_digits(), o.fragment()) {
+      Ok(bytes) => Ok((i, bytes)),
+      Err(_) => Err(nom::Err::Error(ParseError::new(
+        i,
+        ParseErrorKind::InvalidBaseEncoding(self.clone()),
+      ))),
+    }
+  }
 }
 
 pub fn parse(input: Span) -> IResult<Span, (Base, Vec<u8>), ParseError<Span>> {

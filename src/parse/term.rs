@@ -5,6 +5,7 @@ use crate::{
       ParseError,
       ParseErrorKind,
     },
+    literal::*,
   },
   term::{
     LitType,
@@ -16,10 +17,11 @@ use crate::{
   },
 };
 
+use crate::parse::span::Span;
+
 use hashexpr::{
   atom::Atom::*,
   position::Pos,
-  span::Span,
   Expr,
 };
 
@@ -60,6 +62,7 @@ use nom::{
   },
   Err,
   IResult,
+  Slice,
 };
 
 pub fn reserved_symbols() -> Vector<String> {
@@ -114,35 +117,36 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   })(from)?;
   let s: String = String::from(s.fragment().to_owned());
   if reserved_symbols().contains(&s) {
-    Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedSymbol(s))))
+    Err(Err::Error(ParseError::new(i, ParseErrorKind::ReservedKeyword(s))))
   }
   else if s.starts_with("#") {
-    // TODO: more specific error for literal overlap
-    Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedSymbol(s))))
+    Err(Err::Error(ParseError::new(
+      Slice::slice(&from, 1..),
+      ParseErrorKind::HashExprSyntax(s),
+    )))
+  }
+  else if is_numeric_symbol_string1(&s) {
+    Err(Err::Error(ParseError::new(
+      Slice::slice(&from, 1..),
+      ParseErrorKind::NumericSyntax(s),
+    )))
+  }
+  else if is_numeric_symbol_string2(&s) {
+    Err(Err::Error(ParseError::new(
+      Slice::slice(&from, 2..),
+      ParseErrorKind::NumericSyntax(s),
+    )))
   }
   else if !is_valid_symbol_string(&s) {
-    Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedSymbol(s))))
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(s))))
   }
   else {
     Ok((i, s))
   }
 }
 
-pub fn is_valid_symbol_char(c: char) -> bool {
-  c != ':'
-    && c != ';'
-    && c != '('
-    && c != ')'
-    && c != ','
-    && !char::is_whitespace(c)
-    && !char::is_control(c)
-}
-
-pub fn is_valid_symbol_string(s: &String) -> bool {
-  let zero_length = s.len() == 0;
-  let invalid_chars = s.starts_with("\"")
-    || s.starts_with("\'")
-    || s.starts_with("0")
+pub fn is_numeric_symbol_string1(s: &String) -> bool {
+  s.starts_with("0")
     || s.starts_with("1")
     || s.starts_with("2")
     || s.starts_with("3")
@@ -152,7 +156,9 @@ pub fn is_valid_symbol_string(s: &String) -> bool {
     || s.starts_with("7")
     || s.starts_with("8")
     || s.starts_with("9")
-    || s.starts_with("-0")
+}
+pub fn is_numeric_symbol_string2(s: &String) -> bool {
+  s.starts_with("-0")
     || s.starts_with("-1")
     || s.starts_with("-2")
     || s.starts_with("-3")
@@ -172,6 +178,22 @@ pub fn is_valid_symbol_string(s: &String) -> bool {
     || s.starts_with("+7")
     || s.starts_with("+8")
     || s.starts_with("+9")
+}
+
+pub fn is_valid_symbol_char(c: char) -> bool {
+  c != ':'
+    && c != ';'
+    && c != '('
+    && c != ')'
+    && c != ','
+    && !char::is_whitespace(c)
+    && !char::is_control(c)
+}
+
+pub fn is_valid_symbol_string(s: &String) -> bool {
+  let zero_length = s.len() == 0;
+  let invalid_chars = s.starts_with("\"")
+    || s.starts_with("\'")
     || s.starts_with("#")
     || s.chars().any(|x| !is_valid_symbol_char(x));
   !zero_length && !invalid_chars
@@ -518,28 +540,10 @@ pub fn parse_lty() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
 
 pub fn parse_lit() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (upto, atom) = alt((
-      hashexpr::parse_bits,
-      hashexpr::parse_nat,
-      hashexpr::parse_int,
-      hashexpr::parse_text,
-      hashexpr::parse_char,
-    ))(from)
-    .map_err(|e| error::convert(from, e))?;
+    let (upto, lit) =
+      alt((parse_bits, parse_text, parse_char, parse_nat, parse_int))(from)?;
     let pos = Some(Pos::from_upto(from, upto));
-    match atom {
-      Expr::Atom(_, Bits(x)) => {
-        Ok((upto, Term::Lit(pos, Literal::BitString(x))))
-      }
-      Expr::Atom(_, Text(x)) => Ok((upto, Term::Lit(pos, Literal::Text(x)))),
-      Expr::Atom(_, Char(x)) => Ok((upto, Term::Lit(pos, Literal::Char(x)))),
-      Expr::Atom(_, Nat(x)) => Ok((upto, Term::Lit(pos, Literal::Natural(x)))),
-      Expr::Atom(_, Int(x)) => Ok((upto, Term::Lit(pos, Literal::Integer(x)))),
-      e => Err(Err::Error(ParseError::new(
-        from,
-        ParseErrorKind::UnexpectedLiteral(e),
-      ))),
-    }
+    Ok((upto, Term::Lit(pos, lit)))
   }
 }
 

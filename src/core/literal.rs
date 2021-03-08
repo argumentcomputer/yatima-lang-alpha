@@ -44,14 +44,11 @@ impl fmt::Display for Literal {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use Literal::*;
     match self {
-      Natural(x) => write!(f, "0d{}", x.to_str_radix(10)),
-      Integer(x) => {
-        let sign = match x.sign() {
-          Sign::Minus => "-",
-          _ => "+",
-        };
-        write!(f, "{}0d{}", sign, x.to_str_radix(10))
-      }
+      Natural(x) => write!(f, "{}", x.to_str_radix(10)),
+      Integer(x) => match x.sign() {
+        Sign::Minus => write!(f, "-{}", x.magnitude().to_str_radix(10)),
+        _ => write!(f, "+{}", x.to_str_radix(10)),
+      },
       BitString(x) => {
         let x: &[u8] = x.as_ref();
         write!(f, "~\"{}\"", Base::encode(&Base::_64, x))

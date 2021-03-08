@@ -2,26 +2,43 @@ use crate::{
   term::Link,
   unembed_error::UnembedError,
 };
+
+use hashexpr::{
+  base,
+  bytevec::ByteVec,
+  error::DeserialError,
+};
+
 use im::Vector;
 use nom::{
   error::ErrorKind,
   AsBytes,
   Err,
+  IResult,
   InputLength,
 };
 use std::{
   cmp::Ordering,
+  num::ParseIntError,
   path::PathBuf,
 };
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum ParseErrorKind<I: AsBytes> {
+pub enum ParseErrorKind {
   UndefinedReference(String, Vector<String>),
   TopLevelRedefinition(String),
   UnknownLiteralType(String),
   UnexpectedLiteral(hashexpr::Expr),
-  LiteralError(hashexpr::error::ParseError<I>),
-  ReservedSymbol(String),
+  InvalidBaseEncoding(base::Base),
+  UnknownBaseCode,
+  ExpectedSingleChar(Vec<char>),
+  InvalidBase16EscapeSequence(String),
+  DeserialErr(DeserialError<ByteVec>),
+  ParseIntErr(ParseIntError),
+  ReservedKeyword(String),
+  HashExprSyntax(String),
+  NumericSyntax(String),
+  InvalidSymbol(String),
   ExpectedImportLink(hashexpr::Expr),
   UnknownImportLink(Link),
   MisnamedPackage(String),
@@ -29,20 +46,54 @@ pub enum ParseErrorKind<I: AsBytes> {
   MalformedPath,
   ImportCycle(PathBuf),
   EmbeddingError(UnembedError),
-  Context(&'static str),
   Nom(ErrorKind),
+}
+
+impl ParseErrorKind {
+  pub fn from_hashexpr_error(x: hashexpr::error::ParseErrorKind) -> Self {
+    use hashexpr::error::ParseErrorKind::*;
+    match x {
+      InvalidBaseEncoding(base) => Self::InvalidBaseEncoding(base),
+      ExpectedSingleChar(chars) => Self::ExpectedSingleChar(chars),
+      InvalidBase16EscapeSequence(seq) => {
+        Self::InvalidBase16EscapeSequence(seq)
+      }
+      DeserialErr(err) => Self::DeserialErr(err),
+      ParseIntErr(err) => Self::ParseIntErr(err),
+      Nom(e) => Self::Nom(e),
+    }
+  }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ParseError<I: AsBytes> {
   pub input: I,
-  pub expected: Vec<&'static str>,
-  pub errors: Vec<ParseErrorKind<I>>,
+  pub expected: Option<&'static str>,
+  pub errors: Vec<ParseErrorKind>,
 }
 
 impl<I: AsBytes> ParseError<I> {
-  pub fn new(input: I, error: ParseErrorKind<I>) -> Self {
-    ParseError { input, expected: vec![], errors: vec![error] }
+  pub fn new(input: I, error: ParseErrorKind) -> Self {
+    ParseError { input, expected: None, errors: vec![error] }
+  }
+
+  pub fn from_hashexpr_error(
+    from: I,
+    x: hashexpr::error::ParseError<I>,
+  ) -> Self {
+    ParseError {
+      input: from,
+      expected: None,
+      errors: vec![ParseErrorKind::from_hashexpr_error(x.error)],
+    }
+  }
+
+  pub fn pretty(self, from: I) -> String {
+    let mut res = String::new();
+    // for (i, kind) in e.errors.iter().enumerate() {
+    //  let offset = from
+    //}
+    res
   }
 }
 
@@ -73,9 +124,6 @@ where
         for x in self.errors {
           other.errors.push(x);
         }
-        for x in self.expected {
-          other.expected.push(x);
-        }
         other
       }
       Ordering::Greater => other,
@@ -88,16 +136,12 @@ where
   I: InputLength,
   I: Clone,
 {
-  fn add_context(input: I, ctx: &'static str, mut other: Self) -> Self {
+  fn add_context(input: I, ctx: &'static str, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
       Ordering::Less => {
-        ParseError { input, expected: vec![ctx], errors: vec![] }
+        ParseError { input, expected: Some(ctx), errors: vec![] }
       }
-      Ordering::Equal => {
-        other.expected.push(ctx);
-        other
-      }
-      Ordering::Greater => other,
+      _ => other,
     }
   }
 }
@@ -108,11 +152,18 @@ pub fn convert<I: AsBytes>(
 ) -> Err<ParseError<I>> {
   match x {
     Err::Incomplete(n) => Err::Incomplete(n),
-    Err::Error(e) => {
-      Err::Error(ParseError::new(from, ParseErrorKind::LiteralError(e)))
-    }
-    Err::Failure(e) => {
-      Err::Failure(ParseError::new(from, ParseErrorKind::LiteralError(e)))
-    }
+    Err::Error(e) => Err::Error(ParseError::from_hashexpr_error(from, e)),
+    Err::Failure(e) => Err::Failure(ParseError::from_hashexpr_error(from, e)),
+  }
+}
+pub fn throw_err<I: AsBytes, A, F: Fn(ParseError<I>) -> ParseError<I>>(
+  x: IResult<I, A, ParseError<I>>,
+  f: F,
+) -> IResult<I, A, ParseError<I>> {
+  match x {
+    Ok(res) => Ok(res),
+    Err(Err::Incomplete(n)) => Err(Err::Incomplete(n)),
+    Err(Err::Error(e)) => Err(Err::Error(f(e))),
+    Err(Err::Failure(e)) => Err(Err::Failure(f(e))),
   }
 }

@@ -53,11 +53,11 @@ impl fmt::Display for Atom {
       }
       Self::Link(l) => write!(f, "{}", l),
       Self::Nat(x) => {
-        write!(f, "0d{}", x.to_str_radix(10))
+        write!(f, "{}", x.to_str_radix(10))
       }
       Self::Int(x) => match x.sign() {
-        Sign::Minus => write!(f, "-0d{}", x.magnitude().to_str_radix(10)),
-        _ => write!(f, "+0d{}", x.to_str_radix(10)),
+        Sign::Minus => write!(f, "-{}", x.magnitude().to_str_radix(10)),
+        _ => write!(f, "+{}", x.to_str_radix(10)),
       },
       Self::Text(x) => write!(f, "\"{}\"", x.escape_default()),
       Self::Char(x) => write!(f, "'{}'", x.escape_default()),

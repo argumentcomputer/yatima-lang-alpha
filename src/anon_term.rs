@@ -8,7 +8,10 @@ use hashexpr::{
   },
   Link,
 };
-use std::convert::TryInto;
+use std::{
+  convert::TryInto,
+  fmt,
+};
 
 use crate::decode_error::{
   DecodeError,
@@ -73,6 +76,26 @@ impl AnonTerm {
   }
 }
 
+impl fmt::Display for AnonTerm {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use AnonTerm::*;
+    match self {
+      Vari(i) => write!(f, "{}", i),
+      Bind(x) => write!(f, "(bind ({}))", x),
+      Link(l) => write!(f, "{}", l),
+      Data(d) => write!(f, "{}", bits!(d.to_owned())),
+      Ctor(n, xs) => {
+        let mut res = String::new();
+        for x in xs {
+          res.push_str(" ");
+          res.push_str(&format!("{}", x));
+        }
+        write!(f, "(ctor \"{}\"{})", n, res)
+      }
+    }
+  }
+}
+
 #[cfg(test)]
 pub mod tests {
   use super::{
@@ -117,5 +140,11 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[test]
+  fn test_cases() {
+    let f = Ctor(format!("lam"), vec![Bind(Box::new(Vari(0)))]);
+    assert_eq!(String::from(r##"(ctor "lam" (bind (0)))"##), format!("{}", f))
   }
 }
