@@ -959,9 +959,12 @@ pub mod tests {
   }
 
   fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut Gen) -> Term> {
-    let mut rng = rand::thread_rng();
-    let gen = rng.gen_range(0, ctx.len());
     Box::new(move |g: &mut Gen| {
+      if ctx.len() == 0 {
+        return Term::Typ(None);
+      }
+      let mut rng = rand::thread_rng();
+      let gen = rng.gen_range(0..ctx.len());
       let n = &ctx[gen];
       let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
       Var(None, n.clone(), i as u64)
@@ -975,8 +978,11 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       let mut rng = rand::thread_rng();
       let mut ref_iter = refs.iter().filter(|(n, _)| !ctx.contains(n));
-      let len = refs.iter().filter(|(n, _)| !ctx.contains(n)).count();
-      let gen = rng.gen_range(0, len);
+      let len = ref_iter.by_ref().count();
+      if len == 0 {
+        return Term::Typ(None);
+      }
+      let gen = rng.gen_range(0..len);
       match ref_iter.nth(gen) {
         Some((n, (d, a))) => Ref(None, n.clone(), *d, *a),
         None => Term::Typ(None),
@@ -1034,7 +1040,7 @@ pub mod tests {
     }
     let sum: i64 = gens.iter().map(|x| x.0).sum();
     let mut rng = rand::thread_rng();
-    let mut weight: i64 = rng.gen_range(1, sum);
+    let mut weight: i64 = rng.gen_range(1..sum);
     //let mut weight: i64 = g.rng.gen_range(1, sum);
     for gen in gens {
       if weight - gen.0 <= 0 {

@@ -185,7 +185,7 @@ pub mod tests {
   impl Arbitrary for Literal {
     fn arbitrary(g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0, 7);
+      let gen: u32 = rng.gen_range(0..7);
       //let gen = g.gen_range(0, 7);
       match gen {
         0 => arbitrary_nat(g),
@@ -209,7 +209,7 @@ pub mod tests {
   impl Arbitrary for LitType {
     fn arbitrary(g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0, 7);
+      let gen: u32 = rng.gen_range(0..7);
       //let gen = g.gen_range(0, 7);
       match gen {
         1 => Self::Natural,

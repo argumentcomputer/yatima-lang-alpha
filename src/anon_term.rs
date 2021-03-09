@@ -92,11 +92,11 @@ pub mod tests {
 
   pub fn arbitrary_anon_term(g: &mut Gen, ctx: u64) -> AnonTerm {
     let mut rng = rand::thread_rng();
-    let x: u32 = rng.gen_range(0,6);
+    let x: u32 = rng.gen_range(0..6);
     //let x: u32 = g.gen_range(0, 6);
     match x {
       0 => {
-        let n: u32 = rng.gen_range(0, 10);
+        let n: u32 = rng.gen_range(0..10);
         //let n: u32 = g.gen_range(0, 10);
         let mut xs = Vec::new();
         for _ in 0..n {
@@ -105,7 +105,7 @@ pub mod tests {
         Ctor(arbitrary_name(g), xs)
       }
       1 => Bind(Box::new(arbitrary_anon_term(g, ctx + 1))),
-      2 => Vari(rng.gen_range(0, ctx + 1)),
+      2 => Vari(rng.gen_range(0..ctx + 1)),
       3 => Link(arbitrary_link(g)),
       _ => Data(Arbitrary::arbitrary(g)),
     }
