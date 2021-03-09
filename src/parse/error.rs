@@ -232,7 +232,14 @@ impl<'a> fmt::Display for ParseError<Span<'a>> {
     )?;
     let line = String::from_utf8_lossy(self.input.get_line_beginning());
 
-    write!(&mut res, "{} | {}\n\n", self.input.location_line(), line)?;
+    write!(&mut res, "{} | {}\n", self.input.location_line(), line)?;
+
+    let cols = format!("{} | ", self.input.location_line()).len()
+      + self.input.get_column();
+    for _ in 0..(cols - 1) {
+      write!(&mut res, " ")?;
+    }
+    write!(&mut res, "^\n")?;
 
     if let Some(exp) = self.expected {
       write!(&mut res, "Expected {}\n", exp)?;
