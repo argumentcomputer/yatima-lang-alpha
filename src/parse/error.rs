@@ -91,7 +91,6 @@ impl<'a> fmt::Display for ParseErrorKind {
       Self::InvalidBase16EscapeSequence(seq) => {
         write!(f, "Unknown base 16 string escape sequence {}.", seq)
       }
-      // DeserialErr(DeserialError<ByteVec>),
       Self::DeserialErr(e) => {
         write!(f, "Error deserializing hashexpr: {:?}", e)
       }

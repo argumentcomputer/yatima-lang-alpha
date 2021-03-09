@@ -488,6 +488,21 @@ pub fn parse_let(
   }
 }
 
+pub fn parse_builtin_symbol_end()
+-> impl Fn(Span) -> IResult<Span, (), ParseError<Span>> {
+  move |from: Span| {
+    alt((
+      peek(value((), parse_space1)),
+      peek(value((), eof)),
+      peek(value((), tag("("))),
+      peek(value((), tag(")"))),
+      peek(value((), tag(";"))),
+      peek(value((), tag(":"))),
+      peek(value((), tag(","))),
+    ))(from)
+  }
+}
+
 pub fn parse_lty() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, lty) = alt((
@@ -497,15 +512,12 @@ pub fn parse_lty() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
       value(LitType::Text, tag("#Text")),
       value(LitType::Char, tag("#Char")),
     ))(from)?;
-    let (upto, _) = throw_err(
-      alt((peek(value((), parse_space1)), peek(value((), eof))))(i),
-      |_| {
-        ParseError::new(
-          i,
-          ParseErrorKind::LitTypeLacksWhitespaceTermination(lty.to_owned()),
-        )
-      },
-    )?;
+    let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
+      ParseError::new(
+        i,
+        ParseErrorKind::LitTypeLacksWhitespaceTermination(lty.to_owned()),
+      )
+    })?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::LTy(pos, lty)))
   }
@@ -526,15 +538,12 @@ pub fn parse_lit() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, lit) =
       alt((parse_bits, parse_text, parse_char, parse_nat, parse_int))(from)?;
-    let (upto, _) = throw_err(
-      alt((peek(value((), parse_space1)), peek(value((), eof))))(i),
-      |_| {
-        ParseError::new(
-          i,
-          ParseErrorKind::LiteralLacksWhitespaceTermination(lit.to_owned()),
-        )
-      },
-    )?;
+    let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
+      ParseError::new(
+        i,
+        ParseErrorKind::LiteralLacksWhitespaceTermination(lit.to_owned()),
+      )
+    })?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Lit(pos, lit)))
   }
@@ -568,15 +577,12 @@ pub fn parse_opr() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
       alt((value(PrimOp::Shl, tag("#shl")), value(PrimOp::Shr, tag("#shr")))),
       alt((value(PrimOp::Len, tag("#len")), value(PrimOp::Cat, tag("#cat")))),
     ))(from)?;
-    let (upto, _) = throw_err(
-      alt((peek(value((), parse_space1)), peek(value((), eof))))(i),
-      |_| {
-        ParseError::new(
-          i,
-          ParseErrorKind::PrimOpLacksWhitespaceTermination(op.to_owned()),
-        )
-      },
-    )?;
+    let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
+      ParseError::new(
+        i,
+        ParseErrorKind::PrimOpLacksWhitespaceTermination(op.to_owned()),
+      )
+    })?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Opr(pos, op)))
   }
