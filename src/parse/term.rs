@@ -1,7 +1,7 @@
 use crate::{
   parse::{
-    error,
     error::{
+      throw_err,
       ParseError,
       ParseErrorKind,
     },
@@ -9,7 +9,6 @@ use crate::{
   },
   term::{
     LitType,
-    Literal,
     PrimOp,
     Refs,
     Term,
@@ -19,11 +18,7 @@ use crate::{
 
 use crate::parse::span::Span;
 
-use hashexpr::{
-  atom::Atom::*,
-  position::Pos,
-  Expr,
-};
+use hashexpr::position::Pos;
 
 use im::{
   HashMap,
@@ -52,7 +47,6 @@ use nom::{
   multi::{
     many0,
     many1,
-    separated_list0,
     separated_list1,
   },
   sequence::{
@@ -117,25 +111,16 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   })(from)?;
   let s: String = String::from(s.fragment().to_owned());
   if reserved_symbols().contains(&s) {
-    Err(Err::Error(ParseError::new(i, ParseErrorKind::ReservedKeyword(s))))
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedKeyword(s))))
   }
   else if s.starts_with("#") {
-    Err(Err::Error(ParseError::new(
-      Slice::slice(&from, 1..),
-      ParseErrorKind::HashExprSyntax(s),
-    )))
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::HashExprSyntax(s))))
   }
   else if is_numeric_symbol_string1(&s) {
-    Err(Err::Error(ParseError::new(
-      Slice::slice(&from, 1..),
-      ParseErrorKind::NumericSyntax(s),
-    )))
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::NumericSyntax(s))))
   }
   else if is_numeric_symbol_string2(&s) {
-    Err(Err::Error(ParseError::new(
-      Slice::slice(&from, 2..),
-      ParseErrorKind::NumericSyntax(s),
-    )))
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::NumericSyntax(s))))
   }
   else if !is_valid_symbol_string(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(s))))
@@ -204,14 +189,14 @@ pub fn parse_var(
   ctx: Vector<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (upto, nam) = parse_name(from)?;
+    let (upto, nam) = context("local or global reference", parse_name)(from)?;
     let pos = Some(Pos::from_upto(from, upto));
     match ctx.iter().enumerate().find(|(_, x)| **x == nam) {
       Some((idx, _)) => Ok((upto, Term::Var(pos, nam.clone(), idx as u64))),
       None => match refs.get(&nam) {
         Some((d, a)) => Ok((upto, Term::Ref(pos, nam.clone(), *d, *a))),
         None => Err(Err::Error(ParseError::new(
-          from,
+          upto,
           ParseErrorKind::UndefinedReference(nam.clone(), ctx.to_owned()),
         ))),
       },
@@ -505,25 +490,24 @@ pub fn parse_let(
 
 pub fn parse_lty() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (upto, tag) = alt((
-      tag("#Natural"),
-      tag("#Integer"),
-      tag("#BitString"),
-      tag("#Text"),
-      tag("#Char"),
+    let (i, lty) = alt((
+      value(LitType::Natural, tag("#Natural")),
+      value(LitType::Integer, tag("#Integer")),
+      value(LitType::BitString, tag("#BitString")),
+      value(LitType::Text, tag("#Text")),
+      value(LitType::Char, tag("#Char")),
     ))(from)?;
+    let (upto, _) = throw_err(
+      alt((peek(value((), parse_space1)), peek(value((), eof))))(i),
+      |_| {
+        ParseError::new(
+          i,
+          ParseErrorKind::LitTypeLacksWhitespaceTermination(lty.to_owned()),
+        )
+      },
+    )?;
     let pos = Some(Pos::from_upto(from, upto));
-    match tag.fragment().as_ref() {
-      "#Natural" => Ok((upto, Term::LTy(pos, LitType::Natural))),
-      "#Integer" => Ok((upto, Term::LTy(pos, LitType::Integer))),
-      "#BitString" => Ok((upto, Term::LTy(pos, LitType::BitString))),
-      "#Text" => Ok((upto, Term::LTy(pos, LitType::Text))),
-      "#Char" => Ok((upto, Term::LTy(pos, LitType::Char))),
-      e => Err(Err::Error(ParseError::new(
-        upto,
-        ParseErrorKind::UnknownLiteralType(String::from(e)),
-      ))),
-    }
+    Ok((upto, Term::LTy(pos, lty)))
   }
 }
 // pub fn parse_exception()
@@ -540,8 +524,17 @@ pub fn parse_lty() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
 
 pub fn parse_lit() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (upto, lit) =
+    let (i, lit) =
       alt((parse_bits, parse_text, parse_char, parse_nat, parse_int))(from)?;
+    let (upto, _) = throw_err(
+      alt((peek(value((), parse_space1)), peek(value((), eof))))(i),
+      |_| {
+        ParseError::new(
+          i,
+          ParseErrorKind::LiteralLacksWhitespaceTermination(lit.to_owned()),
+        )
+      },
+    )?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Lit(pos, lit)))
   }
@@ -549,28 +542,43 @@ pub fn parse_lit() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
 
 pub fn parse_opr() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (upto, op) = alt((
-      alt((tag("#eql"), tag("#lth"), tag("#lte"), tag("#gth"), tag("#gte"))),
-      alt((tag("#bor"), tag("#and"), tag("#xor"), tag("#not"))),
+    let (i, op) = alt((
       alt((
-        tag("#suc"),
-        tag("#pre"),
-        tag("#add"),
-        tag("#sub"),
-        tag("#mul"),
-        tag("#div"),
-        tag("#mod"),
+        value(PrimOp::Eql, tag("#eql")),
+        value(PrimOp::Lth, tag("#lth")),
+        value(PrimOp::Lte, tag("#lte")),
+        value(PrimOp::Gth, tag("#gth")),
+        value(PrimOp::Gte, tag("#gte")),
       )),
-      alt((tag("#shl"), tag("#shr"), tag("#rol"), tag("#ror"))),
-      alt((tag("#clz"), tag("#ctz"), tag("#cnt"))),
-      alt((tag("#len"), tag("#cat"), tag("#cst"))),
+      alt((
+        value(PrimOp::Bor, tag("#bor")),
+        value(PrimOp::And, tag("#and")),
+        value(PrimOp::Xor, tag("#xor")),
+        value(PrimOp::Not, tag("#not")),
+      )),
+      alt((
+        value(PrimOp::Suc, tag("#suc")),
+        value(PrimOp::Pre, tag("#pre")),
+        value(PrimOp::Add, tag("#add")),
+        value(PrimOp::Sub, tag("#sub")),
+        value(PrimOp::Mul, tag("#mul")),
+        value(PrimOp::Div, tag("#div")),
+        value(PrimOp::Mod, tag("#mod")),
+      )),
+      alt((value(PrimOp::Shl, tag("#shl")), value(PrimOp::Shr, tag("#shr")))),
+      alt((value(PrimOp::Len, tag("#len")), value(PrimOp::Cat, tag("#cat")))),
     ))(from)?;
+    let (upto, _) = throw_err(
+      alt((peek(value((), parse_space1)), peek(value((), eof))))(i),
+      |_| {
+        ParseError::new(
+          i,
+          ParseErrorKind::PrimOpLacksWhitespaceTermination(op.to_owned()),
+        )
+      },
+    )?;
     let pos = Some(Pos::from_upto(from, upto));
-    let op_str: String = String::from(*op.fragment());
-    match PrimOp::from_symbol(op_str) {
-      Some(op) => Ok((upto, Term::Opr(pos, op))),
-      _ => panic!("impossible"),
-    }
+    Ok((upto, Term::Opr(pos, op)))
   }
 }
 

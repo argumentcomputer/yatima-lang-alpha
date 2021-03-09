@@ -231,7 +231,7 @@ pub fn parse_package(
             if name != pack.name {
               return Err(Err::Error(ParseError::new(
                 i2,
-                ParseErrorKind::MisnamedImport(name, pack.name),
+                ParseErrorKind::MisnamedImport(name, from, pack.name),
               )));
             };
             let (import_refs, import_defs): (Refs, Defs) =

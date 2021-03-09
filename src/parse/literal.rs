@@ -56,8 +56,10 @@ pub fn parse_int(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
 }
 
 pub fn parse_text(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
-  let (upto, val) = delimited(tag("\""), parse_string("\""), tag("\""))(from)?;
-  Ok((upto, Literal::Text(val)))
+  let (i, _) = context("open quotes", tag("\""))(from)?;
+  let (i, s) = parse_string("\"")(i)?;
+  let (upto, _) = tag("\"")(i)?;
+  Ok((upto, Literal::Text(s)))
 }
 pub fn parse_char(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (upto, c) = delimited(tag("'"), parse_string("'"), tag("'"))(from)?;
@@ -76,6 +78,6 @@ pub fn parse_char(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
 pub fn parse_bits(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (i, base) = terminated(parse_base_code(), tag("\""))(from)?;
   let (i, bytes) = parse_base_bytes(base)(i)?;
-  let (upto, _) = tag("\"")(i)?;
+  let (upto, _) = context("close quotes", tag("\""))(i)?;
   Ok((upto, Literal::BitString(bytes)))
 }
