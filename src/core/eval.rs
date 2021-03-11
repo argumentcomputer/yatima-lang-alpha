@@ -3,6 +3,7 @@ use core::ptr::NonNull;
 use crate::{
   core::{
     dag::*,
+    upcopy::*,
     dll::*,
     primop::{
       apply_bin_op,
@@ -22,7 +23,7 @@ use im::{
 };
 
 // Substitute a variable
-pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
+pub fn subst(lam: NonNull<Single>, arg: DAGPtr) -> DAGPtr {
   unsafe {
     let Single { var, body, parents: lam_parents, .. } = *lam.as_ptr();
     let var = match var {
@@ -31,7 +32,7 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
     };
     let Var { parents: var_parents, .. } = *var.as_ptr();
     let ans = if DLL::is_singleton(lam_parents) {
-      replace_child(DAG::Var(var), arg);
+      replace_child(DAGPtr::Var(var), arg);
       // We have to read `body` again because `lam`'s body could be mutated
       // through `replace_child`
       (*lam.as_ptr()).body
@@ -46,20 +47,20 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
       let mut spine = vec![];
       loop {
         match input {
-          DAG::Single(single) => {
+          DAGPtr::Single(single) => {
             let Single { var, body, .. } = *single.as_ptr();
             let tag = &(*single.as_ptr()).tag;
             input = body;
             spine.push((var, tag));
           }
-          DAG::Branch(branch) => {
+          DAGPtr::Branch(branch) => {
             let Branch { left, right, .. } = *branch.as_ptr();
-            let new_branch = new_branch(branch, left, right);
+            let new_branch = upcopy_branch(branch, left, right);
             top_branch = Some(branch);
             for parent in DLL::iter_option(var_parents) {
               upcopy(arg, *parent);
             }
-            result = DAG::Branch(new_branch);
+            result = DAGPtr::Branch(new_branch);
             break;
           }
           // Otherwise it must be `var`, since `var` necessarily appears inside
@@ -68,7 +69,7 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
         }
       }
       while let Some((var, tag)) = spine.pop() {
-        result = DAG::Single(new_single(var, result, tag.clone()));
+        result = DAGPtr::Single(upcopy_single(var, result, tag.clone()));
       }
       top_branch
         .map_or((), |mut app| clear_copies(lam.as_ref(), app.as_mut()));
@@ -79,273 +80,271 @@ pub fn subst(lam: NonNull<Single>, arg: DAG) -> DAG {
 }
 
 // Contract a lambda redex, return the body.
-pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAG {
+pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAGPtr {
   let Branch { right: arg, .. } = unsafe { redex.as_ref() };
   let top_node = subst(lam, *arg);
-  replace_child(DAG::Branch(redex), top_node);
-  free_dead_node(DAG::Branch(redex));
+  replace_child(DAGPtr::Branch(redex), top_node);
+  free_dead_node(DAGPtr::Branch(redex));
   top_node
 }
 
-// Reduce term to its weak head normal form
-pub fn whnf(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
-  let mut node = *dag;
-  let mut trail = vec![];
-  loop {
-    match node {
-      DAG::Branch(link) => unsafe {
-        let Branch { left, tag, .. } = *link.as_ptr();
-        match tag {
-          BranchTag::App => {
-            trail.push(link);
-            node = left;
+impl DAG {
+  // Reduce term to its weak head normal form
+  pub fn whnf(&mut self, defs: &HashMap<Link, Def>) {
+    let mut node = self.root;
+    let mut trail = vec![];
+    loop {
+      match node {
+        DAGPtr::Branch(link) => unsafe {
+          let Branch { left, tag, .. } = *link.as_ptr();
+          match tag {
+            BranchTag::App => {
+              trail.push(link);
+              node = left;
+            }
+            _ => break,
           }
-          _ => break,
-        }
-      },
-      DAG::Single(link) => unsafe {
-        let Single { tag, mut body, var, .. } = *link.as_ptr();
-        match tag {
-          SingleTag::Lam => {
-            if let Some(app_link) = trail.pop() {
-              node = reduce_lam(app_link, link);
+        },
+        
+        DAGPtr::Single(link) => unsafe {
+          let Single { tag, var, .. } = *link.as_ptr();
+          match tag {
+            SingleTag::Lam => {
+              if let Some(app_link) = trail.pop() {
+                node = reduce_lam(app_link, link);
+              }
+              else {
+                break;
+              }
             }
-            else {
-              break;
-            }
-          }
-          SingleTag::Cse => {
-            whnf(defs, &mut body);
-            match body {
-              DAG::Single(body_link) => {
-                let Single { tag: single_tag, body: single_body, .. } = *body_link.as_ptr();
-                if single_tag == SingleTag::Dat {
-                  replace_child(node, single_body);
-                  free_dead_node(node);
-                  node = single_body;
-                }
-                else {
-                  break
-                }
-              },
-              _ => break,
-            }
-          },
-          SingleTag::Fix => {
-            match var {
-              None => panic!("Malformed Fix"),
-              Some(var) => {
-                let Var { parents: var_parents, depth: var_depth, .. } = *var.as_ptr();
-                let var_name = &(*var.as_ptr()).name;
-                replace_child(node, body);
-                if !var_parents.is_none() {
-                  let new_var = new_var(var_name.clone(), var_depth);
-                  let mut input = body;
-                  let mut top_branch = None;
-                  let mut result = DAG::Var(new_var);
-                  let mut spine = vec![];
-                  loop {
-                    match input {
-                      DAG::Single(single) => {
-                        let Single { var, body, .. } = *single.as_ptr();
-                        let tag = &(*single.as_ptr()).tag;
-                        input = body;
-                        spine.push((var, tag));
-                      }
-                      DAG::Branch(branch) => {
-                        let Branch { left, right, .. } = *branch.as_ptr();
-                        let new_branch = new_branch(branch, left, right);
-                        top_branch = Some(branch);
-                        for parent in DLL::iter_option(var_parents) {
-                          upcopy(DAG::Var(new_var), *parent);
+            
+            SingleTag::Cse => {
+              let mut body = DAG { root: (*link.as_ptr()).body };
+              body.whnf(defs);
+              match body.root {
+                DAGPtr::Single(body_link) => {
+                  let Single { tag: single_tag, body: single_body, .. } = *body_link.as_ptr();
+                  if single_tag == SingleTag::Dat {
+                    replace_child(node, single_body);
+                    free_dead_node(node);
+                    node = single_body;
+                  }
+                  else {
+                    break
+                  }
+                },
+                _ => break,
+              }
+            },
+            SingleTag::Fix => {
+              let body = (*link.as_ptr()).body;
+              match var {
+                None => panic!("Malformed Fix"),
+                Some(var) => {
+                  let Var { parents: var_parents, depth: var_depth, .. } = *var.as_ptr();
+                  let var_name = &(*var.as_ptr()).name;
+                  replace_child(node, body);
+                  if !var_parents.is_none() {
+                    let new_var = alloc_val(Var {name: var_name.clone(), depth: var_depth, parents: None});
+                    let mut input = body;
+                    let mut top_branch = None;
+                    let mut result = DAGPtr::Var(new_var);
+                    let mut spine = vec![];
+                    loop {
+                      match input {
+                        DAGPtr::Single(single) => {
+                          let Single { var, body, .. } = *single.as_ptr();
+                          let tag = &(*single.as_ptr()).tag;
+                          input = body;
+                          spine.push((var, tag));
                         }
-                        result = DAG::Branch(new_branch);
-                        break;
+                        DAGPtr::Branch(branch) => {
+                          let Branch { left, right, .. } = *branch.as_ptr();
+                          let new_branch = upcopy_branch(branch, left, right);
+                          top_branch = Some(branch);
+                          for parent in DLL::iter_option(var_parents) {
+                            upcopy(DAGPtr::Var(new_var), *parent);
+                          }
+                          result = DAGPtr::Branch(new_branch);
+                          break;
+                        }
+                        // Otherwise it must be `var`, since `var` necessarily appears inside
+                        // `body`
+                        _ => break,
                       }
-                      // Otherwise it must be `var`, since `var` necessarily appears inside
-                      // `body`
+                    }
+                    if top_branch.is_none() && spine.is_empty() {
+                      panic!("Infinite loop found");
+                    }
+                    while let Some((var, tag)) = spine.pop() {
+                      result = DAGPtr::Single(upcopy_single(var, result, tag.clone()));
+                    }
+                    top_branch
+                      .map_or((), |mut app| clear_copies(link.as_ref(), app.as_mut()));
+            
+                    // Create a new fix node with the result of the copy
+                    let fix_ref = alloc_uninit();
+                    let new_fix = alloc_val(Single {
+                      tag: SingleTag::Fix,
+                      var: Some(new_var),
+                      body: result,
+                      body_ref: fix_ref,
+                      parents: None
+                    });
+                    *fix_ref.as_ptr() = DLL::singleton(ParentPtr::Body(new_fix));
+                    add_to_parents(result, fix_ref);
+                    replace_child(DAGPtr::Var(var), DAGPtr::Single(new_fix));
+                  }
+                  free_dead_node(node);
+                  node = body;
+                },
+              };
+            }
+            _ => break,
+          }
+        },
+        
+        DAGPtr::Leaf(link) => unsafe {
+          let Leaf { tag, .. } = link.as_ref();
+          match tag {
+            LeafTag::Ref(nam, def_link, _anon_link) => {
+              if let Some(def) = defs.get(def_link) {
+                // Using Fix:
+                let new_var = alloc_val(Var {name: nam.clone(), depth: 0, parents: None});
+                let new_node = DAG::from_subterm(&def.clone().term, 0, &Vector::new(), Vector::unit(DAGPtr::Var(new_var)), None).root;
+                let fix_ref = alloc_uninit();
+                let new_fix = alloc_val(Single {
+                  tag: SingleTag::Fix,
+                  var: Some(new_var),
+                  body: new_node,
+                  body_ref: fix_ref,
+                  parents: None
+                });
+                *fix_ref.as_ptr() = DLL::singleton(ParentPtr::Body(new_fix));
+                add_to_parents(new_node, fix_ref);
+                replace_child(node, DAGPtr::Single(new_fix));
+                free_dead_node(node);
+                node = DAGPtr::Single(new_fix);
+        
+                // Without using Fix:
+                // let new_ref = &Term::Ref(None, nam.clone(), *def_link, *anon_link);
+                // let new_ref = DAG::from_subterm(0, new_ref, Vector::new(), None);
+                // let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(new_ref), None);
+                // replace_child(node, new_node);
+                // free_dead_node(node);
+                // node = new_node;
+        
+              }
+              else {
+                panic!("undefined runtime reference: {}, {}", nam, def_link);
+              }
+            }
+            LeafTag::Opr(opr) => {
+              let len = trail.len();
+              if len >= 1 && opr.arity() == 1 {
+                let mut arg = DAG { root: (*trail[len - 1].as_ptr()).right };
+                arg.whnf(defs);
+                match arg.root {
+                  DAGPtr::Leaf(x) => {
+                    let x = (*x.as_ptr()).tag.clone();
+                    match x {
+                      LeafTag::Lit(x) => {
+                        let res = apply_una_op(*opr, x);
+                        if let Some(res) = res {
+                          trail.pop();
+                          node = DAGPtr::Leaf(alloc_val(Leaf{ tag: LeafTag::Lit(res), parents: None }));
+                          replace_child(arg.root, node);
+                          free_dead_node(arg.root);
+                        }
+                        else {
+                          break;
+                        }
+                      }
+        
                       _ => break,
                     }
                   }
-                  if top_branch.is_none() && spine.is_empty() {
-                    panic!("Infinite loop found");
-                  }
-                  while let Some((var, tag)) = spine.pop() {
-                    result = DAG::Single(new_single(var, result, tag.clone()));
-                  }
-                  top_branch
-                    .map_or((), |mut app| clear_copies(link.as_ref(), app.as_mut()));
-
-                  // Create a new fix node with the result of the copy
-                  let fix_ref = alloc_uninit();
-                  let new_fix = alloc_val(Single {
-                    tag: SingleTag::Fix,
-                    var: Some(new_var),
-                    body: result,
-                    body_ref: fix_ref,
-                    parents: None
-                  });
-                  *fix_ref.as_ptr() = DLL::singleton(ParentCell::Body(new_fix));
-                  add_to_parents(result, fix_ref);
-                  replace_child(DAG::Var(var), DAG::Single(new_fix));
+                  _ => break,
                 }
-                free_dead_node(node);
-                node = body;
-              },
-            };
-          }
-          _ => break,
-        }
-      },
-      DAG::Leaf(link) => unsafe {
-        let Leaf { tag, .. } = link.as_ref();
-        match tag {
-          LeafTag::Ref(nam, def_link, _anon_link) => {
-            if let Some(def) = defs.get(def_link) {
-              // Using Fix:
-              let new_var = new_var(nam.clone(), 0);
-              let new_node = DAG::from_subterm(None, 0, &def.clone().term, Vector::unit(DAG::Var(new_var)), None);
-              let fix_ref = alloc_uninit();
-              let new_fix = alloc_val(Single {
-                tag: SingleTag::Fix,
-                var: Some(new_var),
-                body: new_node,
-                body_ref: fix_ref,
-                parents: None
-              });
-              *fix_ref.as_ptr() = DLL::singleton(ParentCell::Body(new_fix));
-              add_to_parents(new_node, fix_ref);
-              replace_child(node, DAG::Single(new_fix));
-              free_dead_node(node);
-              node = DAG::Single(new_fix);
-              
-              // Without using Fix:
-              // let new_ref = &Term::Ref(None, nam.clone(), *def_link, *anon_link);
-              // let new_ref = DAG::from_subterm(0, new_ref, Vector::new(), None);
-              // let new_node = DAG::from_subterm(0, &def.clone().term, Vector::unit(new_ref), None);
-              // replace_child(node, new_node);
-              // free_dead_node(node);
-              // node = new_node;
-
-            }
-            else {
-              panic!("undefined runtime reference: {}, {}", nam, def_link);
-            }
-          }
-          LeafTag::Opr(opr) => {
-            let len = trail.len();
-            if len >= 1 && opr.arity() == 1 {
-              let arg = whnf(defs, &mut (*trail[len - 1].as_ptr()).right);
-              match arg {
-                DAG::Leaf(x) => {
-                  let x = (*x.as_ptr()).tag.clone();
-                  match x {
-                    LeafTag::Lit(x) => {
-                      let res = apply_una_op(*opr, x);
-                      if let Some(res) = res {
-                        trail.pop();
-                        node = DAG::Leaf(new_leaf(LeafTag::Lit(res)));
-                        replace_child(arg, node);
-                        free_dead_node(arg);
+              }
+              else if len >= 2 && opr.arity() == 2 {
+                let mut arg1 = DAG { root: (*trail[len - 2].as_ptr()).right };
+                let mut arg2 = DAG { root: (*trail[len - 1].as_ptr()).right };
+                arg1.whnf(defs);
+                arg2.whnf(defs);
+                match (arg1.root, arg2.root) {
+                  (DAGPtr::Leaf(x), DAGPtr::Leaf(y)) => {
+                    let x = (*x.as_ptr()).tag.clone();
+                    let y = (*y.as_ptr()).tag.clone();
+                    match (x, y) {
+                      (LeafTag::Lit(x), LeafTag::Lit(y)) => {
+                        let res = apply_bin_op(*opr, y, x);
+                        if let Some(res) = res {
+                          trail.pop();
+                          trail.pop();
+                          node = DAGPtr::Leaf(alloc_val(Leaf{ tag: LeafTag::Lit(res), parents: None }));
+                          replace_child(arg1.root, node);
+                          free_dead_node(arg1.root);
+                        }
+                        else {
+                          break;
+                        }
                       }
-                      else {
-                        break;
-                      }
+                      _ => break,
                     }
-
-                    _ => break,
                   }
+                  _ => break,
                 }
-                _ => break,
+              }
+              else {
+                break;
               }
             }
-            else if len >= 2 && opr.arity() == 2 {
-              let arg1 = whnf(defs, &mut (*trail[len - 2].as_ptr()).right);
-              let arg2 = whnf(defs, &mut (*trail[len - 1].as_ptr()).right);
-              match (arg1, arg2) {
-                (DAG::Leaf(x), DAG::Leaf(y)) => {
-                  let x = (*x.as_ptr()).tag.clone();
-                  let y = (*y.as_ptr()).tag.clone();
-                  match (x, y) {
-                    (LeafTag::Lit(x), LeafTag::Lit(y)) => {
-                      let res = apply_bin_op(*opr, y, x);
-                      if let Some(res) = res {
-                        trail.pop();
-                        trail.pop();
-                        node = DAG::Leaf(new_leaf(LeafTag::Lit(res)));
-                        replace_child(arg1, node);
-                        free_dead_node(arg1);
-                      }
-                      else {
-                        break;
-                      }
-                    }
-                    _ => break,
-                  }
-                }
-                _ => break,
-              }
-            }
-            else {
-              break;
-            }
+            _ => break,
           }
-          _ => break,
-        }
-      },
-
-      // TODO: All primitive operations
-      // DAG::Opr(link) => unsafe {
-      //         // TODO: (#cst (Nat 256) 0d1)
-      //         //(DAG::App(x), DAG::Lit(y)) => {
-      //         //
-      //         //}
-      //         else {
-      //           break;
-      //         }
-      //       }
-      //       _ => break,
-      //     }
-      //   }
-      //   break;
-      // },
-      _ => break,
+        },
+        _ => break,
+      }
+    }
+    if trail.is_empty() {
+      self.root = node;
+    }
+    else {
+      self.root = DAGPtr::Branch(trail[0]);
     }
   }
-  if trail.is_empty() {
-    *dag = node;
-  }
-  else {
-    *dag = DAG::Branch(trail[0]);
-  }
-  *dag
-}
-
-// Reduce term to its normal form
-pub fn norm(defs: &HashMap<Link, Def>, dag: &mut DAG) -> DAG {
-  let top_node = whnf(defs, dag);
-  let mut trail = vec![top_node];
-  while let Some(node) = trail.pop() {
-    match node {
-      DAG::Branch(mut link) => unsafe {
-        let branch = link.as_mut();
-        trail.push(whnf(defs, &mut branch.left));
-        trail.push(whnf(defs, &mut branch.right));
-      },
-      DAG::Single(mut link) => unsafe {
-        let single = link.as_mut();
-        trail.push(whnf(defs, &mut single.body));
-      },
-      _ => (),
+  
+  // Reduce term to its normal form
+  pub fn norm(&mut self, defs: &HashMap<Link, Def>) {
+    self.whnf(defs);
+    let top_node = self.root;
+    let mut trail = vec![top_node];
+    while let Some(node) = trail.pop() {
+      match node {
+        DAGPtr::Branch(link) => unsafe {
+          let branch = link.as_ptr();
+          let mut left = DAG { root: (*branch).left };
+          let mut right = DAG { root: (*branch).right };
+          left.whnf(defs);
+          right.whnf(defs);
+          trail.push(left.root);
+          trail.push(right.root);
+        },
+        DAGPtr::Single(link) => unsafe {
+          let single = link.as_ptr();
+          let mut body = DAG { root: (*single).body };
+          body.whnf(defs);
+          trail.push(body.root);
+        },
+        _ => (),
+      }
     }
   }
-  top_node
 }
 
 #[cfg(test)]
 mod test {
   use super::{
-    norm,
     DAG,
   };
   use hashexpr::span::Span;
@@ -380,7 +379,8 @@ mod test {
     fn norm_assert(input: &str, result: &str) {
       match parse(&input) {
         Ok((_, mut dag)) => {
-          assert_eq!(format!("{}", norm(&HashMap::new(), &mut dag)), result)
+          dag.norm(&HashMap::new());
+          assert_eq!(format!("{}", dag), result)
         }
         Err(_) => panic!("Did not parse."),
       }

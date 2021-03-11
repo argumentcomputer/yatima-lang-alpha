@@ -13,7 +13,6 @@ use im::HashMap;
 use crate::{
   core::{
     dag::DAG,
-    eval::norm,
   },
   package::Declaration,
   parse::term::parse,
@@ -37,7 +36,9 @@ pub fn main() -> rustyline::Result<()> {
         let res = parse(&line);
         match res {
           Ok((_, term)) => {
-            println!("{}", norm(&defs, &mut DAG::from_term(&term)));
+            let mut dag = DAG::from_term(&term);
+            dag.norm(&defs);
+            println!("{}", dag);
           }
           Err(e) => println!("Error: {}", e),
         }
