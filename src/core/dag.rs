@@ -483,11 +483,22 @@ impl fmt::Debug for DAG {
         DAG::Branch(link) => unsafe {
           if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);
-            let Branch { parents, left, right, copy, .. } = *link.as_ptr();
+            let Branch { tag, var, parents, left, right, copy, .. } = *link.as_ptr();
+            let branch = match tag {
+              BranchTag::App => format!("App"),
+              BranchTag::All(_) => format!("All"),
+              BranchTag::Let => format!("Let"),
+            };
+            let name = match var {
+              Some(var_link) => format!("{} ", (*var_link.as_ptr()).name.clone()),
+              _ => String::from(""),
+            };
             let copy = copy.map(|link| link.as_ptr() as u64);
             format!(
-              "\nApp<{}> parents: {} copy: {:?}{}{}",
+              "\n{}<{}> {}parents: {} copy: {:?}{}{}",
+              branch,
               link.as_ptr() as u64,
+              name,
               stringify_parents(parents),
               copy,
               go(left, set),
@@ -499,15 +510,23 @@ impl fmt::Debug for DAG {
           }
         },
         DAG::Single(link) => unsafe {
-          let Single { var, parents, body, .. } = *link.as_ptr();
+          let Single { tag, var, parents, body, .. } = *link.as_ptr();
+          let single = match tag {
+            SingleTag::Lam => format!("Lam"),
+            SingleTag::Slf => format!("Slf"),
+            SingleTag::Cse => format!("Cse"),
+            SingleTag::Dat => format!("Dat"),
+            SingleTag::Fix => format!("Fix"),
+          };
           let name = match var {
-            Some(var_link) => (*var_link.as_ptr()).name.clone(),
+            Some(var_link) => format!("{} ", (*var_link.as_ptr()).name.clone()),
             _ => String::from(""),
           };
           if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);
             format!(
-              "\nLam<{}> {} parents: {}{}",
+              "\n{}<{}> {}parents: {}{}",
+              single,
               link.as_ptr() as u64,
               name,
               stringify_parents(parents),
@@ -533,7 +552,17 @@ impl fmt::Debug for DAG {
             format!("\nSHARE<{}>", link.as_ptr() as u64)
           }
         },
-        _ => format!("\nOTHER"),
+        DAG::Leaf(link) => unsafe {
+          let Leaf { parents, tag, .. } = &*link.as_ptr();
+          let leaf = match tag {
+            LeafTag::Typ => format!("Typ<{}>", link.as_ptr() as u64),
+            LeafTag::LTy(lty) => format!("LTy<{}>", link.as_ptr() as u64),
+            LeafTag::Lit(lit) => format!("Lit<{}>", link.as_ptr() as u64),
+            LeafTag::Opr(opr) => format!("Opr<{}>", link.as_ptr() as u64),
+            LeafTag::Ref(nam, _def_link, _ast_link) => format!("Ref<{}> {}", link.as_ptr() as u64, nam),
+          };
+          format!("\n{} parents: {}", leaf, stringify_parents(*parents))
+        },
       }
     }
     write!(f, "{}", go(*self, &mut HashSet::new()))
@@ -805,7 +834,7 @@ impl DAG {
     }
     match tree {
       Term::Lam(_, name, body) => unsafe {
-        let var = new_var(name.clone(), depth);
+        let var = new_var(name.clone(), 0);
         let lam = allocate_single(Some(var), SingleTag::Lam, parents);
         let body_parents = (*lam.as_ptr()).body_ref;
         ctx.push_front(DAG::Var(var));
@@ -816,7 +845,7 @@ impl DAG {
       }
 
       Term::Slf(_, name, body) => unsafe {
-        let var = new_var(name.clone(), depth);
+        let var = new_var(name.clone(), 0);
         let slf = allocate_single(Some(var), SingleTag::Slf, parents);
         let body_parents = (*slf.as_ptr()).body_ref;
         ctx.push_front(DAG::Var(var));
@@ -840,7 +869,7 @@ impl DAG {
       }
 
       Term::All(_, uses, name, dom, img) => unsafe {
-        let var = new_var(name.clone(), depth);
+        let var = new_var(name.clone(), 0);
         let all = allocate_branch(Some(var), BranchTag::All(*uses), parents);
         let mut img_ctx = ctx.clone();
         let dom_parents = (*all.as_ptr()).left_ref;
@@ -868,7 +897,7 @@ impl DAG {
         if *rec {
           panic!("TODO: Add letrec")
         }
-        let var = new_var(name.clone(), depth);
+        let var = new_var(name.clone(), 0);
         let let_node = allocate_branch(Some(var), BranchTag::Let, parents);
         let mut body_ctx = ctx.clone();
         let expr_parents = (*let_node.as_ptr()).left_ref;
@@ -891,7 +920,7 @@ impl DAG {
             *val
           },
           None => {
-            if depth == *idx && fix.is_some() {
+            if depth == *idx+1 && fix.is_some() {
               let val = fix.unwrap();
               if let Some(parents) = parents {
                 DLL::concat(parents, get_parents(val));
