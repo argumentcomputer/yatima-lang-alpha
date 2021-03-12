@@ -91,7 +91,7 @@ pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAGPtr {
 impl DAG {
   // Reduce term to its weak head normal form
   pub fn whnf(&mut self, defs: &HashMap<Link, Def>) {
-    let mut node = self.root;
+    let mut node = self.head;
     let mut trail = vec![];
     loop {
       match node {
@@ -119,9 +119,9 @@ impl DAG {
             }
             
             SingleTag::Cse => {
-              let mut body = DAG { root: (*link.as_ptr()).body };
+              let mut body = DAG::new((*link.as_ptr()).body);
               body.whnf(defs);
-              match body.root {
+              match body.head {
                 DAGPtr::Single(body_link) => {
                   let Single { tag: single_tag, body: single_body, .. } = *body_link.as_ptr();
                   if single_tag == SingleTag::Dat {
@@ -211,7 +211,7 @@ impl DAG {
               if let Some(def) = defs.get(def_link) {
                 // Using Fix:
                 let new_var = alloc_val(Var {name: nam.clone(), depth: 0, parents: None});
-                let new_node = DAG::from_subterm(&def.clone().term, 0, &Vector::new(), Vector::unit(DAGPtr::Var(new_var)), None).root;
+                let new_node = DAG::from_subterm(&def.clone().term, 0, &Vector::new(), Vector::unit(DAGPtr::Var(new_var)), None).head;
                 let fix_ref = alloc_uninit();
                 let new_fix = alloc_val(Single {
                   tag: SingleTag::Fix,
@@ -242,9 +242,9 @@ impl DAG {
             LeafTag::Opr(opr) => {
               let len = trail.len();
               if len >= 1 && opr.arity() == 1 {
-                let mut arg = DAG { root: (*trail[len - 1].as_ptr()).right };
+                let mut arg = DAG::new((*trail[len - 1].as_ptr()).right);
                 arg.whnf(defs);
-                match arg.root {
+                match arg.head {
                   DAGPtr::Leaf(x) => {
                     let x = (*x.as_ptr()).tag.clone();
                     match x {
@@ -253,8 +253,8 @@ impl DAG {
                         if let Some(res) = res {
                           trail.pop();
                           node = DAGPtr::Leaf(alloc_val(Leaf{ tag: LeafTag::Lit(res), parents: None }));
-                          replace_child(arg.root, node);
-                          free_dead_node(arg.root);
+                          replace_child(arg.head, node);
+                          free_dead_node(arg.head);
                         }
                         else {
                           break;
@@ -268,11 +268,11 @@ impl DAG {
                 }
               }
               else if len >= 2 && opr.arity() == 2 {
-                let mut arg1 = DAG { root: (*trail[len - 2].as_ptr()).right };
-                let mut arg2 = DAG { root: (*trail[len - 1].as_ptr()).right };
+                let mut arg1 = DAG::new((*trail[len - 2].as_ptr()).right);
+                let mut arg2 = DAG::new((*trail[len - 1].as_ptr()).right);
                 arg1.whnf(defs);
                 arg2.whnf(defs);
-                match (arg1.root, arg2.root) {
+                match (arg1.head, arg2.head) {
                   (DAGPtr::Leaf(x), DAGPtr::Leaf(y)) => {
                     let x = (*x.as_ptr()).tag.clone();
                     let y = (*y.as_ptr()).tag.clone();
@@ -283,8 +283,8 @@ impl DAG {
                           trail.pop();
                           trail.pop();
                           node = DAGPtr::Leaf(alloc_val(Leaf{ tag: LeafTag::Lit(res), parents: None }));
-                          replace_child(arg1.root, node);
-                          free_dead_node(arg1.root);
+                          replace_child(arg1.head, node);
+                          free_dead_node(arg1.head);
                         }
                         else {
                           break;
@@ -307,34 +307,34 @@ impl DAG {
       }
     }
     if trail.is_empty() {
-      self.root = node;
+      self.head = node;
     }
     else {
-      self.root = DAGPtr::Branch(trail[0]);
+      self.head = DAGPtr::Branch(trail[0]);
     }
   }
   
   // Reduce term to its normal form
   pub fn norm(&mut self, defs: &HashMap<Link, Def>) {
     self.whnf(defs);
-    let top_node = self.root;
+    let top_node = self.head;
     let mut trail = vec![top_node];
     while let Some(node) = trail.pop() {
       match node {
         DAGPtr::Branch(link) => unsafe {
           let branch = link.as_ptr();
-          let mut left = DAG { root: (*branch).left };
-          let mut right = DAG { root: (*branch).right };
+          let mut left = DAG::new((*branch).left);
+          let mut right = DAG::new((*branch).right);
           left.whnf(defs);
           right.whnf(defs);
-          trail.push(left.root);
-          trail.push(right.root);
+          trail.push(left.head);
+          trail.push(right.head);
         },
         DAGPtr::Single(link) => unsafe {
           let single = link.as_ptr();
-          let mut body = DAG { root: (*single).body };
+          let mut body = DAG::new((*single).body);
           body.whnf(defs);
-          trail.push(body.root);
+          trail.push(body.head);
         },
         _ => (),
       }

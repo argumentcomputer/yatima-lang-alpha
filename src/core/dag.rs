@@ -35,7 +35,7 @@ use std::{
 };
 
 pub struct DAG {
-  pub root: DAGPtr
+  pub head: DAGPtr
 }
 
 // A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
@@ -286,9 +286,7 @@ impl Clone for DAG {
     }
     let mut map: HashMap<DAGPtr, DAGPtr> = HashMap::new();
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG {
-      root: go(self.root, &mut map, root)
-    }
+    DAG::new(go(self.head, &mut map, root))
   }
 }
 
@@ -407,11 +405,15 @@ impl fmt::Debug for DAG {
         },
       }
     }
-    write!(f, "{}", go(self.root, &mut HashSet::new()))
+    write!(f, "{}", go(self.head, &mut HashSet::new()))
   }
 }
 
 impl DAG {
+  pub fn new(head: DAGPtr) -> DAG {
+    DAG { head }
+  }
+
   pub fn to_term(&self) -> Term {
     fn go(
       node: DAGPtr,
@@ -507,7 +509,7 @@ impl DAG {
       }
     }
     let mut map: HashMap<*mut Var, u64> = HashMap::new();
-    go(self.root, &mut map, 0)
+    go(self.head, &mut map, 0)
   }
 
   pub fn from_term(tree: &Term) -> Self {
@@ -664,14 +666,12 @@ impl DAG {
         _ => panic!("TODO: implement Term::to_dag variants"),
       }
     }
-    DAG {
-      root: go(tree, depth, abs_ctx, rel_ctx, parents)
-    }
+    DAG::new(go(tree, depth, abs_ctx, rel_ctx, parents))
   }
 
   // Check whether a term is a root node
   pub fn is_root(&self) -> bool {
-    match get_parents(self.root){
+    match get_parents(self.head){
       None => false,
       Some(pref) => unsafe {
         (*pref.as_ptr()).elem == ParentPtr::Root
@@ -681,11 +681,11 @@ impl DAG {
 
   // Remove the root parent
   pub fn uproot(&self){
-    match get_parents(self.root) {
+    match get_parents(self.head) {
       None => (),
       Some(pref) => unsafe {
         dealloc(pref.as_ptr() as *mut u8, Layout::new::<ParentPtr>());
-        set_parents(self.root, None);
+        set_parents(self.head, None);
       },
     }
   }

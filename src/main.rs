@@ -8,7 +8,7 @@ use yatima::{
   core,
   hashspace,
   parse,
-  // package,
+  package,
   repl,
 };
 
@@ -47,18 +47,18 @@ fn main() {
       println!("Package parsed:\n{}", p);
     }
     Cli::Check { input } => {
-      // let env = parse::package::PackageEnv::new(input.clone());
-      // let (_, p, defs, refs) = parse::package::parse_file(env);
-      // for dec in p.decls {
-      //   if let package::Declaration::Defn { name, .. } = &dec {
-      //     match core::check::check_def(&defs, &refs, name) {
-      //       Ok(_) => println!("{}: checks", name),
-      //       Err(err) => {
-      //         println!("{}: {}", name, err);
-      //       },
-      //     }
-      //   }
-      // }
+      let env = parse::package::PackageEnv::new(input.clone());
+      let (_, p, defs, refs) = parse::package::parse_file(env);
+      for dec in p.decls {
+        if let package::Declaration::Defn { name, .. } = &dec {
+          match core::check::check_def(&defs, &refs, name) {
+            Ok(_) => println!("{}: checks", name),
+            Err(err) => {
+              println!("{}: {}", name, err);
+            },
+          }
+        }
+      }
     }
     Cli::Run { input } => {
       let env = parse::package::PackageEnv::new(input.clone());
