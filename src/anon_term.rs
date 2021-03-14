@@ -1,6 +1,6 @@
 use hashexpr::{
-  AVal,
-  AVal::*,
+  atom,
+  atom::Atom::*,
   Expr,
   Expr::{
     Atom,
@@ -8,7 +8,10 @@ use hashexpr::{
   },
   Link,
 };
-use std::convert::TryInto;
+use std::{
+  convert::TryInto,
+  fmt,
+};
 
 use crate::decode_error::{
   DecodeError,
@@ -30,7 +33,7 @@ impl AnonTerm {
     match self {
       Self::Ctor(ctor, xs) => {
         let mut ys = Vec::new();
-        ys.push(symb!(ctor));
+        ys.push(text!(ctor));
         for x in xs {
           ys.push(x.encode());
         }
@@ -46,7 +49,7 @@ impl AnonTerm {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(ctor)), tail @ ..] => {
+        [Atom(_, Text(ctor)), tail @ ..] => {
           let mut xs = Vec::new();
           for y in tail {
             let x = AnonTerm::decode(y.to_owned())?;
@@ -69,6 +72,26 @@ impl AnonTerm {
       Atom(_, Link(link)) => Ok(Self::Link(link)),
       Atom(_, Bits(data)) => Ok(Self::Data(data)),
       _ => Err(DecodeError::new(expr.position(), vec![Expected::AnonTermAtom])),
+    }
+  }
+}
+
+impl fmt::Display for AnonTerm {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use AnonTerm::*;
+    match self {
+      Vari(i) => write!(f, "{}", i),
+      Bind(x) => write!(f, "(bind ({}))", x),
+      Link(l) => write!(f, "{}", l),
+      Data(d) => write!(f, "{}", bits!(d.to_owned())),
+      Ctor(n, xs) => {
+        let mut res = String::new();
+        for x in xs {
+          res.push_str(" ");
+          res.push_str(&format!("{}", x));
+        }
+        write!(f, "(ctor \"{}\"{})", n, res)
+      }
     }
   }
 }
@@ -117,5 +140,11 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[test]
+  fn test_cases() {
+    let f = Ctor(format!("lam"), vec![Bind(Box::new(Vari(0)))]);
+    assert_eq!(String::from(r##"(ctor "lam" (bind (0)))"##), format!("{}", f))
   }
 }

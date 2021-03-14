@@ -1,6 +1,8 @@
 use crate::span::Span;
 // use blake3;
 
+use std::fmt;
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Pos {
   // file: blake3::Hash,
@@ -22,5 +24,15 @@ impl Pos {
       upto_line: upto.location_line() as u64,
       upto_column: upto.get_utf8_column() as u64,
     }
+  }
+}
+
+impl fmt::Display for Pos {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "{}:{}-{}:{}",
+      self.from_line, self.from_column, self.upto_line, self.upto_column
+    )
   }
 }

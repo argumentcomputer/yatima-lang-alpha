@@ -1,6 +1,6 @@
 use hashexpr::{
-  AVal,
-  AVal::*,
+  atom,
+  atom::Atom::*,
   Expr,
   Expr::*,
   Link,
@@ -44,25 +44,25 @@ impl Declaration {
   pub fn encode(self) -> Expr {
     match self {
       Self::Defn { name, defn, term } => {
-        cons!(None, symb!("defn"), symb!(name), link!(defn), link!(term))
+        cons!(None, text!("defn"), text!(name), link!(defn), link!(term))
       }
       Self::Open { name, alias, with, from } => match with {
         Some(ns) => {
           let mut xs = Vec::new();
           for n in ns {
-            xs.push(symb!(n))
+            xs.push(text!(n))
           }
           cons!(
             None,
-            symb!("open"),
-            symb!(name),
-            symb!(alias),
+            text!("open"),
+            text!(name),
+            text!(alias),
             Expr::Cons(None, xs),
             link!(from)
           )
         }
         None => {
-          cons!(None, symb!("open"), symb!(name), symb!(alias), link!(from))
+          cons!(None, text!("open"), text!(name), text!(alias), link!(from))
         }
       },
     }
@@ -71,18 +71,18 @@ impl Declaration {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Link(d)), Atom(_, Link(a))]
+        [Atom(_, Text(c)), Atom(_, Text(n)), Atom(_, Link(d)), Atom(_, Link(a))]
           if *c == String::from("defn") =>
         {
           Ok(Self::Defn { name: n.to_owned(), defn: *d, term: *a })
         }
-        [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Symbol(a)), Cons(_, xs), Atom(_, Link(f))]
+        [Atom(_, Text(c)), Atom(_, Text(n)), Atom(_, Text(a)), Cons(_, xs), Atom(_, Link(f))]
           if *c == String::from("open") =>
         {
           let mut ns = Vec::new();
           for x in xs {
             match x {
-              Atom(_, Symbol(n)) => {
+              Atom(_, Text(n)) => {
                 ns.push(n.to_owned());
               }
               _ => {
@@ -100,7 +100,7 @@ impl Declaration {
             from: *f,
           })
         }
-        [Atom(_, Symbol(c)), Atom(_, Symbol(n)), Atom(_, Symbol(a)), Atom(_, Link(f))]
+        [Atom(_, Text(c)), Atom(_, Text(n)), Atom(_, Text(a)), Atom(_, Link(f))]
           if *c == String::from("open") =>
         {
           Ok(Self::Open {
@@ -131,11 +131,17 @@ impl fmt::Display for Declaration {
           None => String::from(" "),
           Some(ns) => {
             let mut s = String::from("(");
-            for n in ns {
-              s.push_str(n);
-              s.push_str(", ");
+            let mut ns = ns.iter().peekable();
+            while let Some(n) = ns.next() {
+              if ns.peek().is_some() {
+                s.push_str(n);
+                s.push_str(", ")
+              }
+              else {
+                s.push_str(n);
+                s.push_str(") ");
+              }
             }
-            s.push_str(") ");
             s
           }
         };
@@ -158,8 +164,8 @@ impl Package {
     }
     cons!(
       None,
-      symb!("package"),
-      symb!(self.name),
+      text!("package"),
+      text!(self.name),
       text!(self.docs),
       link!(self.source),
       Expr::Cons(None, xs)
@@ -169,9 +175,9 @@ impl Package {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(c)), tail @ ..] if *c == String::from("package") => {
+        [Atom(_, Text(c)), tail @ ..] if *c == String::from("package") => {
           match tail {
-            [Atom(_, Symbol(n)), Atom(_, Text(d)), Atom(_, Link(s)), ds] => {
+            [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(s)), ds] => {
               let mut decls = Vec::new();
               match ds {
                 Cons(_, xs) => {
