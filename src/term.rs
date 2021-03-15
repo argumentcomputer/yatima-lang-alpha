@@ -192,7 +192,7 @@ impl fmt::Display for Term {
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
       All(_, us_, nam, terms) => write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1)),
-      Ann(_, terms) => write!(f, "{} :: {}", parens(terms.1), parens(terms.0)),
+      Ann(_, terms) => write!(f, "{} :: {}", parens(&terms.1), parens(&terms.0)),
       Dat(_, bod) => write!(f, "data {}", bod),
       Cse(_, bod) => write!(f, "case {}", bod),
       Typ(_) => write!(f, "Type"),
