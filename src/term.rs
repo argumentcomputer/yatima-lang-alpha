@@ -25,11 +25,11 @@ pub use crate::core::{
 
 pub use hashexpr::link::Link;
 use hashexpr::{
+  atom,
+  atom::Atom::*,
   position::Pos,
-  AVal,
-  AVal::*,
   Expr,
-  Expr::Atom,
+  Expr::*,
 };
 
 use im::{
@@ -192,7 +192,7 @@ impl fmt::Display for Term {
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
       All(_, us_, nam, terms) => write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1)),
-      Ann(_, terms) => write!(f, "({} :: {})", terms.1, terms.0),
+      Ann(_, terms) => write!(f, "{} :: {}", parens(terms.1), parens(terms.0)),
       Dat(_, bod) => write!(f, "data {}", bod),
       Cse(_, bod) => write!(f, "case {}", bod),
       Typ(_) => write!(f, "Type"),
@@ -204,243 +204,6 @@ impl fmt::Display for Term {
 }
 
 impl Term {
-  pub fn encode(self) -> Expr {
-    match self {
-      Self::Var(_, nam, _) => symb!(nam),
-      Self::Lam(_, nam, bod) => {
-        cons!(None, symb!("lambda"), symb!(nam), (*bod).clone().encode())
-      }
-      Self::App(_, terms) => cons!(None, terms.0.clone().encode(), terms.1.clone().encode()),
-      Self::All(_, uses, nam, terms) => {
-        cons!(
-          None,
-          symb!("forall"),
-          uses.encode(),
-          symb!(nam),
-          terms.0.clone().encode(),
-          terms.1.clone().encode()
-        )
-      }
-      Self::Slf(_, nam, bod) => {
-        cons!(None, symb!("self"), symb!(nam), (*bod).clone().encode())
-      }
-      Self::Dat(_, bod) => {
-        cons!(None, symb!("data"), (*bod).clone().encode())
-      }
-      Self::Cse(_, bod) => {
-        cons!(None, symb!("case"), (*bod).clone().encode())
-      }
-      Self::Ref(_, nam, ..) => symb!(nam),
-      Self::Let(_, rec, uses, nam, terms) => {
-        let ctor = if rec { symb!("letrec") } else { symb!("let") };
-        cons!(
-          None,
-          ctor,
-          uses.encode(),
-          symb!(nam),
-          terms.0.clone().encode(),
-          terms.1.clone().encode(),
-          terms.2.clone().encode()
-        )
-      }
-      Self::Typ(_) => symb!("Type"),
-      Self::Ann(_, terms) => {
-        cons!(None, symb!("type"), terms.0.clone().encode(), terms.1.clone().encode())
-      }
-      Self::Lit(_, lit) => lit.encode(),
-      Self::LTy(_, lty) => lty.encode(),
-      Self::Opr(_, opr) => opr.encode(),
-    }
-  }
-
-  pub fn decode(
-    refs: Refs,
-    ctx: Vector<String>,
-    expr: Expr,
-  ) -> Result<Self, DecodeError> {
-    match expr {
-      Expr::Atom(pos, val) => {
-        // println!("ctx {:?}", ctx);
-        let decode_var = |val| match val {
-          Symbol(n) => {
-            // println!("var n {:?}", n);
-            let (i, _) = ctx
-              .iter()
-              .enumerate()
-              .find(|(_, m)| **m == n)
-              .ok_or(DecodeError::new(pos, vec![Expected::BoundVar]))?;
-            // println!("var i {:?}", i);
-            Ok(Self::Var(pos, n.to_owned(), i as u64))
-          }
-          _ => Err(DecodeError::new(pos, vec![Expected::BoundVar])),
-        };
-        let decode_ref = |val| match val {
-          Symbol(n) => {
-            let (def_link, ast_link) = refs
-              .get(&n)
-              .ok_or(DecodeError::new(pos, vec![Expected::DefinedRef]))?;
-            Ok(Self::Ref(pos, n.to_owned(), *def_link, *ast_link))
-          }
-          _ => Err(DecodeError::new(pos, vec![Expected::DefinedRef])),
-        };
-        let decode_typ = |val| match val {
-          Symbol(n) if *n == String::from("Type") => Ok(Self::Typ(pos)),
-          _ => Err(DecodeError::new(pos, vec![Expected::TypeOfTypes])),
-        };
-
-        vec![
-          decode_var(val.clone()),
-          decode_ref(val.clone()),
-          decode_typ(val.clone()),
-          Literal::decode(Expr::Atom(pos.clone(), val.clone()))
-            .map(|x| Self::Lit(pos, x)),
-          LitType::decode(Expr::Atom(pos.clone(), val.clone()))
-            .map(|x| Self::LTy(pos, x)),
-          PrimOp::decode(Expr::Atom(pos.clone(), val.clone()))
-            .map(|x| Self::Opr(pos, x)),
-        ]
-        .into_iter()
-        .fold(Err(DecodeError::new(pos, vec![])), or_else_join)
-      }
-      Expr::Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("letrec") => {
-          match tail {
-            [uses, Atom(_, Symbol(nam)), typ, exp, bod] => {
-              let uses = Uses::decode(uses.to_owned())?;
-              let typ =
-                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-              let mut new_ctx = ctx.clone();
-              new_ctx.push_front(nam.clone());
-              let exp =
-                Term::decode(refs.to_owned(), new_ctx.clone(), exp.to_owned())?;
-              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::Let(
-                pos,
-                true,
-                uses,
-                nam.clone(),
-                Rc::new((typ, exp, bod))
-              ))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::LetRec])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("let") => {
-          match tail {
-            [uses, Atom(_, Symbol(nam)), typ, exp, bod] => {
-              let uses = Uses::decode(uses.to_owned())?;
-              let typ =
-                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-              let exp =
-                Term::decode(refs.to_owned(), ctx.to_owned(), exp.to_owned())?;
-              let mut new_ctx = ctx.clone();
-              new_ctx.push_front(nam.clone());
-              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::Let(
-                pos,
-                false,
-                uses,
-                nam.clone(),
-                Rc::new((typ, exp, bod))
-              ))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::Let])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("data") => {
-          match tail {
-            [bod] => {
-              let bod =
-                Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-              Ok(Self::Dat(pos, Rc::new(bod)))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::Data])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("case") => {
-          match tail {
-            [bod] => {
-              let bod =
-                Term::decode(refs.to_owned(), ctx.to_owned(), bod.to_owned())?;
-              Ok(Self::Cse(pos, Rc::new(bod)))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::Case])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("self") => {
-          match tail {
-            [Atom(_, Symbol(nam)), bod] => {
-              let mut new_ctx = ctx.clone();
-              new_ctx.push_front(nam.clone());
-              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::Slf(pos, nam.clone(), Rc::new(bod)))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::SelfType])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("lambda") => {
-          match tail {
-            [Atom(_, Symbol(nam)), bod] => {
-              let mut new_ctx = ctx.clone();
-              new_ctx.push_front(nam.clone());
-              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::Lam(pos, nam.to_owned(), Rc::new(bod)))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::Lambda])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("forall") => {
-          match tail {
-            [uses, Atom(_, Symbol(nam)), typ, bod] => {
-              let uses = Uses::decode(uses.to_owned())?;
-              let typ =
-                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-              let mut new_ctx = ctx.clone();
-              new_ctx.push_front(nam.clone());
-              let bod = Term::decode(refs.to_owned(), new_ctx, bod.to_owned())?;
-              Ok(Self::All(
-                pos,
-                uses,
-                nam.to_owned(),
-                Rc::new((typ, bod)),
-              ))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::Forall])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("type") => {
-          match tail {
-            [typ, trm] => {
-              let typ =
-                Term::decode(refs.to_owned(), ctx.to_owned(), typ.to_owned())?;
-              let trm =
-                Term::decode(refs.to_owned(), ctx.to_owned(), trm.to_owned())?;
-              Ok(Self::Ann(pos, Rc::new((typ, trm))))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::Annotation])),
-          }
-        }
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("exception") => {
-          match tail {
-            [Atom(_, Text(err))] => {
-              Ok(Self::Lit(pos, Literal::Exception(err.clone())))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::ExceptionLiteral])),
-          }
-        }
-        [fun, arg] => {
-          let fun =
-            Term::decode(refs.to_owned(), ctx.to_owned(), fun.to_owned())?;
-          let arg =
-            Term::decode(refs.to_owned(), ctx.to_owned(), arg.to_owned())?;
-          Ok(Self::App(pos, Rc::new((fun, arg))))
-        }
-
-        _ => Err(DecodeError::new(pos, vec![Expected::Constructor])),
-      },
-    }
-  }
-
   pub fn embed(self) -> (AnonTerm, MetaTerm) {
     match self {
       Self::Var(pos, _, idx) => (
@@ -738,44 +501,6 @@ impl Def {
     Def { pos, name, docs, typ_, term }
   }
 
-  pub fn encode(self) -> Expr {
-    Expr::Cons(self.pos, vec![
-      symb!("def"),
-      symb!(self.name),
-      text!(self.docs),
-      Term::encode(self.typ_),
-      Term::encode(self.term),
-    ])
-  }
-
-  pub fn decode(refs: Refs, expr: Expr) -> Result<Self, DecodeError> {
-    match expr {
-      Expr::Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(n)), tail @ ..] if *n == String::from("def") => {
-          match tail {
-            [Atom(_, Symbol(name)), Atom(_, Text(docs)), typ_, term] => {
-              let mut ctx = Vector::new();
-              let typ_ =
-                Term::decode(refs.to_owned(), ctx.to_owned(), typ_.to_owned())?;
-              ctx.push_front(name.clone());
-              let term = Term::decode(refs, ctx, term.to_owned())?;
-              Ok(Def::new(
-                pos.to_owned(),
-                name.to_owned(),
-                docs.to_owned(),
-                typ_,
-                term,
-              ))
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::TermDefContents])),
-          }
-        }
-        _ => Err(DecodeError::new(pos, vec![Expected::TermDef])),
-      },
-      _ => Err(DecodeError::new(expr.position(), vec![Expected::TermDef])),
-    }
-  }
-
   pub fn embed(self) -> (Definition, AnonTerm, AnonTerm) {
     let (type_anon, type_meta) = self.typ_.embed();
     let (term_anon, term_meta) = self.term.embed();
@@ -873,7 +598,8 @@ pub mod tests {
     let mut s: String = s
       .chars()
       .filter(|x| {
-        hashexpr::is_valid_symbol_char(*x) && char::is_ascii_alphabetic(x)
+        crate::parse::term::is_valid_symbol_char(*x)
+          && char::is_ascii_alphabetic(x)
       })
       .collect();
     s.truncate(1);
@@ -949,13 +675,15 @@ pub mod tests {
   }
 
   pub fn test_refs() -> Refs {
-    let inp = "(def id \"\" (forall ω A Type A) (lambda x x))";
-    let d =
-      Def::decode(HashMap::new(), hashexpr::parse(inp).unwrap().1).unwrap();
-    let (d, _, t) = d.embed();
-    let mut refs = HashMap::new();
-    refs.insert(String::from("id"), (d.encode().link(), t.encode().link()));
-    refs
+    // let inp = "(\"def\" \"id\" \"\" (\"forall\" \"ω\" \"A\" \"Type\" \"A\") \
+    //           (\"lambda\" \"x\" \"x\"))";
+    // let d =
+    //  Def::decode(HashMap::new(), hashexpr::parse(inp).unwrap().1).unwrap();
+    // let (d, _, t) = d.embed();
+    // let mut refs = HashMap::new();
+    // refs.insert(String::from("id"), (d.encode().link(), t.encode().link()));
+    // refs
+    HashMap::new()
   }
 
   fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut Gen) -> Term> {
@@ -1107,15 +835,6 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn term_encode_decode(x: Term) -> bool {
-    // println!("x: {}", x);
-    match Term::decode(test_refs(), Vector::new(), x.clone().encode()) {
-      // Ok(y) => false,
-      Ok(y) => x == y,
-      _ => false,
-    }
-  }
-  #[quickcheck]
   fn term_embed_unembed(x: Term) -> bool {
     let (a, m) = x.clone().embed();
     match Term::unembed(Vector::new(), &a, &m) {
@@ -1162,49 +881,51 @@ pub mod tests {
     }
   }
 
-  #[test]
-  fn term_test_cases() {
-    let f =
-      Lam(None, String::from("x"), Rc::new(Var(None, String::from("x"), 0)));
-    assert_eq!("(lambda x x)", format!("{}", f.clone().encode()));
-    let b = App(None, Rc::new((f.clone(), f.clone())));
-    assert_eq!(
-      "((lambda x x) (lambda x x))",
-      format!("{}", b.clone().encode())
-    );
-    assert_eq!(
-      Ok(Var(None, String::from("x"), 0)),
-      Term::decode(
-        HashMap::new(),
-        vec![String::from("x")].into(),
-        hashexpr::parse("x").unwrap().1,
-      )
-    );
+  //#[test]
+  // fn term_test_cases() {
+  //  let f =
+  //    Lam(None, String::from("x"), Box::new(Var(None, String::from("x"), 0)));
+  //  assert_eq!("(\"lambda\" \"x\" \"x\")", format!("{}", f.clone().encode()));
+  //  let b = App(None, Box::new(f.clone()), Box::new(f.clone()));
+  //  assert_eq!(
+  //    "((\"lambda\" \"x\" \"x\") (\"lambda\" \"x\" \"x\"))",
+  //    format!("{}", b.clone().encode())
+  //  );
+  //  assert_eq!(
+  //    Ok(Var(None, String::from("x"), 0)),
+  //    Term::decode(
+  //      HashMap::new(),
+  //      vec![String::from("x")].into(),
+  //      hashexpr::parse("\"x\"").unwrap().1,
+  //    )
+  //  );
 
-    let f =
-      Lam(None, String::from("x"), Rc::new(Var(None, String::from("x"), 0)));
-    assert_eq!(
-      Ok(f.clone()),
-      Term::decode(
-        HashMap::new(),
-        Vector::new(),
-        hashexpr::parse("(lambda x x)").unwrap().1
-      )
-    );
+  //  let f =
+  //    Lam(None, String::from("x"), Box::new(Var(None, String::from("x"), 0)));
+  //  assert_eq!(
+  //    Ok(f.clone()),
+  //    Term::decode(
+  //      HashMap::new(),
+  //      Vector::new(),
+  //      hashexpr::parse("(\"lambda\" \"x\" \"x\")").unwrap().1
+  //    )
+  //  );
 
-    assert_eq!(
-      Ok(b.clone()),
-      Term::decode(
-        HashMap::new(),
-        Vector::new(),
-        hashexpr::parse("((lambda x x) (lambda x x))").unwrap().1
-      )
-    );
+  //  assert_eq!(
+  //    Ok(b.clone()),
+  //    Term::decode(
+  //      HashMap::new(),
+  //      Vector::new(),
+  //      hashexpr::parse(r#"(("lambda" "x" "x") ("lambda" "x" "x"))"#)
+  //        .unwrap()
+  //        .1
+  //    )
+  //  );
 
-    // let (id_def, id_ast) = test_defs().get("id").unwrap();
-    // let x = Term::Ref(None, String::from("id"), id_def, id_ast);
-    // assert_eq!(f.clone(), x);
-  }
+  //  // let (id_def, id_ast) = test_defs().get("id").unwrap();
+  //  // let x = Term::Ref(None, String::from("id"), id_def, id_ast);
+  //  // assert_eq!(f.clone(), x);
+  //}
 }
 
 

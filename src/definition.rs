@@ -7,9 +7,9 @@ use crate::{
 };
 
 use hashexpr::{
+  atom,
+  atom::Atom::*,
   position::Pos,
-  AVal,
-  AVal::*,
   Expr,
   Expr::{
     Atom,
@@ -45,8 +45,8 @@ impl Definition {
   pub fn encode(self) -> Expr {
     cons!(
       self.pos,
-      symb!("def"),
-      symb!(self.name),
+      text!("def"),
+      text!(self.name),
       text!(self.docs),
       link!(self.type_anon),
       link!(self.term_anon),
@@ -58,9 +58,9 @@ impl Definition {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(c)), tail @ ..] if *c == String::from("def") => {
+        [Atom(_, Text(c)), tail @ ..] if *c == String::from("def") => {
           match tail {
-            [Atom(_, Symbol(n)), Atom(_, Text(d)), Atom(_, Link(t)), Atom(_, Link(x)), tm, xm] =>
+            [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(t)), Atom(_, Link(x)), tm, xm] =>
             {
               let type_meta = MetaTerm::decode(tm.to_owned())?;
               let term_meta = MetaTerm::decode(xm.to_owned())?;

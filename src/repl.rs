@@ -10,6 +10,8 @@ use rustyline::{
 
 use im::HashMap;
 
+use nom::Err;
+
 use crate::{
   core::{
     dag::DAG,
@@ -39,7 +41,17 @@ pub fn main() -> rustyline::Result<()> {
           Ok((_, term)) => {
             println!("{}", norm(&defs, DAG::from_term(term)));
           }
-          Err(e) => println!("Error: {}", e),
+          Err(e) => match e {
+            Err::Incomplete(_) => println!("Incomplete"),
+            Err::Failure(e) => {
+              println!("Parse Failure:\n");
+              println!("{}", e);
+            }
+            Err::Error(e) => {
+              println!("Parse Error:\n");
+              println!("{}", e);
+            }
+          },
         }
       }
       Err(ReadlineError::Interrupted) => {
@@ -51,7 +63,7 @@ pub fn main() -> rustyline::Result<()> {
         break;
       }
       Err(err) => {
-        println!("Error: {:?}", err);
+        println!("Error: {}", err);
         break;
       }
     }

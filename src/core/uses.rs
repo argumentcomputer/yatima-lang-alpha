@@ -4,8 +4,8 @@ use crate::decode_error::{
 };
 
 use hashexpr::{
-  AVal,
-  AVal::*,
+  atom,
+  atom::Atom::*,
   Expr,
 };
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -54,19 +54,19 @@ impl Uses {
 
   pub fn encode(self) -> Expr {
     match self {
-      Self::None => symb!("0"),
-      Self::Affi => symb!("&"),
-      Self::Once => symb!("1"),
-      Self::Many => symb!("ω"),
+      Self::None => text!("0"),
+      Self::Affi => text!("&"),
+      Self::Once => text!("1"),
+      Self::Many => text!("ω"),
     }
   }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Expr::Atom(_, Symbol(n)) if *n == String::from("0") => Ok(Self::None),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("&") => Ok(Self::Affi),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("1") => Ok(Self::Once),
-      Expr::Atom(_, Symbol(n)) if *n == String::from("ω") => Ok(Self::Many),
+      Expr::Atom(_, Text(n)) if *n == String::from("0") => Ok(Self::None),
+      Expr::Atom(_, Text(n)) if *n == String::from("&") => Ok(Self::Affi),
+      Expr::Atom(_, Text(n)) if *n == String::from("1") => Ok(Self::Once),
+      Expr::Atom(_, Text(n)) if *n == String::from("ω") => Ok(Self::Many),
       x => Err(DecodeError::new(x.position(), vec![Expected::Uses])),
     }
   }
