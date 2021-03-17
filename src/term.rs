@@ -37,21 +37,21 @@ use im::{
   Vector,
 };
 
-use std::{fmt, rc::Rc};
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub enum Term {
   Var(Option<Pos>, String, u64),
-  Lam(Option<Pos>, String, Rc<Term>),
-  App(Option<Pos>, Rc<(Term, Term)>),
-  All(Option<Pos>, Uses, String, Rc<(Term, Term)>),
-  Slf(Option<Pos>, String, Rc<Term>),
-  Dat(Option<Pos>, Rc<Term>),
-  Cse(Option<Pos>, Rc<Term>),
+  Lam(Option<Pos>, String, Box<Term>),
+  App(Option<Pos>, Box<(Term, Term)>),
+  All(Option<Pos>, Uses, String, Box<(Term, Term)>),
+  Slf(Option<Pos>, String, Box<Term>),
+  Dat(Option<Pos>, Box<Term>),
+  Cse(Option<Pos>, Box<Term>),
   Ref(Option<Pos>, String, Link, Link),
-  Let(Option<Pos>, bool, Uses, String, Rc<(Term, Term, Term)>),
+  Let(Option<Pos>, bool, Uses, String, Box<(Term, Term, Term)>),
   Typ(Option<Pos>),
-  Ann(Option<Pos>, Rc<(Term, Term)>),
+  Ann(Option<Pos>, Box<(Term, Term)>),
   Lit(Option<Pos>, Literal),
   LTy(Option<Pos>, LitType),
   Opr(Option<Pos>, PrimOp),
@@ -388,33 +388,33 @@ impl Term {
           ("typ", [], []) => Ok(Term::Typ(*pos)),
           ("dat", [anon], [meta]) => {
             let body = Term::unembed(ctx, anon, meta)?;
-            Ok(Term::Dat(*pos, Rc::new(body)))
+            Ok(Term::Dat(*pos, Box::new(body)))
           }
           ("cse", [anon], [meta]) => {
             let body = Term::unembed(ctx, anon, meta)?;
-            Ok(Term::Cse(*pos, Rc::new(body)))
+            Ok(Term::Cse(*pos, Box::new(body)))
           }
           ("lam", [AnonTerm::Bind(anon)], [MetaTerm::Bind(n, meta)]) => {
             let mut new_ctx = ctx.clone();
             new_ctx.push_front(n.clone());
             let body = Term::unembed(new_ctx, &anon, meta)?;
-            Ok(Term::Lam(*pos, n.clone(), Rc::new(body)))
+            Ok(Term::Lam(*pos, n.clone(), Box::new(body)))
           }
           ("slf", [AnonTerm::Bind(anon)], [MetaTerm::Bind(n, meta)]) => {
             let mut new_ctx = ctx.clone();
             new_ctx.push_front(n.clone());
             let body = Term::unembed(new_ctx, &anon, meta)?;
-            Ok(Term::Slf(*pos, n.clone(), Rc::new(body)))
+            Ok(Term::Slf(*pos, n.clone(), Box::new(body)))
           }
           ("app", [fanon, aanon], [fmeta, ameta]) => {
             let fun = Term::unembed(ctx.clone(), fanon, fmeta)?;
             let arg = Term::unembed(ctx.clone(), aanon, ameta)?;
-            Ok(Term::App(*pos, Rc::new((fun, arg))))
+            Ok(Term::App(*pos, Box::new((fun, arg))))
           }
           ("ann", [xanon, tanon], [xmeta, tmeta]) => {
             let xpr = Term::unembed(ctx.clone(), xanon, xmeta)?;
             let typ = Term::unembed(ctx.clone(), tanon, tmeta)?;
-            Ok(Term::Ann(*pos, Rc::new((xpr, typ))))
+            Ok(Term::Ann(*pos, Box::new((xpr, typ))))
           }
           (
             "all",
@@ -429,7 +429,7 @@ impl Term {
             let mut new_ctx = ctx.clone();
             new_ctx.push_front(n.clone());
             let body = Term::unembed(new_ctx, banon, bmeta)?;
-            Ok(Term::All(*pos, uses, n.clone(), Rc::new((typ_, body))))
+            Ok(Term::All(*pos, uses, n.clone(), Box::new((typ_, body))))
           }
           (
             "rec",
@@ -452,7 +452,7 @@ impl Term {
               true,
               uses,
               name.clone(),
-              Rc::new((typ_, exp, body))
+              Box::new((typ_, exp, body))
             ))
           }
           (
@@ -474,7 +474,7 @@ impl Term {
               false,
               uses,
               name.clone(),
-              Rc::new((typ_, exp, body))
+              Box::new((typ_, exp, body))
             ))
           }
           _ => Err(UnembedError::UnexpectedCtor(
@@ -614,7 +614,7 @@ pub mod tests {
       let n = arbitrary_name(g);
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      Lam(None, n, Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
+      Lam(None, n, Box::new(arbitrary_term(g, refs.clone(), ctx2)))
     })
   }
 
@@ -626,7 +626,7 @@ pub mod tests {
       let n = arbitrary_name(g);
       let mut ctx2 = ctx.clone();
       ctx2.push_front(n.clone());
-      Slf(None, n, Rc::new(arbitrary_term(g, refs.clone(), ctx2)))
+      Slf(None, n, Box::new(arbitrary_term(g, refs.clone(), ctx2)))
     })
   }
 
@@ -644,14 +644,14 @@ pub mod tests {
         ctx2.push_front(n.clone());
         let exp = arbitrary_term(g, refs.clone(), ctx2.clone());
         let bod = arbitrary_term(g, refs.clone(), ctx2);
-        Let(None, rec, u, n, Rc::new((typ, exp, bod)))
+        Let(None, rec, u, n, Box::new((typ, exp, bod)))
       }
       else {
         let mut ctx2 = ctx.clone();
         ctx2.push_front(n.clone());
         let exp = arbitrary_term(g, refs.clone(), ctx.clone());
         let bod = arbitrary_term(g, refs.clone(), ctx2);
-        Let(None, rec, u, n, Rc::new((typ, exp, bod)))
+        Let(None, rec, u, n, Box::new((typ, exp, bod)))
       }
     })
   }
@@ -669,7 +669,7 @@ pub mod tests {
         None,
         u,
         n,
-        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx2)))
+        Box::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx2)))
       )
     })
   }
@@ -725,7 +725,7 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::App(
         None,
-        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
+        Box::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
       )
     })
   }
@@ -737,7 +737,7 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::Ann(
         None,
-        Rc::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
+        Box::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
       )
     })
   }
@@ -747,7 +747,7 @@ pub mod tests {
     ctx: Vector<String>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
-      Term::Dat(None, Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+      Term::Dat(None, Box::new(arbitrary_term(g, refs.clone(), ctx.clone())))
     })
   }
   fn arbitrary_cse(
@@ -755,7 +755,7 @@ pub mod tests {
     ctx: Vector<String>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
-      Term::Cse(None, Rc::new(arbitrary_term(g, refs.clone(), ctx.clone())))
+      Term::Cse(None, Box::new(arbitrary_term(g, refs.clone(), ctx.clone())))
     })
   }
 

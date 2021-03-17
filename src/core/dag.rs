@@ -30,7 +30,6 @@ use std::{
   },
   collections::HashSet,
   fmt,
-  rc::Rc
 };
 
 // A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
@@ -526,12 +525,12 @@ impl DAG {
                 SingleTag::Lam => {
                   map.insert(var_link.as_ptr(), depth);
                   let body = go(body, &mut map, depth + 1);
-                  Term::Lam(None, name.clone(), Rc::new(body))
+                  Term::Lam(None, name.clone(), Box::new(body))
                 }
                 SingleTag::Slf => {
                   map.insert(var_link.as_ptr(), depth);
                   let body = go(body, &mut map, depth + 1);
-                  Term::Slf(None, name.clone(), Rc::new(body))
+                  Term::Slf(None, name.clone(), Box::new(body))
                 }
                 SingleTag::Fix => panic!("TODO: Add Fix to Term."),
                 _ => panic!("Malformed DAG."),
@@ -539,10 +538,10 @@ impl DAG {
             }
             None => match tag {
               SingleTag::Cse => {
-                Term::Cse(None, Rc::new(go(body, &mut map, depth)))
+                Term::Cse(None, Box::new(go(body, &mut map, depth)))
               }
               SingleTag::Dat => {
-                Term::Dat(None, Rc::new(go(body, &mut map, depth)))
+                Term::Dat(None, Box::new(go(body, &mut map, depth)))
               }
               _ => panic!("Malformed DAG."),
             },
@@ -566,7 +565,7 @@ impl DAG {
                     None,
                     *uses,
                     name.clone(),
-                    Rc::new((dom, img))
+                    Box::new((dom, img))
                   )
                 }
                 _ => panic!("Malformed DAG."),
@@ -576,12 +575,12 @@ impl DAG {
               BranchTag::App => {
                 let fun = go(left, &mut map, depth);
                 let arg = go(right, &mut map, depth);
-                Term::App(None, Rc::new((fun, arg)))
+                Term::App(None, Box::new((fun, arg)))
               }
               BranchTag::Ann => {
                 let typ = go(left, &mut map, depth);
                 let trm = go(right, &mut map, depth);
-                Term::Ann(None, Rc::new((typ, trm)))
+                Term::Ann(None, Box::new((typ, trm)))
               }
               _ => panic!("Malformed DAG."),
             },

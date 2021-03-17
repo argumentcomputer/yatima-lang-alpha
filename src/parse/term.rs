@@ -59,8 +59,6 @@ use nom::{
   Slice,
 };
 
-use std::rc::Rc;
-
 pub fn reserved_symbols() -> Vector<String> {
   Vector::from(vec![
     String::from("//"),
@@ -226,7 +224,7 @@ pub fn parse_lam(
     let trm = ns
       .iter()
       .rev()
-      .fold(bod, |acc, n| Term::Lam(pos, n.clone(), Rc::new(acc)));
+      .fold(bod, |acc, n| Term::Lam(pos, n.clone(), Box::new(acc)));
     Ok((upto, trm))
   }
 }
@@ -348,7 +346,7 @@ pub fn parse_all(
     let (upto, bod) = parse_expression(refs.to_owned(), ctx2)(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     let trm = bs.into_iter().rev().fold(bod, |acc, (u, n, t)| {
-      Term::All(pos, u, n, Rc::new((t, acc)))
+      Term::All(pos, u, n, Box::new((t, acc)))
     });
     Ok((upto, trm))
   }
@@ -374,7 +372,7 @@ pub fn parse_self(
     ctx2.push_front(n.clone());
     let (upto, bod) = parse_expression(refs.to_owned(), ctx2)(i)?;
     let pos = Some(Pos::from_upto(from, upto));
-    Ok((upto, Term::Slf(pos, n, Rc::new(bod))))
+    Ok((upto, Term::Slf(pos, n, Box::new(bod))))
   }
 }
 
@@ -387,7 +385,7 @@ pub fn parse_case(
     let (i, _) = parse_space(i)?;
     let (upto, bod) = parse_expression(refs.to_owned(), ctx.clone())(i)?;
     let pos = Some(Pos::from_upto(from, upto));
-    Ok((upto, Term::Cse(pos, Rc::new(bod))))
+    Ok((upto, Term::Cse(pos, Box::new(bod))))
   }
 }
 
@@ -400,7 +398,7 @@ pub fn parse_data(
     let (i, _) = parse_space(i)?;
     let (upto, bod) = parse_expression(refs.to_owned(), ctx.clone())(i)?;
     let pos = Some(Pos::from_upto(from, upto));
-    Ok((upto, Term::Dat(pos, Rc::new(bod))))
+    Ok((upto, Term::Dat(pos, Box::new(bod))))
   }
 }
 
@@ -449,9 +447,9 @@ pub fn parse_typed_definition(
       let trm = bs
         .iter()
         .rev()
-        .fold(trm, |acc, (_, n, _)| Term::Lam(pos, n.clone(), Rc::new(acc)));
+        .fold(trm, |acc, (_, n, _)| Term::Lam(pos, n.clone(), Box::new(acc)));
       let typ = bs.into_iter().rev().fold(typ, |acc, (u, n, t)| {
-        Term::All(pos, u, n, Rc::new((t, acc)))
+        Term::All(pos, u, n, Box::new((t, acc)))
       });
       Ok((upto, (nam, trm, typ)))
     }
@@ -482,7 +480,7 @@ pub fn parse_let(
         rec,
         uses,
         nam.clone(),
-        Rc::new((typ, exp, bod))
+        Box::new((typ, exp, bod))
       ),
     ))
   }
@@ -599,7 +597,7 @@ pub fn parse_expression(
       let (i, typ) =
         context("type annotation", parse_apps(refs.clone(), ctx.clone()))(i)?;
       let pos = Some(Pos::from_upto(from, i));
-      Ok((i, Term::Ann(pos, Rc::new((typ, trm)))))
+      Ok((i, Term::Ann(pos, Box::new((typ, trm)))))
     }
     else {
       Ok((i, trm))
@@ -636,7 +634,7 @@ pub fn parse_apps(
           let pos = Some(Pos::from_upto(from, i2));
           let trm = args
             .into_iter()
-            .fold(fun, |acc, arg| Term::App(pos, Rc::new((acc, arg))));
+            .fold(fun, |acc, arg| Term::App(pos, Box::new((acc, arg))));
           return Ok((i2, trm));
         }
         _ => {
