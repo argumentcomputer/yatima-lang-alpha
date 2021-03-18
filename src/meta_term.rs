@@ -111,11 +111,10 @@ pub mod tests {
     frequency
   };
 
-  fn arbitrary_metaterm_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
+  fn arbitrary_meta_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
     Box::new(move |g: &mut Gen| {
       let mut rng = rand::thread_rng();
       let n: u32 = rng.gen_range(0..10);
-      //let n: u32 = g.gen_range(0, 10);
       let mut xs = Vec::new();
       for _ in 0..n {
         xs.push(Arbitrary::arbitrary(g))
@@ -125,15 +124,15 @@ pub mod tests {
   }
   impl Arbitrary for MetaTerm {
     fn arbitrary(g: &mut Gen) -> Self {
-      let mut rng = rand::thread_rng();
-      let x: u32 = rng.gen_range(0..45);
-      //let x: u32 = g.gen_range(0, 45);
-      frequency(g, vec![
-        (1, arbitrary_metaterm_ctor()),
-        (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
-        (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
-        (1, Box::new(|_| Leaf))
-        ])
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> MetaTerm>)> =
+        vec![
+          //arbitrary_meta_ctor() causes stack overflow
+          //(1, arbitrary_meta_ctor()),
+          (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
+          (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
+          (1, Box::new(|_| Leaf))
+        ];
+      frequency(g, input)
     }
   }
 

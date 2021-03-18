@@ -180,24 +180,17 @@ pub mod tests {
     }
   }
 
-  pub fn arbitrary_natural() -> Box<dyn Fn(&mut Gen) -> LitType> {
-    Box::new(move |g: &mut Gen| {
-      LitType::Natural
-    })
-  }
   impl Arbitrary for LitType {
     fn arbitrary(g: &mut Gen) -> Self {
-      let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..5);
-      //let gen = g.gen_range(0, 5);
-      frequency(g, vec![
-        (1, arbitrary_natural()),
-        //(1, Box::new(|_| Self::Natural)),
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> LitType>)> =
+        vec![ 
+        (1, Box::new(|_| Self::Natural)),
         (1, Box::new(|_| Self::Integer)),
         (1, Box::new(|_| Self::BitString)),
         (1, Box::new(|_| Self::Text)),
-        (1, Box::new(|_| Self::Char))
-      ])
+        (1, Box::new(|_| Self::Char)),
+        ];
+      frequency(g, input)
     }
   }
   #[quickcheck]

@@ -84,20 +84,24 @@ pub mod tests {
     frequency
   };
 
-  fn arbitrary_none() -> Box<dyn Fn(&mut Gen) -> Uses> {
-    Box::new(move |g: &mut Gen| {
-      Uses::None
-    })
-  }
-
   impl Arbitrary for Uses {
     fn arbitrary(g: &mut Gen) -> Self {
-      frequency(g, vec![
-        (1, arbitrary_none()),
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Uses>)> =
+        vec![ 
+        (1, Box::new(|_| Uses::None)),
         (1, Box::new(|_| Uses::Affi)),
         (1, Box::new(|_| Uses::Once)),
         (1, Box::new(|_| Uses::Many)),
-      ])
+        ];
+      frequency(g, input)
+
+      //frequency(g, vec![
+        ////(1, arbitrary_none()),
+        //(1, Box::new(|_| Uses::None)),
+        //(1, Box::new(|_| Uses::Affi)),
+        //(1, Box::new(|_| Uses::Once)),
+        //(1, Box::new(|_| Uses::Many)),
+      //])
     }
   }
 }
