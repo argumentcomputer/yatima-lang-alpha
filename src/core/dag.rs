@@ -685,7 +685,7 @@ impl DAG {
 
         Term::All(_, uses, name, terms) => {
           // Allocation and updates
-          let (dom, img) = &*terms;
+          let (dom, img) = *terms;
           let var = new_leaf(LeafTag::Var(name.clone()));
           let dom_parents = alloc_uninit();
           let img_parents = alloc_uninit();
@@ -707,9 +707,9 @@ impl DAG {
 
           // Map `name` to `var` node
           let mut img_ctx = ctx.clone();
-          let dom = go((*dom).clone(), ctx, dom_parents);
+          let dom = go(dom, ctx, dom_parents);
           img_ctx.push_front(var);
-          let img = go((*img).clone(), img_ctx, img_parents);
+          let img = go(img, img_ctx, img_parents);
 
           // Update `all` with the correct fields
           unsafe {
@@ -720,7 +720,7 @@ impl DAG {
         }
 
         Term::App(_, terms) => {
-          let (fun, arg) = &*terms;
+          let (fun, arg) = *terms;
           let fun_parents = alloc_uninit();
           let arg_parents = alloc_uninit();
           let app = alloc_val(Branch {
@@ -737,8 +737,8 @@ impl DAG {
             *fun_parents.as_ptr() = DLL::singleton(ParentCell::Left(app));
             *arg_parents.as_ptr() = DLL::singleton(ParentCell::Right(app));
           }
-          let fun = go((*fun).clone(), ctx.clone(), fun_parents);
-          let arg = go((*arg).clone(), ctx, arg_parents);
+          let fun = go(fun, ctx.clone(), fun_parents);
+          let arg = go(arg, ctx, arg_parents);
           unsafe {
             (*app.as_ptr()).left = fun;
             (*app.as_ptr()).right = arg;
@@ -746,7 +746,7 @@ impl DAG {
           DAG::Branch(app)
         }
         Term::Ann(_, terms) => {
-          let (typ, exp) = &*terms;
+          let (typ, exp) = *terms;
           let typ_parents = alloc_uninit();
           let exp_parents = alloc_uninit();
           let ann = alloc_val(Branch {
@@ -763,8 +763,8 @@ impl DAG {
             *typ_parents.as_ptr() = DLL::singleton(ParentCell::Left(ann));
             *exp_parents.as_ptr() = DLL::singleton(ParentCell::Right(ann));
           }
-          let typ = go((*typ).clone(), ctx.clone(), typ_parents);
-          let exp = go((*exp).clone(), ctx, exp_parents);
+          let typ = go(typ, ctx.clone(), typ_parents);
+          let exp = go(exp, ctx, exp_parents);
           unsafe {
             (*ann.as_ptr()).left = typ;
             (*ann.as_ptr()).right = exp;

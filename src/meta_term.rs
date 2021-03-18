@@ -108,28 +108,32 @@ pub mod tests {
   use crate::term::tests::{
     arbitrary_link,
     arbitrary_name,
+    frequency
   };
 
+  fn arbitrary_metaterm_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
+    Box::new(move |g: &mut Gen| {
+      let mut rng = rand::thread_rng();
+      let n: u32 = rng.gen_range(0..10);
+      //let n: u32 = g.gen_range(0, 10);
+      let mut xs = Vec::new();
+      for _ in 0..n {
+        xs.push(Arbitrary::arbitrary(g))
+      }
+      Ctor(None, xs)
+    })
+  }
   impl Arbitrary for MetaTerm {
     fn arbitrary(g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
       let x: u32 = rng.gen_range(0..45);
       //let x: u32 = g.gen_range(0, 45);
-      match x {
-        0 => {
-          let mut rng = rand::thread_rng();
-          let n: u32 = rng.gen_range(0..10);
-          //let n: u32 = g.gen_range(0, 10);
-          let mut xs = Vec::new();
-          for _ in 0..n {
-            xs.push(Arbitrary::arbitrary(g))
-          }
-          Ctor(None, xs)
-        }
-        1 => Bind(arbitrary_name(g), Arbitrary::arbitrary(g)),
-        2 => Link(arbitrary_name(g), arbitrary_link(g)),
-        _ => Leaf,
-      }
+      frequency(g, vec![
+        (1, arbitrary_metaterm_ctor()),
+        (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
+        (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
+        (1, Box::new(|_| Leaf))
+        ])
     }
   }
 

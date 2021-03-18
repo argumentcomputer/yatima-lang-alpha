@@ -586,11 +586,14 @@ pub mod tests {
   };
 
   pub fn arbitrary_link(g: &mut Gen) -> hashexpr::Link {
-    let mut bytes: [u8; 32] = [0; 32];
-    for x in bytes.iter_mut() {
-      *x = Arbitrary::arbitrary(g);
-    }
-    hashexpr::Link::from(bytes)
+  //pub fn arbitrary_link() -> Box<dyn Fn(&mut Gen) -> hashexpr::Link> {
+    //Box::new(move |g: &mut Gen| {
+      let mut bytes: [u8; 32] = [0; 32];
+      for x in bytes.iter_mut() {
+        *x = Arbitrary::arbitrary(g);
+      }
+      hashexpr::Link::from(bytes)
+    //})
   }
 
   pub fn arbitrary_name(g: &mut Gen) -> String {
@@ -768,7 +771,7 @@ pub mod tests {
     }
     let sum: i64 = gens.iter().map(|x| x.0).sum();
     let mut rng = rand::thread_rng();
-    let mut weight: i64 = rng.gen_range(1..sum);
+    let mut weight: i64 = rng.gen_range(1..=sum);
     //let mut weight: i64 = g.rng.gen_range(1, sum);
     for gen in gens {
       if weight - gen.0 <= 0 {
