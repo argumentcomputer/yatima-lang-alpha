@@ -4,7 +4,10 @@
 ////! https://github.com/Geal/nom/blob/master/LICENSE
 ////!
 use crate::{
-  error::ParseError,
+  error::{
+    ParseError,
+    ParseErrorKind,
+  },
   span::Span,
 };
 use nom::{
@@ -39,12 +42,14 @@ pub fn parse_codepoint(i: Span) -> IResult<Span, char, ParseError<Span>> {
   match u32::from_str_radix(s, 16) {
     Ok(x) => match std::char::from_u32(x) {
       Some(c) => Ok((i, c)),
-      _ => Err(Err::Error(ParseError::InvalidBase16EscapeSequence(
+      _ => Err(Err::Error(ParseError::new(
         i,
-        String::from(s.to_owned()),
+        ParseErrorKind::InvalidBase16EscapeSequence(String::from(s.to_owned())),
       ))),
     },
-    Err(e) => Err(Err::Error(ParseError::ParseIntErr(i, e))),
+    Err(e) => {
+      Err(Err::Error(ParseError::new(i, ParseErrorKind::ParseIntErr(e))))
+    }
   }
 }
 pub fn parse_escape(i: Span) -> IResult<Span, char, ParseError<Span>> {

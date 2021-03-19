@@ -33,16 +33,15 @@ they specify. That is, the character `'v'` is not a valid base32z digit, nor is
 `#atom` is a tables of prefix codes which describe the type of the encoded
 bytes, as well as a textual syn
 
-| type   | code | description                          | atom syntax                                         | sugar    |
-|--------|------|--------------------------------------|-----------------------------------------------------|----------|
-| link   | x00  | a blake3 hash digest                 | #IVdLcYQdSL7W32L6CY3VJTbyodRnN5pBvo5gMbaSa3nk6ENQ21 | raw      |
-| bits   | x01  | bitstrings                           | ~AAKioq:bits                                        | bit      |
-| symbol | x02  | a symbol                             | foobar                                              | symbolic |
-| text   | x03  | utf8 encoded text                    | "foobar":text                                       | text     |
-| char   | x04  | a unicode code point                 | 'f':char                                            | char     |
-| int    | x05  | arbitrary precision signed integer   | 0d1:int                                             | numeric  |
-| nat    | x06  | arbitrary precision unsigned integer | 0d1:nat                                             | numeric  |
-| ...    | ...  | This is extensible!                  | ...                                                 | ...      |
+| type     | code   | description                            | atom syntax                                          |
+| -------- | ------ | -------------------------------------- | ---------------------------------------------------- |
+| link     | x00    | a blake3 hash digest                   | `IVdLcYQdSL7W32L6CY3VJTbyodRnN5pBvo5gMbaSa3nk6ENQ21` |
+| bits     | x01    | bitstrings                             | `~"AAKioq"`                                          |
+| text     | x02    | utf8 encoded text                      | `"foobar"`                                           |
+| char     | x03    | a unicode code point                   | `'f'`                                                |
+| int      | x04    | arbitrary precision signed integer     | `+1`, `-1`                                           |
+| nat      | x05   | arbitrary precision unsigned integer   | `1`                                                  |
+| ...      | ...    | This is extensible!                    | ...                                                  |
 
 Note that the code length is meaningful, so `x00` and `x0000` represent
 different codes.

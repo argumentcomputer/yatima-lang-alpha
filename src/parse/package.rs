@@ -7,7 +7,11 @@ use crate::{
     Package,
   },
   parse::{
-    error::ParseError,
+    error,
+    error::{
+      ParseError,
+      ParseErrorKind,
+    },
     term::*,
   },
   term::{
@@ -16,7 +20,6 @@ use crate::{
     Link,
     Refs,
   },
-  // unembed_error::UnembedError,
 };
 
 use std::{
@@ -26,10 +29,10 @@ use std::{
 };
 
 use hashexpr::{
+  atom,
+  atom::Atom::*,
   position::Pos,
   span::Span,
-  AVal,
-  AVal::*,
   Expr,
 };
 
@@ -41,19 +44,13 @@ use im::{
 use nom::{
   branch::alt,
   bytes::complete::tag,
-  character::complete::{
-    // multispace0,
-    multispace1,
-  },
+  character::complete::multispace1,
   combinator::{
     eof,
     opt,
   },
   multi::separated_list0,
-  sequence::{
-    // preceded,
-    terminated,
-  },
+  sequence::terminated,
   Err,
   IResult,
 };
@@ -78,10 +75,14 @@ impl PackageEnv {
 }
 
 pub fn parse_link(from: Span) -> IResult<Span, Link, ParseError<Span>> {
-  let (upto, link) = hashexpr::parse_raw(from).map_err(|e| Err::convert(e))?;
+  let (upto, link) =
+    hashexpr::parse_raw(from).map_err(|e| error::convert(from, e))?;
   match link {
     Expr::Atom(_, Link(link)) => Ok((upto, link)),
-    e => Err(Err::Error(ParseError::ExpectedImportLink(upto, e))),
+    e => Err(Err::Error(ParseError::new(
+      upto,
+      ParseErrorKind::ExpectedImportLink(e),
+    ))),
   }
 }
 
@@ -125,7 +126,7 @@ pub fn parse_open(
         let mut open = env.open.clone();
         let has_path = open.insert(path.clone());
         if has_path.is_some() {
-          Err(Err::Error(ParseError::ImportCycle(i, path)))
+          Err(Err::Error(ParseError::new(i, ParseErrorKind::ImportCycle(path))))
         }
         else {
           let env = PackageEnv { path, open };
@@ -182,11 +183,16 @@ pub fn parse_package(
     let (i, _) = tag("package")(i)?;
     let (i, _) = multispace1(i)?;
     let (i, name) = parse_name(i)?;
-    let file_name =
-      env.path.file_name().ok_or(Err::Error(ParseError::MalformedPath(i)))?;
+    let file_name = env
+      .path
+      .file_name()
+      .ok_or(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))?;
     let name_os: OsString = format!("{}.ya", name.clone()).into();
     if name_os != file_name {
-      return Err(Err::Error(ParseError::MisnamedPackage(i, name.clone())));
+      return Err(Err::Error(ParseError::new(
+        i,
+        ParseErrorKind::MisnamedPackage(name.clone()),
+      )));
     }
     let (i, _) = multispace1(i)?;
     let (i, _) = tag("where")(i)?;
@@ -209,22 +215,29 @@ pub fn parse_package(
         decls.push(decl.clone());
         match decl {
           Declaration::Defn { name, defn, term } => {
-            let def = Def::get_link(defn)
-              .map_err(|e| Err::Error(ParseError::EmbeddingError(i2, e)))?;
+            let def = Def::get_link(defn).map_err(|e| {
+              Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
+            })?;
             refs.insert(name, (defn, term));
             defs.insert(defn, def);
           }
           Declaration::Open { name, alias, with, from } => {
-            let pack = Package::get_link(from)
-              .map_err(|e| Err::Error(ParseError::EmbeddingError(i2, e)))?;
+            let pack = Package::get_link(from).map_err(|e| {
+              Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
+            })?;
             if name != pack.name {
-              return Err(Err::Error(ParseError::MisnamedImport(
-                i2, name, pack.name,
+              return Err(Err::Error(ParseError::new(
+                i2,
+                ParseErrorKind::MisnamedImport(name, from, pack.name),
               )));
             };
-            let (import_refs, import_defs): (Refs, Defs) = pack
-              .refs_defs()
-              .map_err(|e| Err::Error(ParseError::EmbeddingError(i2, e)))?;
+            let (import_refs, import_defs): (Refs, Defs) =
+              pack.refs_defs().map_err(|e| {
+                Err::Error(ParseError::new(
+                  i2,
+                  ParseErrorKind::EmbeddingError(e),
+                ))
+              })?;
             defs = merge_defs(defs, import_defs);
             refs = merge_refs(refs, import_refs, alias, with);
           }

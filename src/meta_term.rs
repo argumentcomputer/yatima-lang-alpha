@@ -1,7 +1,7 @@
 use hashexpr::{
+  atom,
+  atom::Atom::*,
   position::Pos,
-  AVal,
-  AVal::*,
   Expr,
   Expr::{
     Atom,
@@ -14,6 +14,8 @@ use crate::decode_error::{
   DecodeError,
   Expected,
 };
+
+use std::fmt;
 
 /// The computationally irrelevant naming metadata of a term in a lambda-like
 /// language
@@ -35,9 +37,9 @@ impl MetaTerm {
         }
         Expr::Cons(*pos, ys)
       }
-      Self::Bind(n, x) => cons!(None, symb!(n.clone()), x.encode()),
+      Self::Bind(n, x) => cons!(None, text!(n.clone()), x.encode()),
       Self::Link(n, l) => {
-        cons!(None, symb!(n.clone()), link!(*l))
+        cons!(None, text!(n.clone()), link!(*l))
       }
       Self::Leaf => bits!(vec![]),
     }
@@ -46,10 +48,10 @@ impl MetaTerm {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Symbol(name)), Atom(_, Link(l))] => {
+        [Atom(_, Text(name)), Atom(_, Link(l))] => {
           Ok(Self::Link(name.to_owned(), *l))
         }
-        [Atom(_, Symbol(name)), bound] => {
+        [Atom(_, Text(name)), bound] => {
           let bound = MetaTerm::decode(bound.to_owned())?;
           Ok(Self::Bind(name.to_owned(), Box::new(bound)))
         }
@@ -68,11 +70,34 @@ impl MetaTerm {
   }
 }
 
+impl fmt::Display for MetaTerm {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use MetaTerm::*;
+    match self {
+      Leaf => write!(f, "leaf"),
+      Link(n, l) => write!(f, "(link \"{}\" {})", n, l),
+      Bind(n, x) => write!(f, "(bind \"{}\" ({}))", n, x),
+      Ctor(p, xs) => {
+        let mut res = String::new();
+        for x in xs {
+          res.push_str(" ");
+          res.push_str(&format!("{}", x));
+        }
+        match p {
+          Some(p) => write!(f, "(ctor ({}){})", p, res),
+          None => write!(f, "(ctor (){})", res),
+        }
+      }
+    }
+  }
+}
+
 #[cfg(test)]
 pub mod tests {
   use super::{
     MetaTerm,
     MetaTerm::*,
+    Pos,
   };
   use quickcheck::{
     Arbitrary,
@@ -83,24 +108,31 @@ pub mod tests {
   use crate::term::tests::{
     arbitrary_link,
     arbitrary_name,
+    frequency
   };
 
-  impl Arbitrary for MetaTerm {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let x: u32 = g.gen_range(0, 45);
-      match x {
-        0 => {
-          let n: u32 = g.gen_range(0, 10);
-          let mut xs = Vec::new();
-          for _ in 0..n {
-            xs.push(Arbitrary::arbitrary(g))
-          }
-          Ctor(None, xs)
-        }
-        1 => Bind(arbitrary_name(g), Arbitrary::arbitrary(g)),
-        2 => Link(arbitrary_name(g), arbitrary_link(g)),
-        _ => Leaf,
+  pub fn arbitrary_meta_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
+    Box::new(move |g: &mut Gen| {
+      let mut rng = rand::thread_rng();
+      let n: u32 = rng.gen_range(0..10);
+      let mut xs = Vec::new();
+      for _ in 0..n {
+        xs.push(Arbitrary::arbitrary(g))
       }
+      Ctor(None, xs)
+    })
+  }
+  impl Arbitrary for MetaTerm {
+    fn arbitrary(g: &mut Gen) -> Self {
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> MetaTerm>)> =
+        vec![
+          // arbitrary_meta_ctor() causes stack overflow unless Leaf is set to at least 3
+          (1, arbitrary_meta_ctor()),
+          (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
+          (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
+          (3, Box::new(|_| Leaf))
+        ];
+      frequency(g, input)
     }
   }
 
@@ -110,5 +142,27 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[test]
+  fn test_cases() {
+    let f = Ctor(None, vec![Bind(format!("x"), Box::new(Leaf))]);
+    assert_eq!(
+      String::from(r##"(ctor () (bind "x" (leaf)))"##),
+      format!("{}", f)
+    );
+    let p = Pos {
+      from_offset: 0,
+      from_line: 1,
+      from_column: 1,
+      upto_offset: 10,
+      upto_line: 2,
+      upto_column: 1,
+    };
+    let f = Ctor(Some(p), vec![Bind(format!("x"), Box::new(Leaf))]);
+    assert_eq!(
+      String::from(r##"(ctor (1:1-2:1) (bind "x" (leaf)))"##),
+      format!("{}", f)
+    )
   }
 }
