@@ -4,7 +4,7 @@ members = [ "hashexpr" ]
 [package]
 name = "yatima"
 version = "0.1.0"
-authors = ["John C. Burnham <john@yatima.io>"]
+authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,15 +15,21 @@ num-bigint = "0.3.1"
 blake3 = "0.3.7"
 im  = "15.0.0"
 structopt = "0.3.21"
-rustyline = "7.1.0"
-directories-next = "2.0.0"
-rocket = "0.4.6"
-log = "0.4.6"
-wasm-bindgen = "0.2.63"
 nom = "6.0.1"
 nom_locate = "3.0.0"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
+
+# WASM dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.63"
+
+# Not WASM dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rustyline = "7.1.0"
+directories-next = "2.0.0"
+rocket = "0.4.6"
+log = "0.4.6"
 
 [dev-dependencies]
 quickcheck = "1.0.3"

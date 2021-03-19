@@ -8,9 +8,11 @@ extern crate quickcheck_macros;
 #[cfg(test)]
 extern crate rand;
 
+#[cfg(not(target_arch = "wasm32"))]
 #[macro_use]
 extern crate rocket;
 
+#[cfg(not(target_arch = "wasm32"))]
 #[macro_use]
 extern crate log;
 
@@ -25,6 +27,7 @@ pub mod hashspace;
 pub mod meta_term;
 pub mod package;
 pub mod parse;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod repl;
 pub mod term;
 pub mod unembed_error;

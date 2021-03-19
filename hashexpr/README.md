@@ -40,7 +40,7 @@ bytes, as well as a textual syn
 | text     | x02    | utf8 encoded text                      | `"foobar"`                                           |
 | char     | x03    | a unicode code point                   | `'f'`                                                |
 | int      | x04    | arbitrary precision signed integer     | `+1`, `-1`                                           |
-| nat      | x05   | arbitrary precision unsigned integer   | `1`                                                  |
+| nat      | x05    | arbitrary precision unsigned integer   | `1`                                                  |
 | ...      | ...    | This is extensible!                    | ...                                                  |
 
 Note that the code length is meaningful, so `x00` and `x0000` represent

@@ -1,4 +1,5 @@
 // use directories_next::ProjectDirs;
+#[cfg(not(target_arch = "wasm32"))]
 use rustyline::{
   error::ReadlineError,
   Cmd,

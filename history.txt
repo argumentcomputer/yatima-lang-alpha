@@ -1,0 +1,4 @@
+#V2
+import a from A
+import a as b from A
+package a

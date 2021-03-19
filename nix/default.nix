@@ -9,6 +9,8 @@ let
 
   pre-commit-hooks = (import sources."pre-commit-hooks.nix");
 
+  rust = (import ./rust.nix { inherit sources; });
+
   src = gitignoreSource ./..;
 in
 {
@@ -18,6 +20,7 @@ in
   devTools = {
     inherit (pkgs) niv;
     inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter;
+    inherit rust;
   };
 
   # to be built by github actions
