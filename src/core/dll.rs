@@ -82,15 +82,14 @@ impl<T> DLL<T> {
     }
   }
 
-  // Deallocates the given node and returns, if it exists, a neighboring node
-  pub fn remove_node(node: NonNull<Self>) -> Option<NonNull<Self>> {
+  // Unlinks the given node and returns, if it exists, a neighboring node.
+  // Leaves the node to be deallocated afterwards.
+  pub fn unlink_node(&self) -> Option<NonNull<Self>> {
     unsafe {
-      let node = node.as_ptr();
-      let next = (*node).next;
-      let prev = (*node).prev;
+      let next = self.next;
+      let prev = self.prev;
       next.map_or((), |next| (*next.as_ptr()).prev = prev);
       prev.map_or((), |prev| (*prev.as_ptr()).next = next);
-      dealloc(node as *mut u8, Layout::new::<Self>());
       (prev).or(next)
     }
   }
