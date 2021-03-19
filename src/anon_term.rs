@@ -111,28 +111,44 @@ pub mod tests {
   use crate::term::tests::{
     arbitrary_link,
     arbitrary_name,
+    frequency
   };
 
-  pub fn arbitrary_anon_term<G: Gen>(g: &mut G, ctx: u64) -> AnonTerm {
-    let x: u32 = g.gen_range(0, 6);
-    match x {
-      0 => {
-        let n: u32 = g.gen_range(0, 10);
-        let mut xs = Vec::new();
-        for _ in 0..n {
-          xs.push(arbitrary_anon_term(g, ctx))
-        }
-        Ctor(arbitrary_name(g), xs)
+  pub fn arbitrary_anon_ctor(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
+    Box::new(move |g: &mut Gen| {
+      let mut rng = rand::thread_rng();
+      let n: u32 = rng.gen_range(0..10);
+      let mut xs = Vec::new();
+      for _ in 0..n {
+        xs.push(arbitrary_anon_term(g, ctx))
       }
-      1 => Bind(Box::new(arbitrary_anon_term(g, ctx + 1))),
-      2 => Vari(g.gen_range(0, ctx + 1)),
-      3 => Link(arbitrary_link(g)),
-      _ => Data(Arbitrary::arbitrary(g)),
-    }
+      Ctor(arbitrary_name(g), xs)
+    })
+  }
+
+  pub fn arbitrary_vari(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
+    Box::new(move |_g: &mut Gen| {
+      let mut rng = rand::thread_rng();
+      Vari(rng.gen_range(0..ctx + 1))
+    })
+  }
+
+  pub fn arbitrary_anon_term(g: &mut Gen, ctx: u64) -> AnonTerm {
+    let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> AnonTerm>)> =
+      vec![
+        // arbitrary_anon_ctor() causes stack overflow unless Data
+        // is set to at least 2
+        (1, arbitrary_anon_ctor(ctx)),
+        (1, arbitrary_vari(ctx)),
+        (1, Box::new(|g| Bind(Box::new(arbitrary_anon_term(g, ctx + 1))))),
+        (1, Box::new(|g| Link(arbitrary_link(g)))),
+        (2, Box::new(|g| Data(Arbitrary::arbitrary(g))))
+      ];
+    frequency(g, input)
   }
 
   impl Arbitrary for AnonTerm {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self { arbitrary_anon_term(g, 0) }
+    fn arbitrary(g: &mut Gen) -> Self { arbitrary_anon_term(g, 0) }
   }
   #[quickcheck]
   fn anon_term_encode_decode(x: AnonTerm) -> bool {

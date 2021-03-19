@@ -294,8 +294,10 @@ pub mod tests {
   };
   use rand::Rng;
   impl Arbitrary for PrimOp {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let gen = g.gen_range(0, 19);
+    fn arbitrary(_g: &mut Gen) -> Self {
+      let mut rng = rand::thread_rng();
+      let gen: u32 = rng.gen_range(0..19);
+      //let gen = g.gen_range(0, 19);
       match gen {
         0 => Self::Eql,
         1 => Self::Lth,

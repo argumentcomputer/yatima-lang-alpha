@@ -130,38 +130,46 @@ pub mod tests {
     prelude::IteratorRandom,
     Rng,
   };
+  use crate::term::tests::frequency;
 
-  pub fn arbitrary_bits<G: Gen>(g: &mut G) -> Literal {
-    let x: Vec<u8> = Arbitrary::arbitrary(g);
-    Literal::BitString(x)
+  pub fn arbitrary_bits() -> Box<dyn Fn(&mut Gen) -> Literal> {
+    Box::new(move |g: &mut Gen| {
+      let x: Vec<u8> = Arbitrary::arbitrary(g);
+      Literal::BitString(x)
+    })
   }
 
-  pub fn arbitrary_text<G: Gen>(g: &mut G) -> Literal {
-    let x: String = Arbitrary::arbitrary(g);
-    Literal::Text(x)
+  pub fn arbitrary_text() -> Box<dyn Fn(&mut Gen) -> Literal> {
+    Box::new(move |g: &mut Gen| {
+      let x: String = Arbitrary::arbitrary(g);
+      Literal::Text(x)
+    })
   }
-  pub fn arbitrary_nat<G: Gen>(g: &mut G) -> Literal {
-    let v: Vec<u8> = Arbitrary::arbitrary(g);
-    let x: BigUint = BigUint::from_bytes_be(&v);
-    Literal::Natural(x)
+  pub fn arbitrary_nat() -> Box<dyn Fn(&mut Gen) -> Literal> {
+    Box::new(move |g: &mut Gen| {
+      let v: Vec<u8> = Arbitrary::arbitrary(g);
+      let x: BigUint = BigUint::from_bytes_be(&v);
+      Literal::Natural(x)
+    })
   }
 
-  pub fn arbitrary_int<G: Gen>(g: &mut G) -> Literal {
-    let v: Vec<u8> = Arbitrary::arbitrary(g);
-    let x: BigInt = BigInt::from_signed_bytes_be(&v);
-    Literal::Integer(x)
+  pub fn arbitrary_int() -> Box<dyn Fn(&mut Gen) -> Literal> {
+    Box::new(move |g: &mut Gen| {
+      let v: Vec<u8> = Arbitrary::arbitrary(g);
+      let x: BigInt = BigInt::from_signed_bytes_be(&v);
+      Literal::Integer(x)
+    })
   }
 
   impl Arbitrary for Literal {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let gen = g.gen_range(0, 4);
-      match gen {
-        0 => arbitrary_nat(g),
-        1 => arbitrary_int(g),
-        2 => arbitrary_bits(g),
-        3 => arbitrary_text(g),
-        _ => Self::Char(Arbitrary::arbitrary(g)),
-      }
+    fn arbitrary(g: &mut Gen) -> Self {
+      frequency(g, vec![
+        (1, arbitrary_nat()),
+        (1, arbitrary_int()),
+        (1, arbitrary_bits()),
+        (1, arbitrary_text()),
+        (1, Box::new(|g| Self::Char(Arbitrary::arbitrary(g))))
+      ])
     }
   }
   #[quickcheck]
@@ -173,15 +181,16 @@ pub mod tests {
   }
 
   impl Arbitrary for LitType {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let gen = g.gen_range(0, 5);
-      match gen {
-        1 => Self::Natural,
-        2 => Self::Integer,
-        3 => Self::BitString,
-        4 => Self::Text,
-        _ => Self::Char,
-      }
+    fn arbitrary(g: &mut Gen) -> Self {
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> LitType>)> =
+        vec![ 
+        (1, Box::new(|_| Self::Natural)),
+        (1, Box::new(|_| Self::Integer)),
+        (1, Box::new(|_| Self::BitString)),
+        (1, Box::new(|_| Self::Text)),
+        (1, Box::new(|_| Self::Char)),
+        ];
+      frequency(g, input)
     }
   }
   #[quickcheck]

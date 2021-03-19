@@ -80,16 +80,28 @@ pub mod tests {
     Gen,
   };
   use rand::Rng;
+  use crate::term::tests::{
+    frequency
+  };
 
   impl Arbitrary for Uses {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-      let x: u32 = g.gen_range(0, 3);
-      match x {
-        0 => Uses::None,
-        1 => Uses::Affi,
-        2 => Uses::Once,
-        _ => Uses::Many,
-      }
+    fn arbitrary(g: &mut Gen) -> Self {
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Uses>)> =
+        vec![ 
+        (1, Box::new(|_| Uses::None)),
+        (1, Box::new(|_| Uses::Affi)),
+        (1, Box::new(|_| Uses::Once)),
+        (1, Box::new(|_| Uses::Many)),
+        ];
+      frequency(g, input)
+
+      //frequency(g, vec![
+        ////(1, arbitrary_none()),
+        //(1, Box::new(|_| Uses::None)),
+        //(1, Box::new(|_| Uses::Affi)),
+        //(1, Box::new(|_| Uses::Once)),
+        //(1, Box::new(|_| Uses::Many)),
+      //])
     }
   }
 }
