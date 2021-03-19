@@ -345,9 +345,10 @@ pub fn parse_all(
     }
     let (upto, bod) = parse_expression(refs.to_owned(), ctx2)(i)?;
     let pos = Some(Pos::from_upto(from, upto));
-    let trm = bs.into_iter().rev().fold(bod, |acc, (u, n, t)| {
-      Term::All(pos, u, n, Box::new((t, acc)))
-    });
+    let trm = bs
+      .into_iter()
+      .rev()
+      .fold(bod, |acc, (u, n, t)| Term::All(pos, u, n, Box::new((t, acc))));
     Ok((upto, trm))
   }
 }
@@ -448,9 +449,10 @@ pub fn parse_typed_definition(
         .iter()
         .rev()
         .fold(trm, |acc, (_, n, _)| Term::Lam(pos, n.clone(), Box::new(acc)));
-      let typ = bs.into_iter().rev().fold(typ, |acc, (u, n, t)| {
-        Term::All(pos, u, n, Box::new((t, acc)))
-      });
+      let typ = bs
+        .into_iter()
+        .rev()
+        .fold(typ, |acc, (u, n, t)| Term::All(pos, u, n, Box::new((t, acc))));
       Ok((upto, (nam, trm, typ)))
     }
   }
@@ -475,13 +477,7 @@ pub fn parse_let(
     let pos = Some(Pos::from_upto(from, upto));
     Ok((
       upto,
-      Term::Let(
-        pos,
-        rec,
-        uses,
-        nam.clone(),
-        Box::new((typ, exp, bod))
-      ),
+      Term::Let(pos, rec, uses, nam.clone(), Box::new((typ, exp, bod))),
     ))
   }
 }
@@ -611,6 +607,7 @@ pub fn parse_app_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
     peek(tag("open")),
     peek(tag("::")),
     peek(tag("=")),
+    peek(tag("->")),
     peek(tag(";")),
     peek(tag(")")),
     peek(eof),
@@ -729,7 +726,17 @@ pub mod tests {
       "(a b c: Type)",
     ));
     println!("res2: {:?}", res);
-    assert!(res.is_ok())
+    assert!(res.is_ok());
+    let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
+      "∀ Type -> Type",
+    ));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
+      "∀ (_ :Type) -> Type",
+    ));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
   }
 
   #[quickcheck]
