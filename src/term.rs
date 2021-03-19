@@ -690,7 +690,7 @@ pub mod tests {
   }
 
   fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
+    Box::new(move |_g: &mut Gen| {
       if ctx.len() == 0 {
         return Term::Typ(None);
       }
@@ -706,7 +706,7 @@ pub mod tests {
     refs: Refs,
     ctx: Vector<String>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
+    Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
       let mut ref_iter = refs.iter().filter(|(n, _)| !ctx.contains(n));
       let len = ref_iter.by_ref().count();

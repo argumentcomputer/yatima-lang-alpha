@@ -294,7 +294,7 @@ pub mod tests {
   };
   use rand::Rng;
   impl Arbitrary for PrimOp {
-    fn arbitrary(g: &mut Gen) -> Self {
+    fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
       let gen: u32 = rng.gen_range(0..19);
       //let gen = g.gen_range(0, 19);

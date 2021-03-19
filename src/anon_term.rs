@@ -114,7 +114,7 @@ pub mod tests {
     frequency
   };
 
-  fn arbitrary_anon_ctor(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
+  pub fn arbitrary_anon_ctor(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
     Box::new(move |g: &mut Gen| {
       let mut rng = rand::thread_rng();
       let n: u32 = rng.gen_range(0..10);
@@ -126,8 +126,8 @@ pub mod tests {
     })
   }
 
-  fn arbitrary_vari(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
-    Box::new(move |g: &mut Gen| {
+  pub fn arbitrary_vari(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
+    Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
       Vari(rng.gen_range(0..ctx + 1))
     })
@@ -136,12 +136,13 @@ pub mod tests {
   pub fn arbitrary_anon_term(g: &mut Gen, ctx: u64) -> AnonTerm {
     let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> AnonTerm>)> =
       vec![
-        //arbitrary_anon_ctor() causes stack overflow
-        //(1, arbitrary_anon_ctor(ctx)),
+        // arbitrary_anon_ctor() causes stack overflow unless Data
+        // is set to at least 2
+        (1, arbitrary_anon_ctor(ctx)),
         (1, arbitrary_vari(ctx)),
         (1, Box::new(|g| Bind(Box::new(arbitrary_anon_term(g, ctx + 1))))),
         (1, Box::new(|g| Link(arbitrary_link(g)))),
-        (1, Box::new(|g| Data(Arbitrary::arbitrary(g))))
+        (2, Box::new(|g| Data(Arbitrary::arbitrary(g))))
       ];
     frequency(g, input)
   }

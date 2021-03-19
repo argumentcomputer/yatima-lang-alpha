@@ -111,7 +111,7 @@ pub mod tests {
     frequency
   };
 
-  fn arbitrary_meta_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
+  pub fn arbitrary_meta_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
     Box::new(move |g: &mut Gen| {
       let mut rng = rand::thread_rng();
       let n: u32 = rng.gen_range(0..10);
@@ -126,11 +126,11 @@ pub mod tests {
     fn arbitrary(g: &mut Gen) -> Self {
       let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> MetaTerm>)> =
         vec![
-          //arbitrary_meta_ctor() causes stack overflow
-          //(1, arbitrary_meta_ctor()),
+          // arbitrary_meta_ctor() causes stack overflow unless Leaf is set to at least 3
+          (1, arbitrary_meta_ctor()),
           (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
           (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
-          (1, Box::new(|_| Leaf))
+          (3, Box::new(|_| Leaf))
         ];
       frequency(g, input)
     }
