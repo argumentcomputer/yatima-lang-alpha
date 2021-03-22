@@ -255,9 +255,15 @@ pub fn parse_file<'a>(env: PackageEnv) -> (Link, Package, Defs, Refs) {
   let span = Span::new(&txt);
   match parse_package(env, source_link)(span) {
     Ok((_, p)) => p,
-    Err(e) => {
-      panic!("Error parsing file {}: {}", path.to_string_lossy(), e)
-    }
+    Err(e) => match e {
+      Err::Incomplete(_) => panic!("Incomplete"),
+      Err::Failure(e) => {
+        panic!("Parse Failure:\n{}", e);
+      }
+      Err::Error(e) => {
+        panic!("Parse Error:\n{}", e);
+      }
+    },
   }
 }
 

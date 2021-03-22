@@ -25,8 +25,10 @@ use hashexpr::base::Base;
 use nom::{
   branch::alt,
   bytes::complete::tag,
+  character::complete::digit1,
   combinator::{
     opt,
+    peek,
     value,
   },
   error::context,
@@ -46,9 +48,16 @@ pub fn parse_nat(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   Ok((upto, Literal::Natural(BigUint::from_bytes_be(&bytes))))
 }
 
+pub fn parse_int_sign(from: Span) -> IResult<Span, Sign, ParseError<Span>> {
+  let (i, sign) = alt((
+    value(Sign::Minus, terminated(tag("-"), peek(digit1))),
+    value(Sign::Plus, terminated(tag("+"), peek(digit1))),
+  ))(from)?;
+  Ok((i, sign))
+}
+
 pub fn parse_int(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
-  let (i, s) =
-    alt((value(Sign::Minus, tag("-")), value(Sign::Plus, tag("+"))))(from)?;
+  let (i, s) = parse_int_sign(from)?;
   let (i, base) = opt(preceded(tag("0"), parse_base_code()))(i)?;
   let base = base.unwrap_or(Base::_10);
   let (upto, bytes) = parse_base_bytes(base)(i)?;
