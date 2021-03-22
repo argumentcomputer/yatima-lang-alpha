@@ -116,10 +116,7 @@ impl<T> DLL<T> {
     node
   }
 
-  pub fn concat(
-    dll: NonNull<Self>,
-    rest: Option<NonNull<Self>>,
-  ) {
+  pub fn concat(dll: NonNull<Self>, rest: Option<NonNull<Self>>) {
     let last = DLL::last(dll);
     let first = rest.map(|dll| DLL::first(dll));
     unsafe {
@@ -177,7 +174,7 @@ mod tests {
       node.add_before(2);
       assert_eq!(node.to_string(), "[ 0 <-> 1 <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 ]");
       // Remove elements
-      let dll = match DLL::remove_node(dll) {
+      let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
         None => return (),
       };
@@ -185,12 +182,12 @@ mod tests {
         (*dll.as_ptr()).to_string(),
         "[ 0 <-> 1 <-> 2 <-> 4 <-> 5 <-> 6 ]"
       );
-      let dll = match DLL::remove_node(dll) {
+      let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
         None => return (),
       };
       assert_eq!((*dll.as_ptr()).to_string(), "[ 0 <-> 1 <-> 4 <-> 5 <-> 6 ]");
-      let dll = match DLL::remove_node(dll) {
+      let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
         None => return (),
       };
