@@ -252,6 +252,25 @@ pub fn add_to_parents(node: DAGPtr, plink: NonNull<Parents>) {
 impl DAG {
   pub fn new(head: DAGPtr) -> DAG { DAG { head } }
 
+  // Check whether a term is a root node
+  pub fn is_root(&self) -> bool {
+    match get_parents(self.head) {
+      None => false,
+      Some(pref) => unsafe { (*pref.as_ptr()).elem == ParentPtr::Root },
+    }
+  }
+
+  // Remove the root parent
+  pub fn uproot(&self) {
+    match get_parents(self.head) {
+      None => (),
+      Some(pref) => unsafe {
+        dealloc(pref.as_ptr() as *mut u8, Layout::new::<ParentPtr>());
+        set_parents(self.head, None);
+      },
+    }
+  }
+
   pub fn to_term(&self) -> Term {
     let mut map: HashMap<*mut Var, u64> = HashMap::new();
 
@@ -560,146 +579,265 @@ impl DAG {
   }
 }
 
-// impl fmt::Debug for DAG {
-//   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//     #[inline]
-//     fn format_uplink(p: ParentPtr) -> String {
-//       match p {
-//         ParentPtr::Root => String::from("ROOT"),
-//         ParentPtr::Body(link) => format!("B{}", link.as_ptr() as u64),
-//         ParentPtr::Left(link) => format!("L{}", link.as_ptr() as u64),
-//         ParentPtr::Right(link) => format!("R{}", link.as_ptr() as u64),
-//       }
-//     }
-//     #[inline]
-//     fn format_parents(dll: Option<NonNull<Parents>>) -> String {
-//       match dll {
-//         Some(dll) => unsafe {
-//           let mut iter = (*dll.as_ptr()).iter();
-//           let head = &iter.next().map_or(String::from(""), |head| {
-//             format!("{}", format_uplink(*head))
-//           });
-//           let mut msg = String::from("[ ") + head;
-//           for val in iter {
-//             msg = msg + " <-> " + &format!("{}", format_uplink(*val));
-//           }
-//           msg + " ]"
-//         },
-//         _ => String::from("[]"),
-//       }
-//     }
-//     fn go(term: DAGPtr, set: &mut HashSet<u64>) -> String {
-//       match term {
-//         DAGPtr::Branch(link) => unsafe {
-//           if set.get(&(link.as_ptr() as u64)).is_none() {
-//             set.insert(link.as_ptr() as u64);
-//             let Branch { tag, var, parents, left, right, copy, .. } =
-// *link.as_ptr();             let branch = match tag {
-//               BranchTag::App => format!("App"),
-//               BranchTag::All(_) => format!("All"),
-//               BranchTag::Let => format!("Let"),
-//             };
-//             let name = match var {
-//               Some(var_link) => format!("{} ",
-// (*var_link.as_ptr()).name.clone()),               _ => String::from(""),
-//             };
-//             let copy = copy.map(|link| link.as_ptr() as u64);
-//             format!(
-//               "\n{}<{}> {}parents: {} copy: {:?}{}{}",
-//               branch,
-//               link.as_ptr() as u64,
-//               name,
-//               format_parents(parents),
-//               copy,
-//               go(left, set),
-//               go(right, set)
-//             )
-//           }
-//           else {
-//             format!("\nSHARE<{}>", link.as_ptr() as u64)
-//           }
-//         },
-//         DAGPtr::Single(link) => unsafe {
-//           let Single { tag, var, parents, body, .. } = *link.as_ptr();
-//           let single = match tag {
-//             SingleTag::Lam => format!("Lam"),
-//             SingleTag::Slf => format!("Slf"),
-//             SingleTag::Cse => format!("Cse"),
-//             SingleTag::Dat => format!("Dat"),
-//             SingleTag::Fix => format!("Fix"),
-//           };
-//           let name = match var {
-//             Some(var_link) => format!("{} ",
-// (*var_link.as_ptr()).name.clone()),             _ => String::from(""),
-//           };
-//           if set.get(&(link.as_ptr() as u64)).is_none() {
-//             set.insert(link.as_ptr() as u64);
-//             format!(
-//               "\n{}<{}> {}parents: {}{}",
-//               single,
-//               link.as_ptr() as u64,
-//               name,
-//               format_parents(parents),
-//               go(body, set)
-//             )
-//           }
-//           else {
-//             format!("\nSHARE<{}>", link.as_ptr() as u64)
-//           }
-//         },
-//         DAGPtr::Var(link) => unsafe {
-//           let Var { parents, name, .. } = &*link.as_ptr();
-//           if set.get(&(link.as_ptr() as u64)).is_none() {
-//             set.insert(link.as_ptr() as u64);
-//             format!(
-//               "\nVar<{}> {} parents: {}",
-//               link.as_ptr() as u64,
-//               name,
-//               format_parents(*parents)
-//             )
-//           }
-//           else {
-//             format!("\nSHARE<{}>", link.as_ptr() as u64)
-//           }
-//         },
-//         DAGPtr::Leaf(link) => unsafe {
-//           let Leaf { parents, tag, .. } = &*link.as_ptr();
-//           let leaf = match tag {
-//             LeafTag::Typ => format!("Typ<{}>", link.as_ptr() as u64),
-//             LeafTag::LTy(lty) => format!("LTy<{}>", link.as_ptr() as u64),
-//             LeafTag::Lit(lit) => format!("Lit<{}>", link.as_ptr() as u64),
-//             LeafTag::Opr(opr) => format!("Opr<{}>", link.as_ptr() as u64),
-//             LeafTag::Ref(nam, _def_link, _ast_link) => format!("Ref<{}> {}",
-// link.as_ptr() as u64, nam),           };
-//           format!("\n{} parents: {}", leaf, format_parents(*parents))
-//         },
-//       }
-//     }
-//     write!(f, "{}", go(self.head, &mut HashSet::new()))
-//   }
-// }
-
-//   // Check whether a term is a root node
-//   pub fn is_root(&self) -> bool {
-//     match get_parents(self.head){
-//       None => false,
-//       Some(pref) => unsafe {
-//         (*pref.as_ptr()).elem == ParentPtr::Root
-//       },
-//     }
-//   }
-
-//   // Remove the root parent
-//   pub fn uproot(&self){
-//     match get_parents(self.head) {
-//       None => (),
-//       Some(pref) => unsafe {
-//         dealloc(pref.as_ptr() as *mut u8, Layout::new::<ParentPtr>());
-//         set_parents(self.head, None);
-//       },
-//     }
-//   }
-// }
+impl fmt::Debug for DAG {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    #[inline]
+    fn format_uplink(p: ParentPtr) -> String {
+      match p {
+        ParentPtr::Root => String::from("ROOT"),
+        ParentPtr::LamBod(link) => format!("λB{}", link.as_ptr() as u64),
+        ParentPtr::SlfBod(link) => format!("@B{}", link.as_ptr() as u64),
+        ParentPtr::DatBod(link) => format!("DB{}", link.as_ptr() as u64),
+        ParentPtr::CseBod(link) => format!("CB{}", link.as_ptr() as u64),
+        ParentPtr::AppFun(link) => format!("AF{}", link.as_ptr() as u64),
+        ParentPtr::AppArg(link) => format!("AA{}", link.as_ptr() as u64),
+        ParentPtr::AllDom(link) => format!("∀D{}", link.as_ptr() as u64),
+        ParentPtr::AllImg(link) => format!("∀I{}", link.as_ptr() as u64),
+        ParentPtr::AnnExp(link) => format!(":E{}", link.as_ptr() as u64),
+        ParentPtr::AnnTyp(link) => format!(":T{}", link.as_ptr() as u64),
+        ParentPtr::LetExp(link) => format!("LE{}", link.as_ptr() as u64),
+        ParentPtr::LetTyp(link) => format!("LT{}", link.as_ptr() as u64),
+        ParentPtr::LetBod(link) => format!("LB{}", link.as_ptr() as u64),
+      }
+    }
+    #[inline]
+    fn format_parents(dll: Option<NonNull<Parents>>) -> String {
+      match dll {
+        Some(dll) => unsafe {
+          let mut iter = (*dll.as_ptr()).iter();
+          let head = &iter.next().map_or(String::from(""), |head| {
+            format!("{}", format_uplink(*head))
+          });
+          let mut msg = String::from("[ ") + head;
+          for val in iter {
+            msg = msg + " <-> " + &format!("{}", format_uplink(*val));
+          }
+          msg + " ]"
+        },
+        _ => String::from("[]"),
+      }
+    }
+    fn go(term: DAGPtr, set: &mut HashSet<u64>) -> String {
+      match term {
+        DAGPtr::Var(link) => {
+          let Var { nam, parents, .. } = unsafe { link.as_ref() };
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            set.insert(link.as_ptr() as u64);
+            format!(
+              "\nVar<{}> {} parents: {}",
+              link.as_ptr() as u64,
+              nam,
+              format_parents(*parents)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAGPtr::Typ(link) => {
+          let Typ { parents } = unsafe { link.as_ref() };
+          format!(
+            "\nTyp<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAGPtr::LTy(link) => {
+          let LTy { parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nLTy<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAGPtr::Lit(link) => {
+          let Lit { parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nLit<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAGPtr::Opr(link) => {
+          let Opr { parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nOpr<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAGPtr::Ref(link) => {
+          let Ref { nam, parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nRef<{:?}> {} parents: {}",
+            (link.as_ptr()),
+            nam,
+            format_parents(*parents)
+          )
+        }
+        DAGPtr::Lam(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            let Lam { var, parents, bod, .. } = unsafe { link.as_ref() };
+            let name = unsafe { var.as_ref().nam.clone() };
+            set.insert(link.as_ptr() as u64);
+            format!(
+              "\nLam<{:?}> {} parents: {}{}",
+              link.as_ptr(),
+              name,
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        }
+        DAGPtr::Slf(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            let Slf { var, parents, bod, .. } = unsafe { link.as_ref() };
+            let name = unsafe { var.as_ref().nam.clone() };
+            set.insert(link.as_ptr() as u64);
+            format!(
+              "\nSlf<{:?}> {} parents: {}{}",
+              link.as_ptr(),
+              name,
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAGPtr::Dat(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            let Dat { parents, bod, .. } = unsafe { link.as_ref() };
+            set.insert(link.as_ptr() as u64);
+            format!(
+              "\nDat<{:?}> parents: {}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAGPtr::Cse(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            let Cse { parents, bod, .. } = unsafe { link.as_ref() };
+            set.insert(link.as_ptr() as u64);
+            format!(
+              "\nCse<{:?}> parents: {}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        // DAGPtr::Fix(link) => {
+        //  if set.get(&(link.as_ptr() as u64)).is_none() {
+        //    let Fix { parents, bod, .. } = unsafe { link.as_ref() };
+        //    set.insert(link.as_ptr() as u64);
+        //    format!(
+        //      "\nFix<{:?}> parents: {}{}",
+        //      link.as_ptr(),
+        //      format_parents(*parents),
+        //      go(*bod, set)
+        //    )
+        //  }
+        //  else {
+        //    format!("\nSHARE<{:?}>", link.as_ptr())
+        //  }
+        //}
+        DAGPtr::App(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            set.insert(link.as_ptr() as u64);
+            let App { fun, arg, parents, copy, .. } = unsafe { link.as_ref() };
+            let copy = copy.map(|link| link.as_ptr() as u64);
+            format!(
+              "\nApp<{:?}> parents: {} copy: {:?}{}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              copy,
+              go(*fun, set),
+              go(*arg, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        }
+        DAGPtr::Ann(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            set.insert(link.as_ptr() as u64);
+            let Ann { typ, exp, parents, copy, .. } = unsafe { link.as_ref() };
+            let copy = copy.map(|link| link.as_ptr() as u64);
+            format!(
+              "\nAnn<{:?}> parents: {} copy: {:?}{}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              copy,
+              go(*typ, set),
+              go(*exp, set),
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        }
+        DAGPtr::All(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            set.insert(link.as_ptr() as u64);
+            let All { var, dom, img, parents, copy, .. } =
+              unsafe { link.as_ref() };
+            let name = unsafe { var.as_ref().nam.clone() };
+            let copy = copy.map(|link| link.as_ptr() as u64);
+            format!(
+              "\nAll<{:?}> {} parents: {} copy: {:?}{}{}",
+              link.as_ptr(),
+              name,
+              format_parents(*parents),
+              copy,
+              go(*dom, set),
+              go(*img, set),
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        }
+        DAGPtr::Let(link) => {
+          if set.get(&(link.as_ptr() as u64)).is_none() {
+            set.insert(link.as_ptr() as u64);
+            let Let { var, exp, typ, bod, parents, copy, .. } =
+              unsafe { link.as_ref() };
+            let name = unsafe { var.as_ref().nam.clone() };
+            let copy = copy.map(|link| link.as_ptr() as u64);
+            format!(
+              "\nLet<{:?}> {} parents: {} copy: {:?}{}{}{}",
+              link.as_ptr(),
+              name,
+              format_parents(*parents),
+              copy,
+              go(*typ, set),
+              go(*exp, set),
+              go(*bod, set),
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as u64)
+          }
+        }
+      }
+    }
+    write!(f, "{}", go(self.head, &mut HashSet::new()))
+  }
+}
 
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -707,7 +845,6 @@ impl fmt::Display for DAG {
   }
 }
 
-// // DAG is not isomorphic to Term anymore
 #[cfg(test)]
 mod test {
   use super::*;
