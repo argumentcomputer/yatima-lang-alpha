@@ -107,7 +107,7 @@ fn parse_with(i: Span) -> IResult<Span, Vec<String>, ParseError<Span>> {
 }
 
 pub fn parse_open(
-  env: PackageEnv,
+  opt_env: Option<PackageEnv>,
 ) -> impl Fn(Span) -> IResult<Span, Declaration, ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("open")(i)?;
@@ -121,20 +121,25 @@ pub fn parse_open(
     match from {
       Some(from) => Ok((i, Declaration::Open { name, alias, with, from })),
       None => {
-        let mut path = env.path.parent().unwrap().to_path_buf();
-        for n in name.split(".") {
-          path.push(n);
-        }
-        path.set_extension("ya");
-        let mut open = env.open.clone();
-        let has_path = open.insert(path.clone());
-        if has_path.is_some() {
-          Err(Err::Error(ParseError::new(i, ParseErrorKind::ImportCycle(path))))
-        }
-        else {
-          let env = PackageEnv { path, open };
-          let (link, ..) = parse_file(env);
-          Ok((i, Declaration::Open { name, alias, with, from: link }))
+        if let Some(env) = &opt_env {
+          let mut path = env.path.parent().unwrap().to_path_buf();
+          for n in name.split(".") {
+            path.push(n);
+          }
+          path.set_extension("ya");
+          let mut open = env.open.clone();
+          let has_path = open.insert(path.clone());
+          if has_path.is_some() {
+            Err(Err::Error(ParseError::new(i, ParseErrorKind::ImportCycle(path))))
+          }
+          else {
+            let env = PackageEnv { path, open };
+            let (link, ..) = parse_file(env);
+            Ok((i, Declaration::Open { name, alias, with, from: link }))
+          }
+
+        } else {
+            Err(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))
         }
       }
     }
@@ -175,7 +180,7 @@ pub fn parse_defn(
 }
 
 pub fn parse_package(
-  env: PackageEnv,
+  opt_env: Option<PackageEnv>,
   source_link: Link,
 ) -> impl Fn(Span) -> IResult<Span, (Link, Package, Defs, Refs), ParseError<Span>>
 {
@@ -186,16 +191,18 @@ pub fn parse_package(
     let (i, _) = tag("package")(i)?;
     let (i, _) = multispace1(i)?;
     let (i, name) = parse_name(i)?;
-    let file_name = env
-      .path
-      .file_name()
-      .ok_or(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))?;
-    let name_os: OsString = format!("{}.ya", name.clone()).into();
-    if name_os != file_name {
-      return Err(Err::Error(ParseError::new(
-        i,
-        ParseErrorKind::MisnamedPackage(name.clone()),
-      )));
+    if let Some(env) = &opt_env {
+      let file_name = env
+        .path
+        .file_name()
+        .ok_or(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))?;
+        let name_os: OsString = format!("{}.ya", name.clone()).into();
+        if name_os != file_name {
+          return Err(Err::Error(ParseError::new(
+                i,
+                ParseErrorKind::MisnamedPackage(name.clone()),
+          )));
+        }
     }
     let (i, _) = multispace1(i)?;
     let (i, _) = tag("where")(i)?;
@@ -214,7 +221,7 @@ pub fn parse_package(
       }
       else {
         let (i2, decl) =
-          alt((parse_defn(refs.to_owned()), parse_open(env.to_owned())))(i)?;
+          alt((parse_defn(refs.to_owned()), parse_open(opt_env.to_owned())))(i)?;
         decls.push(decl.clone());
         match decl {
           Declaration::Defn { name, defn, term } => {
@@ -254,9 +261,13 @@ pub fn parse_package(
 pub fn parse_file<'a>(env: PackageEnv) -> (Link, Package, Defs, Refs) {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).expect("file not found");
-  let source_link = hashspace::put(text!(txt.clone()));
+  parse_text(&txt, Some(env))
+}
+
+pub fn parse_text<'a>(txt: &str, opt_env: Option<PackageEnv>) -> (Link, Package, Defs, Refs) {
+  let source_link = hashspace::put(text!(txt.to_string()));
   let span = Span::new(&txt);
-  match parse_package(env, source_link)(span) {
+  match parse_package(opt_env, source_link)(span) {
     Ok((_, p)) => p,
     Err(e) => match e {
       Err::Incomplete(_) => panic!("Incomplete"),

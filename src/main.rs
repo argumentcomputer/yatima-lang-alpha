@@ -3,6 +3,8 @@ use std::{
   path::PathBuf,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::io::{self, Read};
 use structopt::StructOpt;
 #[cfg(not(target_arch = "wasm32"))]
 use yatima::{
@@ -31,7 +33,7 @@ enum Cli {
   },
   Parse {
     #[structopt(parse(from_os_str))]
-    input: PathBuf,
+    optPath: Option<PathBuf>,
   },
   Run {
     #[structopt(parse(from_os_str))]
@@ -42,14 +44,26 @@ enum Cli {
 //
 
 #[cfg(not(target_arch = "wasm32"))]
-fn main() {
+fn main() -> io::Result<()> {
   let command = Cli::from_args();
   match command {
     Cli::Repl => repl::main().unwrap(),
-    Cli::Parse { input } => {
-      let env = parse::package::PackageEnv::new(input);
-      let (_, p, ..) = parse::package::parse_file(env);
-      println!("Package parsed:\n{}", p);
+    Cli::Parse { optPath } => {
+      match optPath {
+        Some(path) => {
+          let env = parse::package::PackageEnv::new(path);
+          let (_, p, ..) = parse::package::parse_file(env);
+          println!("Package parsed:\n{}", p);
+        }
+        None => {
+          let mut source = String::new();
+          let stdin = io::stdin();
+          let mut handle = stdin.lock();
+          handle.read_to_string(&mut source)?;
+          let (_, p, ..) = parse::package::parse_text(source.as_str(), None);
+          println!("Package parsed:\n{}", p);
+        }
+      }
     }
     Cli::Run { input } => {
       let env = parse::package::PackageEnv::new(input.clone());
@@ -76,6 +90,7 @@ fn main() {
       println!("{}", expr)
     }
   }
+  Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
