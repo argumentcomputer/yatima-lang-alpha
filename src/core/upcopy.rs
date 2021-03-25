@@ -86,7 +86,7 @@ pub fn free_dead_node(node: DAGPtr) {
     match node {
       DAGPtr::Lam(link) => {
         let Lam { bod, bod_ref, .. } = &*link.as_ptr();
-        let new_bod_parents = bod_ref.as_ref().unlink_node();
+        let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
@@ -95,7 +95,7 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::Slf(link) => {
         let Slf { bod, bod_ref, .. } = &*link.as_ptr();
-        let new_bod_parents = bod_ref.as_ref().unlink_node();
+        let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
@@ -104,7 +104,7 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::Cse(link) => {
         let Cse { bod, bod_ref, .. } = &*link.as_ptr();
-        let new_bod_parents = bod_ref.as_ref().unlink_node();
+        let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
@@ -113,7 +113,7 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::Dat(link) => {
         let Dat { bod, bod_ref, .. } = &*link.as_ptr();
-        let new_bod_parents = bod_ref.as_ref().unlink_node();
+        let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
@@ -122,12 +122,12 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::All(link) => {
         let All { dom, img, dom_ref, img_ref, .. } = &*link.as_ptr();
-        let new_dom_parents = dom_ref.as_ref().unlink_node();
+        let new_dom_parents = dom_ref.unlink_node();
         set_parents(*dom, new_dom_parents);
         if new_dom_parents.is_none() {
           free_dead_node(*dom)
         }
-        let new_img_parents = img_ref.as_ref().unlink_node();
+        let new_img_parents = img_ref.unlink_node();
         set_parents(*img, new_img_parents);
         if new_img_parents.is_none() {
           free_dead_node(*img)
@@ -136,12 +136,12 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::App(link) => {
         let App { fun, arg, fun_ref, arg_ref, .. } = &*link.as_ptr();
-        let new_fun_parents = fun_ref.as_ref().unlink_node();
+        let new_fun_parents = fun_ref.unlink_node();
         set_parents(*fun, new_fun_parents);
         if new_fun_parents.is_none() {
           free_dead_node(*fun)
         }
-        let new_arg_parents = arg_ref.as_ref().unlink_node();
+        let new_arg_parents = arg_ref.unlink_node();
         set_parents(*arg, new_arg_parents);
         if new_arg_parents.is_none() {
           free_dead_node(*arg)
@@ -150,12 +150,12 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::Ann(link) => {
         let Ann { exp, typ, exp_ref, typ_ref, .. } = &*link.as_ptr();
-        let new_exp_parents = exp_ref.as_ref().unlink_node();
+        let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
         if new_exp_parents.is_none() {
           free_dead_node(*exp)
         }
-        let new_typ_parents = typ_ref.as_ref().unlink_node();
+        let new_typ_parents = typ_ref.unlink_node();
         set_parents(*typ, new_typ_parents);
         if new_typ_parents.is_none() {
           free_dead_node(*typ)
@@ -165,17 +165,17 @@ pub fn free_dead_node(node: DAGPtr) {
       DAGPtr::Let(link) => {
         let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
           &*link.as_ptr();
-        let new_exp_parents = exp_ref.as_ref().unlink_node();
+        let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
         if new_exp_parents.is_none() {
           free_dead_node(*exp)
         }
-        let new_typ_parents = typ_ref.as_ref().unlink_node();
+        let new_typ_parents = typ_ref.unlink_node();
         set_parents(*typ, new_typ_parents);
         if new_typ_parents.is_none() {
           free_dead_node(*typ)
         }
-        let new_bod_parents = bod_ref.as_ref().unlink_node();
+        let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
