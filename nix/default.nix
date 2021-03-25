@@ -18,7 +18,7 @@ in
 
   # provided by shell.nix
   devTools = {
-    inherit (pkgs) niv;
+    inherit (pkgs) niv wasm-pack wasmtime;
     inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter;
     inherit rust;
   };
@@ -39,8 +39,12 @@ in
       # generated files
       excludes = [ "^nix/sources\.nix$" ];
     };
-    yatima = import ../yatima.nix {
+    yatima-native = import ../yatima.nix {
       inherit sources pkgs;
+    };
+    yatima-wasi = import ../yatima.nix {
+      inherit sources pkgs;
+      target = "wasm32-wasi";
     };
   };
 }

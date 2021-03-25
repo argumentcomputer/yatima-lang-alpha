@@ -3,11 +3,14 @@ members = [ "hashexpr" ]
 
 [package]
 name = "yatima"
+description = "A dependently typed programming language for the decentralized web"
 version = "0.1.0"
 authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "yatima"
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 hashexpr = { path = "hashexpr"}
@@ -23,6 +26,17 @@ base-x = "0.2.8"
 # WASM dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.63"
+js-sys = "0.3.49"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.49"
+features = [
+  'Document',
+  'Element',
+  'HtmlElement',
+  'Node',
+  'Window',
+]
 
 # Not WASM dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

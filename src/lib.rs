@@ -31,3 +31,5 @@ pub mod parse;
 pub mod repl;
 pub mod term;
 pub mod unembed_error;
+#[cfg(target_arch = "wasm32")]
+pub mod wasm_binds;
