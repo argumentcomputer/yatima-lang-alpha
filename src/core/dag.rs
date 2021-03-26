@@ -17,7 +17,6 @@ use crate::{
   },
 };
 
-use std::mem;
 use core::ptr::NonNull;
 use im::{
   HashMap,
@@ -31,6 +30,7 @@ use std::{
   },
   collections::HashSet,
   fmt,
+  mem,
 };
 
 pub struct DAG {
@@ -57,7 +57,7 @@ pub enum DAGPtr {
 }
 
 // Doubly-linked list of parent nodes
-type Parents = DLL<ParentPtr>;
+pub type Parents = DLL<ParentPtr>;
 
 // A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
 // the child and the parent.
@@ -146,6 +146,7 @@ pub struct Ann {
 
 pub struct Let {
   pub var: Var,
+  pub uses: Uses,
   pub exp: DAGPtr,
   pub typ: DAGPtr,
   pub bod: DAGPtr,
@@ -282,7 +283,7 @@ impl DAG {
         DAGPtr::Var(var) => {
           let Var { nam, dep: var_depth, .. } = unsafe { var.as_ref() };
           let ptr: *mut Var = var.as_ptr();
-          if let Some(level) = map.get(&ptr){
+          if let Some(level) = map.get(&ptr) {
             Term::Var(None, nam.to_owned(), depth - level - 1)
           }
           else {
@@ -396,7 +397,7 @@ impl DAG {
               parents,
             });
             DAGPtr::Var(var)
-          },
+          }
         },
         Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
         Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
@@ -425,7 +426,7 @@ impl DAG {
           let bod = go(&**bod, depth + 1, ctx, Some(bod_ref));
           (*lam.as_ptr()).bod = bod;
           DAGPtr::Lam(lam)
-        }
+        },
         Term::Slf(_, nam, bod) => unsafe {
           let var = Var { nam: nam.to_owned(), dep: 0, parents: None };
           let slf = alloc_val(Slf {
@@ -441,7 +442,7 @@ impl DAG {
           let bod = go(&**bod, depth + 1, ctx, Some(bod_ref));
           (*slf.as_ptr()).bod = bod;
           DAGPtr::Slf(slf)
-        }
+        },
         Term::Dat(_, bod) => unsafe {
           let dat = alloc_val(Dat {
             bod: mem::zeroed(),
@@ -454,7 +455,7 @@ impl DAG {
           let bod = go(&**bod, depth, ctx, Some(bod_ref));
           (*dat.as_ptr()).bod = bod;
           DAGPtr::Dat(dat)
-        }
+        },
         Term::Cse(_, bod) => unsafe {
           let cse = alloc_val(Cse {
             bod: mem::zeroed(),
@@ -467,7 +468,7 @@ impl DAG {
           let bod = go(&**bod, depth, ctx, Some(bod_ref));
           (*cse.as_ptr()).bod = bod;
           DAGPtr::Cse(cse)
-        }
+        },
         Term::All(_, uses, nam, dom_img) => unsafe {
           let (dom, img) = (**dom_img).to_owned();
           let var = Var { nam: nam.to_owned(), dep: 0, parents: None };
@@ -493,7 +494,7 @@ impl DAG {
           (*all.as_ptr()).dom = dom;
           (*all.as_ptr()).img = img;
           DAGPtr::All(all)
-        }
+        },
         Term::App(_, fun_arg) => unsafe {
           let (fun, arg) = (**fun_arg).to_owned();
           let app = alloc_val(App {
@@ -514,7 +515,7 @@ impl DAG {
           (*app.as_ptr()).fun = fun;
           (*app.as_ptr()).arg = arg;
           DAGPtr::App(app)
-        }
+        },
         Term::Ann(_, typ_exp) => unsafe {
           let (typ, exp) = (**typ_exp).to_owned();
           let ann = alloc_val(Ann {
@@ -535,7 +536,7 @@ impl DAG {
           (*ann.as_ptr()).typ = typ;
           (*ann.as_ptr()).exp = exp;
           DAGPtr::Ann(ann)
-        }
+        },
         Term::Let(_, rec, _, name, typ_exp_bod) => panic!("todo Let"),
         _ => panic!("todo"),
       }
