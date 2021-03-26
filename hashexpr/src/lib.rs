@@ -22,7 +22,6 @@ use nom::{
   bytes::complete::{
     tag,
     take,
-    take_till1,
   },
   character::complete::multispace1,
   combinator::{
@@ -449,7 +448,6 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
-    StdThreadGen,
   };
   use rand::Rng;
 
