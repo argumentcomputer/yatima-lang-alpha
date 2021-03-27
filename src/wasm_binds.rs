@@ -33,37 +33,60 @@ pub fn main() -> Result<(), JsValue> {
     Ok(())
 }
 
-// #[wasm_bindgen]
-// pub async fn run(repo: String) -> Result<JsValue, JsValue> {
-//     let mut opts = RequestInit::new();
-//     opts.method("GET");
-//     opts.mode(RequestMode::Cors);
+#[wasm_bindgen]
+pub async fn hashspace_get(hash: String) -> Result<JsValue, JsValue> {
+    let mut opts = RequestInit::new();
+    opts.method("GET");
+    opts.mode(RequestMode::Cors);
 
-//     let url = format!("https://api.github.com/repos/{}/branches/master", repo);
+    let url = format!("http://localhost:8000/store/{}", hash);
 
-//     let request = Request::new_with_str_and_init(&url, &opts)?;
+    let request = Request::new_with_str_and_init(&url, &opts)?;
 
-//     // request
-//     //     .headers()
-//     //     .set("Accept", "application/vnd.github.v3+json")?;
+    // request
+    //     .headers()
+    //     .set("Accept", "application/vnd.github.v3+json")?;
 
-//     let window = web_sys::window().unwrap();
-//     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
 
-//     // // `resp_value` is a `Response` object.
-//     // assert!(resp_value.is_instance_of::<Response>());
-//     // let resp: Response = resp_value.dyn_into().unwrap();
+    // // `resp_value` is a `Response` object.
+    // assert!(resp_value.is_instance_of::<Response>());
+    let resp: Response = resp_value.dyn_into().unwrap();
 
-//     // // Convert this other `Promise` into a rust `Future`.
-//     // let json = JsFuture::from(resp.json()?).await?;
+    // // Convert this other `Promise` into a rust `Future`.
+    let text = JsFuture::from(resp.text()?).await?;
 
-//     // // Use serde to parse the JSON into a struct.
-//     // let branch_info: Branch = json.into_serde().unwrap();
+    // // Use serde to parse the JSON into a struct.
+    // let branch_info: Branch = json.into_serde().unwrap();
 
-//     // // Send the `Branch` struct back to JS as an `Object`.
-//     // Ok(JsValue::from_serde(&branch_info).unwrap())
-//     Ok(JsValue::)
-// }
+    // // Send the `Branch` struct back to JS as an `Object`.
+    // Ok(JsValue::from_serde(&branch_info).unwrap())
+    Ok(text)
+}
+
+#[wasm_bindgen]
+pub async fn hashspace_put(data: String) -> Result<JsValue, JsValue> {
+    let mut opts = RequestInit::new();
+    opts.method("PUT");
+    opts.mode(RequestMode::Cors);
+    opts.body(Some(&JsValue::from_serde(&data).unwrap()));
+
+    let url = format!("http://localhost:8000/store");
+
+    let request = Request::new_with_str_and_init(&url, &opts)?;
+
+    // request
+    //     .headers()
+    //     .set("Accept", "application/vnd.github.v3+json")?;
+
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+
+    let resp: Response = resp_value.dyn_into().unwrap();
+    let text = JsFuture::from(resp.text()?).await?;
+    Ok(text)
+}
 
 #[wasm_bindgen]
 pub fn parse_source(source: &str) {
@@ -72,12 +95,4 @@ pub fn parse_source(source: &str) {
   alert(&format!("Package parsed:\n{}", p));
 
   // Ok(JsValue::from_serde(&p.to_string()).unwrap())
-}
-
-
-// Export a `greet` function from Rust to JavaScript, that alerts a
-// hello message.
-#[wasm_bindgen]
-pub fn greet(name: &str) {
-  alert(&format!("Hello, {}!", name));
 }

@@ -24,6 +24,28 @@ use yatima::{
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]
 enum Cli {
+  Parse {
+    #[structopt(parse(from_os_str), name = "path")]
+    opt_path: Option<PathBuf>,
+  },
+  Run {
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+  },
+  Repl,
+  #[structopt(name = "hashspace")]
+  Hashspace {
+    #[structopt(subcommand)]
+    hashspace_opt: HashspaceOpt,
+  }
+}
+//
+#[derive(Debug, StructOpt)]
+#[structopt(name = "subcommand", about = "Access hashspace")]
+enum HashspaceOpt {
+  Server {
+    opt_host: Option<String>,
+  },
   Save {
     #[structopt(parse(from_os_str))]
     input: PathBuf,
@@ -31,25 +53,15 @@ enum Cli {
   Show {
     input: String,
   },
-  Parse {
-    #[structopt(parse(from_os_str))]
-    optPath: Option<PathBuf>,
-  },
-  Run {
-    #[structopt(parse(from_os_str))]
-    input: PathBuf,
-  },
-  Repl,
 }
-//
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> io::Result<()> {
   let command = Cli::from_args();
   match command {
     Cli::Repl => repl::main().unwrap(),
-    Cli::Parse { optPath } => {
-      match optPath {
+    Cli::Parse { opt_path } => {
+      match opt_path {
         Some(path) => {
           let env = parse::package::PackageEnv::new(path);
           let (_, p, ..) = parse::package::parse_file(env);
@@ -77,20 +89,31 @@ fn main() -> io::Result<()> {
       let red = core::eval::norm(&defs, dag);
       println!("{}", red);
     }
-    Cli::Save { input } => {
+    Cli::Hashspace { hashspace_opt } => {
+      handle_hashspace_cmd(hashspace_opt)
+    }
+  }
+  Ok(())
+}
+
+fn handle_hashspace_cmd(hashspace_opt: HashspaceOpt) {
+  match hashspace_opt {
+    HashspaceOpt::Server { opt_host } => {
+      hashspace::server::start_server(opt_host)
+    }
+    HashspaceOpt::Save { input } => {
       let string = fs::read_to_string(input).unwrap();
       let expr = hashexpr::parse(&string).unwrap().1;
       let link = hashspace::put(expr);
       println!("Saved as {}", link)
     }
-    Cli::Show { input } => {
+    HashspaceOpt::Show { input } => {
       let link = hashexpr::link::Link::parse(&input).expect("valid link").1;
       println!("link {:?} {}", link, link);
       let expr = hashspace::get(link).expect("unknown link");
       println!("{}", expr)
     }
   }
-  Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -116,17 +139,8 @@ fn main() {
       let red = core::eval::norm(&defs, dag);
       println!("{}", red);
     }
-    Cli::Save { input } => {
-      let string = fs::read_to_string(input).unwrap();
-      let expr = hashexpr::parse(&string).unwrap().1;
-      let link = hashspace::put(expr);
-      println!("Saved as {}", link)
-    }
-    Cli::Show { input } => {
-      let link = hashexpr::link::Link::parse(&input).expect("valid link").1;
-      println!("link {:?} {}", link, link);
-      let expr = hashspace::get(link).expect("unknown link");
-      println!("{}", expr)
+    Cli::Hashspace { hashspace_opt } => {
+      handle_hashspace_cmd(hashspace_opt)
     }
   }
 }

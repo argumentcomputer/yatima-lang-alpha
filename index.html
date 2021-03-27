@@ -13,6 +13,7 @@
     <pre id="repl">
       λ&gt; <input type="text"/>
     </pre>
+    <label for="hash-input">hash to show</label><input type="text" id="hash-input"/><button id="hash-show-btn">Show hash!</button>
     <h2>Output</h2>
     <pre id="output">
       
@@ -27,7 +28,7 @@
       // will "boot" the module and make it ready to use. Currently browsers
       // don't support natively imported WebAssembly as an ES module, but
       // eventually the manual initialization won't be required!
-      import init, { parse_source, greet } from './pkg/yatima.js';
+      import init, { parse_source, hashspace_put, hashspace_get } from './pkg/yatima.js';
 
       async function run() {
         // First up we need to actually load the wasm file, so we use the
@@ -59,8 +60,13 @@
         await init();
 
         let parseBtn = document.getElementById("parse-btn");
+        let hashInput = document.getElementById("hash-input");
+        let showBtn = document.getElementById("hash-show-btn");
         let input = document.getElementById("input");
         let output = document.getElementById("output");
+        hashspace_put("test").then(v => {
+          console.log(v);
+        });
         parseBtn.onclick = () => {
           let value = input.value;
           try {
@@ -71,6 +77,14 @@
             console.log("Error: " + e.stack)
           }
         };
+        showBtn.onclick  = () => {
+          let hash = hashInput.value;
+          hashspace_get(hash).then(v => {
+            console.log(v);
+            output.innerText = v;
+          });
+        };
+
 
       }
 

@@ -1,7 +1,13 @@
 use crate::hashspace;
 use hashexpr::Expr;
 
-use rocket::Data;
+use rocket::{
+  Data,
+  Request,
+  Response,
+  fairing::{Fairing, Info, Kind},
+  http::{Header},
+};
 
 #[get("/")]
 fn index() -> &'static str {
@@ -49,5 +55,29 @@ fn put(data: Data) -> Result<String, std::io::Error> {
   Ok(format!("Your hash {} at {}", hash, url))
 }
 
-#[allow(dead_code)]
-fn main() { rocket::ignite().mount("/", routes![index, get, put]).launch(); }
+#[options("/store")]
+fn options() {
+  
+}
+
+pub struct CORS();
+
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to requests",
+            kind: Kind::Response
+        }
+    }
+
+    fn on_response(&self, request: &Request, response: &mut Response) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "GET, PUT, OPTIONS"));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
+}
+
+pub fn start_server(opt_host: Option<String>) {
+  rocket::ignite().attach(CORS()).mount("/", routes![index, get, put, options]).launch();
+}
