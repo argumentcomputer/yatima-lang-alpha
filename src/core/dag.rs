@@ -186,14 +186,14 @@ pub struct Opr {
 // Auxiliary allocation functions
 #[inline]
 pub fn alloc_val<T>(val: T) -> NonNull<T> {
-  unsafe { NonNull::new_unchecked(Box::leak(Box::new(val))) }
+  unsafe { NonNull::new(Box::leak(Box::new(val))).unwrap() }
 }
 
 #[inline]
 pub fn alloc_uninit<T>() -> NonNull<T> {
   unsafe {
     let ptr = alloc(Layout::new::<T>()) as *mut T;
-    NonNull::new_unchecked(ptr)
+    NonNull::new(ptr).unwrap()
   }
 }
 
@@ -421,8 +421,8 @@ impl DAG {
           });
           (*lam.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LamBod(lam));
           let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
-          ctx.push_front(NonNull::new_unchecked(var));
-          let bod_ref = NonNull::new_unchecked(bod_ref);
+          ctx.push_front(NonNull::new(var).unwrap());
+          let bod_ref = NonNull::new(bod_ref).unwrap();
           let bod = go(&**bod, depth + 1, ctx, Some(bod_ref));
           (*lam.as_ptr()).bod = bod;
           DAGPtr::Lam(lam)
@@ -437,8 +437,8 @@ impl DAG {
           });
           (*slf.as_ptr()).bod_ref = DLL::singleton(ParentPtr::SlfBod(slf));
           let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
-          ctx.push_front(NonNull::new_unchecked(var));
-          let bod_ref = NonNull::new_unchecked(bod_ref);
+          ctx.push_front(NonNull::new(var).unwrap());
+          let bod_ref = NonNull::new(bod_ref).unwrap();
           let bod = go(&**bod, depth + 1, ctx, Some(bod_ref));
           (*slf.as_ptr()).bod = bod;
           DAGPtr::Slf(slf)
@@ -451,7 +451,7 @@ impl DAG {
           });
           (*dat.as_ptr()).bod_ref = DLL::singleton(ParentPtr::DatBod(dat));
           let Dat { bod_ref, .. } = &mut *dat.as_ptr();
-          let bod_ref = NonNull::new_unchecked(bod_ref);
+          let bod_ref = NonNull::new(bod_ref).unwrap();
           let bod = go(&**bod, depth, ctx, Some(bod_ref));
           (*dat.as_ptr()).bod = bod;
           DAGPtr::Dat(dat)
@@ -464,7 +464,7 @@ impl DAG {
           });
           (*cse.as_ptr()).bod_ref = DLL::singleton(ParentPtr::CseBod(cse));
           let Cse { bod_ref, .. } = &mut *cse.as_ptr();
-          let bod_ref = NonNull::new_unchecked(bod_ref);
+          let bod_ref = NonNull::new(bod_ref).unwrap();
           let bod = go(&**bod, depth, ctx, Some(bod_ref));
           (*cse.as_ptr()).bod = bod;
           DAGPtr::Cse(cse)
@@ -485,11 +485,11 @@ impl DAG {
           (*all.as_ptr()).dom_ref = DLL::singleton(ParentPtr::AllDom(all));
           (*all.as_ptr()).img_ref = DLL::singleton(ParentPtr::AllImg(all));
           let All { var, dom_ref, img_ref, .. } = &mut *all.as_ptr();
-          let dom_ref = NonNull::new_unchecked(dom_ref);
-          let img_ref = NonNull::new_unchecked(img_ref);
+          let dom_ref = NonNull::new(dom_ref).unwrap();
+          let img_ref = NonNull::new(img_ref).unwrap();
           let mut img_ctx = ctx.clone();
           let dom = go(&dom, depth, ctx, Some(dom_ref));
-          img_ctx.push_front(NonNull::new_unchecked(var));
+          img_ctx.push_front(NonNull::new(var).unwrap());
           let img = go(&img, depth + 1, img_ctx, Some(img_ref));
           (*all.as_ptr()).dom = dom;
           (*all.as_ptr()).img = img;
@@ -508,8 +508,8 @@ impl DAG {
           (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppFun(app));
           (*app.as_ptr()).arg_ref = DLL::singleton(ParentPtr::AppArg(app));
           let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
-          let fun_ref = NonNull::new_unchecked(fun_ref);
-          let arg_ref = NonNull::new_unchecked(arg_ref);
+          let fun_ref = NonNull::new(fun_ref).unwrap();
+          let arg_ref = NonNull::new(arg_ref).unwrap();
           let fun = go(&fun, depth, ctx.clone(), Some(fun_ref));
           let arg = go(&arg, depth, ctx, Some(arg_ref));
           (*app.as_ptr()).fun = fun;
@@ -529,8 +529,8 @@ impl DAG {
           (*ann.as_ptr()).typ_ref = DLL::singleton(ParentPtr::AnnTyp(ann));
           (*ann.as_ptr()).exp_ref = DLL::singleton(ParentPtr::AnnExp(ann));
           let Ann { typ_ref, exp_ref, .. } = &mut *ann.as_ptr();
-          let typ_ref = NonNull::new_unchecked(typ_ref);
-          let exp_ref = NonNull::new_unchecked(exp_ref);
+          let typ_ref = NonNull::new(typ_ref).unwrap();
+          let exp_ref = NonNull::new(exp_ref).unwrap();
           let typ = go(&typ, depth, ctx.clone(), Some(typ_ref));
           let exp = go(&exp, depth, ctx, Some(exp_ref));
           (*ann.as_ptr()).typ = typ;

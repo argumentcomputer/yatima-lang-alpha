@@ -348,6 +348,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::AppFun(new_app));
             (*new_app.as_ptr()).arg_ref =
               DLL::singleton(ParentPtr::AppArg(new_app));
+            (*app.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::App(new_app), *parent)
             }
@@ -373,6 +374,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::AppFun(new_app));
             (*new_app.as_ptr()).arg_ref =
               DLL::singleton(ParentPtr::AppArg(new_app));
+            (*app.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::App(new_app), *parent)
             }
@@ -398,6 +400,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::AnnTyp(new_ann));
             (*new_ann.as_ptr()).exp_ref =
               DLL::singleton(ParentPtr::AnnExp(new_ann));
+            (*ann.as_ptr()).copy = Some(new_ann);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Ann(new_ann), *parent)
             }
@@ -423,6 +426,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::AnnTyp(new_ann));
             (*new_ann.as_ptr()).exp_ref =
               DLL::singleton(ParentPtr::AnnExp(new_ann));
+            (*ann.as_ptr()).copy = Some(new_ann);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Ann(new_ann), *parent)
             }
@@ -452,6 +456,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::AllDom(new_all));
             (*new_all.as_ptr()).img_ref =
               DLL::singleton(ParentPtr::AllImg(new_all));
+            (*all.as_ptr()).copy = Some(new_all);
             let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -485,6 +490,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::AllDom(new_all));
             (*new_all.as_ptr()).img_ref =
               DLL::singleton(ParentPtr::AllImg(new_all));
+            (*all.as_ptr()).copy = Some(new_all);
             let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -522,6 +528,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::LetTyp(new_let));
             (*new_let.as_ptr()).bod_ref =
               DLL::singleton(ParentPtr::LetBod(new_let));
+            (*let_.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -559,6 +566,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::LetTyp(new_let));
             (*new_let.as_ptr()).bod_ref =
               DLL::singleton(ParentPtr::LetBod(new_let));
+            (*let_.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -596,6 +604,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::LetTyp(new_let));
             (*new_let.as_ptr()).bod_ref =
               DLL::singleton(ParentPtr::LetBod(new_let));
+            (*let_.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)

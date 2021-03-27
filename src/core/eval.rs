@@ -1,83 +1,107 @@
-// use core::ptr::NonNull;
+use core::ptr::NonNull;
 
-// use crate::{
-//   core::{
-//     dag::*,
-//     upcopy::*,
-//     dll::*,
-//     primop::{
-//       apply_bin_op,
-//       apply_una_op,
-//     },
-//   },
-//   term::{
-//     // Term,
-//     Def,
-//     Link,
-//   },
-// };
+use crate::{
+  core::{
+    dag::*,
+    upcopy::*,
+    dll::*,
+    primop::{
+      apply_bin_op,
+      apply_una_op,
+    },
+    uses::Uses,
+  },
+  term::{
+    // Term,
+    Def,
+    Link,
+  },
+};
 
-// use im::{
-//   Vector,
-//   HashMap,
-// };
+use im::{
+  Vector,
+  HashMap,
+};
 
-// // Substitute a variable
-// pub fn subst(lam: NonNull<Single>, arg: DAGPtr) -> DAGPtr {
-//   unsafe {
-//     let Single { var, body, parents: lam_parents, .. } = *lam.as_ptr();
-//     let var = match var {
-//       Some(var) => var,
-//       None => panic!("Misuse of substitution"),
-//     };
-//     let Var { parents: var_parents, .. } = *var.as_ptr();
-//     let ans = if DLL::is_singleton(lam_parents) {
-//       replace_child(DAGPtr::Var(var), arg);
-//       // We have to read `body` again because `lam`'s body could be mutated
-//       // through `replace_child`
-//       (*lam.as_ptr()).body
-//     }
-//     else if var_parents.is_none() {
-//       body
-//     }
-//     else {
-//       let mut input = body;
-//       let mut top_branch = None;
-//       let mut result = arg;
-//       let mut spine = vec![];
-//       loop {
-//         match input {
-//           DAGPtr::Single(single) => {
-//             let Single { var, body, .. } = *single.as_ptr();
-//             let tag = &(*single.as_ptr()).tag;
-//             input = body;
-//             spine.push((var, tag));
-//           }
-//           DAGPtr::Branch(branch) => {
-//             let Branch { left, right, .. } = *branch.as_ptr();
-//             let new_branch = upcopy_branch(branch, left, right);
-//             top_branch = Some(branch);
-//             for parent in DLL::iter_option(var_parents) {
-//               upcopy(arg, *parent);
-//             }
-//             result = DAGPtr::Branch(new_branch);
-//             break;
-//           }
-//           // Otherwise it must be `var`, since `var` necessarily appears inside
-//           // `body`
-//           _ => break,
-//         }
-//       }
-//       while let Some((var, tag)) = spine.pop() {
-//         result = DAGPtr::Single(upcopy_single(var, result, tag.clone()));
-//       }
-//       top_branch
-//         .map_or((), |mut app| clear_copies(lam.as_ref(), app.as_mut()));
-//       result
-//     };
-//     ans
-//   }
-// }
+enum Single {
+  Lam(String, u64),
+  Slf(String, u64),
+  Dat,
+  Cse,
+}
+
+enum Branch {
+  All(String, u64, Uses, DAGPtr, DAGPtr),
+  App(DAGPtr, DAGPtr),
+  Ann(DAGPtr, DAGPtr),
+  Let(String, u64, Uses, DAGPtr, DAGPtr, DAGPtr),
+}
+
+// Substitute a variable
+pub fn subst(lam: NonNull<Lam>, arg: DAGPtr) -> DAGPtr {
+  let Lam { var, bod, parents, .. } = unsafe { lam.as_ref() };
+  let ans = if DLL::is_singleton(*parents) {
+    unsafe {
+      let ptr: *mut Var = &mut (*lam.as_ptr()).var;
+      replace_child(DAGPtr::Var(NonNull::new(ptr).unwrap()), arg);
+      // We have to read `body` again because `lam`'s body could be mutated
+      // through `replace_child`
+      (*lam.as_ptr()).bod
+    }
+  }
+  else if var.parents.is_none() {
+    *bod
+  }
+  else {
+    let mut input = *bod;
+    // let mut top_branch = None;
+    let mut result = arg;
+    let mut spine = vec![];
+    loop {
+      match input {
+        DAGPtr::Lam(link) => {
+          let Lam { var, bod, .. } = unsafe { link.as_ref() };
+          input = *bod;
+          spine.push(Single::Lam(var.nam.clone(), var.dep));
+        }
+        DAGPtr::Slf(link) => {
+          let Slf { var, bod, .. } = unsafe { link.as_ref() };
+          input = *bod;
+          spine.push(Single::Slf(var.nam.clone(), var.dep));
+        }
+        DAGPtr::Dat(link) => {
+          let Dat { bod, .. } = unsafe { link.as_ref() };
+          input = *bod;
+          spine.push(Single::Dat);
+        }
+        DAGPtr::Cse(link) => {
+          let Cse { bod, .. } = unsafe { link.as_ref() };
+          input = *bod;
+          spine.push(Single::Cse);
+        }
+        // DAGPtr::App(link) => {
+        //   let App { fun, arg, .. } = unsafe { link.as_ref() };
+        //   let new_branch = upcopy_branch(branch, left, right);
+        //   top_branch = Some(link);
+        //   for parent in DLL::iter_option(var.parents) {
+        //     upcopy(arg, *parent);
+        //   }
+        //   result = DAGPtr::Branch(new_branch);
+        //   break;
+        // }
+        // Otherwise it must be `var`, since `var` necessarily appears inside `body`
+        _ => break,
+      }
+    }
+    // while let Some((var, tag)) = spine.pop() {
+    //   result = DAGPtr::Single(upcopy_single(var, result, tag.clone()));
+    // }
+    // top_branch
+    //   .map_or((), |mut app| clear_copies(lam.as_ref(), app.as_mut()));
+    result
+  };
+  ans
+}
 
 // // Contract a lambda redex, return the body.
 // pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAGPtr {
