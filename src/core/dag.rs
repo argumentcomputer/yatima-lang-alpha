@@ -147,11 +147,11 @@ pub struct Ann {
 pub struct Let {
   pub var: Var,
   pub uses: Uses,
-  pub exp: DAGPtr,
   pub typ: DAGPtr,
+  pub exp: DAGPtr,
   pub bod: DAGPtr,
-  pub exp_ref: Parents,
   pub typ_ref: Parents,
+  pub exp_ref: Parents,
   pub bod_ref: Parents,
   pub copy: Option<NonNull<Let>>,
   pub parents: Option<NonNull<Parents>>,
