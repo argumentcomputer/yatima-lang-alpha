@@ -72,10 +72,10 @@ pub enum ParentPtr {
   AppArg(NonNull<App>),
   AllDom(NonNull<All>),
   AllImg(NonNull<All>),
-  AnnExp(NonNull<Ann>),
   AnnTyp(NonNull<Ann>),
-  LetExp(NonNull<Let>),
+  AnnExp(NonNull<Ann>),
   LetTyp(NonNull<Let>),
+  LetExp(NonNull<Let>),
   LetBod(NonNull<Let>),
 }
 
@@ -138,8 +138,8 @@ pub struct Cse {
 pub struct Ann {
   pub typ: DAGPtr,
   pub exp: DAGPtr,
-  pub exp_ref: Parents,
   pub typ_ref: Parents,
+  pub exp_ref: Parents,
   pub copy: Option<NonNull<Ann>>,
   pub parents: Option<NonNull<Parents>>,
 }
@@ -190,10 +190,109 @@ pub fn alloc_val<T>(val: T) -> NonNull<T> {
 }
 
 #[inline]
-pub fn alloc_uninit<T>() -> NonNull<T> {
+pub fn alloc_lam(var: Var, bod: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<Lam> {
   unsafe {
-    let ptr = alloc(Layout::new::<T>()) as *mut T;
-    NonNull::new(ptr).unwrap()
+    let lam = alloc_val(Lam {
+      var,
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*lam.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LamBod(lam));
+    lam
+  }
+}
+
+#[inline]
+pub fn alloc_slf(var: Var, bod: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<Slf> {
+  unsafe {
+    let slf = alloc_val(Slf {
+      var,
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*slf.as_ptr()).bod_ref = DLL::singleton(ParentPtr::SlfBod(slf));
+    slf
+  }
+}
+
+#[inline]
+pub fn alloc_dat(bod: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<Dat> {
+  unsafe {
+    let dat = alloc_val(Dat {
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*dat.as_ptr()).bod_ref = DLL::singleton(ParentPtr::DatBod(dat));
+    dat
+  }
+}
+
+#[inline]
+pub fn alloc_cse(bod: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<Cse> {
+  unsafe {
+    let cse = alloc_val(Cse {
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*cse.as_ptr()).bod_ref = DLL::singleton(ParentPtr::CseBod(cse));
+    cse
+  }
+}
+
+#[inline]
+pub fn alloc_all(var: Var, uses: Uses, dom: DAGPtr, img: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<All> {
+  unsafe {
+    let all = alloc_val(All {
+      var,
+      uses,
+      dom,
+      img,
+      copy: None,
+      dom_ref: mem::zeroed(),
+      img_ref: mem::zeroed(),
+      parents,
+    });
+    (*all.as_ptr()).dom_ref = DLL::singleton(ParentPtr::AllDom(all));
+    (*all.as_ptr()).img_ref = DLL::singleton(ParentPtr::AllImg(all));
+    all
+  }
+}
+
+#[inline]
+pub fn alloc_app(fun: DAGPtr, arg: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<App> {
+  unsafe {
+    let app = alloc_val(App {
+      fun,
+      arg,
+      copy: None,
+      fun_ref: mem::zeroed(),
+      arg_ref: mem::zeroed(),
+      parents,
+    });
+    (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppFun(app));
+    (*app.as_ptr()).arg_ref = DLL::singleton(ParentPtr::AppArg(app));
+    app
+  }
+}
+
+#[inline]
+pub fn alloc_ann(typ: DAGPtr, exp: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<Ann> {
+  unsafe {
+    let ann = alloc_val(Ann {
+      typ,
+      exp,
+      copy: None,
+      typ_ref: mem::zeroed(),
+      exp_ref: mem::zeroed(),
+      parents,
+    });
+    (*ann.as_ptr()).typ_ref = DLL::singleton(ParentPtr::AnnTyp(ann));
+    (*ann.as_ptr()).exp_ref = DLL::singleton(ParentPtr::AnnExp(ann));
+    ann
   }
 }
 
@@ -284,10 +383,10 @@ impl DAG {
           let Var { nam, dep: var_depth, .. } = unsafe { var.as_ref() };
           let ptr: *mut Var = var.as_ptr();
           if let Some(level) = map.get(&ptr) {
-            Term::Var(None, nam.to_owned(), depth - level - 1)
+            Term::Var(None, nam.clone(), depth - level - 1)
           }
           else {
-            Term::Var(None, nam.to_owned(), *var_depth)
+            Term::Var(None, nam.clone(), *var_depth)
           }
         }
         DAGPtr::Typ(_) => Term::Typ(None),
@@ -305,7 +404,7 @@ impl DAG {
         }
         DAGPtr::Ref(refr) => {
           let Ref { nam, exp, ast, .. } = unsafe { refr.as_ref() };
-          Term::Ref(None, nam.to_owned(), *exp, *ast)
+          Term::Ref(None, nam.clone(), *exp, *ast)
         }
         DAGPtr::Lam(lam) => {
           let Lam { var, bod, .. } = unsafe { &mut *lam.as_ptr() };
@@ -392,7 +491,7 @@ impl DAG {
           }
           None => {
             let var = alloc_val(Var {
-              nam: name.to_owned(),
+              nam: name.clone(),
               dep: depth - 1 - idx,
               parents,
             });
@@ -402,24 +501,18 @@ impl DAG {
         Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
         Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
         Term::Lit(_, lit) => {
-          DAGPtr::Lit(alloc_val(Lit { lit: lit.to_owned(), parents }))
+          DAGPtr::Lit(alloc_val(Lit { lit: lit.clone(), parents }))
         }
         Term::Opr(_, opr) => DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents })),
         Term::Ref(_, nam, exp, ast) => DAGPtr::Ref(alloc_val(Ref {
-          nam: nam.to_owned(),
+          nam: nam.clone(),
           exp: *exp,
           ast: *ast,
           parents,
         })),
         Term::Lam(_, nam, bod) => unsafe {
-          let var = Var { nam: nam.to_owned(), dep: 0, parents: None };
-          let lam = alloc_val(Lam {
-            var,
-            bod: mem::zeroed(),
-            bod_ref: mem::zeroed(),
-            parents,
-          });
-          (*lam.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LamBod(lam));
+          let var = Var { nam: nam.clone(), dep: 0, parents: None };
+          let lam = alloc_lam(var, mem::zeroed(), parents);
           let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
           ctx.push_front(NonNull::new(var).unwrap());
           let bod_ref = NonNull::new(bod_ref).unwrap();
@@ -428,14 +521,8 @@ impl DAG {
           DAGPtr::Lam(lam)
         },
         Term::Slf(_, nam, bod) => unsafe {
-          let var = Var { nam: nam.to_owned(), dep: 0, parents: None };
-          let slf = alloc_val(Slf {
-            var,
-            bod: mem::zeroed(),
-            bod_ref: mem::zeroed(),
-            parents,
-          });
-          (*slf.as_ptr()).bod_ref = DLL::singleton(ParentPtr::SlfBod(slf));
+          let var = Var { nam: nam.clone(), dep: 0, parents: None };
+          let slf = alloc_slf(var, mem::zeroed(), parents);
           let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
           ctx.push_front(NonNull::new(var).unwrap());
           let bod_ref = NonNull::new(bod_ref).unwrap();
@@ -444,12 +531,7 @@ impl DAG {
           DAGPtr::Slf(slf)
         },
         Term::Dat(_, bod) => unsafe {
-          let dat = alloc_val(Dat {
-            bod: mem::zeroed(),
-            bod_ref: mem::zeroed(),
-            parents,
-          });
-          (*dat.as_ptr()).bod_ref = DLL::singleton(ParentPtr::DatBod(dat));
+          let dat = alloc_dat(mem::zeroed(), parents);
           let Dat { bod_ref, .. } = &mut *dat.as_ptr();
           let bod_ref = NonNull::new(bod_ref).unwrap();
           let bod = go(&**bod, depth, ctx, Some(bod_ref));
@@ -457,12 +539,7 @@ impl DAG {
           DAGPtr::Dat(dat)
         },
         Term::Cse(_, bod) => unsafe {
-          let cse = alloc_val(Cse {
-            bod: mem::zeroed(),
-            bod_ref: mem::zeroed(),
-            parents,
-          });
-          (*cse.as_ptr()).bod_ref = DLL::singleton(ParentPtr::CseBod(cse));
+          let cse = alloc_cse(mem::zeroed(), parents);
           let Cse { bod_ref, .. } = &mut *cse.as_ptr();
           let bod_ref = NonNull::new(bod_ref).unwrap();
           let bod = go(&**bod, depth, ctx, Some(bod_ref));
@@ -470,20 +547,9 @@ impl DAG {
           DAGPtr::Cse(cse)
         },
         Term::All(_, uses, nam, dom_img) => unsafe {
-          let (dom, img) = (**dom_img).to_owned();
-          let var = Var { nam: nam.to_owned(), dep: 0, parents: None };
-          let all = alloc_val(All {
-            var,
-            uses: *uses,
-            dom: mem::zeroed(),
-            img: mem::zeroed(),
-            dom_ref: mem::zeroed(),
-            img_ref: mem::zeroed(),
-            copy: None,
-            parents,
-          });
-          (*all.as_ptr()).dom_ref = DLL::singleton(ParentPtr::AllDom(all));
-          (*all.as_ptr()).img_ref = DLL::singleton(ParentPtr::AllImg(all));
+          let (dom, img) = (**dom_img).clone();
+          let var = Var { nam: nam.clone(), dep: 0, parents: None };
+          let all = alloc_all(var, *uses, mem::zeroed(), mem::zeroed(), parents);
           let All { var, dom_ref, img_ref, .. } = &mut *all.as_ptr();
           let dom_ref = NonNull::new(dom_ref).unwrap();
           let img_ref = NonNull::new(img_ref).unwrap();
@@ -496,17 +562,8 @@ impl DAG {
           DAGPtr::All(all)
         },
         Term::App(_, fun_arg) => unsafe {
-          let (fun, arg) = (**fun_arg).to_owned();
-          let app = alloc_val(App {
-            fun: mem::zeroed(),
-            arg: mem::zeroed(),
-            fun_ref: mem::zeroed(),
-            arg_ref: mem::zeroed(),
-            copy: None,
-            parents,
-          });
-          (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppFun(app));
-          (*app.as_ptr()).arg_ref = DLL::singleton(ParentPtr::AppArg(app));
+          let (fun, arg) = (**fun_arg).clone();
+          let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
           let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
           let fun_ref = NonNull::new(fun_ref).unwrap();
           let arg_ref = NonNull::new(arg_ref).unwrap();
@@ -517,17 +574,8 @@ impl DAG {
           DAGPtr::App(app)
         },
         Term::Ann(_, typ_exp) => unsafe {
-          let (typ, exp) = (**typ_exp).to_owned();
-          let ann = alloc_val(Ann {
-            typ: mem::zeroed(),
-            exp: mem::zeroed(),
-            typ_ref: mem::zeroed(),
-            exp_ref: mem::zeroed(),
-            copy: None,
-            parents,
-          });
-          (*ann.as_ptr()).typ_ref = DLL::singleton(ParentPtr::AnnTyp(ann));
-          (*ann.as_ptr()).exp_ref = DLL::singleton(ParentPtr::AnnExp(ann));
+          let (typ, exp) = (**typ_exp).clone();
+          let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents);
           let Ann { typ_ref, exp_ref, .. } = &mut *ann.as_ptr();
           let typ_ref = NonNull::new(typ_ref).unwrap();
           let exp_ref = NonNull::new(exp_ref).unwrap();

@@ -24,17 +24,17 @@ use im::{
 };
 
 enum Single {
-  Lam(String, u64),
-  Slf(String, u64),
+  Lam(Var),
+  Slf(Var),
   Dat,
   Cse,
 }
 
 enum Branch {
-  All(String, u64, Uses, DAGPtr, DAGPtr),
-  App(DAGPtr, DAGPtr),
-  Ann(DAGPtr, DAGPtr),
-  Let(String, u64, Uses, DAGPtr, DAGPtr, DAGPtr),
+  All(NonNull<All>),
+  App(NonNull<App>),
+  Ann(NonNull<Ann>),
+  Let(NonNull<Let>),
 }
 
 // Substitute a variable
@@ -54,7 +54,7 @@ pub fn subst(lam: NonNull<Lam>, arg: DAGPtr) -> DAGPtr {
   }
   else {
     let mut input = *bod;
-    // let mut top_branch = None;
+    let mut top_branch = None;
     let mut result = arg;
     let mut spine = vec![];
     loop {
@@ -62,12 +62,12 @@ pub fn subst(lam: NonNull<Lam>, arg: DAGPtr) -> DAGPtr {
         DAGPtr::Lam(link) => {
           let Lam { var, bod, .. } = unsafe { link.as_ref() };
           input = *bod;
-          spine.push(Single::Lam(var.nam.clone(), var.dep));
+          spine.push(Single::Lam(var.clone()));
         }
         DAGPtr::Slf(link) => {
           let Slf { var, bod, .. } = unsafe { link.as_ref() };
           input = *bod;
-          spine.push(Single::Slf(var.nam.clone(), var.dep));
+          spine.push(Single::Slf(var.clone()));
         }
         DAGPtr::Dat(link) => {
           let Dat { bod, .. } = unsafe { link.as_ref() };
@@ -79,25 +79,103 @@ pub fn subst(lam: NonNull<Lam>, arg: DAGPtr) -> DAGPtr {
           input = *bod;
           spine.push(Single::Cse);
         }
-        // DAGPtr::App(link) => {
-        //   let App { fun, arg, .. } = unsafe { link.as_ref() };
-        //   let new_branch = upcopy_branch(branch, left, right);
-        //   top_branch = Some(link);
-        //   for parent in DLL::iter_option(var.parents) {
-        //     upcopy(arg, *parent);
-        //   }
-        //   result = DAGPtr::Branch(new_branch);
-        //   break;
-        // }
+        DAGPtr::App(link) => {
+          let App { fun, arg: app_arg, .. } = unsafe { link.as_ref() };
+          let new_app = alloc_app(*fun, *app_arg, None);
+          unsafe {
+            (*link.as_ptr()).copy = Some(new_app);
+          }
+          top_branch = Some(Branch::App(link));
+          for parent in DLL::iter_option(var.parents) {
+            upcopy(arg, *parent);
+          }
+          result = DAGPtr::App(new_app);
+          break;
+        }
+        DAGPtr::All(link) => {
+          let All { var: old_var, uses, dom, img, .. } = unsafe { link.as_ref() };
+          let Var { nam, dep, parents: var_parents } = old_var;
+          let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
+          let new_all = alloc_all(new_var, *uses, *dom, *img, None);
+          unsafe {
+            (*link.as_ptr()).copy = Some(new_all);
+            let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
+            for parent in DLL::iter_option(old_var.parents) {
+              upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+            }
+          }
+          top_branch = Some(Branch::All(link));
+          for parent in DLL::iter_option(var.parents) {
+            upcopy(arg, *parent);
+          }
+          result = DAGPtr::All(new_all);
+          break;
+        }
+        DAGPtr::Ann(link) => {
+          let Ann { typ, exp, .. } = unsafe { link.as_ref() };
+          let new_ann = alloc_ann(*typ, *exp, None);
+          unsafe {
+            (*link.as_ptr()).copy = Some(new_ann);
+          }
+          top_branch = Some(Branch::Ann(link));
+          for parent in DLL::iter_option(var.parents) {
+            upcopy(arg, *parent);
+          }
+          result = DAGPtr::Ann(new_ann);
+          break;
+        }
+        DAGPtr::Let(link) => panic!("todo"),
         // Otherwise it must be `var`, since `var` necessarily appears inside `body`
         _ => break,
       }
     }
-    // while let Some((var, tag)) = spine.pop() {
-    //   result = DAGPtr::Single(upcopy_single(var, result, tag.clone()));
-    // }
-    // top_branch
-    //   .map_or((), |mut app| clear_copies(lam.as_ref(), app.as_mut()));
+    while let Some(single) = spine.pop() {
+      match single {
+        Single::Lam(var) => {
+          let Var { nam, dep, parents: var_parents } = var;
+          let new_var = Var { nam, dep, parents: None };
+          let new_lam = alloc_lam(new_var, result, None);
+          let ptr: *mut Parents =  unsafe { &mut (*new_lam.as_ptr()).bod_ref };
+          add_to_parents(result, NonNull::new(ptr).unwrap());
+          let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
+          for parent in DLL::iter_option(var_parents) {
+            upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          }
+          result = DAGPtr::Lam(new_lam);
+        },
+        Single::Slf(var) => {
+          let Var { nam, dep, parents: var_parents } = var;
+          let new_var = Var { nam, dep, parents: None };
+          let new_slf = alloc_slf(new_var, result, None);
+          let ptr: *mut Parents =  unsafe { &mut (*new_slf.as_ptr()).bod_ref };
+          add_to_parents(result, NonNull::new(ptr).unwrap());
+          let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
+          for parent in DLL::iter_option(var_parents) {
+            upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          }
+          result = DAGPtr::Slf(new_slf);
+        },
+        Single::Dat => {
+          let new_dat = alloc_dat(result, None);
+          let ptr: *mut Parents =  unsafe { &mut (*new_dat.as_ptr()).bod_ref };
+          add_to_parents(result, NonNull::new(ptr).unwrap());
+          result = DAGPtr::Dat(new_dat);
+        },
+        Single::Cse => {
+          let new_cse = alloc_cse(result, None);
+          let ptr: *mut Parents =  unsafe { &mut (*new_cse.as_ptr()).bod_ref };
+          add_to_parents(result, NonNull::new(ptr).unwrap());
+          result = DAGPtr::Cse(new_cse);
+        },
+        _ => panic!("todo")
+      }
+    }
+    match top_branch {
+      Some(app) => {
+        // TODO clear_copies(lam.as_ref(), app.as_mut());
+      }
+      None => ()
+    }
     result
   };
   ans

@@ -302,14 +302,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         let Lam { var, parents, .. } = link.as_ref();
         let Var { nam, dep, parents: var_parents } = var;
         let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_lam = alloc_val(Lam {
-          var: new_var,
-          bod: new_child,
-          bod_ref: mem::zeroed(),
-          parents: None,
-        });
-        (*new_lam.as_ptr()).bod_ref =
-          DLL::singleton(ParentPtr::LamBod(new_lam));
+        let new_lam = alloc_lam(new_var, new_child, None);
         let ptr: *mut Parents = &mut (*new_lam.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_lam.as_ptr()).var;
@@ -324,14 +317,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         let Slf { var, parents, .. } = link.as_ref();
         let Var { nam, dep, parents: var_parents } = var;
         let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_slf = alloc_val(Slf {
-          var: new_var,
-          bod: new_child,
-          bod_ref: mem::zeroed(),
-          parents: None,
-        });
-        (*new_slf.as_ptr()).bod_ref =
-          DLL::singleton(ParentPtr::SlfBod(new_slf));
+        let new_slf = alloc_slf(new_var, new_child, None);
         let ptr: *mut Parents = &mut (*new_slf.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_slf.as_ptr()).var;
@@ -344,13 +330,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
       }
       ParentPtr::DatBod(link) => {
         let Dat { parents, .. } = link.as_ref();
-        let new_dat = alloc_val(Dat {
-          bod: new_child,
-          bod_ref: mem::zeroed(),
-          parents: None,
-        });
-        (*new_dat.as_ptr()).bod_ref =
-          DLL::singleton(ParentPtr::DatBod(new_dat));
+        let new_dat = alloc_dat(new_child, None);
         let ptr: *mut Parents = &mut (*new_dat.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         for parent in DLL::iter_option(*parents) {
@@ -359,13 +339,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
       }
       ParentPtr::CseBod(link) => {
         let Cse { parents, .. } = link.as_ref();
-        let new_cse = alloc_val(Cse {
-          bod: new_child,
-          bod_ref: mem::zeroed(),
-          parents: None,
-        });
-        (*new_cse.as_ptr()).bod_ref =
-          DLL::singleton(ParentPtr::CseBod(new_cse));
+        let new_cse = alloc_cse(new_child, None);
         let ptr: *mut Parents = &mut (*new_cse.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         for parent in DLL::iter_option(*parents) {
@@ -379,19 +353,8 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).fun = new_child;
           }
           None => {
-            let new_app = alloc_val(App {
-              copy: None,
-              fun: new_child,
-              arg: *arg,
-              fun_ref: mem::zeroed(),
-              arg_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_app.as_ptr()).fun_ref =
-              DLL::singleton(ParentPtr::AppFun(new_app));
-            (*new_app.as_ptr()).arg_ref =
-              DLL::singleton(ParentPtr::AppArg(new_app));
-            (*app.as_ptr()).copy = Some(new_app);
+            let new_app = alloc_app(new_child, *arg, None);
+            (*link.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::App(new_app), *parent)
             }
@@ -405,19 +368,8 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).arg = new_child;
           }
           None => {
-            let new_app = alloc_val(App {
-              copy: None,
-              fun: *fun,
-              arg: new_child,
-              fun_ref: mem::zeroed(),
-              arg_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_app.as_ptr()).fun_ref =
-              DLL::singleton(ParentPtr::AppFun(new_app));
-            (*new_app.as_ptr()).arg_ref =
-              DLL::singleton(ParentPtr::AppArg(new_app));
-            (*app.as_ptr()).copy = Some(new_app);
+            let new_app = alloc_app(*fun, new_child, None);
+            (*link.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::App(new_app), *parent)
             }
@@ -431,19 +383,8 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).typ = new_child;
           }
           None => {
-            let new_ann = alloc_val(Ann {
-              copy: None,
-              typ: new_child,
-              exp: *exp,
-              typ_ref: mem::zeroed(),
-              exp_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_ann.as_ptr()).typ_ref =
-              DLL::singleton(ParentPtr::AnnTyp(new_ann));
-            (*new_ann.as_ptr()).exp_ref =
-              DLL::singleton(ParentPtr::AnnExp(new_ann));
-            (*ann.as_ptr()).copy = Some(new_ann);
+            let new_ann = alloc_ann(new_child, *exp, None);
+            (*link.as_ptr()).copy = Some(new_ann);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Ann(new_ann), *parent)
             }
@@ -457,19 +398,8 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).exp = new_child;
           }
           None => {
-            let new_ann = alloc_val(Ann {
-              copy: None,
-              typ: *typ,
-              exp: new_child,
-              typ_ref: mem::zeroed(),
-              exp_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_ann.as_ptr()).typ_ref =
-              DLL::singleton(ParentPtr::AnnTyp(new_ann));
-            (*new_ann.as_ptr()).exp_ref =
-              DLL::singleton(ParentPtr::AnnExp(new_ann));
-            (*ann.as_ptr()).copy = Some(new_ann);
+            let new_ann = alloc_ann(*typ, new_child, None);
+            (*link.as_ptr()).copy = Some(new_ann);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Ann(new_ann), *parent)
             }
@@ -485,21 +415,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
           None => {
             let Var { nam, dep, parents: var_parents } = var;
             let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_all = alloc_val(All {
-              copy: None,
-              uses: *uses,
-              var: new_var,
-              dom: new_child,
-              img: *img,
-              dom_ref: mem::zeroed(),
-              img_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_all.as_ptr()).dom_ref =
-              DLL::singleton(ParentPtr::AllDom(new_all));
-            (*new_all.as_ptr()).img_ref =
-              DLL::singleton(ParentPtr::AllImg(new_all));
-            (*all.as_ptr()).copy = Some(new_all);
+            let new_all = alloc_all(new_var, *uses, new_child, *img, None);
             let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -519,21 +435,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
           None => {
             let Var { nam, dep, parents: var_parents } = var;
             let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_all = alloc_val(All {
-              copy: None,
-              uses: *uses,
-              var: new_var,
-              dom: *dom,
-              img: new_child,
-              dom_ref: mem::zeroed(),
-              img_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_all.as_ptr()).dom_ref =
-              DLL::singleton(ParentPtr::AllDom(new_all));
-            (*new_all.as_ptr()).img_ref =
-              DLL::singleton(ParentPtr::AllImg(new_all));
-            (*all.as_ptr()).copy = Some(new_all);
+            let new_all = alloc_all(new_var, *uses, *dom, new_child, None);
             let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -571,7 +473,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::LetTyp(new_let));
             (*new_let.as_ptr()).bod_ref =
               DLL::singleton(ParentPtr::LetBod(new_let));
-            (*let_.as_ptr()).copy = Some(new_let);
+            (*link.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -609,7 +511,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::LetTyp(new_let));
             (*new_let.as_ptr()).bod_ref =
               DLL::singleton(ParentPtr::LetBod(new_let));
-            (*let_.as_ptr()).copy = Some(new_let);
+            (*link.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -647,7 +549,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
               DLL::singleton(ParentPtr::LetTyp(new_let));
             (*new_let.as_ptr()).bod_ref =
               DLL::singleton(ParentPtr::LetBod(new_let));
-            (*let_.as_ptr()).copy = Some(new_let);
+            (*link.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
