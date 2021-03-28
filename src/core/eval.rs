@@ -39,13 +39,12 @@ enum Branch {
 
 // Substitute a variable
 pub fn subst(lam: NonNull<Lam>, arg: DAGPtr) -> DAGPtr {
-  let Lam { var, bod, parents, .. } = unsafe { lam.as_ref() };
+  let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let ans = if DLL::is_singleton(*parents) {
+    replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), arg);
+    // We have to read `body` again because `lam`'s body could be mutated
+    // through `replace_child`
     unsafe {
-      let ptr: *mut Var = &mut (*lam.as_ptr()).var;
-      replace_child(DAGPtr::Var(NonNull::new(ptr).unwrap()), arg);
-      // We have to read `body` again because `lam`'s body could be mutated
-      // through `replace_child`
       (*lam.as_ptr()).bod
     }
   }
@@ -167,28 +166,83 @@ pub fn subst(lam: NonNull<Lam>, arg: DAGPtr) -> DAGPtr {
           add_to_parents(result, NonNull::new(ptr).unwrap());
           result = DAGPtr::Cse(new_cse);
         },
-        _ => panic!("todo")
       }
     }
-    match top_branch {
-      Some(app) => {
-        // TODO clear_copies(lam.as_ref(), app.as_mut());
+    // If the top branch is non-null, then clear the copies and fix the uplinks
+    if let Some(top_branch) = top_branch {
+      match top_branch {
+        Branch::App(link) => unsafe {
+          let top_app = &mut *link.as_ptr();
+          top_app.copy.map_or((), |link| {
+            top_app.copy = None;
+            let App { fun, fun_ref, arg, arg_ref, .. } = &mut *link.as_ptr();
+            add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
+            add_to_parents(*arg, NonNull::new(arg_ref).unwrap());
+          });
+        }
+        Branch::All(link) => unsafe {
+          let top_all = &mut *link.as_ptr();
+          top_all.copy.map_or((), |link| {
+            top_all.copy = None;
+            let All { var, dom, dom_ref, img, img_ref, .. } = &mut *link.as_ptr();
+            add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
+            add_to_parents(*img, NonNull::new(img_ref).unwrap());
+            for var_parent in DLL::iter_option(var.parents) {
+              clean_up(var_parent);
+            }
+          });
+        }
+        Branch::Ann(link) => unsafe {
+          let top_ann = &mut *link.as_ptr();
+          top_ann.copy.map_or((), |link| {
+            top_ann.copy = None;
+            let Ann { typ, typ_ref, exp, exp_ref, .. } = &mut *link.as_ptr();
+            add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
+            add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
+          });
+        }
+        Branch::Let(link) => panic!("todo"),
       }
-      None => ()
+      let mut spine = DAGPtr::Lam(lam);
+      loop {
+        match spine {
+          DAGPtr::Lam(link) => unsafe {
+            let Lam { var, bod, .. } = &mut *link.as_ptr();
+            for var_parent in DLL::iter_option(var.parents) {
+              clean_up(var_parent);
+            }
+            spine = *bod;
+          },
+          DAGPtr::Slf(link) => unsafe {
+            let Slf { var, bod, .. } = &mut *link.as_ptr();
+            for var_parent in DLL::iter_option(var.parents) {
+              clean_up(var_parent);
+            }
+            spine = *bod;
+          },
+          DAGPtr::Dat(link) => unsafe {
+            spine = link.as_ref().bod;
+          },
+          DAGPtr::Cse(link) => unsafe {
+            spine = link.as_ref().bod;
+          },
+          _ => break,
+        }
+      }
     }
     result
   };
   ans
 }
 
-// // Contract a lambda redex, return the body.
-// pub fn reduce_lam(redex: NonNull<Branch>, lam: NonNull<Single>) -> DAGPtr {
-//   let Branch { right: arg, .. } = unsafe { redex.as_ref() };
-//   let top_node = subst(lam, *arg);
-//   replace_child(DAGPtr::Branch(redex), top_node);
-//   free_dead_node(DAGPtr::Branch(redex));
-//   top_node
-// }
+// Contract a lambda redex, return the body.
+pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
+  let App { arg, .. } = unsafe { redex.as_ref() };
+  let top_node = subst(lam, *arg);
+  replace_child(DAGPtr::App(redex), top_node);
+  free_dead_node(DAGPtr::App(redex));
+  top_node
+}
 
 // impl DAG {
 //   // Reduce term to its weak head normal form

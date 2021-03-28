@@ -515,8 +515,7 @@ impl DAG {
           let lam = alloc_lam(var, mem::zeroed(), parents);
           let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
           ctx.push_front(NonNull::new(var).unwrap());
-          let bod_ref = NonNull::new(bod_ref).unwrap();
-          let bod = go(&**bod, depth + 1, ctx, Some(bod_ref));
+          let bod = go(&**bod, depth + 1, ctx, NonNull::new(bod_ref));
           (*lam.as_ptr()).bod = bod;
           DAGPtr::Lam(lam)
         },
@@ -525,24 +524,21 @@ impl DAG {
           let slf = alloc_slf(var, mem::zeroed(), parents);
           let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
           ctx.push_front(NonNull::new(var).unwrap());
-          let bod_ref = NonNull::new(bod_ref).unwrap();
-          let bod = go(&**bod, depth + 1, ctx, Some(bod_ref));
+          let bod = go(&**bod, depth + 1, ctx, NonNull::new(bod_ref));
           (*slf.as_ptr()).bod = bod;
           DAGPtr::Slf(slf)
         },
         Term::Dat(_, bod) => unsafe {
           let dat = alloc_dat(mem::zeroed(), parents);
           let Dat { bod_ref, .. } = &mut *dat.as_ptr();
-          let bod_ref = NonNull::new(bod_ref).unwrap();
-          let bod = go(&**bod, depth, ctx, Some(bod_ref));
+          let bod = go(&**bod, depth, ctx, NonNull::new(bod_ref));
           (*dat.as_ptr()).bod = bod;
           DAGPtr::Dat(dat)
         },
         Term::Cse(_, bod) => unsafe {
           let cse = alloc_cse(mem::zeroed(), parents);
           let Cse { bod_ref, .. } = &mut *cse.as_ptr();
-          let bod_ref = NonNull::new(bod_ref).unwrap();
-          let bod = go(&**bod, depth, ctx, Some(bod_ref));
+          let bod = go(&**bod, depth, ctx, NonNull::new(bod_ref));
           (*cse.as_ptr()).bod = bod;
           DAGPtr::Cse(cse)
         },
@@ -551,12 +547,10 @@ impl DAG {
           let var = Var { nam: nam.clone(), dep: 0, parents: None };
           let all = alloc_all(var, *uses, mem::zeroed(), mem::zeroed(), parents);
           let All { var, dom_ref, img_ref, .. } = &mut *all.as_ptr();
-          let dom_ref = NonNull::new(dom_ref).unwrap();
-          let img_ref = NonNull::new(img_ref).unwrap();
           let mut img_ctx = ctx.clone();
-          let dom = go(&dom, depth, ctx, Some(dom_ref));
+          let dom = go(&dom, depth, ctx, NonNull::new(dom_ref));
           img_ctx.push_front(NonNull::new(var).unwrap());
-          let img = go(&img, depth + 1, img_ctx, Some(img_ref));
+          let img = go(&img, depth + 1, img_ctx, NonNull::new(img_ref));
           (*all.as_ptr()).dom = dom;
           (*all.as_ptr()).img = img;
           DAGPtr::All(all)
@@ -565,10 +559,8 @@ impl DAG {
           let (fun, arg) = (**fun_arg).clone();
           let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
           let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
-          let fun_ref = NonNull::new(fun_ref).unwrap();
-          let arg_ref = NonNull::new(arg_ref).unwrap();
-          let fun = go(&fun, depth, ctx.clone(), Some(fun_ref));
-          let arg = go(&arg, depth, ctx, Some(arg_ref));
+          let fun = go(&fun, depth, ctx.clone(), NonNull::new(fun_ref));
+          let arg = go(&arg, depth, ctx, NonNull::new(arg_ref));
           (*app.as_ptr()).fun = fun;
           (*app.as_ptr()).arg = arg;
           DAGPtr::App(app)
@@ -577,10 +569,8 @@ impl DAG {
           let (typ, exp) = (**typ_exp).clone();
           let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents);
           let Ann { typ_ref, exp_ref, .. } = &mut *ann.as_ptr();
-          let typ_ref = NonNull::new(typ_ref).unwrap();
-          let exp_ref = NonNull::new(exp_ref).unwrap();
-          let typ = go(&typ, depth, ctx.clone(), Some(typ_ref));
-          let exp = go(&exp, depth, ctx, Some(exp_ref));
+          let typ = go(&typ, depth, ctx.clone(), NonNull::new(typ_ref));
+          let exp = go(&exp, depth, ctx, NonNull::new(exp_ref));
           (*ann.as_ptr()).typ = typ;
           (*ann.as_ptr()).exp = exp;
           DAGPtr::Ann(ann)

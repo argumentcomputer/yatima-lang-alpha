@@ -48,12 +48,10 @@ pub fn clean_up(cc: &ParentPtr) {
       let app = link.as_mut();
       match app.copy {
         Some(app_copy) => {
-          let App { fun, arg, .. } = app_copy.as_ref();
+          let App { fun, arg, fun_ref, arg_ref, .. } = &mut *app_copy.as_ptr();
           app.copy = None;
-          let ptr: *mut Parents = &mut (*app_copy.as_ptr()).fun_ref;
-          add_to_parents(*fun, NonNull::new(ptr).unwrap());
-          let ptr: *mut Parents = &mut (*app_copy.as_ptr()).arg_ref;
-          add_to_parents(*arg, NonNull::new(ptr).unwrap());
+          add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
+          add_to_parents(*arg, NonNull::new(arg_ref).unwrap());
           for parent in DLL::iter_option(app.parents) {
             clean_up(parent);
           }
@@ -65,12 +63,10 @@ pub fn clean_up(cc: &ParentPtr) {
       let ann = link.as_mut();
       match ann.copy {
         Some(ann_copy) => {
-          let Ann { typ, exp, .. } = ann_copy.as_ref();
+          let Ann { typ, exp, typ_ref, exp_ref, .. } = &mut *ann_copy.as_ptr();
           ann.copy = None;
-          let ptr: *mut Parents = &mut (*ann_copy.as_ptr()).typ_ref;
-          add_to_parents(*typ, NonNull::new(ptr).unwrap());
-          let ptr: *mut Parents = &mut (*ann_copy.as_ptr()).exp_ref;
-          add_to_parents(*exp, NonNull::new(ptr).unwrap());
+          add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
+          add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
           for parent in DLL::iter_option(ann.parents) {
             clean_up(parent);
           }
@@ -82,12 +78,10 @@ pub fn clean_up(cc: &ParentPtr) {
       let all = link.as_mut();
       match all.copy {
         Some(all_copy) => {
-          let All { var, dom, img, .. } = all_copy.as_ref();
+          let All { var, dom, img, dom_ref, img_ref, .. } = &mut *all_copy.as_ptr();
           all.copy = None;
-          let ptr: *mut Parents = &mut (*all_copy.as_ptr()).dom_ref;
-          add_to_parents(*dom, NonNull::new(ptr).unwrap());
-          let ptr: *mut Parents = &mut (*all_copy.as_ptr()).img_ref;
-          add_to_parents(*img, NonNull::new(ptr).unwrap());
+          add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
+          add_to_parents(*img, NonNull::new(img_ref).unwrap());
           for parent in DLL::iter_option(var.parents) {
             clean_up(parent);
           }
@@ -104,14 +98,11 @@ pub fn clean_up(cc: &ParentPtr) {
       let let_ = link.as_mut();
       match let_.copy {
         Some(let_copy) => {
-          let Let { var, typ, exp, bod, .. } = let_copy.as_ref();
+          let Let { var, typ, exp, bod, typ_ref, exp_ref, bod_ref, .. } = &mut *let_copy.as_ptr();
           let_.copy = None;
-          let ptr: *mut Parents = &mut (*let_copy.as_ptr()).typ_ref;
-          add_to_parents(*typ, NonNull::new(ptr).unwrap());
-          let ptr: *mut Parents = &mut (*let_copy.as_ptr()).exp_ref;
-          add_to_parents(*exp, NonNull::new(ptr).unwrap());
-          let ptr: *mut Parents = &mut (*let_copy.as_ptr()).bod_ref;
-          add_to_parents(*bod, NonNull::new(ptr).unwrap());
+          add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
+          add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
+          add_to_parents(*bod, NonNull::new(bod_ref).unwrap());
           for parent in DLL::iter_option(var.parents) {
             clean_up(parent);
           }
