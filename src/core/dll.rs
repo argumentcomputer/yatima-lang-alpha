@@ -2,10 +2,6 @@ use core::{
   marker::PhantomData,
   ptr::NonNull,
 };
-use std::alloc::{
-  dealloc,
-  Layout,
-};
 
 // A doubly-linked list (DLL) node
 pub struct DLL<T> {

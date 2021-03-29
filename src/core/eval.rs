@@ -9,7 +9,6 @@ use crate::{
       apply_bin_op,
       apply_una_op,
     },
-    uses::Uses,
   },
   term::{
     // Term,
@@ -89,7 +88,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
       }
       DAGPtr::All(link) => {
         let All { var: old_var, uses, dom, img, .. } = unsafe { link.as_ref() };
-        let Var { nam, dep, parents: var_parents } = old_var;
+        let Var { nam, dep, .. } = old_var;
         let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
         let new_all = alloc_all(new_var, *uses, *dom, *img, None);
         unsafe {
@@ -121,7 +120,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
       }
       DAGPtr::Let(link) => {
         let Let { var: old_var, uses, typ, exp, bod, .. } = unsafe { link.as_ref() };
-        let Var { nam, dep, parents: var_parents } = old_var;
+        let Var { nam, dep, .. } = old_var;
         let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
         let new_let = alloc_let(new_var, *uses, *typ, *exp, *bod, None);
         unsafe {
@@ -325,7 +324,7 @@ impl DAG {
           }
         },
         DAGPtr::Ann(link) => {
-          let Ann { typ, exp, .. } = unsafe { link.as_ref() };
+          let Ann { exp, .. } = unsafe { link.as_ref() };
           replace_child(node, *exp);
           free_dead_node(node);
           node = *exp;
@@ -375,8 +374,8 @@ impl DAG {
               let new_var = Var { nam: nam.clone(), dep: 0, parents: None };
               alloc_fix(new_var, mem::zeroed(), None)
             };
-            let Fix { var, bod_ref, .. } = unsafe { &mut *new_fix.as_ptr() };
-            let new_node = DAG::from_subterm(
+            let Fix { var, bod, bod_ref, .. } = unsafe { &mut *new_fix.as_ptr() };
+            *bod = DAG::from_subterm(
               &def.term,
               1,
               Vector::unit(NonNull::new(var).unwrap()),

@@ -24,7 +24,6 @@ use im::{
 };
 use std::{
   alloc::{
-    alloc,
     dealloc,
     Layout,
   },
@@ -195,7 +194,7 @@ pub struct Opr {
 // Auxiliary allocation functions
 #[inline]
 pub fn alloc_val<T>(val: T) -> NonNull<T> {
-  unsafe { NonNull::new(Box::leak(Box::new(val))).unwrap() }
+  NonNull::new(Box::leak(Box::new(val))).unwrap()
 }
 
 #[inline]
@@ -529,7 +528,7 @@ impl DAG {
             )
           }
         },
-        DAGPtr::Fix(link) => panic!("Fix cannot be converted to Term."),
+        DAGPtr::Fix(_) => panic!("Fix cannot be converted to Term."),
       }
     }
     let mut map = HashMap::new();

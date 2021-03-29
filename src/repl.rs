@@ -13,9 +13,9 @@ use im::HashMap;
 use nom::Err;
 
 use crate::{
-  // core::{
-  //   dag::DAG,
-  // },
+  core::{
+    dag::DAG,
+  },
   package::Declaration,
   parse::term::parse,
 };
@@ -23,7 +23,7 @@ use crate::{
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
   let mut rl = Editor::<()>::with_config(config);
-  // let defs = HashMap::new();
+  let defs = HashMap::new();
   let mut _decls: Vec<Declaration> = Vec::new();
   rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
   rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
@@ -38,9 +38,9 @@ pub fn main() -> rustyline::Result<()> {
         let res = parse(&line);
         match res {
           Ok((_, term)) => {
-            // let mut dag = DAG::from_term(&term);
-            // dag.norm(&defs);
-            // println!("{}", dag);
+            let mut dag = DAG::from_term(&term);
+            dag.norm(&defs);
+            println!("{}", dag);
           }
           Err(e) => match e {
             Err::Incomplete(_) => println!("Incomplete"),
