@@ -54,7 +54,7 @@ where
     DeserialError::new(input, DeserialErrorKind::Nom(kind))
   }
 
-  fn append(input: I, kind: ErrorKind, mut other: Self) -> Self {
+  fn append(input: I, kind: ErrorKind, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
       Ordering::Less => {
         DeserialError { input, error: DeserialErrorKind::Nom(kind) }

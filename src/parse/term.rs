@@ -56,7 +56,6 @@ use nom::{
   },
   Err,
   IResult,
-  Slice,
 };
 
 pub fn reserved_symbols() -> Vector<String> {

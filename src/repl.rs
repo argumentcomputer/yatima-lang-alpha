@@ -24,7 +24,7 @@ use crate::{
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
   let mut rl = Editor::<()>::with_config(config);
-  let mut defs = HashMap::new();
+  let defs = HashMap::new();
   let mut _decls: Vec<Declaration> = Vec::new();
   rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
   rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));

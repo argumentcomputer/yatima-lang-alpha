@@ -5,7 +5,6 @@ use num_bigint::{
 };
 
 use crate::core::literal::{
-  LitType,
   Literal,
 };
 
