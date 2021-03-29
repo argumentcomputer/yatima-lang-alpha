@@ -820,21 +820,29 @@ mod test {
   use crate::parse::term::parse;
 
   #[test]
-  fn test_cases() {
-    let (_, x) =
-      parse("(λ _z => (λ _a => ∀ (1 _x: _a) -> #Natural) Type)").unwrap();
-    println!("{:?}", parse("(λ _a => ∀ (1 _a: _a) -> #Natural)"));
-    // assert_eq!(true, false)
+  fn dag_test_cases() {
+    let nat = String::from("let nat = (λ _z => (λ _a => ∀ (1 _x: _a) -> #Natural) Type); nat");
+    let one = String::from("let one: Type = λ s x => s x;");
+    let two = String::from("let two = λ s x => s (s x);");
+    let add = String::from("let add = λ m n f x => m f (n f x);");
+    let input = format!("{}\n{}\nadd one one", one, add);
+    //let input = nat;
+
+    let (_, x) = 
+      parse(&input).unwrap();
+    println!("{:?}", x);
     assert_eq!(x, DAG::to_term(&DAG::from_term(x.clone())));
+
   }
 
-  #[quickcheck]
-  fn term_encode_decode(x: Term) -> bool {
-    println!("x: {}", x);
-    println!("x: {:?}", x);
-    let y = DAG::to_term(&DAG::from_term(x.clone()));
-    println!("y: {}", y);
-    println!("y: {:?}", y);
-    x == y
-  }
+  //#[quickcheck]
+  //fn term_encode_decode(x: Term) -> bool {
+  //  println!("x: {}", x);
+  //  println!("x: {:?}", x);
+  //  let y = DAG::to_term(&DAG::from_term(x.clone()));
+  //  println!("y: {}", y);
+  //  println!("y: {:?}", y);
+  //  x == y
+  //}
 }
+
