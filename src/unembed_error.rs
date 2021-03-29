@@ -5,7 +5,6 @@ use crate::{
   term::Link,
 };
 
-use std::fmt;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum UnembedError {
@@ -16,7 +15,3 @@ pub enum UnembedError {
   UnknownLink(Link),
   BadLet,
 }
-
-// impl fmt::Display for UnembedError {
-//  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {}
-//}

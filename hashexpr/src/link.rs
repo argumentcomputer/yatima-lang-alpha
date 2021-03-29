@@ -81,9 +81,7 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
-    StdThreadGen,
   };
-  use rand::Rng;
 
   impl Arbitrary for Link {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
