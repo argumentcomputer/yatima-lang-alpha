@@ -319,6 +319,28 @@ pub fn alloc_ann(typ: DAGPtr, exp: DAGPtr, parents: Option<NonNull<Parents>>) ->
   }
 }
 
+#[inline]
+pub fn alloc_let(var: Var, uses: Uses, typ: DAGPtr, exp: DAGPtr, bod: DAGPtr, parents: Option<NonNull<Parents>>) -> NonNull<Let> {
+  unsafe {
+    let let_ = alloc_val(Let {
+      var,
+      uses,
+      typ,
+      exp,
+      bod,
+      copy: None,
+      typ_ref: mem::zeroed(),
+      exp_ref: mem::zeroed(),
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*let_.as_ptr()).typ_ref = DLL::singleton(ParentPtr::LetTyp(let_));
+    (*let_.as_ptr()).exp_ref = DLL::singleton(ParentPtr::LetExp(let_));
+    (*let_.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LetBod(let_));
+    let_
+  }
+}
+
 // Auxiliary parent functions
 #[inline]
 pub fn get_parents(term: DAGPtr) -> Option<NonNull<Parents>> {
@@ -400,14 +422,13 @@ impl DAG {
   pub fn to_term(&self) -> Term {
     pub fn go(
       node: &DAGPtr,
-      mut map: &mut HashMap<*mut Var, u64>,
+      map: &mut HashMap<*mut Var, u64>,
       depth: u64,
     ) -> Term {
       match node {
-        DAGPtr::Var(var) => {
-          let Var { nam, dep: var_depth, .. } = unsafe { var.as_ref() };
-          let ptr: *mut Var = var.as_ptr();
-          if let Some(level) = map.get(&ptr) {
+        DAGPtr::Var(link) => {
+          let Var { nam, dep: var_depth, .. } = unsafe { link.as_ref() };
+          if let Some(level) = map.get(&link.as_ptr()) {
             Term::Var(None, nam.clone(), depth - level - 1)
           }
           else {
@@ -415,74 +436,100 @@ impl DAG {
           }
         }
         DAGPtr::Typ(_) => Term::Typ(None),
-        DAGPtr::LTy(lty) => {
-          let LTy { lty, .. } = unsafe { lty.as_ref() };
+        DAGPtr::LTy(link) => {
+          let LTy { lty, .. } = unsafe { link.as_ref() };
           Term::LTy(None, *lty)
         }
-        DAGPtr::Lit(lit) => {
-          let Lit { lit, .. } = unsafe { lit.as_ref() };
+        DAGPtr::Lit(link) => {
+          let Lit { lit, .. } = unsafe { link.as_ref() };
           Term::Lit(None, lit.clone())
         }
-        DAGPtr::Opr(opr) => {
-          let Opr { opr, .. } = unsafe { opr.as_ref() };
+        DAGPtr::Opr(link) => {
+          let Opr { opr, .. } = unsafe { link.as_ref() };
           Term::Opr(None, *opr)
         }
-        DAGPtr::Ref(refr) => {
-          let Ref { nam, exp, ast, .. } = unsafe { refr.as_ref() };
+        DAGPtr::Ref(link) => {
+          let Ref { nam, exp, ast, .. } = unsafe { link.as_ref() };
           Term::Ref(None, nam.clone(), *exp, *ast)
         }
-        DAGPtr::Lam(lam) => {
-          let Lam { var, bod, .. } = unsafe { &mut *lam.as_ptr() };
+        DAGPtr::Lam(link) => {
+          let Lam { var, bod, .. } = unsafe { &mut *link.as_ptr() };
           let nam = var.nam.clone();
-          let ptr: *mut Var = var;
-          map.insert(ptr, depth);
-          let body = go(bod, &mut map, depth + 1);
+          map.insert(var, depth);
+          let body = go(bod, map, depth + 1);
           Term::Lam(None, nam, Box::new(body))
         }
-        DAGPtr::Slf(slf) => {
-          let Slf { var, bod, .. } = unsafe { &mut *slf.as_ptr() };
+        DAGPtr::Slf(link) => {
+          let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
           let nam = var.nam.clone();
-          let ptr: *mut Var = var;
-          map.insert(ptr, depth);
-          let body = go(bod, &mut map, depth + 1);
+          map.insert(var, depth);
+          let body = go(bod, map, depth + 1);
           Term::Slf(None, nam, Box::new(body))
         }
-        DAGPtr::Cse(cse) => {
-          let Cse { bod, .. } = unsafe { cse.as_ref() };
-          Term::Cse(None, Box::new(go(bod, &mut map, depth)))
+        DAGPtr::Cse(link) => {
+          let Cse { bod, .. } = unsafe { link.as_ref() };
+          Term::Cse(None, Box::new(go(bod, map, depth)))
         }
-        DAGPtr::Dat(dat) => {
-          let Dat { bod, .. } = unsafe { dat.as_ref() };
-          Term::Dat(None, Box::new(go(bod, &mut map, depth)))
+        DAGPtr::Dat(link) => {
+          let Dat { bod, .. } = unsafe { link.as_ref() };
+          Term::Dat(None, Box::new(go(bod, map, depth)))
         }
-        DAGPtr::App(app) => {
-          let App { fun, arg, .. } = unsafe { app.as_ref() };
+        DAGPtr::App(link) => {
+          let App { fun, arg, .. } = unsafe { link.as_ref() };
+          let fun_map = &mut map.clone();
           Term::App(
             None,
-            Box::new((go(fun, &mut map, depth), go(arg, &mut map, depth))),
+            Box::new((go(fun, fun_map, depth), go(arg, map, depth))),
           )
         }
-        DAGPtr::Ann(ann) => {
-          let Ann { typ, exp, .. } = unsafe { ann.as_ref() };
+        DAGPtr::Ann(link) => {
+          let Ann { typ, exp, .. } = unsafe { link.as_ref() };
+          let typ_map = &mut map.clone();
           Term::Ann(
             None,
-            Box::new((go(typ, &mut map, depth), go(exp, &mut map, depth))),
+            Box::new((go(typ, typ_map, depth), go(exp, map, depth))),
           )
         }
-        DAGPtr::All(all) => {
-          let All { var, uses, dom, img, .. } = unsafe { &mut *all.as_ptr() };
+        DAGPtr::All(link) => {
+          let All { var, uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
           let nam = var.nam.clone();
-          let ptr: *mut Var = var;
-          map.insert(ptr, depth);
+          let dom_map = &mut map.clone();
+          map.insert(var, depth);
           Term::All(
             None,
             *uses,
             nam,
-            Box::new((go(dom, &mut map, depth), go(img, &mut map, depth + 1))),
+            Box::new((go(dom, dom_map, depth), go(img, map, depth + 1))),
           )
         }
-        DAGPtr::Fix(link) => panic!("fix todo"),
-        DAGPtr::Let(link) => panic!("let todo"),
+        DAGPtr::Let(link) => {
+          let Let { var, uses, typ, exp, bod, .. } = unsafe { &mut *link.as_ptr() };
+          let nam = var.nam.clone();
+          let typ_map = &mut map.clone();
+          let exp_map = &mut map.clone();
+          map.insert(var, depth);
+          if let DAGPtr::Fix(link) = bod {
+            let Fix { var, bod: fix_bod, .. } = unsafe { &mut *link.as_ptr() };
+            exp_map.insert(var, depth);
+            Term::Let(
+              None,
+              true,
+              *uses,
+              nam,
+              Box::new((go(typ, typ_map, depth), go(fix_bod, exp_map, depth+1), go(bod, map, depth + 1))),
+            )
+          }
+          else {
+            Term::Let(
+              None,
+              false,
+              *uses,
+              nam,
+              Box::new((go(typ, typ_map, depth), go(exp, exp_map, depth), go(bod, map, depth + 1))),
+            )
+          }
+        },
+        DAGPtr::Fix(link) => panic!("Fix cannot be converted to Term."),
       }
     }
     let mut map = HashMap::new();
@@ -596,7 +643,31 @@ impl DAG {
         (*ann.as_ptr()).exp = exp;
         DAGPtr::Ann(ann)
       },
-      Term::Let(_, rec, _, name, typ_exp_bod) => panic!("todo Let"),
+      Term::Let(_, rec, uses, name, typ_exp_bod) => unsafe {
+        let (typ, exp, bod) = (**typ_exp_bod).clone();
+        let var = Var { nam: name.clone(), dep: 0, parents: None };
+        let let_ = alloc_let(var, *uses, mem::zeroed(), mem::zeroed(), mem::zeroed(), parents);
+        let Let { var, typ_ref, exp_ref, bod_ref, .. } = &mut *let_.as_ptr();
+        let typ = DAG::from_subterm(&typ, depth, ctx.clone(), NonNull::new(typ_ref));
+        let exp = if *rec {
+          let mut exp_ctx = ctx.clone();
+          let var = Var { nam: name.clone(), dep: 0, parents: None };
+          let fix = alloc_fix(var, mem::zeroed(), NonNull::new(exp_ref));
+          let Fix { var, bod, bod_ref, .. } = &mut *fix.as_ptr();
+          exp_ctx.push_front(NonNull::new(var).unwrap());
+          *bod = DAG::from_subterm(&exp, depth+1, exp_ctx, NonNull::new(bod_ref));
+          DAGPtr::Fix(fix)
+        }
+        else {
+          DAG::from_subterm(&exp, depth, ctx.clone(), NonNull::new(exp_ref))
+        };
+        ctx.push_front(NonNull::new(var).unwrap());
+        let bod = DAG::from_subterm(&bod, depth + 1, ctx, NonNull::new(bod_ref));
+        (*let_.as_ptr()).typ = typ;
+        (*let_.as_ptr()).exp = exp;
+        (*let_.as_ptr()).bod = bod;
+        DAGPtr::Let(let_)
+      },
     }
   }
 }

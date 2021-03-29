@@ -119,7 +119,25 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         result = DAGPtr::Ann(new_ann);
         break;
       }
-      DAGPtr::Let(link) => panic!("todo"),
+      DAGPtr::Let(link) => {
+        let Let { var: old_var, uses, typ, exp, bod, .. } = unsafe { link.as_ref() };
+        let Var { nam, dep, parents: var_parents } = old_var;
+        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
+        let new_let = alloc_let(new_var, *uses, *typ, *exp, *bod, None);
+        unsafe {
+          (*link.as_ptr()).copy = Some(new_let);
+          let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
+          for parent in DLL::iter_option(old_var.parents) {
+            upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          }
+        }
+        top_branch = Some(Branch::Let(link));
+        for parent in DLL::iter_option(var.parents) {
+          upcopy(arg, *parent);
+        }
+        result = DAGPtr::Let(new_let);
+        break;
+      },
       // Otherwise it must be `var`, since `var` necessarily appears inside `body`
       _ => break,
     }
@@ -184,35 +202,43 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
     match top_branch {
       Branch::App(link) => unsafe {
         let top_app = &mut *link.as_ptr();
-        top_app.copy.map_or((), |link| {
-          top_app.copy = None;
-          let App { fun, fun_ref, arg, arg_ref, .. } = &mut *link.as_ptr();
-          add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
-          add_to_parents(*arg, NonNull::new(arg_ref).unwrap());
-        });
+        let link = top_app.copy.unwrap();
+        top_app.copy = None;
+        let App { fun, fun_ref, arg, arg_ref, .. } = &mut *link.as_ptr();
+        add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
+        add_to_parents(*arg, NonNull::new(arg_ref).unwrap());
       }
       Branch::All(link) => unsafe {
         let top_all = &mut *link.as_ptr();
-        top_all.copy.map_or((), |link| {
-          top_all.copy = None;
-          let All { var, dom, dom_ref, img, img_ref, .. } = &mut *link.as_ptr();
-          add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
-          add_to_parents(*img, NonNull::new(img_ref).unwrap());
-          for var_parent in DLL::iter_option(var.parents) {
-            clean_up(var_parent);
-          }
-        });
+        let link = top_all.copy.unwrap();
+        top_all.copy = None;
+        let All { var, dom, dom_ref, img, img_ref, .. } = &mut *link.as_ptr();
+        add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
+        add_to_parents(*img, NonNull::new(img_ref).unwrap());
+        for var_parent in DLL::iter_option(var.parents) {
+          clean_up(var_parent);
+        }
       }
       Branch::Ann(link) => unsafe {
         let top_ann = &mut *link.as_ptr();
-        top_ann.copy.map_or((), |link| {
-          top_ann.copy = None;
-          let Ann { typ, typ_ref, exp, exp_ref, .. } = &mut *link.as_ptr();
-          add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
-          add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
-        });
+        let link = top_ann.copy.unwrap();
+        top_ann.copy = None;
+        let Ann { typ, typ_ref, exp, exp_ref, .. } = &mut *link.as_ptr();
+        add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
+        add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
       }
-      Branch::Let(link) => panic!("todo"),
+      Branch::Let(link) => unsafe {
+        let top_let = &mut *link.as_ptr();
+        let link = top_let.copy.unwrap();
+        top_let.copy = None;
+        let Let { var, typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } = &mut *link.as_ptr();
+        add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
+        add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
+        add_to_parents(*bod, NonNull::new(bod_ref).unwrap());
+        for var_parent in DLL::iter_option(var.parents) {
+          clean_up(var_parent);
+        }
+      },
     }
     for parent in DLL::iter_option(var.parents) {
       clean_up(parent);
@@ -319,10 +345,9 @@ impl DAG {
         },
         DAGPtr::Fix(link) => unsafe {
           let Fix { var, bod, .. } = &mut *link.as_ptr();
-          let Var { nam: var_name, parents: var_parents, dep: var_depth, .. } = var;
           replace_child(node, *bod);
-          if !var_parents.is_none() {
-            let new_var = Var {nam: var_name.clone(), dep: *var_depth, parents: None};
+          if !var.parents.is_none() {
+            let new_var = Var {nam: var.nam.clone(), dep: var.dep, parents: None};
             let new_fix = alloc_fix(new_var, mem::zeroed(), None);
             let ptr = &mut (*new_fix.as_ptr()).var;
             let result = subst(*bod, var, DAGPtr::Var(NonNull::new(ptr).unwrap()), true);
@@ -334,6 +359,14 @@ impl DAG {
           }
           free_dead_node(node);
           node = *bod;
+        },
+        DAGPtr::Let(link) => {
+          let Let { var, exp, bod, .. } = unsafe { &mut *link.as_ptr() };
+          replace_child(node, *bod);
+          replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *exp);
+          free_dead_node(node);
+          node = *bod;
+          break
         },
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, .. } = unsafe { &*link.as_ptr() };
