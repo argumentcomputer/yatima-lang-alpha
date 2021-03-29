@@ -23,6 +23,15 @@ pub fn clean_up(cc: &ParentPtr) {
         clean_up(parent);
       }
     },
+    ParentPtr::FixBod(link) => unsafe {
+      let Fix { parents, var, .. } = link.as_ref();
+      for parent in DLL::iter_option(var.parents) {
+        clean_up(parent);
+      }
+      for parent in DLL::iter_option(*parents) {
+        clean_up(parent);
+      }
+    },
     ParentPtr::SlfBod(link) => unsafe {
       let Slf { parents, var, .. } = link.as_ref();
       for parent in DLL::iter_option(var.parents) {
@@ -129,6 +138,15 @@ pub fn free_dead_node(node: DAGPtr) {
           free_dead_node(*bod)
         }
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Lam>());
+      }
+      DAGPtr::Fix(link) => {
+        let Fix { bod, bod_ref, .. } = &*link.as_ptr();
+        let new_bod_parents = bod_ref.unlink_node();
+        set_parents(*bod, new_bod_parents);
+        if new_bod_parents.is_none() {
+          free_dead_node(*bod)
+        }
+        dealloc(link.as_ptr() as *mut u8, Layout::new::<Fix>());
       }
       DAGPtr::Slf(link) => {
         let Slf { bod, bod_ref, .. } = &*link.as_ptr();
@@ -248,6 +266,7 @@ pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
     unsafe {
       match parent {
         ParentPtr::LamBod(parent) => (*parent.as_ptr()).bod = newchild,
+        ParentPtr::FixBod(parent) => (*parent.as_ptr()).bod = newchild,
         ParentPtr::SlfBod(parent) => (*parent.as_ptr()).bod = newchild,
         ParentPtr::DatBod(parent) => (*parent.as_ptr()).bod = newchild,
         ParentPtr::CseBod(parent) => (*parent.as_ptr()).bod = newchild,
@@ -302,6 +321,21 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
         for parent in DLL::iter_option(*parents) {
           upcopy(DAGPtr::Lam(new_lam), *parent)
+        }
+      }
+      ParentPtr::FixBod(link) => {
+        let Fix { var, parents, .. } = link.as_ref();
+        let Var { nam, dep, parents: var_parents } = var;
+        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
+        let new_fix = alloc_fix(new_var, new_child, None);
+        let ptr: *mut Parents = &mut (*new_fix.as_ptr()).bod_ref;
+        add_to_parents(new_child, NonNull::new(ptr).unwrap());
+        let ptr: *mut Var = &mut (*new_fix.as_ptr()).var;
+        for parent in DLL::iter_option(*var_parents) {
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+        }
+        for parent in DLL::iter_option(*parents) {
+          upcopy(DAGPtr::Fix(new_fix), *parent)
         }
       }
       ParentPtr::SlfBod(link) => {
