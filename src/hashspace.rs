@@ -1,11 +1,16 @@
+use core::{
+  ptr::NonNull,
+};
 #[cfg(not(target_arch = "wasm32"))]
 use directories_next::ProjectDirs;
 use hashexpr::{
   link::Link,
   Expr,
 };
+use futures::executor;
 use std::{
   fs,
+  fmt,
   path::{
     Path,
     PathBuf,
@@ -13,8 +18,37 @@ use std::{
 };
 
 pub mod cache;
+#[cfg(target_arch = "wasm32")]
+use crate::wasm_binds;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod server;
+
+/// Allows for defining impl methods that are dependent on hashspace
+/// info to be wrapped.
+pub trait HashspaceDependent {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>, hashspace: &Hashspace) -> fmt::Result;
+}
+
+pub struct HashspaceImplWrapper<T: HashspaceDependent> {
+  hashspace: Hashspace,
+  value: T
+}
+
+impl<T: Clone + HashspaceDependent> HashspaceImplWrapper<T> {
+  pub fn wrap(hashspace: &Hashspace, value: &T) -> Self {
+    Self {
+      hashspace: (*hashspace).clone(),
+      value: (*value).clone()
+    }
+  }
+}
+
+impl<T> fmt::Display for HashspaceImplWrapper<T>
+where T: HashspaceDependent {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.value.fmt(f, &self.hashspace)
+  }
+}
 
 // TODO: Add custom directory option
 /// Returns the hashspace directory. This function panics if the directory
@@ -92,58 +126,94 @@ pub fn hashspace_directory() -> PathBuf {
   PathBuf::from(path)
 }
 
-// Rust native runtime
+// Contains the configuration of hashspace
+#[derive(Debug,Clone)]
+pub struct Hashspace {
+  dir: Option<PathBuf>,
+  hosts: Vec<String>
+}
 
-#[cfg(not(target_arch = "wasm32"))]
-pub fn get(link: Link) -> Option<Expr> {
-  let dir = hashspace_directory();
-  let path = dir.as_path().join(Path::new(&link.to_string()));
-  let file = fs::read(path).ok()?;
-  // println!("file {:?}", file);
-  match Expr::deserialize(&file) {
-    Ok((_, x)) => Some(x),
-    Err(e) => panic!("deserialization error: {}", e),
+impl Hashspace {
+  pub fn local() -> Self {
+    Self {
+      dir: Some(hashspace_directory()),
+      hosts: Vec::new()
+    }
   }
-}
 
-#[cfg(not(target_arch = "wasm32"))]
-pub fn put(expr: Expr) -> Link {
-  let dir = hashspace_directory();
-  let link = expr.link();
-  let path = dir.as_path().join(Path::new(&link.to_string()));
-  fs::write(path, expr.serialize()).expect(&format!(
-    "Error: cannot write to hashspace path {}. \
-     Please open an issue at \
-     \"https://github.com/yatima-inc/yatima/issues\" \
-     if you see this message",
-    link));
-  link
-}
-
-// Rust wasm runtime
-
-#[cfg(target_arch = "wasm32")]
-pub fn get(link: Link) -> Option<Expr> {
-  let dir = hashspace_directory();
-  let path = dir.as_path().join(Path::new(&link.to_string()));
-  let file = fs::read(path).ok()?;
-  // println!("file {:?}", file);
-  match Expr::deserialize(&file) {
-    Ok((_, x)) => Some(x),
-    Err(e) => panic!("deserialization error: {}", e),
+  pub fn with_hosts(hosts: Vec<String>) -> Self {
+    Self {
+      dir: Some(hashspace_directory()),
+      hosts: hosts,
+    }
   }
-}
 
-#[cfg(target_arch = "wasm32")]
-pub fn put(expr: Expr) -> Link {
-  let dir = hashspace_directory();
-  let link = expr.link();
-  let path = dir.as_path().join(Path::new(&link.to_string()));
-  fs::write(path, expr.serialize()).expect(&format!(
-    "Error: cannot write to hashspace path {}. \
-     Please open an issue at \
-     \"https://github.com/yatima-inc/yatima/issues\" \
-     if you see this message",
-    link));
-  link
+  pub fn get(&self, link: Link) -> Option<Expr> {
+    let cid = link.to_string();
+    let data = 
+      match &self.dir {
+        Some(dir) => {
+          let path = dir.as_path().join(Path::new(&cid));
+          fs::read(path).ok()?
+        }
+        None => {
+          self.remote_get(cid).ok()?.as_bytes().to_vec()
+        }
+      };
+    match Expr::deserialize(&data) {
+      Ok((_, x)) => Some(x),
+      Err(e) => panic!("deserialization error: {}", e),
+    }
+  }
+
+  pub fn put(&self, expr: Expr) -> Link {
+    let link = expr.link();
+    let data = expr.serialize();
+    match &self.dir {
+      Some(dir) => {
+        let path = dir.as_path().join(Path::new(&link.to_string()));
+        fs::write(path, data).expect(&format!(
+            "Error: cannot write to hashspace path {}. \
+             Please open an issue at \
+             \"https://github.com/yatima-inc/yatima/issues\" \
+             if you see this message",
+             link));
+      }
+      None => {
+        self.remote_put(data.to_vec());
+      }
+    }
+
+    link
+  }
+
+  #[cfg(target_arch = "wasm32")]
+  pub fn remote_get(&self, cid: String) -> Result<String,String> {
+    let res = executor::block_on(wasm_binds::hashspace_get(cid));
+    match res {
+      Ok(js_value) => {
+        Ok(js_value.as_string().ok_or("JsValue is not a string")?)
+      }
+      Err(js_value) => {
+        let error = js_value.as_string().ok_or("JsValue error is not a string")?;
+        Err(error)
+      }
+    }
+  }
+
+  #[cfg(target_arch = "wasm32")]
+  pub fn remote_put(&self, data: Vec<u8>) {
+    executor::block_on(wasm_binds::hashspace_put(data));
+  }
+
+  #[cfg(not(target_arch = "wasm32"))]
+  pub fn remote_get(&self, cid: String) -> Result<String,String> {
+    // TODO native impl
+    Err("Not implemented".to_string())
+  }
+
+  #[cfg(not(target_arch = "wasm32"))]
+  pub fn remote_put(&self, data: Vec<u8>) {
+    // TODO native impl
+  }
 }

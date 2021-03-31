@@ -1,11 +1,8 @@
 use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 use crate::{
-  core,
   hashspace,
   parse,
 };
@@ -20,9 +17,9 @@ extern "C" {
 pub fn main() -> Result<(), JsValue> {
     // Use `web_sys`'s global `window` function to get a handle on the global
     // window object.
-    let window = web_sys::window().expect("no global `window` exists");
-    let document = window.document().expect("should have a document on window");
-    let body = document.body().expect("document should have a body");
+    // let window = web_sys::window().expect("no global `window` exists");
+    // let document = window.document().expect("should have a document on window");
+    // let body = document.body().expect("document should have a body");
 
     // Manufacture the element we're gonna append
     // let val = document.create_element("p")?;
@@ -54,7 +51,7 @@ pub async fn hashspace_get(hash: String) -> Result<JsValue, JsValue> {
     // assert!(resp_value.is_instance_of::<Response>());
     let resp: Response = resp_value.dyn_into().unwrap();
 
-    // // Convert this other `Promise` into a rust `Future`.
+    // Convert this other `Promise` into a rust `Future`.
     let text = JsFuture::from(resp.text()?).await?;
 
     // // Use serde to parse the JSON into a struct.
@@ -66,7 +63,7 @@ pub async fn hashspace_get(hash: String) -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub async fn hashspace_put(data: String) -> Result<JsValue, JsValue> {
+pub async fn hashspace_put(data: Vec<u8>) -> Result<JsValue, JsValue> {
     let mut opts = RequestInit::new();
     opts.method("PUT");
     opts.mode(RequestMode::Cors);
@@ -75,10 +72,6 @@ pub async fn hashspace_put(data: String) -> Result<JsValue, JsValue> {
     let url = format!("http://localhost:8000/store");
 
     let request = Request::new_with_str_and_init(&url, &opts)?;
-
-    // request
-    //     .headers()
-    //     .set("Accept", "application/vnd.github.v3+json")?;
 
     let window = web_sys::window().unwrap();
     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
@@ -91,8 +84,9 @@ pub async fn hashspace_put(data: String) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub fn parse_source(source: &str) {
   alert(&format!("Parsing:\n{}", source));
-  let (_, p, ..) = parse::package::parse_text(&source, None);
-  alert(&format!("Package parsed:\n{}", p));
+  let hashspace = hashspace::Hashspace::with_hosts(vec!["localhost:8000".to_string()]);
+  let (_, p, ..) = parse::package::parse_text(&source, None, &hashspace);
+  alert(&format!("Package parsed:\n{}", hashspace::HashspaceImplWrapper::wrap(&hashspace, &p)));
 
   // Ok(JsValue::from_serde(&p.to_string()).unwrap())
 }

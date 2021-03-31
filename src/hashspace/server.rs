@@ -30,7 +30,8 @@ fn index() -> &'static str {
 fn get(hash: String) -> Option<Vec<u8>> {
   let (_, link) = hashexpr::link::Link::parse(&hash).ok()?;
   info!("Your link {}", link);
-  let expr = hashspace::get(link)?;
+  let hashspace = hashspace::Hashspace::local();
+  let expr = hashspace.get(link)?;
   Some(expr.serialize())
 }
 
@@ -43,6 +44,7 @@ fn put(data: Data) -> Result<String, std::io::Error> {
     _ => Expr::from_bits(stream.clone().as_ref()),
   };
   let hash = expr.link().to_string();
+  let hashspace = hashspace::Hashspace::local();
 
   let url = format!(
     "{host}/store/{hash}\n",
@@ -51,7 +53,7 @@ fn put(data: Data) -> Result<String, std::io::Error> {
   );
 
   // Write the paste out to the file and return the URL
-  hashspace::put(expr);
+  hashspace.put(expr);
   Ok(format!("Your hash {} at {}", hash, url))
 }
 
@@ -79,5 +81,8 @@ impl Fairing for CORS {
 }
 
 pub fn start_server(opt_host: Option<String>) {
-  rocket::ignite().attach(CORS()).mount("/", routes![index, get, put, options]).launch();
+  rocket::ignite()
+    .attach(CORS())
+    .mount("/", routes![index, get, put, options])
+    .launch();
 }

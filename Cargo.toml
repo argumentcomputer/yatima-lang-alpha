@@ -22,6 +22,7 @@ nom = "6.0.1"
 nom_locate = "3.0.0"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
+futures = "0.3.13"
 
 # WASM dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]

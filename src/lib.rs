@@ -27,7 +27,6 @@ pub mod hashspace;
 pub mod meta_term;
 pub mod package;
 pub mod parse;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod repl;
 pub mod term;
 pub mod unembed_error;

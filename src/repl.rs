@@ -22,6 +22,13 @@ use crate::{
   parse::term::parse,
 };
 
+#[cfg(target_arch = "wasm32")]
+pub fn main() -> Result<(),()> {
+  println!("REPL not supported yet");
+  Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
   let mut rl = Editor::<()>::with_config(config);
