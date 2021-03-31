@@ -1,6 +1,3 @@
-use core::{
-  ptr::NonNull,
-};
 #[cfg(not(target_arch = "wasm32"))]
 use directories_next::ProjectDirs;
 use hashexpr::{
@@ -143,7 +140,7 @@ impl Hashspace {
 
   pub fn with_hosts(hosts: Vec<String>) -> Self {
     Self {
-      dir: Some(hashspace_directory()),
+      dir: None,
       hosts: hosts,
     }
   }
@@ -180,7 +177,7 @@ impl Hashspace {
              link));
       }
       None => {
-        self.remote_put(data.to_vec());
+        self.remote_put(data.to_vec()).expect("Failed to put data");
       }
     }
 
@@ -202,8 +199,11 @@ impl Hashspace {
   }
 
   #[cfg(target_arch = "wasm32")]
-  pub fn remote_put(&self, data: Vec<u8>) {
-    executor::block_on(wasm_binds::hashspace_put(data));
+  pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
+    Ok(executor::block_on(wasm_binds::hashspace_put(data))
+      .unwrap()
+      .as_string()
+      .unwrap())
   }
 
   #[cfg(not(target_arch = "wasm32"))]
@@ -213,7 +213,8 @@ impl Hashspace {
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn remote_put(&self, data: Vec<u8>) {
+  pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
     // TODO native impl
+    Err("Not implemented".as_string())
   }
 }
