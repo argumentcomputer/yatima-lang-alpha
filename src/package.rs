@@ -283,15 +283,16 @@ impl HashspaceDependent for Package {
 #[cfg(test)]
 pub mod tests {
   use super::*;
-  use quickcheck::{
-    Arbitrary,
-    Gen,
-  };
 
-  use crate::term::{
-    tests::arbitrary_name,
-    Def,
-  };
+  // use quickcheck::{
+  //   Arbitrary,
+  //   Gen,
+  // };
+
+  // use crate::term::{
+  //   tests::arbitrary_name,
+  //   Def,
+  // };
 
   use crate::parse::package::{
     parse_package,

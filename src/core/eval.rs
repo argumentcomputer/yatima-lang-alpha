@@ -345,8 +345,8 @@ mod test {
     norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
     // // Church arithmetic
     let zero = "λ s z => z";
-    let one = "λ s z => (s z)";
-    let two = "λ s z => s (s z)";
+    let _one = "λ s z => (s z)";
+    let _two = "λ s z => s (s z)";
     let three = "λ s z => s (s (s z))";
     let four = "λ s z => s (s (s (s z)))";
     let seven = "λ s z => s (s (s (s (s (s (s z))))))";

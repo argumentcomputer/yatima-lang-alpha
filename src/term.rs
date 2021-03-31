@@ -1,9 +1,4 @@
 use crate::{
-  decode_error::{
-    or_else_join,
-    DecodeError,
-    Expected,
-  },
   definition::Definition,
   hashspace::{Hashspace},
   unembed_error::UnembedError,
@@ -25,11 +20,7 @@ pub use crate::core::{
 
 pub use hashexpr::link::Link;
 use hashexpr::{
-  atom,
-  atom::Atom::*,
   position::Pos,
-  Expr,
-  Expr::*,
 };
 
 use im::{
@@ -581,7 +572,7 @@ pub mod tests {
     Gen,
   };
   use rand::{
-    prelude::IteratorRandom,
+    // prelude::IteratorRandom,
     Rng,
   };
 
@@ -633,6 +624,7 @@ pub mod tests {
     })
   }
 
+  #[allow(dead_code)]
   fn arbitrary_let(
     refs: Refs,
     ctx: Vector<String>,
@@ -851,7 +843,7 @@ pub mod tests {
           false
         }
       }
-      e => {
+      _e => {
         //        println!("x: {:?}", x);
         //        println!("a: {:?}", a);
         //        println!("m: {:?}", m);
@@ -874,7 +866,7 @@ pub mod tests {
           false
         }
       }
-      e => {
+      _e => {
         //        println!("x: {:?}", x);
         //        println!("a: {:?}", a);
         //        println!("m: {:?}", m);

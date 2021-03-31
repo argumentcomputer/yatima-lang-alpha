@@ -11,10 +11,6 @@ use crate::parse::{
   span::Span,
 };
 
-use crate::parse::term::{
-  parse_space,
-  parse_space1,
-};
 
 use nom::{
   branch::alt,
