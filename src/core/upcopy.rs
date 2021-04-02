@@ -259,51 +259,6 @@ pub fn free_dead_node(node: DAGPtr) {
   }
 }
 
-// Replace one child w/another in the tree.
-pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
-  #[inline]
-  fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
-    unsafe {
-      match parent {
-        ParentPtr::LamBod(parent) => (*parent.as_ptr()).bod = newchild,
-        ParentPtr::FixBod(parent) => (*parent.as_ptr()).bod = newchild,
-        ParentPtr::SlfBod(parent) => (*parent.as_ptr()).bod = newchild,
-        ParentPtr::DatBod(parent) => (*parent.as_ptr()).bod = newchild,
-        ParentPtr::CseBod(parent) => (*parent.as_ptr()).bod = newchild,
-        ParentPtr::AppFun(parent) => (*parent.as_ptr()).fun = newchild,
-        ParentPtr::AppArg(parent) => (*parent.as_ptr()).arg = newchild,
-        ParentPtr::AllDom(parent) => (*parent.as_ptr()).dom = newchild,
-        ParentPtr::AllImg(parent) => (*parent.as_ptr()).img = newchild,
-        ParentPtr::AnnExp(parent) => (*parent.as_ptr()).exp = newchild,
-        ParentPtr::AnnTyp(parent) => (*parent.as_ptr()).typ = newchild,
-        ParentPtr::LetExp(parent) => (*parent.as_ptr()).exp = newchild,
-        ParentPtr::LetTyp(parent) => (*parent.as_ptr()).typ = newchild,
-        ParentPtr::LetBod(parent) => (*parent.as_ptr()).bod = newchild,
-        ParentPtr::Root => (),
-      }
-    }
-  }
-  unsafe {
-    let oldpref = get_parents(oldchild);
-    if let Some(old_parents) = oldpref {
-      let mut iter = (*old_parents.as_ptr()).iter();
-      let newpref = get_parents(newchild);
-      let mut last_old = None;
-      let first_new = newpref.map(|dll| DLL::first(dll));
-      while let Some(parent) = iter.next() {
-        if iter.is_last() {
-          last_old = iter.this();
-          last_old.map_or((), |last_old| (*last_old.as_ptr()).next = first_new);
-        }
-        install_child(parent, newchild);
-      }
-      first_new.map_or((), |first_new| (*first_new.as_ptr()).prev = last_old);
-      set_parents(newchild, oldpref);
-    }
-    set_parents(oldchild, None);
-  }
-}
-
 // The core up-copy function.
 pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
   unsafe {

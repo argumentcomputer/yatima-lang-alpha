@@ -303,7 +303,36 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   top_node
 }
 
+
 impl DAG {
+  // Reduce a Fix/Ref
+  #[inline]
+  pub fn deref(&mut self, defs: &HashMap<Link, Def>) {
+    let mut node = self.head;
+    match self.head {
+      DAGPtr::Ref(link) => {
+        let Ref { nam, exp, parents: ref_parents, .. } = unsafe { &mut *link.as_ptr() };
+        if let Some(def) = defs.get(exp) {
+          let parents = ref_parents.clone();
+          *ref_parents = None;
+          node = DAG::from_subterm(
+            &def.term,
+            1,
+            Vector::unit(node),
+            parents);
+          for parent in DLL::iter_option(parents) {
+            install_child(parent, node);
+          }
+        }
+        else {
+          panic!("undefined runtime reference: {}, {}", nam, exp);
+        }
+      },
+      _ => ()
+    };
+    self.head = node
+  }
+
   // Reduce term to its weak head normal form
   pub fn whnf(&mut self, defs: &HashMap<Link, Def>) {
     let mut node = self.head;
@@ -378,7 +407,7 @@ impl DAG {
             *bod = DAG::from_subterm(
               &def.term,
               1,
-              Vector::unit(NonNull::new(var).unwrap()),
+              Vector::unit(DAGPtr::Var(NonNull::new(var).unwrap())),
               Some(NonNull::new(bod_ref).unwrap()));
             replace_child(node, DAGPtr::Fix(new_fix));
             free_dead_node(node);
