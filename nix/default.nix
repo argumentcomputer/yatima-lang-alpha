@@ -31,10 +31,10 @@ in
         shellcheck.enable = true;
         nixpkgs-fmt.enable = true;
         nix-linter.enable = true;
-        # cargo-check.enable = true;
-        # rustfmt = {
-        #   enable = true;
-        # };
+        cargo-check.enable = true;
+        rustfmt.enable = true;
+        clippy.enable = true;
+        html-tidy.enable = true;
       };
       # generated files
       excludes = [ "^nix/sources\.nix$" ];

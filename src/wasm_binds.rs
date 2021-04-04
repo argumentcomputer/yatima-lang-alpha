@@ -5,7 +5,7 @@ use web_sys::{Request, RequestInit, RequestMode, Response};
 use crate::{
   hashspace,
   parse,
-  utils::log,
+  // utils::log,
 };
 
 // Import the `window.alert` function from the Web.

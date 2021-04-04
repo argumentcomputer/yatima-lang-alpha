@@ -9,10 +9,13 @@ use rustyline::{
   KeyEvent,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 use im::HashMap;
 
+#[cfg(not(target_arch = "wasm32"))]
 use nom::Err;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::{
   core::{
     dag::DAG,

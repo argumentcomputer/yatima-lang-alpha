@@ -6,11 +6,9 @@ use hashexpr::{
   base::Base,
 };
 use base_x;
-use futures::executor;
+#[cfg(target_arch = "wasm32")]
+use std::sync::{Arc, Mutex};
 use std::{
-  rc::Rc,
-  cell::RefCell,
-  sync::{Arc, Mutex},
   fs,
   fmt,
   path::{
@@ -208,7 +206,7 @@ impl Hashspace {
         let result = self.remote_put(data);
         result
           .map(|s| log(format!("Ok: {}", s).as_str()))
-          .map_err(|s| log(format!("Error: {}", s).as_str()));
+          .map_err(|s| log(format!("Error: {}", s).as_str())).ok();
         log("After remote_put");
       }
     }
@@ -232,12 +230,12 @@ impl Hashspace {
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn put_local_storage(&self, cid: String, data: &str) -> Result<(),String> {
+  pub fn put_local_storage(&self, _cid: String, _data: &str) -> Result<(),String> {
     Err("Not implemented".to_string())
   }
   
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn get_local_storage(&self, cid: &String) -> Result<String,String> {
+  pub fn get_local_storage(&self, _cid: &String) -> Result<String,String> {
     Err("Not implemented".to_string())
   }
 
@@ -277,13 +275,13 @@ impl Hashspace {
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn remote_get(&self, cid: String) -> Result<String,String> {
+  pub fn remote_get(&self, _cid: String) -> Result<String,String> {
     // TODO native impl
     Err("Not implemented".to_string())
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
+  pub fn remote_put(&self, _data: Vec<u8>) -> Result<String, String> {
     // TODO native impl
     Err("Not implemented".to_string())
   }

@@ -67,6 +67,7 @@ fn options() {
   
 }
 
+/// Add CORS headers to requests
 pub struct CORS();
 
 impl Fairing for CORS {
@@ -77,7 +78,7 @@ impl Fairing for CORS {
         }
     }
 
-    fn on_response(&self, request: &Request, response: &mut Response) {
+    fn on_response(&self, _request: &Request, response: &mut Response) {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
         response.set_header(Header::new("Access-Control-Allow-Methods", "GET, PUT, OPTIONS"));
         response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
@@ -85,7 +86,7 @@ impl Fairing for CORS {
     }
 }
 
-pub fn start_server(opt_host: Option<String>) {
+pub fn start_server(_opt_host: Option<String>) {
   rocket::ignite()
     .attach(CORS())
     .mount("/", routes![index, get, put, options])

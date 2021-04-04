@@ -11,6 +11,6 @@ pub fn log(message: &str) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn log(message: &str) -> io::Result<()> {
-  io::stdout().write_all(message.as_bytes())
+pub fn log(message: &str) {
+  io::stdout().write_all(message.as_bytes()).unwrap();
 }
