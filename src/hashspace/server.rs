@@ -1,4 +1,7 @@
-use crate::hashspace;
+use crate::{
+  hashspace,
+  utils::log,
+};
 use hashexpr::Expr;
 
 use rocket::{
@@ -54,7 +57,9 @@ fn put(data: Data) -> Result<String, std::io::Error> {
 
   // Write the paste out to the file and return the URL
   hashspace.put(expr);
-  Ok(format!("Your hash {} at {}", hash, url))
+  let reply = format!("Your hash {} at {}", hash, url);
+  log(reply.as_str());
+  Ok(reply)
 }
 
 #[options("/store")]

@@ -45,6 +45,7 @@ features = [
   'RequestMode',
   'Response',
   'Window',
+  'console',
 ]
 
 # Not WASM dependencies

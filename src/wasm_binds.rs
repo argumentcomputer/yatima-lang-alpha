@@ -5,12 +5,13 @@ use web_sys::{Request, RequestInit, RequestMode, Response};
 use crate::{
   hashspace,
   parse,
+  utils::log,
 };
 
 // Import the `window.alert` function from the Web.
 #[wasm_bindgen]
 extern "C" {
-  fn alert(s: &str);
+  pub fn alert(s: &str);
 }
 
 #[wasm_bindgen(start)]
@@ -64,26 +65,30 @@ pub async fn hashspace_get(hash: String) -> Result<JsValue, JsValue> {
 
 #[wasm_bindgen]
 pub async fn hashspace_put(data: Vec<u8>) -> Result<JsValue, JsValue> {
-    let mut opts = RequestInit::new();
-    opts.method("PUT");
-    opts.mode(RequestMode::Cors);
-    opts.body(Some(&JsValue::from_serde(&data).unwrap()));
+  let mut opts = RequestInit::new();
+  opts.method("PUT");
+  opts.mode(RequestMode::Cors);
+  opts.body(Some(&JsValue::from_serde(&data).unwrap()));
 
-    let url = format!("http://localhost:8000/store");
+  let url = format!("http://localhost:8000/store");
 
-    let request = Request::new_with_str_and_init(&url, &opts)?;
+  let request = Request::new_with_str_and_init(&url, &opts)?;
 
-    let window = web_sys::window().unwrap();
-    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+  log("hashspace_put0");
+  let window = web_sys::window().unwrap();
+  log("hashspace_put1");
+  let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
 
-    let resp: Response = resp_value.dyn_into().unwrap();
-    let text = JsFuture::from(resp.text()?).await?;
-    Ok(text)
+  log("hashspace_put2");
+  let resp: Response = resp_value.dyn_into().unwrap();
+  let text = JsFuture::from(resp.text()?).await?;
+  log("hashspace_put3");
+  Ok(text)
 }
 
 #[wasm_bindgen]
 pub fn parse_source(source: &str) {
-  alert(&format!("Parsing:\n{}", source));
+  // alert(&format!("Parsing:\n{}", source));
   let hashspace = hashspace::Hashspace::with_hosts(vec!["localhost:8000".to_string()]);
   let (_, p, ..) = parse::package::parse_text(&source, None, &hashspace);
   alert(&format!("Package parsed:\n{}", hashspace::HashspaceImplWrapper::wrap(&hashspace, &p)));

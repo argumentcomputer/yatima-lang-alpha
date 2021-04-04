@@ -6,6 +6,9 @@ use hashexpr::{
 };
 use futures::executor;
 use std::{
+  rc::Rc,
+  cell::RefCell,
+  sync::{Arc, Mutex},
   fs,
   fmt,
   path::{
@@ -13,10 +16,15 @@ use std::{
     PathBuf,
   },
 };
+use crate::{
+  utils::log
+};
 
 pub mod cache;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm_binds;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures::spawn_local;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod server;
 
@@ -177,7 +185,12 @@ impl Hashspace {
              link));
       }
       None => {
-        self.remote_put(data.to_vec()).expect("Failed to put data");
+        log("Before remote_put");
+        let result = self.remote_put(data.to_vec());
+        result
+          .map(|s| log(format!("Ok: {}", s).as_str()))
+          .map_err(|s| log(format!("Error: {}", s).as_str())).unwrap();
+        log("After remote_put");
       }
     }
 
@@ -186,24 +199,37 @@ impl Hashspace {
 
   #[cfg(target_arch = "wasm32")]
   pub fn remote_get(&self, cid: String) -> Result<String,String> {
-    let res = executor::block_on(wasm_binds::hashspace_get(cid));
-    match res {
-      Ok(js_value) => {
-        Ok(js_value.as_string().ok_or("JsValue is not a string")?)
-      }
-      Err(js_value) => {
-        let error = js_value.as_string().ok_or("JsValue error is not a string")?;
-        Err(error)
-      }
-    }
+    let result_rc = Arc::new(Mutex::new(Err("".to_string())));
+    let r2 = Arc::clone(&result_rc);
+    spawn_local(async move {
+      let js_result = wasm_binds::hashspace_get(cid).await;
+      *r2.lock().unwrap() = match js_result {
+        Ok(js_value) => {
+          Ok(js_value.as_string().unwrap())
+        }
+        Err(js_value) => {
+          let error = js_value.as_string().unwrap();
+          Err(error)
+        }
+      };
+    });
+
+    let x = result_rc.lock().unwrap().clone(); x
   }
 
   #[cfg(target_arch = "wasm32")]
   pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
-    Ok(executor::block_on(wasm_binds::hashspace_put(data))
-      .unwrap()
-      .as_string()
-      .unwrap())
+    let result_rc = Arc::new(Mutex::new(Err("".to_string())));
+    let r2 = Arc::clone(&result_rc);
+    spawn_local(async move {
+      let js_result = wasm_binds::hashspace_put(data).await;
+      *r2.lock().unwrap() = match js_result {
+        Ok(js_value) => Ok(js_value.as_string().unwrap()),
+        Err(js_value) => Err(js_value.as_string().unwrap())
+      };
+    });
+    
+    let x = result_rc.lock().unwrap().clone(); x
   }
 
   #[cfg(not(target_arch = "wasm32"))]
@@ -215,6 +241,6 @@ impl Hashspace {
   #[cfg(not(target_arch = "wasm32"))]
   pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
     // TODO native impl
-    Err("Not implemented".as_string())
+    Err("Not implemented".to_string())
   }
 }
