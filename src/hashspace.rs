@@ -162,7 +162,10 @@ impl Hashspace {
           fs::read(path).ok()?
         }
         None => {
-          self.remote_get(cid).ok()?.as_bytes().to_vec()
+          log("Before remote_get");
+          let result = self.remote_get(cid);
+          log("After remote_get");
+          result.ok()?.as_bytes().to_vec()
         }
       };
     match Expr::deserialize(&data) {
@@ -189,7 +192,7 @@ impl Hashspace {
         let result = self.remote_put(data.to_vec());
         result
           .map(|s| log(format!("Ok: {}", s).as_str()))
-          .map_err(|s| log(format!("Error: {}", s).as_str())).unwrap();
+          .map_err(|s| log(format!("Error: {}", s).as_str()));
         log("After remote_put");
       }
     }
@@ -199,7 +202,7 @@ impl Hashspace {
 
   #[cfg(target_arch = "wasm32")]
   pub fn remote_get(&self, cid: String) -> Result<String,String> {
-    let result_rc = Arc::new(Mutex::new(Err("".to_string())));
+    let result_rc = Arc::new(Mutex::new(Err("Async not complete".to_string())));
     let r2 = Arc::clone(&result_rc);
     spawn_local(async move {
       let js_result = wasm_binds::hashspace_get(cid).await;
@@ -219,7 +222,7 @@ impl Hashspace {
 
   #[cfg(target_arch = "wasm32")]
   pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
-    let result_rc = Arc::new(Mutex::new(Err("".to_string())));
+    let result_rc = Arc::new(Mutex::new(Err("Async not complete".to_string())));
     let r2 = Arc::clone(&result_rc);
     spawn_local(async move {
       let js_result = wasm_binds::hashspace_put(data).await;

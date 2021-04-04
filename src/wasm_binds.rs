@@ -74,15 +74,15 @@ pub async fn hashspace_put(data: Vec<u8>) -> Result<JsValue, JsValue> {
 
   let request = Request::new_with_str_and_init(&url, &opts)?;
 
-  log("hashspace_put0");
+  // log("hashspace_put0");
   let window = web_sys::window().unwrap();
-  log("hashspace_put1");
+  // log("hashspace_put1");
   let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
 
-  log("hashspace_put2");
+  // log("hashspace_put2");
   let resp: Response = resp_value.dyn_into().unwrap();
   let text = JsFuture::from(resp.text()?).await?;
-  log("hashspace_put3");
+  // log("hashspace_put3");
   Ok(text)
 }
 
