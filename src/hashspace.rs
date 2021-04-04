@@ -3,7 +3,9 @@ use directories_next::ProjectDirs;
 use hashexpr::{
   link::Link,
   Expr,
+  base::Base,
 };
+use base_x;
 use futures::executor;
 use std::{
   rc::Rc,
@@ -162,15 +164,27 @@ impl Hashspace {
           fs::read(path).ok()?
         }
         None => {
-          log("Before remote_get");
-          let result = self.remote_get(cid);
-          log("After remote_get");
-          result.ok()?.as_bytes().to_vec()
+          let result = self.get_local_storage(&cid);
+          log(format!("Before remote_get({})", &cid).as_str());
+          // let result = self.remote_get(cid);
+          // result
+          //   .clone()
+          //   .map(|s| log(format!("Ok: {}", s).as_str()))
+          //   .map_err(|s| log(format!("Error: {}", s).as_str()));
+          match &result {
+            Ok(d) => log(format!("After remote_get = {}", d).as_str()),
+            Err(s) => log(format!("After error remote_get = {}", s).as_str()),
+          };
+          let data = base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref()).unwrap();
+          data.to_vec()
         }
       };
     match Expr::deserialize(&data) {
       Ok((_, x)) => Some(x),
-      Err(e) => panic!("deserialization error: {}", e),
+      Err(e) => {
+        log(format!("deserialization error: {}", e).as_str());
+        panic!("deserialization error: {}", e)
+      },
     }
   }
 
@@ -188,8 +202,10 @@ impl Hashspace {
              link));
       }
       None => {
+        let data64 = base_x::encode(Base::_64.base_digits(), data.as_ref());
+        self.put_local_storage(link.to_string(), data64.as_str()).unwrap();
         log("Before remote_put");
-        let result = self.remote_put(data.to_vec());
+        let result = self.remote_put(data);
         result
           .map(|s| log(format!("Ok: {}", s).as_str()))
           .map_err(|s| log(format!("Error: {}", s).as_str()));
@@ -198,6 +214,31 @@ impl Hashspace {
     }
 
     link
+  }
+
+  #[cfg(target_arch = "wasm32")]
+  pub fn get_local_storage(&self, cid: &String) -> Result<String,String> {
+    let window = web_sys::window().unwrap();
+    let storage = window.local_storage().unwrap().unwrap();
+    Ok(String::from(storage.get_item(cid.as_str()).unwrap().unwrap()))
+  }
+
+  #[cfg(target_arch = "wasm32")]
+  pub fn put_local_storage(&self, cid: String, data: &str) -> Result<(),String> {
+    let window = web_sys::window().unwrap();
+    let storage = window.local_storage().ok().unwrap().unwrap();
+    let res = storage.set_item(cid.as_str(), data);
+    res.map_err(|e| e.as_string().unwrap())
+  }
+
+  #[cfg(not(target_arch = "wasm32"))]
+  pub fn put_local_storage(&self, cid: String, data: &str) -> Result<(),String> {
+    Err("Not implemented".to_string())
+  }
+  
+  #[cfg(not(target_arch = "wasm32"))]
+  pub fn get_local_storage(&self, cid: &String) -> Result<String,String> {
+    Err("Not implemented".to_string())
   }
 
   #[cfg(target_arch = "wasm32")]
