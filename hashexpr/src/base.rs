@@ -14,6 +14,11 @@ use nom::{
   IResult,
   InputTakeAtPosition,
 };
+pub mod alphabet;
+mod bigint;
+pub mod decoder;
+pub mod encoder;
+pub mod base_x;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Base {

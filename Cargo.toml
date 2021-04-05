@@ -23,7 +23,6 @@ wasm-bindgen = "0.2.63"
 nom = "6.0.1"
 nom_locate = "3.0.0"
 bit-vec = "0.6.3"
-base-x = "0.2.8"
 
 [dev-dependencies]
 quickcheck = "1.0.3"

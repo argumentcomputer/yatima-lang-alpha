@@ -1,4 +1,3 @@
-use base_x;
 
 use crate::parse::error::{
   throw_err,
@@ -8,7 +7,7 @@ use crate::parse::error::{
 
 use crate::parse::span::Span;
 
-use hashexpr::base::Base;
+use hashexpr::base::{Base,base_x};
 
 use nom::{
   branch::alt,

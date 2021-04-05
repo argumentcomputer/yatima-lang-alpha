@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 serde = "1.0.118"
 nom = "6.0.1"
-base-x = "0.2.8"
 num-bigint = "0.3.1"
 blake3 = "0.3.7"
 nom_locate = "3.0.0"
