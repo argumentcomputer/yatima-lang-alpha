@@ -534,8 +534,8 @@ pub fn free_dead_node(node: DAGPtr) {
         }
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Let>());
       }
-      DAGPtr::Var(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
+      DAGPtr::Var(..) => {
+        // do nothing, because the Var was already freed in the binder
       }
       DAGPtr::Ref(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Ref>());

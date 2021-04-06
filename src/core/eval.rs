@@ -319,7 +319,6 @@ impl DAG {
           let Let { var, exp, bod, .. } = unsafe { &mut *link.as_ptr() };
           replace_child(node, *bod);
           replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *exp);
-          println!("free let");
           free_dead_node(node);
           node = *bod;
           break;
@@ -507,53 +506,53 @@ mod test {
 
   #[test]
   pub fn reduce_test_ann() {
-    // norm_assert("(Type :: Type)", "Type");
-    // norm_assert("((λ x => x) #Natural :: Type)", "#Natural");
-    // norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
-    // norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
-    // norm_assert(
-    //   "(∀ (A: Type) (x: A) -> Type :: Type)",
-    //   "∀ (A: Type) (x: A) -> Type",
-    // );
+    norm_assert("(Type :: Type)", "Type");
+    norm_assert("((λ x => x) #Natural :: Type)", "#Natural");
+    norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
+    norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
+    norm_assert(
+      "(∀ (A: Type) (x: A) -> Type :: Type)",
+      "∀ (A: Type) (x: A) -> Type",
+    );
+    norm_assert("Type :: ∀ (A: Type) (x: A) -> Type", "Type");
   }
 
   #[test]
   pub fn reduce_test_app() {
-    // norm_assert(
-    //   "Type (∀ (A: Type) (x: A) -> Type)",
-    //   "Type (∀ (A: Type) (x: A) -> Type)",
-    // )
-    // norm_assert(
-    //  "((∀ (A: Type) (x: A) -> Type) Type)",
-    //  "((∀ (A: Type) (x: A) -> Type) Type)",
-    //)
+    norm_assert(
+      "Type (∀ (A: Type) (x: A) -> Type)",
+      "Type (∀ (A: Type) (x: A) -> Type)",
+    );
+    norm_assert(
+      "(∀ (A: Type) (x: A) -> Type) Type",
+      "(∀ (A: Type) (x: A) -> Type) Type",
+    )
   }
 
   #[test]
   pub fn reduce_test_all() {
-    // norm_assert(
-    //   "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-    //   "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-    // );
-    // norm_assert(
-    //   "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
-    //   "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
-    // );
+    norm_assert(
+      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+    );
+    norm_assert(
+      "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
+      "∀ (f: Type) (A: Type) (x: A) -> Type",
+    );
   }
 
   #[test]
   pub fn reduce_test_let() {
-    // norm_assert("let f: Type = Type; f", "Type");
-    // norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x =>
-    // x");
-    // norm_assert(
-    //  "let f: Type = ∀ (A: Type) (x: A) -> A; f",
-    //  "∀ (A: Type) (x: A) -> A",
-    //);
-    // norm_assert(
-    //  "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
-    //  "∀ (A: Type) (x: A) -> A",
-    //);
+    norm_assert("let f: Type = Type; f", "Type");
+    norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x => x");
+    norm_assert(
+      "let f: Type = ∀ (A: Type) (x: A) -> A; f",
+      "∀ (A: Type) (x: A) -> A",
+    );
+    norm_assert(
+      "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
+      "∀ (A: Type) (x: A) -> A",
+    );
   }
 
   #[test]
