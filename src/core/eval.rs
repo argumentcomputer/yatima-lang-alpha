@@ -3,15 +3,14 @@ use core::ptr::NonNull;
 use crate::{
   core::{
     dag::*,
-    upcopy::*,
     dll::*,
     primop::{
       apply_bin_op,
       apply_una_op,
     },
+    upcopy::*,
   },
   term::{
-    // Term,
     Def,
     Link,
   },
@@ -20,8 +19,8 @@ use crate::{
 use std::mem;
 
 use im::{
-  Vector,
   HashMap,
+  Vector,
 };
 
 enum Single {
@@ -119,7 +118,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         break;
       }
       DAGPtr::Let(link) => {
-        let Let { var: old_var, uses, typ, exp, bod, .. } = unsafe { link.as_ref() };
+        let Let { var: old_var, uses, typ, exp, bod, .. } =
+          unsafe { link.as_ref() };
         let Var { nam, dep, .. } = old_var;
         let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
         let new_let = alloc_let(new_var, *uses, *typ, *exp, *bod, None);
@@ -136,8 +136,9 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         result = DAGPtr::Let(new_let);
         break;
-      },
-      // Otherwise it must be `var`, since `var` necessarily appears inside `body`
+      }
+      // Otherwise it must be `var`, since `var` necessarily appears inside
+      // `body`
       _ => break,
     }
   }
@@ -150,50 +151,50 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Var { nam, dep, parents: var_parents } = var;
         let new_var = Var { nam, dep, parents: None };
         let new_lam = alloc_lam(new_var, result, None);
-        let ptr: *mut Parents =  unsafe { &mut (*new_lam.as_ptr()).bod_ref };
+        let ptr: *mut Parents = unsafe { &mut (*new_lam.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
           upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
         }
         result = DAGPtr::Lam(new_lam);
-      },
+      }
       Single::Fix(var) => {
         let Var { nam, dep, parents: var_parents } = var;
         let new_var = Var { nam, dep, parents: None };
         let new_fix = alloc_fix(new_var, result, None);
-        let ptr: *mut Parents =  unsafe { &mut (*new_fix.as_ptr()).bod_ref };
+        let ptr: *mut Parents = unsafe { &mut (*new_fix.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_fix.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
           upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
         }
         result = DAGPtr::Fix(new_fix);
-      },
+      }
       Single::Slf(var) => {
         let Var { nam, dep, parents: var_parents } = var;
         let new_var = Var { nam, dep, parents: None };
         let new_slf = alloc_slf(new_var, result, None);
-        let ptr: *mut Parents =  unsafe { &mut (*new_slf.as_ptr()).bod_ref };
+        let ptr: *mut Parents = unsafe { &mut (*new_slf.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
           upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
         }
         result = DAGPtr::Slf(new_slf);
-      },
+      }
       Single::Dat => {
         let new_dat = alloc_dat(result, None);
-        let ptr: *mut Parents =  unsafe { &mut (*new_dat.as_ptr()).bod_ref };
+        let ptr: *mut Parents = unsafe { &mut (*new_dat.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         result = DAGPtr::Dat(new_dat);
-      },
+      }
       Single::Cse => {
         let new_cse = alloc_cse(result, None);
-        let ptr: *mut Parents =  unsafe { &mut (*new_cse.as_ptr()).bod_ref };
+        let ptr: *mut Parents = unsafe { &mut (*new_cse.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         result = DAGPtr::Cse(new_cse);
-      },
+      }
     }
   }
   // If the top branch is non-null, then clear the copies and fix the uplinks
@@ -206,7 +207,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let App { fun, fun_ref, arg, arg_ref, .. } = &mut *link.as_ptr();
         add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
         add_to_parents(*arg, NonNull::new(arg_ref).unwrap());
-      }
+      },
       Branch::All(link) => unsafe {
         let top_all = &mut *link.as_ptr();
         let link = top_all.copy.unwrap();
@@ -217,7 +218,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         for var_parent in DLL::iter_option(var.parents) {
           clean_up(var_parent);
         }
-      }
+      },
       Branch::Ann(link) => unsafe {
         let top_ann = &mut *link.as_ptr();
         let link = top_ann.copy.unwrap();
@@ -225,12 +226,13 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Ann { typ, typ_ref, exp, exp_ref, .. } = &mut *link.as_ptr();
         add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
         add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
-      }
+      },
       Branch::Let(link) => unsafe {
         let top_let = &mut *link.as_ptr();
         let link = top_let.copy.unwrap();
         top_let.copy = None;
-        let Let { var, typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } = &mut *link.as_ptr();
+        let Let { var, typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } =
+          &mut *link.as_ptr();
         add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
         add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
         add_to_parents(*bod, NonNull::new(bod_ref).unwrap());
@@ -288,9 +290,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
     replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *arg);
     // We have to read `body` again because `lam`'s body could be mutated
     // through `replace_child`
-    unsafe {
-      (*lam.as_ptr()).bod
-    }
+    unsafe { (*lam.as_ptr()).bod }
   }
   else if var.parents.is_none() {
     *bod
@@ -303,7 +303,6 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   top_node
 }
 
-
 impl DAG {
   // Reduce a Fix/Ref
   #[inline]
@@ -311,15 +310,12 @@ impl DAG {
     let mut node = self.head;
     match self.head {
       DAGPtr::Ref(link) => {
-        let Ref { nam, exp, parents: ref_parents, .. } = unsafe { &mut *link.as_ptr() };
+        let Ref { nam, exp, parents: ref_parents, .. } =
+          unsafe { &mut *link.as_ptr() };
         if let Some(def) = defs.get(exp) {
           let parents = ref_parents.clone();
           *ref_parents = None;
-          node = DAG::from_subterm(
-            &def.term,
-            1,
-            Vector::unit(node),
-            parents);
+          node = DAG::from_subterm(&def.term, 1, Vector::unit(node), parents);
           for parent in DLL::iter_option(parents) {
             install_child(parent, node);
           }
@@ -327,8 +323,8 @@ impl DAG {
         else {
           panic!("undefined runtime reference: {}, {}", nam, exp);
         }
-      },
-      _ => ()
+      }
+      _ => (),
     };
     self.head = node
   }
@@ -343,7 +339,7 @@ impl DAG {
           let App { fun, .. } = unsafe { link.as_ref() };
           trail.push(link);
           node = *fun;
-        },
+        }
         DAGPtr::Lam(link) => {
           if let Some(app_link) = trail.pop() {
             node = reduce_lam(app_link, link);
@@ -351,13 +347,13 @@ impl DAG {
           else {
             break;
           }
-        },
+        }
         DAGPtr::Ann(link) => {
           let Ann { exp, .. } = unsafe { link.as_ref() };
           replace_child(node, *exp);
           free_dead_node(node);
           node = *exp;
-        },
+        }
         DAGPtr::Cse(link) => {
           let mut body = unsafe { DAG::new((*link.as_ptr()).bod) };
           body.whnf(defs);
@@ -367,23 +363,28 @@ impl DAG {
               replace_child(node, *single_body);
               free_dead_node(node);
               node = *single_body;
-            },
+            }
             _ => break,
           }
-        },
+        }
         DAGPtr::Fix(link) => unsafe {
           let Fix { var, bod, .. } = &mut *link.as_ptr();
           replace_child(node, *bod);
           if !var.parents.is_none() {
-            let new_var = Var {nam: var.nam.clone(), dep: var.dep, parents: None};
+            let new_var =
+              Var { nam: var.nam.clone(), dep: var.dep, parents: None };
             let new_fix = alloc_fix(new_var, mem::zeroed(), None);
             let ptr = &mut (*new_fix.as_ptr()).var;
-            let result = subst(*bod, var, DAGPtr::Var(NonNull::new(ptr).unwrap()), true);
+            let result =
+              subst(*bod, var, DAGPtr::Var(NonNull::new(ptr).unwrap()), true);
             // Create a new fix node with the result of the copy
             // let new_fix = alloc_fix(new_var, result, None);
             let ptr = &mut (*new_fix.as_ptr()).bod_ref;
             add_to_parents(result, NonNull::new(ptr).unwrap());
-            replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), DAGPtr::Fix(new_fix));
+            replace_child(
+              DAGPtr::Var(NonNull::new(var).unwrap()),
+              DAGPtr::Fix(new_fix),
+            );
           }
           free_dead_node(node);
           node = *bod;
@@ -394,8 +395,8 @@ impl DAG {
           replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *exp);
           free_dead_node(node);
           node = *bod;
-          break
-        },
+          break;
+        }
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, .. } = unsafe { &*link.as_ptr() };
           if let Some(def) = defs.get(exp) {
@@ -403,12 +404,14 @@ impl DAG {
               let new_var = Var { nam: nam.clone(), dep: 0, parents: None };
               alloc_fix(new_var, mem::zeroed(), None)
             };
-            let Fix { var, bod, bod_ref, .. } = unsafe { &mut *new_fix.as_ptr() };
+            let Fix { var, bod, bod_ref, .. } =
+              unsafe { &mut *new_fix.as_ptr() };
             *bod = DAG::from_subterm(
               &def.term,
               1,
               Vector::unit(DAGPtr::Var(NonNull::new(var).unwrap())),
-              Some(NonNull::new(bod_ref).unwrap()));
+              Some(NonNull::new(bod_ref).unwrap()),
+            );
             replace_child(node, DAGPtr::Fix(new_fix));
             free_dead_node(node);
             node = DAGPtr::Fix(new_fix);
@@ -429,7 +432,8 @@ impl DAG {
                 let res = apply_una_op(opr, x);
                 if let Some(res) = res {
                   trail.pop();
-                  node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(arg.head, node);
                   free_dead_node(arg.head);
                 }
@@ -441,12 +445,8 @@ impl DAG {
             }
           }
           else if len >= 2 && opr.arity() == 2 {
-            let mut arg1 = unsafe {
-              DAG::new((*trail[len - 2].as_ptr()).arg)
-            };
-            let mut arg2 = unsafe {
-              DAG::new((*trail[len - 1].as_ptr()).arg)
-            };
+            let mut arg1 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
+            let mut arg2 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
             arg1.whnf(defs);
             arg2.whnf(defs);
             match (arg1.head, arg2.head) {
@@ -457,14 +457,15 @@ impl DAG {
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
-                  node = DAGPtr::Lit(alloc_val(Lit{ lit: res, parents: None }));
+                  node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(arg1.head, node);
                   free_dead_node(arg1.head);
                 }
                 else {
                   break;
                 }
-              },
+              }
               _ => break,
             }
           }
@@ -541,9 +542,7 @@ impl DAG {
 
 #[cfg(test)]
 mod test {
-  use super::{
-    DAG,
-  };
+  use super::DAG;
   use hashexpr::span::Span;
   use im::HashMap;
 
@@ -558,7 +557,7 @@ mod test {
   }
 
   #[test]
-  pub fn parser() {
+  pub fn parse_test() {
     fn parse_assert(input: &str) {
       match parse(&input) {
         Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
@@ -571,17 +570,24 @@ mod test {
     parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
   }
 
-  #[test]
-  pub fn reducer() {
-    fn norm_assert(input: &str, result: &str) {
-      match parse(&input) {
-        Ok((_, mut dag)) => {
-          dag.norm(&HashMap::new());
-          assert_eq!(format!("{}", dag), result)
-        }
-        Err(_) => panic!("Did not parse."),
+  fn norm_assert(input: &str, result: &str) {
+    match parse(&input) {
+      Ok((_, mut dag)) => {
+        dag.norm(&HashMap::new());
+        assert_eq!(format!("{}", dag), result)
       }
+      Err(_) => panic!("Did not parse."),
     }
+  }
+  #[test]
+  pub fn reduce_test_let() {
+    norm_assert("let f: Type = Type; f", "Type");
+    // norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x =>
+    // x"); norm_assert("let f (A: Type) (x: A): A = x; f", "λ A x => x");
+  }
+
+  #[test]
+  pub fn reduce_test() {
     // Already normalized
     norm_assert("λ x => x", "λ x => x");
     norm_assert("λ x y => x y", "λ x y => x y");
@@ -590,13 +596,17 @@ mod test {
     norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
     // // Church arithmetic
     let zero = "λ s z => z";
+    let one = "λ s z => (s z)";
+    let two = "λ s z => s (s z)";
     let three = "λ s z => s (s (s z))";
     let four = "λ s z => s (s (s (s z)))";
     let seven = "λ s z => s (s (s (s (s (s (s z))))))";
     let add = "λ m n s z => m s (n s z)";
     let is_three = format!("(({}) ({}) {})", add, zero, three);
+    let is_three2 = format!("(({}) ({}) {})", add, one, two);
     let is_seven = format!("(({}) ({}) {})", add, four, three);
     norm_assert(&is_three, three);
+    norm_assert(&is_three2, three);
     norm_assert(&is_seven, seven);
     let id = "λ x => x";
     norm_assert(

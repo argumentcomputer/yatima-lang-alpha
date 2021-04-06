@@ -79,7 +79,7 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use rand::Rng;
+
   use crate::term::tests::{
     frequency
   };
@@ -95,13 +95,6 @@ pub mod tests {
         ];
       frequency(g, input)
 
-      //frequency(g, vec![
-        ////(1, arbitrary_none()),
-        //(1, Box::new(|_| Uses::None)),
-        //(1, Box::new(|_| Uses::Affi)),
-        //(1, Box::new(|_| Uses::Once)),
-        //(1, Box::new(|_| Uses::Many)),
-      //])
     }
   }
 }

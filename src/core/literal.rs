@@ -5,13 +5,10 @@ use crate::decode_error::{
 use hashexpr::{
   atom,
   atom::Atom::*,
-  base,
   base::Base,
-  link::Link,
   Expr,
   Expr::{
     Atom,
-    Cons,
   },
 };
 use num_bigint::{
@@ -126,10 +123,7 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use rand::{
-    prelude::IteratorRandom,
-    Rng,
-  };
+  
   use crate::term::tests::frequency;
 
   pub fn arbitrary_bits() -> Box<dyn Fn(&mut Gen) -> Literal> {
