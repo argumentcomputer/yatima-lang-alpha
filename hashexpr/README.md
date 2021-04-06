@@ -31,7 +31,7 @@ they specify. That is, the character `'v'` is not a valid base32z digit, nor is
 ## hash-expr atoms: Type codes and Syntax sugars for data literals
 
 `#atom` is a tables of prefix codes which describe the type of the encoded
-bytes, as well as a textual syn
+bytes, as well as a textual syntax for each encoding
 
 | type     | code   | description                            | atom syntax                                          |
 | -------- | ------ | -------------------------------------- | ---------------------------------------------------- |
