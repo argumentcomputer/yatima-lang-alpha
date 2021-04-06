@@ -211,13 +211,16 @@ pub fn check(
           (*var).dep = pre.len() as u64;
           (*lam_var).dep = pre.len() as u64;
           // Add the domain of the function to the precontext
-          pre.push((var.nam.to_string(), DAG::new(*dom).clone()));
+          let dom = DAG::new(*dom);
+          let term_bod = DAG::new(*term_bod);
+          let mut img = DAG::new(*img);
+          pre.push((var.nam.to_string(), dom.clone()));
           let mut ctx = check(
             defs,
             pre,
             Uses::Once,
-            &DAG::new(*term_bod),
-            &mut DAG::new(*img),
+            &term_bod,
+            &mut img,
           )?;
           let (_, infer_uses, infer_typ) = ctx
             .pop()
@@ -262,14 +265,16 @@ pub fn check(
           replace_child(DAGPtr::Slf(new_link), *new_bod);
           free_dead_node(DAGPtr::Slf(new_link));
           // Check against `new_bod` and free it later
+          let dat_bod = DAG::new(*dat_bod);
+          let mut new_bod = DAG::new(*new_bod);
           let ctx = check(
             defs,
             pre,
             uses,
-            &DAG::new(*dat_bod),
-            &mut DAG::new(*new_bod),
+            &dat_bod,
+            &mut new_bod,
           )?;
-          DAG::new(*new_bod).free();
+          new_bod.free();
           Ok(ctx)
         }
         _ => Err(CheckError::GenericError(format!(
@@ -324,18 +329,21 @@ pub fn infer(
     }
     DAGPtr::App(link) => {
       let App { fun, arg, .. } = unsafe { &*link.as_ptr() };
+      let mut fun = DAG::new(*fun);
+      let arg = DAG::new(*arg);
       let (mut fun_ctx, mut fun_typ) =
-        infer(defs, pre.clone(), uses, &mut DAG::new(*fun))?;
+        infer(defs, pre.clone(), uses, &mut fun)?;
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(mut link) => {
           let All { uses: lam_uses, dom, .. } = unsafe { link.as_mut() };
+          let mut dom = DAG::new(*dom);
           let arg_ctx = check(
             defs,
             pre,
             Uses::mul(*lam_uses, uses),
-            &DAG::new(*arg),
-            &mut DAG::new(*dom),
+            &arg,
+            &mut dom,
           )?;
           add_ctx(&mut fun_ctx, arg_ctx);
           // Copy the All type (in a efficient implementation, only image is
@@ -351,13 +359,14 @@ pub fn infer(
             // Create the argument DAG
             replace_child(
               DAGPtr::Var(NonNull::new(new_var).unwrap()),
-              DAG::new(*arg).clone().head,
+              arg.clone().head,
             );
           }
           // Replace the copied type with the new image and free the dead nodes
           replace_child(DAGPtr::All(new_link), *new_img);
           free_dead_node(DAGPtr::All(new_link));
-          Ok((fun_ctx, DAG::new(*new_img)))
+          let new_img = DAG::new(*new_img);
+          Ok((fun_ctx, new_img))
         }
         _ => Err(CheckError::GenericError(format!(
           "Tried to apply something that isn't a lambda."
@@ -366,7 +375,8 @@ pub fn infer(
     }
     DAGPtr::Cse(link) => {
       let Cse { bod: exp, .. } = unsafe { &*link.as_ptr() };
-      let (exp_ctx, mut exp_typ) = infer(defs, pre, uses, &DAG::new(*exp))?;
+      let exp = DAG::new(*exp);
+      let (exp_ctx, mut exp_typ) = infer(defs, pre, uses, &exp)?;
       exp_typ.whnf(defs);
       match exp_typ.head {
         DAGPtr::Slf(_) => {
@@ -377,7 +387,7 @@ pub fn infer(
           let Slf { var: new_var, bod: new_bod, .. } =
             unsafe { &mut *new_link.as_ptr() };
           if new_var.parents.is_some() {
-            let exp_clone = DAG::new(*exp).clone();
+            let exp_clone = exp.clone();
             replace_child(
               DAGPtr::Var(NonNull::new(new_var).unwrap()),
               exp_clone.head,
@@ -385,7 +395,8 @@ pub fn infer(
           }
           replace_child(DAGPtr::Slf(new_link), *new_bod);
           free_dead_node(DAGPtr::Slf(new_link));
-          Ok((exp_ctx, DAG::new(*new_bod)))
+          let new_bod = DAG::new(*new_bod);
+          Ok((exp_ctx, new_bod))
         }
         _ => Err(CheckError::GenericError(format!(
           "Tried to case on something that isn't a datatype."
@@ -395,10 +406,12 @@ pub fn infer(
     DAGPtr::All(link) => {
       let All { var, dom, img, .. } = unsafe { &*link.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(None));
-      let _ = check(defs, pre.clone(), Uses::None, &DAG::new(*dom), &mut typ)?;
-      let dom_clone = DAG::new(*dom).clone();
+      let dom = DAG::new(*dom);
+      let _ = check(defs, pre.clone(), Uses::None, &dom, &mut typ)?;
+      let dom_clone = dom.clone();
       pre.push((var.nam.to_string(), dom_clone));
-      let ctx = check(defs, pre, Uses::None, &DAG::new(*img), &mut typ)?;
+      let img = DAG::new(*img);
+      let ctx = check(defs, pre, Uses::None, &img, &mut typ)?;
       Ok((ctx, typ))
     }
     DAGPtr::Slf(link) => {
@@ -406,14 +419,18 @@ pub fn infer(
       let mut typ = DAG::from_term(&Term::Typ(None));
       let term_clone = term.clone();
       pre.push((var.nam.to_string(), term_clone));
-      let ctx = check(defs, pre, Uses::None, &DAG::new(*bod), &mut typ)?;
+      let bod = DAG::new(*bod);
+      let ctx = check(defs, pre, Uses::None, &bod, &mut typ)?;
       Ok((ctx, typ))
     }
-    DAGPtr::Typ(_) => Ok((to_ctx(pre), term.clone())),
+    DAGPtr::Typ(_) => {
+      Ok((to_ctx(pre), term.clone()))
+    },
     DAGPtr::Ann(link) => {
       let Ann { typ, exp, .. } = unsafe { &*link.as_ptr() };
       let mut typ_clone = DAG::new(*typ).clone();
-      let ctx = check(defs, pre, uses, &DAG::new(*exp), &mut typ_clone)?;
+      let exp = DAG::new(*exp);
+      let ctx = check(defs, pre, uses, &exp, &mut typ_clone)?;
       Ok((ctx, typ_clone))
     }
     DAGPtr::Let(_) => {
