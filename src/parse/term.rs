@@ -112,7 +112,7 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   if reserved_symbols().contains(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedKeyword(s))))
   }
-  else if s.starts_with("#") {
+  else if s.starts_with("#") | s.starts_with("~\"") {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::HashExprSyntax(s))))
   }
   else if is_numeric_symbol_string1(&s) {
@@ -745,9 +745,9 @@ pub mod tests {
       x
     ))) {
       Ok((_, y)) => x == y,
-      e => {
+      Err(e) => {
         println!("{}", x);
-        println!("{:?}", e);
+        println!("{}", e);
         false
       }
     }
