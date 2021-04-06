@@ -4,23 +4,12 @@ use crate::core::{
 };
 
 use core::ptr::NonNull;
-use std::{
-  mem,
-};
+use std::mem;
 
 pub fn clean_up(cc: &ParentPtr) {
   match cc {
     ParentPtr::LamBod(link) => unsafe {
       let Lam { parents, var, .. } = link.as_ref();
-      for parent in DLL::iter_option(var.parents) {
-        clean_up(parent);
-      }
-      for parent in DLL::iter_option(*parents) {
-        clean_up(parent);
-      }
-    },
-    ParentPtr::FixBod(link) => unsafe {
-      let Fix { parents, var, .. } = link.as_ref();
       for parent in DLL::iter_option(var.parents) {
         clean_up(parent);
       }
@@ -83,7 +72,8 @@ pub fn clean_up(cc: &ParentPtr) {
       let all = link.as_mut();
       match all.copy {
         Some(all_copy) => {
-          let All { var, dom, img, dom_ref, img_ref, .. } = &mut *all_copy.as_ptr();
+          let All { var, dom, img, dom_ref, img_ref, .. } =
+            &mut *all_copy.as_ptr();
           all.copy = None;
           add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
           add_to_parents(*img, NonNull::new(img_ref).unwrap());
@@ -103,7 +93,8 @@ pub fn clean_up(cc: &ParentPtr) {
       let let_ = link.as_mut();
       match let_.copy {
         Some(let_copy) => {
-          let Let { var, typ, exp, bod, typ_ref, exp_ref, bod_ref, .. } = &mut *let_copy.as_ptr();
+          let Let { var, typ, exp, bod, typ_ref, exp_ref, bod_ref, .. } =
+            &mut *let_copy.as_ptr();
           let_.copy = None;
           add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
           add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
@@ -139,21 +130,6 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
         for parent in DLL::iter_option(*parents) {
           upcopy(DAGPtr::Lam(new_lam), *parent)
-        }
-      }
-      ParentPtr::FixBod(link) => {
-        let Fix { var, parents, .. } = link.as_ref();
-        let Var { nam, dep, parents: var_parents } = var;
-        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_fix = alloc_fix(new_var, new_child, None);
-        let ptr: *mut Parents = &mut (*new_fix.as_ptr()).bod_ref;
-        add_to_parents(new_child, NonNull::new(ptr).unwrap());
-        let ptr: *mut Var = &mut (*new_fix.as_ptr()).var;
-        for parent in DLL::iter_option(*var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-        }
-        for parent in DLL::iter_option(*parents) {
-          upcopy(DAGPtr::Fix(new_fix), *parent)
         }
       }
       ParentPtr::SlfBod(link) => {
