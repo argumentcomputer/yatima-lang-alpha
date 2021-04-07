@@ -404,20 +404,22 @@ pub fn infer(
       }
     }
     DAGPtr::All(link) => {
-      let All { var, dom, img, .. } = unsafe { &*link.as_ptr() };
+      let All { var, dom, img, .. } = unsafe { &mut *link.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(None));
       let dom = DAG::new(*dom);
       let _ = check(defs, pre.clone(), Uses::None, &dom, &mut typ)?;
       let dom_clone = dom.clone();
+      (*var).dep = pre.len() as u64;
       pre.push((var.nam.to_string(), dom_clone));
       let img = DAG::new(*img);
       let ctx = check(defs, pre, Uses::None, &img, &mut typ)?;
       Ok((ctx, typ))
     }
     DAGPtr::Slf(link) => {
-      let Slf { var, bod, .. } = unsafe { &*link.as_ptr() };
+      let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(None));
       let term_clone = term.clone();
+      (*var).dep = pre.len() as u64;
       pre.push((var.nam.to_string(), term_clone));
       let bod = DAG::new(*bod);
       let ctx = check(defs, pre, Uses::None, &bod, &mut typ)?;
