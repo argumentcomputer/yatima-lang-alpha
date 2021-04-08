@@ -56,6 +56,11 @@ directories-next = "2.0.0"
 rocket = "0.4.6"
 log = "0.4.6"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rocket_contrib]
+version = "0.4.7"
+default-features = false
+features = ["serve", "templates", "handlebars_templates"]
+
 [dev-dependencies]
 quickcheck = "1.0.3"
 rand = "0.8.3"

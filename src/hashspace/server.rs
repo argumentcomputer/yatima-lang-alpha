@@ -4,6 +4,9 @@ use crate::{
 };
 use hashexpr::Expr;
 
+use std::collections::HashMap;
+use rocket_contrib::serve::StaticFiles;
+use rocket_contrib::templates::Template;
 use rocket::{
   Data,
   Request,
@@ -13,20 +16,10 @@ use rocket::{
 };
 
 #[get("/")]
-fn index() -> &'static str {
-  "
-    USAGE
-
-      PUT /store/
-
-          accepts raw data in the body of the request and responds with a URL \
-   of
-          a page containing the body's content
-
-      GET /store/<hash>
-
-          retrieves the content for the paste with id `<hash>`
-    "
+fn index() -> Template {
+  let context: HashMap<&str, &str> = [("name", "")]
+        .iter().cloned().collect();
+  Template::render("index", &context)
 }
 
 #[get("/store/<hash>")]
@@ -88,7 +81,9 @@ impl Fairing for CORS {
 
 pub fn start_server(_opt_host: Option<String>) {
   rocket::ignite()
+    .attach(Template::fairing())
     .attach(CORS())
+    .mount("/pkg", StaticFiles::from("pkg"))
     .mount("/", routes![index, get, put, options])
     .launch();
 }
