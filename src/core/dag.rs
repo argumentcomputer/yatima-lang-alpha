@@ -821,17 +821,39 @@ mod test {
 
   #[test]
   fn dag_test_cases() {
-    let nat = String::from("let nat = (λ _z => (λ _a => ∀ (1 _x: _a) -> #Natural) Type); nat");
-    let one = String::from("let one: Type = λ s x => s x;");
-    let two = String::from("let two = λ s x => s (s x);");
-    let add = String::from("let add = λ m n f x => m f (n f x);");
-    let input = format!("{}\n{}\nadd one one", one, add);
-    //let input = nat;
+    //// Lambda calculus functions, taken from https://gist.github.com/TeWu/96cc5a49fce3fa0c6defcf5c50bdf309
+    // zero = λs.λz.z
+    // succ = λn.λs.λz.s (n s z)
+    // mult = λn.λm.λs.m (n s)
+    // pred = λn.λf.λx.n(λg.λh.h (g f))(λu.x)(λu.u)
+    // minus = λn.λm.m pred n
+    // true = λt.λf.t
+    // false = λt.λf.f
+    // not = λp.p false true
+    // and = λp.λq.p q p
+    // is_zero = λn.n (λx.false) true
+    // leq = λn.λm.is_zero (minus n m)
+    // Z = λf.( λx.(x x) λx.f(λy.x x y) )
+    // factorial = Z (λf.λn.( (leq n zero) (succ zero)  (λy.(mult n (f (pred n))) y) ))
+    
+    let zero = String::from("let zero: Type = (λ s z => z)");
+    let succ = String::from("let succ: Type = (λ n s z => s (n s z))");
+    let mult = String::from("let mult: Type = (λ n m s => m (n s))");
+    let pred = String::from("let pred: Type = (λ n f x => n (λ g h => h (g f))(λ u => x)(λ u => u))");
+    let minus = String::from("let minus: Type = (λn m => m pred n)");
+    let bool_true = String::from("let true: Type = (λ t f => t)");
+    let bool_false = String::from("let false: Type = (λ t f => f)");
+    let not = String::from("let not: Type = (λ p => p false true)");
+    let and = String::from("let and: Type = (λ p q => p q p)");
+    let is_zero = String::from("let is_zero: Type = (λn => n (λx => false) true)");
+    let leq = String::from("let leq: Type = (λ n m => is_zero (minus n m)");
+    let z = String::from("let Z: Type = (λ f => (λ x => (x x) λ x => f (λ y => x x y)))");
+    let factorial = String::from("let factorial: Type = (Z (λ f n => ((leq n zero)(succ zero)(λ y => (mult n (f (pred n))) y))))");
 
     let (_, x) = 
-      parse(&input).unwrap();
+      parse(&factorial).unwrap();
     println!("{:?}", x);
-    assert_eq!(x, DAG::to_term(&DAG::from_term(x.clone())));
+    //assert_eq!(x, DAG::to_term(&DAG::from_term(x.clone())));
 
   }
 
