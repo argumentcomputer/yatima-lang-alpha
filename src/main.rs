@@ -35,7 +35,7 @@ enum Cli {
     input: PathBuf,
   },
   Repl,
-  Test,
+  // Test,
 }
 
 fn main() {
@@ -87,36 +87,36 @@ fn main() {
     }
 
     // for valgrind testing
-    Cli::Test => {
-      use im::HashMap;
-      use yatima::{
-        core::dag::DAG,
-        parse::span::Span,
-      };
-      pub fn parse(
-        i: &str,
-      ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>>
-      {
-        let (i, tree) = crate::parse::term::parse(i)?;
-        let (i, _) = nom::character::complete::multispace0(i)?;
-        let (i, _) = nom::combinator::eof(i)?;
-        let dag = DAG::from_term(&tree);
-        Ok((i, dag))
-      }
-      fn norm_assert(input: &str, result: &str) {
-        match parse(&input) {
-          Ok((_, mut dag)) => {
-            dag.norm(&HashMap::new());
-            assert_eq!(format!("{}", dag), result)
-          }
-          Err(_) => panic!("Did not parse."),
-        }
-      }
-      norm_assert(
-        "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-        "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-      );
-      // norm_assert("let f (A: Type) (x: A): Type = A; f", "λ A x => A");
-    }
+    //Cli::Test => {
+    //  use im::HashMap;
+    //  use yatima::{
+    //    core::dag::DAG,
+    //    parse::span::Span,
+    //  };
+    //  pub fn parse(
+    //    i: &str,
+    //  ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>>
+    //  {
+    //    let (i, tree) = crate::parse::term::parse(i)?;
+    //    let (i, _) = nom::character::complete::multispace0(i)?;
+    //    let (i, _) = nom::combinator::eof(i)?;
+    //    let dag = DAG::from_term(&tree);
+    //    Ok((i, dag))
+    //  }
+    //  fn norm_assert(input: &str, result: &str) {
+    //    match parse(&input) {
+    //      Ok((_, mut dag)) => {
+    //        dag.norm(&HashMap::new());
+    //        assert_eq!(format!("{}", dag), result)
+    //      }
+    //      Err(_) => panic!("Did not parse."),
+    //    }
+    //  }
+    //  norm_assert(
+    //    "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+    //    "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+    //  );
+    //  // norm_assert("let f (A: Type) (x: A): Type = A; f", "λ A x => A");
+    //}
   }
 }

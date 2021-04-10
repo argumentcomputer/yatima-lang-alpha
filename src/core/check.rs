@@ -6,6 +6,11 @@ use std::{
 use crate::{
   core::{
     dag::*,
+    literal::{
+      LitType,
+      Literal,
+    },
+    primop::PrimOp,
     uses::*,
   },
   term::{
@@ -215,13 +220,7 @@ pub fn check(
           let term_bod = DAG::new(*term_bod);
           let mut img = DAG::new(*img);
           pre.push((var.nam.to_string(), dom.clone()));
-          let mut ctx = check(
-            defs,
-            pre,
-            Uses::Once,
-            &term_bod,
-            &mut img,
-          )?;
+          let mut ctx = check(defs, pre, Uses::Once, &term_bod, &mut img)?;
           let (_, infer_uses, infer_typ) = ctx
             .pop()
             .ok_or(CheckError::GenericError(format!("Empty context.")))?;
@@ -267,13 +266,7 @@ pub fn check(
           // Check against `new_bod` and free it later
           let dat_bod = DAG::new(*dat_bod);
           let mut new_bod = DAG::new(*new_bod);
-          let ctx = check(
-            defs,
-            pre,
-            uses,
-            &dat_bod,
-            &mut new_bod,
-          )?;
+          let ctx = check(defs, pre, uses, &dat_bod, &mut new_bod)?;
           new_bod.free();
           Ok(ctx)
         }
@@ -338,13 +331,8 @@ pub fn infer(
         DAGPtr::All(mut link) => {
           let All { uses: lam_uses, dom, .. } = unsafe { link.as_mut() };
           let mut dom = DAG::new(*dom);
-          let arg_ctx = check(
-            defs,
-            pre,
-            Uses::mul(*lam_uses, uses),
-            &arg,
-            &mut dom,
-          )?;
+          let arg_ctx =
+            check(defs, pre, Uses::mul(*lam_uses, uses), &arg, &mut dom)?;
           add_ctx(&mut fun_ctx, arg_ctx);
           // Copy the All type (in a efficient implementation, only image is
           // copied)
@@ -425,9 +413,7 @@ pub fn infer(
       let ctx = check(defs, pre, Uses::None, &bod, &mut typ)?;
       Ok((ctx, typ))
     }
-    DAGPtr::Typ(_) => {
-      Ok((to_ctx(pre), term.clone()))
-    },
+    DAGPtr::Typ(_) => Ok((to_ctx(pre), term.clone())),
     DAGPtr::Ann(link) => {
       let Ann { typ, exp, .. } = unsafe { &*link.as_ptr() };
       let mut typ_clone = DAG::new(*typ).clone();
@@ -438,19 +424,50 @@ pub fn infer(
     DAGPtr::Let(_) => {
       panic!("TODO: Let inference")
     }
-    DAGPtr::Lit(_) => {
-      panic!("TODO: Lit inference")
+    DAGPtr::Lit(link) => {
+      let Lit { lit, .. } = unsafe { &*link.as_ptr() };
+      Ok((to_ctx(pre), DAG::from_term(&infer_lit(lit.to_owned()))))
     }
-    DAGPtr::LTy(_) => {
-      panic!("TODO: LTy inference")
+    DAGPtr::LTy(link) => {
+      let LTy { lty, .. } = unsafe { &*link.as_ptr() };
+      Ok((to_ctx(pre), DAG::from_term(&infer_lty(*lty))))
     }
-    DAGPtr::Opr(_) => {
-      panic!("TODO: Opr inference")
+    DAGPtr::Opr(link) => {
+      Err(CheckError::GenericError(format!("TODO")))
+      // let Opr { opr, .. } = unsafe { &*link.as_ptr() };
+      // Ok((to_ctx(pre), DAG::from_term(&infer_opr(*opr))))
     }
     DAGPtr::Lam(_) => Err(CheckError::GenericError(format!("Untyped lambda."))),
     _ => Err(CheckError::GenericError(format!("TODO"))),
   }
 }
+
+pub fn infer_lit(lit: Literal) -> Term {
+  match lit {
+    Literal::Natural(_) => Term::LTy(None, LitType::Natural),
+    Literal::Integer(_) => Term::LTy(None, LitType::Integer),
+    Literal::BitString(_) => Term::LTy(None, LitType::BitString),
+    Literal::Text(_) => Term::LTy(None, LitType::Text),
+    Literal::Char(_) => Term::LTy(None, LitType::Char),
+    Literal::Bool(_) => Term::LTy(None, LitType::Bool),
+    Literal::U8(_) => Term::LTy(None, LitType::U8),
+    Literal::U16(_) => Term::LTy(None, LitType::U16),
+    Literal::U32(_) => Term::LTy(None, LitType::U32),
+    Literal::U64(_) => Term::LTy(None, LitType::U64),
+    Literal::I8(_) => Term::LTy(None, LitType::I8),
+    Literal::I16(_) => Term::LTy(None, LitType::I16),
+    Literal::I32(_) => Term::LTy(None, LitType::I32),
+    Literal::I64(_) => Term::LTy(None, LitType::I64),
+  }
+}
+
+pub fn infer_lty(lty: LitType) -> Term {
+  match lty {
+    _ => Term::Typ(None),
+  }
+}
+
+// pub fn infer_opr(lit: PrimOp) -> Term {}
 
 pub fn check_def(
   defs: &Defs,
