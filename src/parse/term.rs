@@ -265,7 +265,7 @@ pub fn parse_binder_short(
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
-    map(parse_expression(refs.to_owned(), ctx.to_owned()), |t| {
+    map(parse_term(refs.to_owned(), ctx.to_owned()), |t| {
       vec![(Uses::Many, String::from(""), t)]
     })(i)
   }
@@ -707,34 +707,46 @@ pub mod tests {
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "(Type :: Type)",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "(Type (Type Type)  )",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
        x (c x (c x (c x n)))))))))))))))",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
        x (c x (c x (c x n)))))))))))))))",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_binder_full(HashMap::new(), Vector::new())(Span::new(
       "(a b c: Type)",
     ));
+    // println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = parse_binders(HashMap::new(), Vector::new(), true)(Span::new(
+      "Type Type",
+    ));
     println!("res: {:?}", res);
     assert!(res.is_ok());
+    assert!(
+      res.unwrap().1
+        == vec![
+          (Uses::Many, String::from(""), Typ(None)),
+          (Uses::Many, String::from(""), Typ(None)),
+        ]
+    );
     let res = parse_binders(HashMap::new(), Vector::new(), true)(Span::new(
       "(A: Type) (a b c: A)",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     assert!(
       res.unwrap().1
@@ -748,12 +760,12 @@ pub mod tests {
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "∀ Type -> Type",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "∀ (_ :Type) -> Type",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
   }
 
