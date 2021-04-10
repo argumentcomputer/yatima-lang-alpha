@@ -84,8 +84,12 @@ impl<T> DLL<T> {
     unsafe {
       let next = self.next;
       let prev = self.prev;
-      next.map_or((), |next| (*next.as_ptr()).prev = prev);
-      prev.map_or((), |prev| (*prev.as_ptr()).next = next);
+      if let Some(next) = next {
+        (*next.as_ptr()).prev = prev;
+      };
+      if let Some(prev) = prev {
+        (*prev.as_ptr()).next = next;
+      }
       (prev).or(next)
     }
   }

@@ -29,3 +29,6 @@ base-x = "0.2.8"
 quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
+
+[provile.dev]
+debug = 2

@@ -4,7 +4,6 @@ use crate::core::{
 };
 
 use core::ptr::NonNull;
-use std::mem;
 
 pub fn clean_up(cc: &ParentPtr) {
   match cc {
@@ -119,9 +118,8 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
     match cc {
       ParentPtr::LamBod(link) => {
         let Lam { var, parents, .. } = link.as_ref();
-        let Var { nam, dep, parents: var_parents } = var;
-        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_lam = alloc_lam(new_var, new_child, None);
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_lam = alloc_lam(nam.clone(), *dep, None, new_child, None);
         let ptr: *mut Parents = &mut (*new_lam.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_lam.as_ptr()).var;
@@ -134,9 +132,8 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
       }
       ParentPtr::SlfBod(link) => {
         let Slf { var, parents, .. } = link.as_ref();
-        let Var { nam, dep, parents: var_parents } = var;
-        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_slf = alloc_slf(new_var, new_child, None);
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_slf = alloc_slf(nam.clone(), *dep, None, new_child, None);
         let ptr: *mut Parents = &mut (*new_slf.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_slf.as_ptr()).var;
@@ -232,9 +229,9 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).dom = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents } = var;
-            let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_all = alloc_all(new_var, *uses, new_child, *img, None);
+            let Var { nam, dep, parents: var_parents, .. } = var;
+            let new_all =
+              alloc_all(nam.clone(), *dep, None, *uses, new_child, *img, None);
             let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -252,9 +249,9 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).img = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents } = var;
-            let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_all = alloc_all(new_var, *uses, *dom, new_child, None);
+            let Var { nam, dep, parents: var_parents, .. } = var;
+            let new_all =
+              alloc_all(nam.clone(), *dep, None, *uses, *dom, new_child, None);
             let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
               upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
@@ -272,26 +269,17 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).exp = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents } = var;
-            let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_let = alloc_val(Let {
-              copy: None,
-              uses: *uses,
-              var: new_var,
-              exp: new_child,
-              typ: *typ,
-              bod: *bod,
-              exp_ref: mem::zeroed(),
-              typ_ref: mem::zeroed(),
-              bod_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_let.as_ptr()).exp_ref =
-              DLL::singleton(ParentPtr::LetExp(new_let));
-            (*new_let.as_ptr()).typ_ref =
-              DLL::singleton(ParentPtr::LetTyp(new_let));
-            (*new_let.as_ptr()).bod_ref =
-              DLL::singleton(ParentPtr::LetBod(new_let));
+            let Var { nam, dep, parents: var_parents, .. } = var;
+            let new_let = alloc_let(
+              nam.clone(),
+              *dep,
+              None,
+              *uses,
+              new_child,
+              *typ,
+              *bod,
+              None,
+            );
             (*link.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
@@ -310,26 +298,17 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).typ = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents } = var;
-            let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_let = alloc_val(Let {
-              copy: None,
-              uses: *uses,
-              var: new_var,
-              exp: *exp,
-              typ: new_child,
-              bod: *bod,
-              exp_ref: mem::zeroed(),
-              typ_ref: mem::zeroed(),
-              bod_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_let.as_ptr()).exp_ref =
-              DLL::singleton(ParentPtr::LetExp(new_let));
-            (*new_let.as_ptr()).typ_ref =
-              DLL::singleton(ParentPtr::LetTyp(new_let));
-            (*new_let.as_ptr()).bod_ref =
-              DLL::singleton(ParentPtr::LetBod(new_let));
+            let Var { nam, dep, parents: var_parents, .. } = var;
+            let new_let = alloc_let(
+              nam.clone(),
+              *dep,
+              None,
+              *uses,
+              *exp,
+              new_child,
+              *bod,
+              None,
+            );
             (*link.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {
@@ -348,26 +327,17 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).bod = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents } = var;
-            let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-            let new_let = alloc_val(Let {
-              copy: None,
-              uses: *uses,
-              var: new_var,
-              exp: *exp,
-              typ: *typ,
-              bod: new_child,
-              exp_ref: mem::zeroed(),
-              typ_ref: mem::zeroed(),
-              bod_ref: mem::zeroed(),
-              parents: None,
-            });
-            (*new_let.as_ptr()).exp_ref =
-              DLL::singleton(ParentPtr::LetExp(new_let));
-            (*new_let.as_ptr()).typ_ref =
-              DLL::singleton(ParentPtr::LetTyp(new_let));
-            (*new_let.as_ptr()).bod_ref =
-              DLL::singleton(ParentPtr::LetBod(new_let));
+            let Var { nam, dep, parents: var_parents, .. } = var;
+            let new_let = alloc_let(
+              nam.clone(),
+              *dep,
+              None,
+              *uses,
+              *exp,
+              *typ,
+              new_child,
+              None,
+            );
             (*link.as_ptr()).copy = Some(new_let);
             let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
             for parent in DLL::iter_option(*var_parents) {

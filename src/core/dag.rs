@@ -78,6 +78,15 @@ pub enum ParentPtr {
   LetBod(NonNull<Let>),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BinderPtr {
+  Free,
+  Lam(NonNull<Lam>),
+  All(NonNull<All>),
+  Slf(NonNull<Slf>),
+  Let(NonNull<Let>),
+}
+
 // The λ-DAG nodes
 #[derive(Clone)]
 pub struct Var {
@@ -85,6 +94,7 @@ pub struct Var {
   // The field `depth` is only used by the type checker to track free
   // variables. Otherwise it is irrelevant.
   pub dep: u64,
+  pub binder: BinderPtr,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -190,12 +200,25 @@ pub fn alloc_val<T>(val: T) -> NonNull<T> {
 
 #[inline]
 pub fn alloc_lam(
-  var: Var,
+  var_nam: String,
+  var_dep: u64,
+  var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
 ) -> NonNull<Lam> {
   unsafe {
-    let lam = alloc_val(Lam { var, bod, bod_ref: mem::zeroed(), parents });
+    let lam = alloc_val(Lam {
+      var: Var {
+        nam: var_nam,
+        dep: var_dep,
+        binder: mem::zeroed(),
+        parents: var_parents,
+      },
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*lam.as_ptr()).var.binder = BinderPtr::Lam(lam);
     (*lam.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LamBod(lam));
     lam
   }
@@ -203,12 +226,25 @@ pub fn alloc_lam(
 
 #[inline]
 pub fn alloc_slf(
-  var: Var,
+  var_nam: String,
+  var_dep: u64,
+  var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
 ) -> NonNull<Slf> {
   unsafe {
-    let slf = alloc_val(Slf { var, bod, bod_ref: mem::zeroed(), parents });
+    let slf = alloc_val(Slf {
+      var: Var {
+        nam: var_nam,
+        dep: var_dep,
+        binder: mem::zeroed(),
+        parents: var_parents,
+      },
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*slf.as_ptr()).var.binder = BinderPtr::Slf(slf);
     (*slf.as_ptr()).bod_ref = DLL::singleton(ParentPtr::SlfBod(slf));
     slf
   }
@@ -240,7 +276,9 @@ pub fn alloc_cse(
 
 #[inline]
 pub fn alloc_all(
-  var: Var,
+  var_nam: String,
+  var_dep: u64,
+  var_parents: Option<NonNull<Parents>>,
   uses: Uses,
   dom: DAGPtr,
   img: DAGPtr,
@@ -248,7 +286,12 @@ pub fn alloc_all(
 ) -> NonNull<All> {
   unsafe {
     let all = alloc_val(All {
-      var,
+      var: Var {
+        nam: var_nam,
+        dep: var_dep,
+        binder: mem::zeroed(),
+        parents: var_parents,
+      },
       uses,
       dom,
       img,
@@ -257,6 +300,7 @@ pub fn alloc_all(
       img_ref: mem::zeroed(),
       parents,
     });
+    (*all.as_ptr()).var.binder = BinderPtr::All(all);
     (*all.as_ptr()).dom_ref = DLL::singleton(ParentPtr::AllDom(all));
     (*all.as_ptr()).img_ref = DLL::singleton(ParentPtr::AllImg(all));
     all
@@ -307,7 +351,9 @@ pub fn alloc_ann(
 
 #[inline]
 pub fn alloc_let(
-  var: Var,
+  var_nam: String,
+  var_dep: u64,
+  var_parents: Option<NonNull<Parents>>,
   uses: Uses,
   typ: DAGPtr,
   exp: DAGPtr,
@@ -316,7 +362,12 @@ pub fn alloc_let(
 ) -> NonNull<Let> {
   unsafe {
     let let_ = alloc_val(Let {
-      var,
+      var: Var {
+        nam: var_nam,
+        dep: var_dep,
+        binder: mem::zeroed(),
+        parents: var_parents,
+      },
       uses,
       typ,
       exp,
@@ -327,6 +378,7 @@ pub fn alloc_let(
       bod_ref: mem::zeroed(),
       parents,
     });
+    (*let_.as_ptr()).var.binder = BinderPtr::Let(let_);
     (*let_.as_ptr()).typ_ref = DLL::singleton(ParentPtr::LetTyp(let_));
     (*let_.as_ptr()).exp_ref = DLL::singleton(ParentPtr::LetExp(let_));
     (*let_.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LetBod(let_));
@@ -437,7 +489,7 @@ pub fn free_dead_node(node: DAGPtr) {
   unsafe {
     match node {
       DAGPtr::Lam(link) => {
-        let Lam { bod, bod_ref, .. } = &*link.as_ptr();
+        let Lam { bod, bod_ref, .. } = &link.as_ref();
         let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
@@ -446,7 +498,7 @@ pub fn free_dead_node(node: DAGPtr) {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Lam>());
       }
       DAGPtr::Slf(link) => {
-        let Slf { bod, bod_ref, .. } = &*link.as_ptr();
+        let Slf { bod, bod_ref, .. } = &link.as_ref();
         let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
@@ -455,7 +507,7 @@ pub fn free_dead_node(node: DAGPtr) {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Slf>());
       }
       DAGPtr::Cse(link) => {
-        let Cse { bod, bod_ref, .. } = &*link.as_ptr();
+        let Cse { bod, bod_ref, .. } = link.as_ref();
         let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
@@ -464,7 +516,7 @@ pub fn free_dead_node(node: DAGPtr) {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Cse>());
       }
       DAGPtr::Dat(link) => {
-        let Dat { bod, bod_ref, .. } = &*link.as_ptr();
+        let Dat { bod, bod_ref, .. } = &link.as_ref();
         let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
@@ -473,7 +525,7 @@ pub fn free_dead_node(node: DAGPtr) {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Dat>());
       }
       DAGPtr::All(link) => {
-        let All { dom, img, dom_ref, img_ref, .. } = &*link.as_ptr();
+        let All { dom, img, dom_ref, img_ref, .. } = link.as_ref();
         let new_dom_parents = dom_ref.unlink_node();
         set_parents(*dom, new_dom_parents);
         if new_dom_parents.is_none() {
@@ -487,7 +539,7 @@ pub fn free_dead_node(node: DAGPtr) {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<All>());
       }
       DAGPtr::App(link) => {
-        let App { fun, arg, fun_ref, arg_ref, .. } = &*link.as_ptr();
+        let App { fun, arg, fun_ref, arg_ref, .. } = link.as_ref();
         let new_fun_parents = fun_ref.unlink_node();
         set_parents(*fun, new_fun_parents);
         if new_fun_parents.is_none() {
@@ -501,7 +553,7 @@ pub fn free_dead_node(node: DAGPtr) {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<App>());
       }
       DAGPtr::Ann(link) => {
-        let Ann { exp, typ, exp_ref, typ_ref, .. } = &*link.as_ptr();
+        let Ann { exp, typ, exp_ref, typ_ref, .. } = link.as_ref();
         let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
         if new_exp_parents.is_none() {
@@ -516,7 +568,7 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::Let(link) => {
         let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
-          &*link.as_ptr();
+          link.as_ref();
         let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
         if new_exp_parents.is_none() {
@@ -534,8 +586,12 @@ pub fn free_dead_node(node: DAGPtr) {
         }
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Let>());
       }
-      DAGPtr::Var(..) => {
-        //  dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
+      DAGPtr::Var(link) => {
+        let Var { binder, .. } = link.as_ref();
+        // only free Free variables, bound variables are freed with their binder
+        if let BinderPtr::Free = binder {
+          dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
+        }
       }
       DAGPtr::Ref(link) => {
         dealloc(link.as_ptr() as *mut u8, Layout::new::<Ref>());
@@ -719,6 +775,7 @@ impl DAG {
             let var = alloc_val(Var {
               nam: name.clone(),
               dep: depth - 1 - idx,
+              binder: BinderPtr::Free,
               parents,
             });
             DAGPtr::Var(var)
@@ -738,8 +795,7 @@ impl DAG {
         parents,
       })),
       Term::Lam(_, nam, bod) => unsafe {
-        let var = Var { nam: nam.clone(), dep: 0, parents: None };
-        let lam = alloc_lam(var, mem::zeroed(), parents);
+        let lam = alloc_lam(nam.clone(), 0, None, mem::zeroed(), parents);
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_subterm(
@@ -753,8 +809,7 @@ impl DAG {
         DAGPtr::Lam(lam)
       },
       Term::Slf(_, nam, bod) => unsafe {
-        let var = Var { nam: nam.clone(), dep: 0, parents: None };
-        let slf = alloc_slf(var, mem::zeroed(), parents);
+        let slf = alloc_slf(nam.clone(), 0, None, mem::zeroed(), parents);
         let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_subterm(
@@ -795,8 +850,15 @@ impl DAG {
       },
       Term::All(_, uses, nam, dom_img) => unsafe {
         let (dom, img) = (**dom_img).clone();
-        let var = Var { nam: nam.clone(), dep: 0, parents: None };
-        let all = alloc_all(var, *uses, mem::zeroed(), mem::zeroed(), parents);
+        let all = alloc_all(
+          nam.clone(),
+          0,
+          None,
+          *uses,
+          mem::zeroed(),
+          mem::zeroed(),
+          parents,
+        );
         let All { var, dom_ref, img_ref, .. } = &mut *all.as_ptr();
         let mut img_ctx = ctx.clone();
         let dom = DAG::from_subterm(
@@ -865,11 +927,12 @@ impl DAG {
       Term::Let(_, true, uses, name, typ_exp_bod) => {
         panic!("letrec not implemented")
       }
-      Term::Let(_, false, uses, name, typ_exp_bod) => unsafe {
+      Term::Let(_, false, uses, nam, typ_exp_bod) => unsafe {
         let (typ, exp, bod) = (**typ_exp_bod).clone();
-        let var = Var { nam: name.clone(), dep: 0, parents: None };
         let let_ = alloc_let(
-          var,
+          nam.clone(),
+          0,
+          None,
           *uses,
           mem::zeroed(),
           mem::zeroed(),
@@ -928,10 +991,11 @@ impl Clone for DAG {
       // Otherwise create a new DAG node and add it to the map
       let new_node = match node {
         DAGPtr::Var(link) => unsafe {
-          let Var { nam, dep, .. } = &*link.as_ptr();
+          let Var { nam, dep, binder, .. } = &*link.as_ptr();
           let var = alloc_val(Var {
             nam: nam.clone(),
             dep: *dep,
+            binder: *binder,
             parents: Some(parents),
           });
           DAGPtr::Var(var)
@@ -948,9 +1012,13 @@ impl Clone for DAG {
         },
         DAGPtr::Lam(link) => unsafe {
           let Lam { var, bod, .. } = &mut *link.as_ptr();
-          let new_var =
-            Var { nam: var.nam.clone(), dep: var.dep, parents: None };
-          let lam = alloc_lam(new_var, mem::zeroed(), Some(parents));
+          let lam = alloc_lam(
+            var.nam.clone(),
+            var.dep,
+            None,
+            mem::zeroed(),
+            Some(parents),
+          );
           let Lam { var: new_var, bod: new_bod, bod_ref, .. } =
             &mut *lam.as_ptr();
           map.insert(
@@ -962,9 +1030,13 @@ impl Clone for DAG {
         },
         DAGPtr::Slf(link) => unsafe {
           let Slf { var, bod, .. } = &mut *link.as_ptr();
-          let new_var =
-            Var { nam: var.nam.clone(), dep: var.dep, parents: None };
-          let slf = alloc_slf(new_var, mem::zeroed(), Some(parents));
+          let slf = alloc_slf(
+            var.nam.clone(),
+            var.dep,
+            None,
+            mem::zeroed(),
+            Some(parents),
+          );
           let Slf { var: new_var, bod: new_bod, bod_ref, .. } =
             &mut *slf.as_ptr();
           map.insert(
@@ -999,10 +1071,10 @@ impl Clone for DAG {
         },
         DAGPtr::All(link) => unsafe {
           let All { var, uses, dom, img, .. } = &mut *link.as_ptr();
-          let new_var =
-            Var { nam: var.nam.clone(), dep: var.dep, parents: None };
           let all = alloc_all(
-            new_var,
+            var.nam.clone(),
+            var.dep,
+            None,
             *uses,
             mem::zeroed(),
             mem::zeroed(),
@@ -1026,10 +1098,10 @@ impl Clone for DAG {
         },
         DAGPtr::Let(link) => unsafe {
           let Let { var, uses, typ, exp, bod, .. } = &mut *link.as_ptr();
-          let new_var =
-            Var { nam: var.nam.clone(), dep: var.dep, parents: None };
           let let_ = alloc_let(
-            new_var,
+            var.nam.clone(),
+            var.dep,
+            None,
             *uses,
             mem::zeroed(),
             mem::zeroed(),

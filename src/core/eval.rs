@@ -80,8 +80,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
       DAGPtr::All(link) => {
         let All { var: old_var, uses, dom, img, .. } = unsafe { link.as_ref() };
         let Var { nam, dep, .. } = old_var;
-        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_all = alloc_all(new_var, *uses, *dom, *img, None);
+        let new_all =
+          alloc_all(nam.clone(), *dep, None, *uses, *dom, *img, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_all);
           let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
@@ -113,8 +113,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Let { var: old_var, uses, typ, exp, bod, .. } =
           unsafe { link.as_ref() };
         let Var { nam, dep, .. } = old_var;
-        let new_var = Var { nam: nam.clone(), dep: *dep, parents: None };
-        let new_let = alloc_let(new_var, *uses, *typ, *exp, *bod, None);
+        let new_let =
+          alloc_let(nam.clone(), *dep, None, *uses, *typ, *exp, *bod, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_let);
           let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
@@ -140,9 +140,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
   while let Some(single) = spine.pop() {
     match single {
       Single::Lam(var) => {
-        let Var { nam, dep, parents: var_parents } = var;
-        let new_var = Var { nam, dep, parents: None };
-        let new_lam = alloc_lam(new_var, result, None);
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_lam = alloc_lam(nam, dep, None, result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_lam.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
@@ -152,9 +151,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         result = DAGPtr::Lam(new_lam);
       }
       Single::Slf(var) => {
-        let Var { nam, dep, parents: var_parents } = var;
-        let new_var = Var { nam, dep, parents: None };
-        let new_slf = alloc_slf(new_var, result, None);
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_slf = alloc_slf(nam, dep, None, result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_slf.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
