@@ -274,16 +274,16 @@ impl Term {
         )
       }
       Self::App(pos, terms) => {
-        let (fun_anon, fun_meta) = terms.0.clone().embed();
-        let (arg_anon, arg_meta) = terms.1.clone().embed();
+        let (fun_anon, fun_meta) = terms.0.embed();
+        let (arg_anon, arg_meta) = terms.1.embed();
         (
           AnonTerm::Ctor(String::from("app"), vec![fun_anon, arg_anon]),
           MetaTerm::Ctor(pos, vec![fun_meta, arg_meta]),
         )
       }
       Self::Ann(pos, terms) => {
-        let (val_anon, val_meta) = terms.0.clone().embed();
-        let (typ_anon, typ_meta) = terms.1.clone().embed();
+        let (val_anon, val_meta) = terms.0.embed();
+        let (typ_anon, typ_meta) = terms.1.embed();
         (
           AnonTerm::Ctor(String::from("ann"), vec![val_anon, typ_anon]),
           MetaTerm::Ctor(pos, vec![val_meta, typ_meta]),
@@ -304,8 +304,8 @@ impl Term {
         )
       }
       Self::All(pos, uses, name, terms) => {
-        let (typ_anon, typ_meta) = terms.0.clone().embed();
-        let (bod_anon, bod_meta) = terms.1.clone().embed();
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (bod_anon, bod_meta) = terms.1.embed();
         (
           AnonTerm::Ctor(String::from("all"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -320,9 +320,9 @@ impl Term {
         )
       }
       Self::Let(pos, true, uses, name, terms) => {
-        let (typ_anon, typ_meta) = terms.0.clone().embed();
-        let (exp_anon, exp_meta) = terms.1.clone().embed();
-        let (bod_anon, bod_meta) = terms.2.clone().embed();
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (exp_anon, exp_meta) = terms.1.embed();
+        let (bod_anon, bod_meta) = terms.2.embed();
         (
           AnonTerm::Ctor(String::from("rec"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -339,9 +339,9 @@ impl Term {
         )
       }
       Self::Let(pos, false, uses, name, terms) => {
-        let (typ_anon, typ_meta) = terms.0.clone().embed();
-        let (exp_anon, exp_meta) = terms.1.clone().embed();
-        let (bod_anon, bod_meta) = terms.2.clone().embed();
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (exp_anon, exp_meta) = terms.1.embed();
+        let (bod_anon, bod_meta) = terms.2.embed();
         (
           AnonTerm::Ctor(String::from("let"), vec![
             AnonTerm::Data(uses.encode().serialize()),

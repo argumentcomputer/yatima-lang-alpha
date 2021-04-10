@@ -240,13 +240,12 @@ pub fn parse_uses(i: Span) -> IResult<Span, Uses, ParseError<Span>> {
 pub fn parse_binder_full(
   refs: Refs,
   ctx: Vector<String>,
-) -> impl Fn(Span) -> IResult<Span, (Uses, Vec<String>, Term), ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, (Uses, String, Term), ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
     let (i, _) = parse_space(i)?;
     let (i, u) = parse_uses(i)?;
-    let (i, ns) = many1(terminated(parse_name, parse_space))(i)?;
+    let (i, ns) = terminated(parse_name, parse_space)(i)?;
     let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
     let (i, typ) = parse_expression(refs.to_owned(), ctx.to_owned())(i)?;
@@ -258,11 +257,10 @@ pub fn parse_binder_full(
 pub fn parse_binder_short(
   refs: Refs,
   ctx: Vector<String>,
-) -> impl Fn(Span) -> IResult<Span, (Uses, Vec<String>, Term), ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, (Uses, String, Term), ParseError<Span>> {
   move |i: Span| {
     map(parse_expression(refs.to_owned(), ctx.to_owned()), |t| {
-      (Uses::Many, vec![String::from("")], t)
+      (Uses::Many, String::from(""), t)
     })(i)
   }
 }
@@ -271,8 +269,7 @@ pub fn parse_binder(
   refs: Refs,
   ctx: Vector<String>,
   nam_opt: bool,
-) -> impl Fn(Span) -> IResult<Span, (Uses, Vec<String>, Term), ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, (Uses, String, Term), ParseError<Span>> {
   move |i: Span| {
     if nam_opt {
       alt((
@@ -298,11 +295,9 @@ pub fn parse_binders(
 
     match parse_binder(refs.to_owned(), ctx.to_owned(), nam_opt)(i.to_owned()) {
       Err(e) => return Err(e),
-      Ok((i1, (u, ns, t))) => {
-        for n in ns {
-          ctx.push_front(n.to_owned());
-          res.push((u, n, t.clone()));
-        }
+      Ok((i1, (u, n, t))) => {
+        ctx.push_front(n.to_owned());
+        res.push((u, n, t.clone()));
         i = i1;
       }
     }
@@ -315,11 +310,9 @@ pub fn parse_binders(
       {
         Err(Err::Error(_)) => return Ok((i, res)),
         Err(e) => return Err(e),
-        Ok((i2, (u, ns, t))) => {
-          for n in ns {
-            ctx.push_front(n.to_owned());
-            res.push((u, n, t.clone()));
-          }
+        Ok((i2, (u, n, t))) => {
+          ctx.push_front(n.to_owned());
+          res.push((u, n, t.clone()));
           i = i2;
         }
       }
@@ -721,11 +714,11 @@ pub mod tests {
     ));
     println!("res2: {:?}", res);
     assert!(res.is_ok());
-    let res = parse_binder_full(HashMap::new(), Vector::new())(Span::new(
-      "(a b c: Type)",
-    ));
-    println!("res2: {:?}", res);
-    assert!(res.is_ok());
+    // let res = parse_binder_full(HashMap::new(), Vector::new())(Span::new(
+    //  "(a b c: Type)",
+    //));
+    // println!("res2: {:?}", res);
+    // assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "∀ Type -> Type",
     ));
