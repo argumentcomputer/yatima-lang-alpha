@@ -23,10 +23,6 @@ use im::{
   Vector,
 };
 use std::{
-  alloc::{
-    dealloc,
-    Layout,
-  },
   collections::HashSet,
   fmt,
   mem,
@@ -495,16 +491,16 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Lam>());
+        Box::from_raw(link.as_ptr());
       }
-      DAGPtr::Slf(link) => {
-        let Slf { bod, bod_ref, .. } = &link.as_ref();
+      DAGPtr::Slf(mut link) => {
+        let Slf { bod, bod_ref, .. } = &link.as_mut();
         let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Slf>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Cse(link) => {
         let Cse { bod, bod_ref, .. } = link.as_ref();
@@ -513,7 +509,7 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Cse>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Dat(link) => {
         let Dat { bod, bod_ref, .. } = &link.as_ref();
@@ -522,7 +518,7 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Dat>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::All(link) => {
         let All { dom, img, dom_ref, img_ref, .. } = link.as_ref();
@@ -536,7 +532,7 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_img_parents.is_none() {
           free_dead_node(*img)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<All>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::App(link) => {
         let App { fun, arg, fun_ref, arg_ref, .. } = link.as_ref();
@@ -550,7 +546,7 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_arg_parents.is_none() {
           free_dead_node(*arg)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<App>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Ann(link) => {
         let Ann { exp, typ, exp_ref, typ_ref, .. } = link.as_ref();
@@ -564,10 +560,10 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_typ_parents.is_none() {
           free_dead_node(*typ)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Ann>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Let(link) => {
-        let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
+        let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, var, .. } =
           link.as_ref();
         let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
@@ -584,29 +580,29 @@ pub fn free_dead_node(node: DAGPtr) {
         if new_bod_parents.is_none() {
           free_dead_node(*bod)
         }
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Let>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Var(link) => {
-        let Var { binder, .. } = link.as_ref();
+        let Var { binder, nam, .. } = link.as_ref();
         // only free Free variables, bound variables are freed with their binder
         if let BinderPtr::Free = binder {
-          dealloc(link.as_ptr() as *mut u8, Layout::new::<Var>());
+          Box::from_raw(link.as_ptr());
         }
       }
       DAGPtr::Ref(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Ref>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Typ(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Typ>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Lit(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Lit>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::LTy(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<LTy>());
+        Box::from_raw(link.as_ptr());
       }
       DAGPtr::Opr(link) => {
-        dealloc(link.as_ptr() as *mut u8, Layout::new::<Opr>());
+        Box::from_raw(link.as_ptr());
       }
     }
   }
@@ -619,7 +615,7 @@ impl DAG {
     match get_parents(self.head) {
       None => (),
       Some(pref) => unsafe {
-        dealloc(pref.as_ptr() as *mut u8, Layout::new::<ParentPtr>());
+        Box::from_raw(pref.as_ptr());
         set_parents(self.head, None);
       },
     }
@@ -1327,21 +1323,6 @@ impl fmt::Debug for DAG {
             format!("\nSHARE<{:?}>", link.as_ptr())
           }
         }
-        // DAGPtr::Fix(link) => {
-        //  if set.get(&(link.as_ptr() as u64)).is_none() {
-        //    let Fix { parents, bod, .. } = unsafe { link.as_ref() };
-        //    set.insert(link.as_ptr() as u64);
-        //    format!(
-        //      "\nFix<{:?}> parents: {}{}",
-        //      link.as_ptr(),
-        //      format_parents(*parents),
-        //      go(*bod, set)
-        //    )
-        //  }
-        //  else {
-        //    format!("\nSHARE<{:?}>", link.as_ptr())
-        //  }
-        //}
         DAGPtr::App(link) => {
           if set.get(&(link.as_ptr() as u64)).is_none() {
             set.insert(link.as_ptr() as u64);

@@ -382,7 +382,6 @@ pub fn infer(
           }
           replace_child(DAGPtr::Slf(new_link), *new_bod);
           let new_bod = DAG::new(*new_bod);
-          free_dead_node(DAGPtr::Slf(new_link));
           Ok((exp_ctx, new_bod))
         }
         _ => Err(CheckError::GenericError(format!(
