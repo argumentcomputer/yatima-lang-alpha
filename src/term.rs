@@ -217,6 +217,53 @@ impl fmt::Display for Term {
 }
 
 impl Term {
+  pub fn shift(self, inc: u64, dep: u64) -> Self {
+    match self {
+      Self::Var(pos, nam, idx) if idx < dep => Self::Var(pos, nam, idx),
+      Self::Var(pos, nam, idx) => Self::Var(pos, nam, idx + inc),
+      Self::Lam(pos, nam, bod) => {
+        Self::Lam(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
+      }
+      Self::Slf(pos, nam, bod) => {
+        Self::Slf(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
+      }
+      Self::Cse(pos, bod) => Self::Cse(pos, Box::new((*bod).shift(inc, dep))),
+      Self::Dat(pos, bod) => Self::Dat(pos, Box::new((*bod).shift(inc, dep))),
+      Self::App(pos, fun_arg) => {
+        let (fun, arg) = *fun_arg;
+        Self::App(pos, Box::new((fun.shift(inc, dep), arg.shift(inc, dep))))
+      }
+      Self::Ann(pos, typ_exp) => {
+        let (typ, exp) = *typ_exp;
+        Self::Ann(pos, Box::new((typ.shift(inc, dep), exp.shift(inc, dep))))
+      }
+      Self::All(pos, uses, nam, dom_img) => {
+        let (dom, img) = *dom_img;
+        Self::All(
+          pos,
+          uses,
+          nam,
+          Box::new((dom.shift(inc, dep), img.shift(inc, dep + 1))),
+        )
+      }
+      Self::Let(pos, rec, uses, nam, typ_exp_bod) => {
+        let (typ, exp, bod) = *typ_exp_bod;
+        Self::Let(
+          pos,
+          rec,
+          uses,
+          nam,
+          Box::new((
+            typ.shift(inc, dep),
+            exp.shift(inc, if rec { dep + 1 } else { dep }),
+            bod.shift(inc, dep + 1),
+          )),
+        )
+      }
+      x => x,
+    }
+  }
+
   pub fn embed(self) -> (AnonTerm, MetaTerm) {
     match self {
       Self::Var(pos, _, idx) => (
