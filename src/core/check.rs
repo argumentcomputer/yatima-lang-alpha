@@ -86,13 +86,13 @@ pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
     DAGPtr::LTy(link) => unsafe { format!("T<{}>", link.as_ref().lty) },
     DAGPtr::Opr(link) => unsafe { format!("O<{}>", link.as_ref().opr) },
     DAGPtr::Ref(link) => unsafe { format!("R<{}>", link.as_ref().nam) },
-    DAGPtr::Lam(mut link) => unsafe {
-      let Lam { var, bod, .. } = link.as_mut();
+    DAGPtr::Lam(link) => unsafe {
+      let Lam { var, bod, .. } = &mut *link.as_ptr();
       var.dep = dep;
       format!("λ{}", stringify(*bod, ini, dep + 1))
     },
-    DAGPtr::Slf(mut link) => unsafe {
-      let Slf { var, bod, .. } = link.as_mut();
+    DAGPtr::Slf(link) => unsafe {
+      let Slf { var, bod, .. } = &mut *link.as_ptr();
       var.dep = dep;
       format!("${}", stringify(*bod, ini, dep + 1))
     },
@@ -104,8 +104,8 @@ pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
       let Dat { bod, .. } = link.as_ref();
       format!("D{}", stringify(*bod, ini, dep))
     },
-    DAGPtr::All(mut link) => unsafe {
-      let All { var, uses, dom, img, .. } = link.as_mut();
+    DAGPtr::All(link) => unsafe {
+      let All { var, uses, dom, img, .. } = &mut *link.as_ptr();
       var.dep = dep;
       let prefix = match uses {
         Uses::None => "∀0",
@@ -238,8 +238,8 @@ pub fn check(
         ))),
       }
     }
-    DAGPtr::Dat(mut link) => {
-      let Dat { bod: dat_bod, .. } = unsafe { link.as_mut() };
+    DAGPtr::Dat(link) => {
+      let Dat { bod: dat_bod, .. } = unsafe { &mut *link.as_ptr() };
       typ.whnf(defs);
       match typ.head {
         DAGPtr::Slf(_) => {
@@ -249,7 +249,7 @@ pub fn check(
             _ => panic!("Error in the clone implementation"),
           };
           let Slf { var: new_var, bod: new_bod, .. } =
-            unsafe { new_link.as_mut() };
+            unsafe { &mut *new_link.as_ptr() };
           // Substitute the term for its variable
           if new_var.parents.is_some() {
             // Create the term DAG
@@ -327,20 +327,20 @@ pub fn infer(
         infer(defs, pre.clone(), uses, &mut fun)?;
       fun_typ.whnf(defs);
       match fun_typ.head {
-        DAGPtr::All(mut link) => {
-          let All { uses: lam_uses, dom, .. } = unsafe { link.as_mut() };
+        DAGPtr::All(link) => {
+          let All { uses: lam_uses, dom, .. } = unsafe { &mut *link.as_ptr() };
           let mut dom = DAG::new(*dom);
           let arg_ctx =
             check(defs, pre, Uses::mul(*lam_uses, uses), &arg, &mut dom)?;
           add_ctx(&mut fun_ctx, arg_ctx);
           // Copy the All type (in a efficient implementation, only image is
           // copied)
-          let mut new_link = match fun_typ.clone().head {
+          let new_link = match fun_typ.clone().head {
             DAGPtr::All(link) => link,
             _ => panic!("Error in the clone implementation"),
           };
           let All { var: new_var, img: new_img, .. } =
-            unsafe { new_link.as_mut() };
+            unsafe { &mut *new_link.as_ptr() };
           // Substitute the argument for the image's variable
           if new_var.parents.is_some() {
             // Create the argument DAG
