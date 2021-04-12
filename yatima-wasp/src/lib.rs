@@ -1,4 +1,11 @@
-use wasmlib::*;
+use wasmlib::{
+    ScExports,
+    ScBaseContext,
+    ScFuncContext,
+    ScViewContext,
+    ScColor,
+    ScTransfers,
+};
 use yatima::*;
 
 const PARAM_STRING: &str = "paramString";
