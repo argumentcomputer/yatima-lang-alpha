@@ -1,5 +1,5 @@
 [workspace]
-members = [ "hashexpr" ]
+members = [ "hashexpr", "yatima-wasp" ]
 
 [package]
 name = "yatima"
