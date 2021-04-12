@@ -1,6 +1,6 @@
 use crate::{
   definition::Definition,
-  hashspace,
+  hashspace::{Hashspace},
   unembed_error::UnembedError,
 };
 
@@ -521,26 +521,26 @@ impl Def {
     Ok(Def::new(def.pos, def.name, def.docs, typ_, term))
   }
 
-  pub fn get_link(defn: Link) -> Result<Self, UnembedError> {
-    let def = hashspace::get(defn).ok_or(UnembedError::UnknownLink(defn))?;
+  pub fn get_link(defn: Link, hashspace: &Hashspace) -> Result<Self, UnembedError> {
+    let def = hashspace.get(defn).ok_or(UnembedError::UnknownLink(defn))?;
     let def =
       Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
     let type_anon =
-      hashspace::get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
+      hashspace.get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
     let type_anon =
       AnonTerm::decode(type_anon).map_err(|e| UnembedError::DecodeError(e))?;
     let term_anon =
-      hashspace::get(def.term_anon).ok_or(UnembedError::UnknownLink(defn))?;
+      hashspace.get(def.term_anon).ok_or(UnembedError::UnknownLink(defn))?;
     let term_anon =
       AnonTerm::decode(term_anon).map_err(|e| UnembedError::DecodeError(e))?;
     Def::unembed(def, type_anon, term_anon)
   }
 }
 
-pub fn refs_to_defs(refs: Refs) -> Result<Defs, UnembedError> {
+pub fn refs_to_defs(refs: Refs, hashspace: &Hashspace) -> Result<Defs, UnembedError> {
   let mut def_map = HashMap::new();
   for (_, (d, _)) in refs {
-    let def = Def::get_link(d)?;
+    let def = Def::get_link(d, &hashspace)?;
     def_map.insert(d, def);
   }
   Ok(def_map)

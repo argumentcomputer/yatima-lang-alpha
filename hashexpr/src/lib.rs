@@ -174,7 +174,7 @@ impl Expr {
       let data_bitlen =
         data_len.iter().fold(0, |acc, &x| (acc * 256) + x as u64);
       let data_bytelen = bytelen_from_bitlen(data_bitlen);
-      let (i, data) = take(data_bytelen)(i)?;
+      let (i, data) = take(data_bytelen as usize)(i)?;
       match type_code {
         [0x00] => {
           let data: [u8; 32] = data.try_into().map_err(|_| {

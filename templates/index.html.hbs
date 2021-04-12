@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Yatima WASM</title>
+  </head>
+  <body>
+    <h1>Yatima WASM</h1>
+    <h2>Input file</h2>
+    <textarea id="input"></textarea>
+    <button id="parse-btn">Parse!</button>
+    <label for="hash-input">hash to show</label><input type="text" id="hash-input"/><button id="hash-show-btn">Show hash!</button>
+    <h2>Output</h2>
+    <pre id="output">  
+    </pre>
+    <script type="module">
+      import init, { parse_source, hashspace_put, hashspace_get } from './pkg/yatima.js';
+      function unpack(str) {
+          var bytes = [];
+          for(var i = 0; i < str.length; i++) {
+              var char = str.charCodeAt(i);
+              bytes.push(char >>> 8);
+              bytes.push(char & 0xFF);
+          }
+          return bytes;
+      }
+      async function run() {
+        await init();
+
+        let parseBtn = document.getElementById("parse-btn");
+        let hashInput = document.getElementById("hash-input");
+        let showBtn = document.getElementById("hash-show-btn");
+        let input = document.getElementById("input");
+        let output = document.getElementById("output");
+        parseBtn.onclick = () => {
+          let value = input.value;
+          try {
+            let result = parse_source(value);
+            console.log(result);
+            output.text = result;
+          } catch (e) {
+            console.log("Error: " + e.stack)
+          }
+        };
+        showBtn.onclick  = () => {
+          let hash = hashInput.value;
+          hashspace_get(hash).then(v => {
+            console.log(v);
+            output.innerText = v;
+          });
+        };
+
+
+      }
+
+      run();
+    </script>
+  </body>
+</html>
