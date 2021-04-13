@@ -11,7 +11,11 @@ use crate::{
     DecodeError,
     Expected,
   },
-  hashspace,
+  hashspace::{
+    Hashspace,
+    HashspaceDependent,
+    HashspaceImplWrapper,
+  },
   term::{
     Def,
     Defs,
@@ -119,11 +123,15 @@ impl Declaration {
   }
 }
 
-impl fmt::Display for Declaration {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl HashspaceDependent for Declaration {
+  fn fmt(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    hashspace: &Hashspace,
+  ) -> fmt::Result {
     match self {
       Self::Defn { defn, .. } => {
-        let def = Def::get_link(*defn).expect("unembed error");
+        let def = Def::get_link(*defn, &hashspace).expect("unembed error");
         write!(f, "{}", def)
       }
       Self::Open { name, alias, with, from } => {
@@ -206,27 +214,33 @@ impl Package {
     }
   }
 
-  pub fn get_link(pack: Link) -> Result<Self, UnembedError> {
-    let pack = hashspace::get(pack).ok_or(UnembedError::UnknownLink(pack))?;
+  pub fn get_link(
+    pack: Link,
+    hashspace: &Hashspace,
+  ) -> Result<Self, UnembedError> {
+    let pack = hashspace.get(pack).ok_or(UnembedError::UnknownLink(pack))?;
     Package::decode(pack).map_err(|e| UnembedError::DecodeError(e))
   }
 
-  pub fn refs_defs(self) -> Result<(Refs, Defs), UnembedError> {
+  pub fn refs_defs(
+    self,
+    hashspace: &Hashspace,
+  ) -> Result<(Refs, Defs), UnembedError> {
     let mut refs: Refs = HashMap::new();
     let mut defs: Defs = HashMap::new();
     for d in self.decls {
       match d {
         Declaration::Defn { name, defn, term } => {
           refs.insert(name, (defn, term));
-          let def = Def::get_link(defn)?;
+          let def = Def::get_link(defn, &hashspace)?;
           defs.insert(defn, def);
         }
         Declaration::Open { alias, from, with, .. } => {
           let pack =
-            hashspace::get(from).ok_or(UnembedError::UnknownLink(from))?;
+            hashspace.get(from).ok_or(UnembedError::UnknownLink(from))?;
           let pack =
             Package::decode(pack).map_err(|e| UnembedError::DecodeError(e))?;
-          let (import_refs, import_defs) = pack.refs_defs()?;
+          let (import_refs, import_defs) = pack.refs_defs(&hashspace)?;
           refs = merge_refs(refs, import_refs, alias, with);
           defs = merge_defs(defs, import_defs);
         }
@@ -265,8 +279,12 @@ pub fn merge_refs(
 
 pub fn merge_defs(left: Defs, right: Defs) -> Defs { left.union(right) }
 
-impl fmt::Display for Package {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl HashspaceDependent for Package {
+  fn fmt(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    hashspace: &Hashspace,
+  ) -> fmt::Result {
     if self.docs.is_empty() {
       write!(f, "package {} where\n", self.name)?;
     }
@@ -274,7 +292,7 @@ impl fmt::Display for Package {
       write!(f, "{{#{}#}}\npackage {}where\n", self.docs, self.name)?;
     }
     for x in self.decls.clone() {
-      write!(f, "{}\n", x)?;
+      write!(f, "{}\n", HashspaceImplWrapper::wrap(&hashspace, &x))?;
     }
     Ok(())
   }
@@ -299,15 +317,18 @@ pub mod tests {
     PackageEnv,
   };
 
+  use crate::hashspace;
   use hashexpr::span::Span;
   use std::path::PathBuf;
 
   pub fn test_package() -> Package {
+    let hashspace = hashspace::Hashspace::local();
     let source = "package Test where\n def id (A: Type) (x: A): A := x";
     let source_link = text!(String::from(source)).link();
     let (_, (_, p, ..)) = parse_package(
-      PackageEnv::new(PathBuf::from("Test.ya")),
+      Some(PackageEnv::new(PathBuf::from("Test.ya"))),
       source_link,
+      &hashspace,
     )(Span::new(source))
     .unwrap();
     p
