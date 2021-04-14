@@ -1,4 +1,5 @@
 // use directories_next::ProjectDirs;
+#[cfg(not(target_arch = "wasm32"))]
 use rustyline::{
   error::ReadlineError,
   Cmd,
@@ -8,19 +9,28 @@ use rustyline::{
   KeyEvent,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 use im::HashMap;
 
+#[cfg(not(target_arch = "wasm32"))]
 use nom::Err;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::{
   core::{
     dag::DAG,
-    eval::norm,
   },
   package::Declaration,
   parse::term::parse,
 };
 
+#[cfg(target_arch = "wasm32")]
+pub fn main() -> Result<(),()> {
+  println!("REPL not supported yet");
+  Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
   let mut rl = Editor::<()>::with_config(config);
@@ -39,7 +49,9 @@ pub fn main() -> rustyline::Result<()> {
         let res = parse(&line);
         match res {
           Ok((_, term)) => {
-            println!("{}", norm(&defs, DAG::from_term(term)));
+            let mut dag = DAG::from_term(&term);
+            dag.norm(&defs);
+            println!("{}", dag);
           }
           Err(e) => match e {
             Err::Incomplete(_) => println!("Incomplete"),

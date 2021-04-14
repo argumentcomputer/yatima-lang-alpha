@@ -70,12 +70,11 @@ cd yatima
 
 ### With Nix:
 
-Set up dev environment assuming [nix](https://nixos.org) and direnv are installed.
+Set up dev environment assuming [nix](https://nixos.org), [lorri](https://github.com/target/lorri) and direnv are installed.
 ```bash
 direnv allow
 ```
-
-To build yatima using naersk:
+This should load correct versions of dependencies into your shell. To build yatima using naersk:
 
 ```bash
 nix-build yatima.nix
@@ -93,6 +92,18 @@ To run the test-suite and CI:
 nix-build default.nix
 ```
 [Niv](https://github.com/nmattia/niv) fixes upgrading dependencies for development.
+
+### Compiling to WASM
+
+```bash
+wasm-pack build --target web
+```
+
+Host the experimental web version with:
+
+```bash
+yatima hashspace server
+```
 
 ### With cargo
 

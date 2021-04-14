@@ -2,10 +2,6 @@ use core::{
   marker::PhantomData,
   ptr::NonNull,
 };
-use std::alloc::{
-  dealloc,
-  Layout,
-};
 
 // A doubly-linked list (DLL) node
 pub struct DLL<T> {
@@ -82,15 +78,18 @@ impl<T> DLL<T> {
     }
   }
 
-  // Deallocates the given node and returns, if it exists, a neighboring node
-  pub fn remove_node(node: NonNull<Self>) -> Option<NonNull<Self>> {
+  // Unlinks the given node and returns, if it exists, a neighboring node.
+  // Leaves the node to be deallocated afterwards.
+  pub fn unlink_node(&self) -> Option<NonNull<Self>> {
     unsafe {
-      let node = node.as_ptr();
-      let next = (*node).next;
-      let prev = (*node).prev;
-      next.map_or((), |next| (*next.as_ptr()).prev = prev);
-      prev.map_or((), |prev| (*prev.as_ptr()).next = next);
-      dealloc(node as *mut u8, Layout::new::<Self>());
+      let next = self.next;
+      let prev = self.prev;
+      if let Some(next) = next {
+        (*next.as_ptr()).prev = prev;
+      };
+      if let Some(prev) = prev {
+        (*prev.as_ptr()).next = next;
+      }
       (prev).or(next)
     }
   }
@@ -117,10 +116,7 @@ impl<T> DLL<T> {
     node
   }
 
-  pub fn concat(
-    dll: NonNull<Self>,
-    rest: Option<NonNull<Self>>,
-  ) -> NonNull<Self> {
+  pub fn concat(dll: NonNull<Self>, rest: Option<NonNull<Self>>) {
     let last = DLL::last(dll);
     let first = rest.map(|dll| DLL::first(dll));
     unsafe {
@@ -129,7 +125,6 @@ impl<T> DLL<T> {
     first.map_or((), |first| unsafe {
       (*first.as_ptr()).prev = Some(last);
     });
-    NonNull::dangling()
   }
 
   #[inline]
@@ -179,7 +174,7 @@ mod tests {
       node.add_before(2);
       assert_eq!(node.to_string(), "[ 0 <-> 1 <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 ]");
       // Remove elements
-      let dll = match DLL::remove_node(dll) {
+      let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
         None => return (),
       };
@@ -187,12 +182,12 @@ mod tests {
         (*dll.as_ptr()).to_string(),
         "[ 0 <-> 1 <-> 2 <-> 4 <-> 5 <-> 6 ]"
       );
-      let dll = match DLL::remove_node(dll) {
+      let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
         None => return (),
       };
       assert_eq!((*dll.as_ptr()).to_string(), "[ 0 <-> 1 <-> 4 <-> 5 <-> 6 ]");
-      let dll = match DLL::remove_node(dll) {
+      let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
         None => return (),
       };
