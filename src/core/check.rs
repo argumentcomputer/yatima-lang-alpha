@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
   core::{
+    dll::*,
     dag::*,
     literal::{
       LitType,
@@ -18,6 +19,10 @@ use crate::{
     Refs,
     Term,
   },
+};
+
+use im::{
+  HashMap,
 };
 
 use core::ptr::NonNull;
@@ -328,32 +333,22 @@ pub fn infer(
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(link) => {
-          let All { uses: lam_uses, dom, .. } = unsafe { &mut *link.as_ptr() };
-          let mut dom = DAG::new(*dom);
+          let All { var, uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
+          let mut new_dom = DAG::new(*dom).clone();
           let arg_ctx =
-            check(defs, pre, Uses::mul(*lam_uses, uses), &arg, &mut dom)?;
+            check(defs, pre, Uses::mul(*lam_uses, uses), &arg, &mut new_dom)?;
+          new_dom.free();
           add_ctx(&mut fun_ctx, arg_ctx);
-          // Copy the All type (in a efficient implementation, only image is
-          // copied)
-          let new_link = match fun_typ.clone().head {
-            DAGPtr::All(link) => link,
-            _ => panic!("Error in the clone implementation"),
-          };
-          let All { var: new_var, img: new_img, .. } =
-            unsafe { &mut *new_link.as_ptr() };
-          // Substitute the argument for the image's variable
-          if new_var.parents.is_some() {
-            // Create the argument DAG
-            replace_child(
-              DAGPtr::Var(NonNull::new(new_var).unwrap()),
-              arg.clone().head,
-            );
+          let mut map = if var.parents.is_some() {
+            HashMap::unit(DAGPtr::Var(NonNull::new(var).unwrap()), arg.clone().head)
           }
-          // Replace the copied type with the new image and free the dead nodes
-          replace_child(DAGPtr::All(new_link), *new_img);
-          let new_img = DAG::new(*new_img);
-          free_dead_node(DAGPtr::All(new_link));
-          Ok((fun_ctx, new_img))
+          else {
+            HashMap::new()
+          };
+          let root = alloc_val(DLL::singleton(ParentPtr::Root));
+          let new_img =
+            DAG::from_subdag(*img, &mut map, Some(root));
+          Ok((fun_ctx, DAG::new(new_img)))
         }
         _ => Err(CheckError::GenericError(format!(
           "Tried to apply something that isn't a lambda."
@@ -366,23 +361,18 @@ pub fn infer(
       let (exp_ctx, mut exp_typ) = infer(defs, pre, uses, &exp)?;
       exp_typ.whnf(defs);
       match exp_typ.head {
-        DAGPtr::Slf(_) => {
-          let new_link = match exp_typ.clone().head {
-            DAGPtr::Slf(link) => link,
-            _ => panic!("Error in the clone implementation"),
-          };
-          let Slf { var: new_var, bod: new_bod, .. } =
-            unsafe { &mut *new_link.as_ptr() };
-          if new_var.parents.is_some() {
-            let exp_clone = exp.clone();
-            replace_child(
-              DAGPtr::Var(NonNull::new(new_var).unwrap()),
-              exp_clone.head,
-            );
+        DAGPtr::Slf(link) => {
+          let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
+          let mut map = if var.parents.is_some() {
+            HashMap::unit(DAGPtr::Var(NonNull::new(var).unwrap()), exp.clone().head)
           }
-          replace_child(DAGPtr::Slf(new_link), *new_bod);
-          let new_bod = DAG::new(*new_bod);
-          Ok((exp_ctx, new_bod))
+          else {
+            HashMap::new()
+          };
+          let root = alloc_val(DLL::singleton(ParentPtr::Root));
+          let new_bod =
+            DAG::from_subdag(*bod, &mut map, Some(root));
+          Ok((exp_ctx, DAG::new(new_bod)))
         }
         _ => Err(CheckError::GenericError(format!(
           "Tried to case on something that isn't a datatype."
@@ -481,9 +471,6 @@ pub fn check_def(
   let trm = DAG::from_def(&def.term, (def.name.clone(), *def_link, *ast_link));
   let mut typ = DAG::from_term(&def.typ_);
   let ctx = check(&defs, vec![], Uses::Once, &trm, &mut typ)?;
-  for (_, _, dag) in ctx {
-    dag.free()
-  }
   typ.free();
   Ok(())
 }
