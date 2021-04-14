@@ -19,9 +19,7 @@ pub use crate::core::{
 };
 
 pub use hashexpr::link::Link;
-use hashexpr::{
-  position::Pos,
-};
+use hashexpr::position::Pos;
 
 use im::{
   HashMap,
@@ -85,10 +83,14 @@ impl PartialEq for Term {
       (Self::Ref(_, na, da, aa), Self::Ref(_, nb, db, ab)) => {
         na == nb && da == db && aa == ab
       }
-      (
-        Self::Let(_, ra, ua, na, ta),
-        Self::Let(_, rb, ub, nb, tb),
-      ) => ra == rb && ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1 && ta.2 == tb.2,
+      (Self::Let(_, ra, ua, na, ta), Self::Let(_, rb, ub, nb, tb)) => {
+        ra == rb
+          && ua == ub
+          && na == nb
+          && ta.0 == tb.0
+          && ta.1 == tb.1
+          && ta.2 == tb.2
+      }
       (Self::Typ(_), Self::Typ(_)) => true,
       (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
@@ -176,14 +178,34 @@ impl fmt::Display for Term {
       Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
       App(_, terms) => write!(f, "{}", apps(&terms.0, &terms.1)),
       Let(_, true, u, n, terms) => {
-        write!(f, "letrec {}{}: {} := {}; {}", uses(u), name(n), terms.0, terms.1, terms.2)
+        write!(
+          f,
+          "letrec {}{}: {} = {}; {}",
+          uses(u),
+          name(n),
+          terms.0,
+          terms.1,
+          terms.2
+        )
       }
       Let(_, false, u, n, terms) => {
-        write!(f, "let {}{}: {} := {}; {}", uses(u), name(n), terms.0, terms.1, terms.2)
+        write!(
+          f,
+          "let {}{}: {} = {}; {}",
+          uses(u),
+          name(n),
+          terms.0,
+          terms.1,
+          terms.2
+        )
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
-      All(_, us_, nam, terms) => write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1)),
-      Ann(_, terms) => write!(f, "{} :: {}", parens(&terms.1), parens(&terms.0)),
+      All(_, us_, nam, terms) => {
+        write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1))
+      }
+      Ann(_, terms) => {
+        write!(f, "{} :: {}", parens(&terms.1), parens(&terms.0))
+      }
       Dat(_, bod) => write!(f, "data {}", bod),
       Cse(_, bod) => write!(f, "case {}", bod),
       Typ(_) => write!(f, "Type"),
@@ -195,6 +217,53 @@ impl fmt::Display for Term {
 }
 
 impl Term {
+  pub fn shift(self, inc: u64, dep: u64) -> Self {
+    match self {
+      Self::Var(pos, nam, idx) if idx < dep => Self::Var(pos, nam, idx),
+      Self::Var(pos, nam, idx) => Self::Var(pos, nam, idx + inc),
+      Self::Lam(pos, nam, bod) => {
+        Self::Lam(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
+      }
+      Self::Slf(pos, nam, bod) => {
+        Self::Slf(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
+      }
+      Self::Cse(pos, bod) => Self::Cse(pos, Box::new((*bod).shift(inc, dep))),
+      Self::Dat(pos, bod) => Self::Dat(pos, Box::new((*bod).shift(inc, dep))),
+      Self::App(pos, fun_arg) => {
+        let (fun, arg) = *fun_arg;
+        Self::App(pos, Box::new((fun.shift(inc, dep), arg.shift(inc, dep))))
+      }
+      Self::Ann(pos, typ_exp) => {
+        let (typ, exp) = *typ_exp;
+        Self::Ann(pos, Box::new((typ.shift(inc, dep), exp.shift(inc, dep))))
+      }
+      Self::All(pos, uses, nam, dom_img) => {
+        let (dom, img) = *dom_img;
+        Self::All(
+          pos,
+          uses,
+          nam,
+          Box::new((dom.shift(inc, dep), img.shift(inc, dep + 1))),
+        )
+      }
+      Self::Let(pos, rec, uses, nam, typ_exp_bod) => {
+        let (typ, exp, bod) = *typ_exp_bod;
+        Self::Let(
+          pos,
+          rec,
+          uses,
+          nam,
+          Box::new((
+            typ.shift(inc, dep),
+            exp.shift(inc, if rec { dep + 1 } else { dep }),
+            bod.shift(inc, dep + 1),
+          )),
+        )
+      }
+      x => x,
+    }
+  }
+
   pub fn embed(self) -> (AnonTerm, MetaTerm) {
     match self {
       Self::Var(pos, _, idx) => (
@@ -252,16 +321,16 @@ impl Term {
         )
       }
       Self::App(pos, terms) => {
-        let (fun_anon, fun_meta) = terms.0.clone().embed();
-        let (arg_anon, arg_meta) = terms.1.clone().embed();
+        let (fun_anon, fun_meta) = terms.0.embed();
+        let (arg_anon, arg_meta) = terms.1.embed();
         (
           AnonTerm::Ctor(String::from("app"), vec![fun_anon, arg_anon]),
           MetaTerm::Ctor(pos, vec![fun_meta, arg_meta]),
         )
       }
       Self::Ann(pos, terms) => {
-        let (val_anon, val_meta) = terms.0.clone().embed();
-        let (typ_anon, typ_meta) = terms.1.clone().embed();
+        let (val_anon, val_meta) = terms.0.embed();
+        let (typ_anon, typ_meta) = terms.1.embed();
         (
           AnonTerm::Ctor(String::from("ann"), vec![val_anon, typ_anon]),
           MetaTerm::Ctor(pos, vec![val_meta, typ_meta]),
@@ -282,8 +351,8 @@ impl Term {
         )
       }
       Self::All(pos, uses, name, terms) => {
-        let (typ_anon, typ_meta) = terms.0.clone().embed();
-        let (bod_anon, bod_meta) = terms.1.clone().embed();
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (bod_anon, bod_meta) = terms.1.embed();
         (
           AnonTerm::Ctor(String::from("all"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -298,9 +367,9 @@ impl Term {
         )
       }
       Self::Let(pos, true, uses, name, terms) => {
-        let (typ_anon, typ_meta) = terms.0.clone().embed();
-        let (exp_anon, exp_meta) = terms.1.clone().embed();
-        let (bod_anon, bod_meta) = terms.2.clone().embed();
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (exp_anon, exp_meta) = terms.1.embed();
+        let (bod_anon, bod_meta) = terms.2.embed();
         (
           AnonTerm::Ctor(String::from("rec"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -317,9 +386,9 @@ impl Term {
         )
       }
       Self::Let(pos, false, uses, name, terms) => {
-        let (typ_anon, typ_meta) = terms.0.clone().embed();
-        let (exp_anon, exp_meta) = terms.1.clone().embed();
-        let (bod_anon, bod_meta) = terms.2.clone().embed();
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (exp_anon, exp_meta) = terms.1.embed();
+        let (bod_anon, bod_meta) = terms.2.embed();
         (
           AnonTerm::Ctor(String::from("let"), vec![
             AnonTerm::Data(uses.encode().serialize()),
@@ -443,7 +512,7 @@ impl Term {
               true,
               uses,
               name.clone(),
-              Box::new((typ_, exp, body))
+              Box::new((typ_, exp, body)),
             ))
           }
           (
@@ -465,7 +534,7 @@ impl Term {
               false,
               uses,
               name.clone(),
-              Box::new((typ_, exp, body))
+              Box::new((typ_, exp, body)),
             ))
           }
           _ => Err(UnembedError::UnexpectedCtor(
@@ -571,20 +640,14 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use rand::{
-    // prelude::IteratorRandom,
-    Rng,
-  };
+  use rand::Rng;
 
   pub fn arbitrary_link(g: &mut Gen) -> hashexpr::Link {
-  //pub fn arbitrary_link() -> Box<dyn Fn(&mut Gen) -> hashexpr::Link> {
-    //Box::new(move |g: &mut Gen| {
-      let mut bytes: [u8; 32] = [0; 32];
-      for x in bytes.iter_mut() {
-        *x = Arbitrary::arbitrary(g);
-      }
-      hashexpr::Link::from(bytes)
-    //})
+    let mut bytes: [u8; 32] = [0; 32];
+    for x in bytes.iter_mut() {
+      *x = Arbitrary::arbitrary(g);
+    }
+    hashexpr::Link::from(bytes)
   }
 
   pub fn arbitrary_name(g: &mut Gen) -> String {
@@ -624,13 +687,13 @@ pub mod tests {
     })
   }
 
-  #[allow(dead_code)]
   fn arbitrary_let(
     refs: Refs,
     ctx: Vector<String>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
-      let rec: bool = Arbitrary::arbitrary(g);
+      // let rec: bool = Arbitrary::arbitrary(g);
+      let rec: bool = false;
       let n = arbitrary_name(g);
       let u: Uses = Arbitrary::arbitrary(g);
       let typ = arbitrary_term(g, refs.clone(), ctx.clone());
@@ -664,7 +727,10 @@ pub mod tests {
         None,
         u,
         n,
-        Box::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx2)))
+        Box::new((
+          arbitrary_term(g, refs.clone(), ctx.clone()),
+          arbitrary_term(g, refs.clone(), ctx2),
+        )),
       )
     })
   }
@@ -720,7 +786,10 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::App(
         None,
-        Box::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
+        Box::new((
+          arbitrary_term(g, refs.clone(), ctx.clone()),
+          arbitrary_term(g, refs.clone(), ctx.clone()),
+        )),
       )
     })
   }
@@ -732,7 +801,10 @@ pub mod tests {
     Box::new(move |g: &mut Gen| {
       Term::Ann(
         None,
-        Box::new((arbitrary_term(g, refs.clone(), ctx.clone()), arbitrary_term(g, refs.clone(), ctx.clone())))
+        Box::new((
+          arbitrary_term(g, refs.clone(), ctx.clone()),
+          arbitrary_term(g, refs.clone(), ctx.clone()),
+        )),
       )
     })
   }
@@ -764,7 +836,7 @@ pub mod tests {
     let sum: i64 = gens.iter().map(|x| x.0).sum();
     let mut rng = rand::thread_rng();
     let mut weight: i64 = rng.gen_range(1..=sum);
-    //let mut weight: i64 = g.rng.gen_range(1, sum);
+    // let mut weight: i64 = g.rng.gen_range(1, sum);
     for gen in gens {
       if weight - gen.0 <= 0 {
         return gen.1(g);
@@ -776,11 +848,7 @@ pub mod tests {
     panic!("Calculation error for weight = {}", weight);
   }
 
-  pub fn arbitrary_term(
-    g: &mut Gen,
-    refs: Refs,
-    ctx: Vector<String>,
-  ) -> Term {
+  pub fn arbitrary_term(g: &mut Gen, refs: Refs, ctx: Vector<String>) -> Term {
     let len = ctx.len();
     if len == 0 {
       arbitrary_lam(refs, ctx)(g)
@@ -800,6 +868,7 @@ pub mod tests {
         (90, arbitrary_all(refs.clone(), ctx.clone())),
         (90, arbitrary_app(refs.clone(), ctx.clone())),
         (90, arbitrary_ann(refs.clone(), ctx.clone())),
+        (30, arbitrary_let(refs.clone(), ctx.clone())),
       ])
     }
   }
@@ -922,7 +991,3 @@ pub mod tests {
   //  // assert_eq!(f.clone(), x);
   //}
 }
-
-
-
-

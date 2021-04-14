@@ -1,5 +1,5 @@
 use crate::{
-  hashspace::{Hashspace},
+  hashspace::Hashspace,
   package::{
     merge_defs,
     merge_refs,
@@ -50,9 +50,7 @@ use nom::{
     opt,
   },
   multi::separated_list0,
-  sequence::{
-    terminated,
-  },
+  sequence::terminated,
   Err,
   IResult,
 };
@@ -107,7 +105,7 @@ fn parse_with(i: Span) -> IResult<Span, Vec<String>, ParseError<Span>> {
 
 pub fn parse_open<'a>(
   opt_env: Option<PackageEnv>,
-  hashspace: &'a Hashspace
+  hashspace: &'a Hashspace,
 ) -> impl Fn(Span) -> IResult<Span, Declaration, ParseError<Span>> + 'a {
   move |i: Span| {
     let (i, _) = tag("open")(i)?;
@@ -130,16 +128,19 @@ pub fn parse_open<'a>(
           let mut open = env.open.clone();
           let has_path = open.insert(path.clone());
           if has_path.is_some() {
-            Err(Err::Error(ParseError::new(i, ParseErrorKind::ImportCycle(path))))
+            Err(Err::Error(ParseError::new(
+              i,
+              ParseErrorKind::ImportCycle(path),
+            )))
           }
           else {
             let env = PackageEnv { path, open };
             let (link, ..) = parse_file(env, &hashspace);
             Ok((i, Declaration::Open { name, alias, with, from: link }))
           }
-
-        } else {
-            Err(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))
+        }
+        else {
+          Err(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))
         }
       }
     }
@@ -148,7 +149,7 @@ pub fn parse_open<'a>(
 
 pub fn parse_defn(
   refs: Refs,
-  hashspace: &Hashspace
+  hashspace: &Hashspace,
 ) -> impl Fn(Span) -> IResult<Span, Declaration, ParseError<Span>> + '_ {
   move |from: Span| {
     let (i, _) = tag("def")(from)?;
@@ -183,7 +184,7 @@ pub fn parse_defn(
 pub fn parse_package<'a>(
   opt_env: Option<PackageEnv>,
   source_link: Link,
-  hashspace: &'a Hashspace
+  hashspace: &'a Hashspace,
 ) -> impl Fn(Span) -> IResult<Span, (Link, Package, Defs, Refs), ParseError<Span>> + 'a
 {
   move |i: Span| {
@@ -198,13 +199,13 @@ pub fn parse_package<'a>(
         .path
         .file_name()
         .ok_or(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))?;
-        let name_os: OsString = format!("{}.ya", name.clone()).into();
-        if name_os != file_name {
-          return Err(Err::Error(ParseError::new(
-                i,
-                ParseErrorKind::MisnamedPackage(name.clone()),
-          )));
-        }
+      let name_os: OsString = format!("{}.ya", name.clone()).into();
+      if name_os != file_name {
+        return Err(Err::Error(ParseError::new(
+          i,
+          ParseErrorKind::MisnamedPackage(name.clone()),
+        )));
+      }
     }
     let (i, _) = multispace1(i)?;
     let (i, _) = tag("where")(i)?;
@@ -222,8 +223,10 @@ pub fn parse_package<'a>(
         return Ok((i, (pack_link, pack, defs, refs)));
       }
       else {
-        let (i2, decl) =
-          alt((parse_defn(refs.to_owned(), &hashspace), parse_open(opt_env.to_owned(), &hashspace)))(i)?;
+        let (i2, decl) = alt((
+          parse_defn(refs.to_owned(), &hashspace),
+          parse_open(opt_env.to_owned(), &hashspace),
+        ))(i)?;
         decls.push(decl.clone());
         match decl {
           Declaration::Defn { name, defn, term } => {
@@ -260,13 +263,20 @@ pub fn parse_package<'a>(
   }
 }
 
-pub fn parse_file<'a>(env: PackageEnv, hashspace: &Hashspace) -> (Link, Package, Defs, Refs) {
+pub fn parse_file<'a>(
+  env: PackageEnv,
+  hashspace: &Hashspace,
+) -> (Link, Package, Defs, Refs) {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).expect("file not found");
   parse_text(&txt, Some(env), &hashspace)
 }
 
-pub fn parse_text<'a>(txt: &str, opt_env: Option<PackageEnv>, hashspace: &Hashspace) -> (Link, Package, Defs, Refs) {
+pub fn parse_text<'a>(
+  txt: &str,
+  opt_env: Option<PackageEnv>,
+  hashspace: &Hashspace,
+) -> (Link, Package, Defs, Refs) {
   let source_link = hashspace.put(text!(txt.to_string()));
   let span = Span::new(&txt);
   match parse_package(opt_env, source_link, &hashspace)(span) {
