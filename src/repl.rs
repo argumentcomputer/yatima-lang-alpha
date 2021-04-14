@@ -19,7 +19,6 @@ use nom::Err;
 use crate::{
   core::{
     dag::DAG,
-    eval::norm,
   },
   package::Declaration,
   parse::term::parse,
@@ -50,7 +49,9 @@ pub fn main() -> rustyline::Result<()> {
         let res = parse(&line);
         match res {
           Ok((_, term)) => {
-            println!("{}", norm(&defs, DAG::from_term(term)));
+            let mut dag = DAG::from_term(&term);
+            dag.norm(&defs);
+            println!("{}", dag);
           }
           Err(e) => match e {
             Err::Incomplete(_) => println!("Incomplete"),

@@ -112,7 +112,7 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   if reserved_symbols().contains(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedKeyword(s))))
   }
-  else if s.starts_with("#") {
+  else if s.starts_with("#") | s.starts_with("~\"") {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::HashExprSyntax(s))))
   }
   else if is_numeric_symbol_string1(&s) {
@@ -240,7 +240,7 @@ pub fn parse_uses(i: Span) -> IResult<Span, Uses, ParseError<Span>> {
 pub fn parse_binder_full(
   refs: Refs,
   ctx: Vector<String>,
-) -> impl Fn(Span) -> IResult<Span, (Uses, Vec<String>, Term), ParseError<Span>>
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
@@ -251,18 +251,22 @@ pub fn parse_binder_full(
     let (i, _) = parse_space(i)?;
     let (i, typ) = parse_expression(refs.to_owned(), ctx.to_owned())(i)?;
     let (i, _) = tag(")")(i)?;
-    Ok((i, (u, ns, typ)))
+    let mut res = Vec::new();
+    for (i, n) in ns.iter().enumerate() {
+      res.push((u, n.to_owned(), typ.clone().shift(i as u64, 0)))
+    }
+    Ok((i, res))
   }
 }
 
 pub fn parse_binder_short(
   refs: Refs,
   ctx: Vector<String>,
-) -> impl Fn(Span) -> IResult<Span, (Uses, Vec<String>, Term), ParseError<Span>>
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
-    map(parse_expression(refs.to_owned(), ctx.to_owned()), |t| {
-      (Uses::Many, vec![String::from("")], t)
+    map(parse_term(refs.to_owned(), ctx.to_owned()), |t| {
+      vec![(Uses::Many, String::from(""), t)]
     })(i)
   }
 }
@@ -271,7 +275,7 @@ pub fn parse_binder(
   refs: Refs,
   ctx: Vector<String>,
   nam_opt: bool,
-) -> impl Fn(Span) -> IResult<Span, (Uses, Vec<String>, Term), ParseError<Span>>
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
     if nam_opt {
@@ -298,10 +302,10 @@ pub fn parse_binders(
 
     match parse_binder(refs.to_owned(), ctx.to_owned(), nam_opt)(i.to_owned()) {
       Err(e) => return Err(e),
-      Ok((i1, (u, ns, t))) => {
-        for n in ns {
+      Ok((i1, bs)) => {
+        for (u, n, t) in bs {
           ctx.push_front(n.to_owned());
-          res.push((u, n, t.clone()));
+          res.push((u, n, t));
         }
         i = i1;
       }
@@ -315,10 +319,10 @@ pub fn parse_binders(
       {
         Err(Err::Error(_)) => return Ok((i, res)),
         Err(e) => return Err(e),
-        Ok((i2, (u, ns, t))) => {
-          for n in ns {
+        Ok((i2, bs)) => {
+          for (u, n, t) in bs {
             ctx.push_front(n.to_owned());
-            res.push((u, n, t.clone()));
+            res.push((u, n, t));
           }
           i = i2;
         }
@@ -699,42 +703,69 @@ pub mod tests {
 
   #[test]
   fn test_cases() {
+    use Term::*;
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "(Type :: Type)",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "(Type (Type Type)  )",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
        x (c x (c x (c x n)))))))))))))))",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
        x (c x (c x (c x n)))))))))))))))",
     ));
-    println!("res2: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_binder_full(HashMap::new(), Vector::new())(Span::new(
       "(a b c: Type)",
     ));
-    println!("res2: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
+    let res = parse_binders(HashMap::new(), Vector::new(), true)(Span::new(
+      "Type Type",
+    ));
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    assert!(
+      res.unwrap().1
+        == vec![
+          (Uses::Many, String::from(""), Typ(None)),
+          (Uses::Many, String::from(""), Typ(None)),
+        ]
+    );
+    let res = parse_binders(HashMap::new(), Vector::new(), true)(Span::new(
+      "(A: Type) (a b c: A)",
+    ));
+    // println!("res: {:?}", res);
+    assert!(res.is_ok());
+    assert!(
+      res.unwrap().1
+        == vec![
+          (Uses::Many, String::from("A"), Typ(None)),
+          (Uses::Many, String::from("a"), Var(None, String::from("A"), 0)),
+          (Uses::Many, String::from("b"), Var(None, String::from("A"), 1)),
+          (Uses::Many, String::from("c"), Var(None, String::from("A"), 2)),
+        ]
+    );
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "∀ Type -> Type",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
       "∀ (_ :Type) -> Type",
     ));
-    println!("res: {:?}", res);
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
   }
 
@@ -745,9 +776,9 @@ pub mod tests {
       x
     ))) {
       Ok((_, y)) => x == y,
-      e => {
+      Err(e) => {
         println!("{}", x);
-        println!("{:?}", e);
+        println!("{}", e);
         false
       }
     }

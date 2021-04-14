@@ -11,7 +11,11 @@ use crate::{
     DecodeError,
     Expected,
   },
-  hashspace::{Hashspace, HashspaceDependent, HashspaceImplWrapper},
+  hashspace::{
+    Hashspace,
+    HashspaceDependent,
+    HashspaceImplWrapper,
+  },
   term::{
     Def,
     Defs,
@@ -120,7 +124,11 @@ impl Declaration {
 }
 
 impl HashspaceDependent for Declaration {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>, hashspace: &Hashspace) -> fmt::Result {
+  fn fmt(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    hashspace: &Hashspace,
+  ) -> fmt::Result {
     match self {
       Self::Defn { defn, .. } => {
         let def = Def::get_link(*defn, &hashspace).expect("unembed error");
@@ -206,12 +214,18 @@ impl Package {
     }
   }
 
-  pub fn get_link(pack: Link, hashspace: &Hashspace) -> Result<Self, UnembedError> {
+  pub fn get_link(
+    pack: Link,
+    hashspace: &Hashspace,
+  ) -> Result<Self, UnembedError> {
     let pack = hashspace.get(pack).ok_or(UnembedError::UnknownLink(pack))?;
     Package::decode(pack).map_err(|e| UnembedError::DecodeError(e))
   }
 
-  pub fn refs_defs(self, hashspace: &Hashspace) -> Result<(Refs, Defs), UnembedError> {
+  pub fn refs_defs(
+    self,
+    hashspace: &Hashspace,
+  ) -> Result<(Refs, Defs), UnembedError> {
     let mut refs: Refs = HashMap::new();
     let mut defs: Defs = HashMap::new();
     for d in self.decls {
@@ -266,7 +280,11 @@ pub fn merge_refs(
 pub fn merge_defs(left: Defs, right: Defs) -> Defs { left.union(right) }
 
 impl HashspaceDependent for Package {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>, hashspace: &Hashspace) -> fmt::Result {
+  fn fmt(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    hashspace: &Hashspace,
+  ) -> fmt::Result {
     if self.docs.is_empty() {
       write!(f, "package {} where\n", self.name)?;
     }
@@ -299,15 +317,18 @@ pub mod tests {
     PackageEnv,
   };
 
+  use crate::hashspace;
   use hashexpr::span::Span;
   use std::path::PathBuf;
 
   pub fn test_package() -> Package {
+    let hashspace = hashspace::Hashspace::local();
     let source = "package Test where\n def id (A: Type) (x: A): A := x";
     let source_link = text!(String::from(source)).link();
     let (_, (_, p, ..)) = parse_package(
-      PackageEnv::new(PathBuf::from("Test.ya")),
+      Some(PackageEnv::new(PathBuf::from("Test.ya"))),
       source_link,
+      &hashspace,
     )(Span::new(source))
     .unwrap();
     p

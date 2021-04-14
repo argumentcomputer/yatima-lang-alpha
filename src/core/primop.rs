@@ -174,8 +174,8 @@ pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
 pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
-  let tt = BitString(vec![1]);
-  let ff = BitString(vec![0]);
+  let tt = Bool(true);
+  let ff = Bool(false);
   let ite = |c| if c { tt } else { ff };
   match (opr, x, y) {
     // Eql
@@ -297,7 +297,7 @@ pub mod tests {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
       let gen: u32 = rng.gen_range(0..19);
-      //let gen = g.gen_range(0, 19);
+      // let gen = g.gen_range(0, 19);
       match gen {
         0 => Self::Eql,
         1 => Self::Lth,

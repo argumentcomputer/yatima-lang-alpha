@@ -4,9 +4,7 @@ use num_bigint::{
   Sign,
 };
 
-use crate::core::literal::{
-  Literal,
-};
+use crate::core::literal::Literal;
 
 use crate::parse::{
   base::*,
@@ -85,7 +83,10 @@ pub fn parse_char(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
 
 pub fn parse_bits(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (i, base) = terminated(parse_base_code(), tag("\""))(from)?;
-  let (i, bytes) = parse_base_bytes(base)(i)?;
+  let (i, bytes) = opt(parse_base_bytes(base))(i)?;
   let (upto, _) = context("close quotes", tag("\""))(i)?;
-  Ok((upto, Literal::BitString(bytes)))
+  match bytes {
+    Some(bytes) => Ok((upto, Literal::BitString(bytes))),
+    None => Ok((upto, Literal::BitString(vec![]))),
+  }
 }
