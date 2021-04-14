@@ -6,7 +6,7 @@ use std::{
 // #[cfg(not(target_arch = "wasm32"))]
 use std::io::{self, Read};
 use structopt::StructOpt;
-use yatima::{
+use libyatima::{
   core,
   hashspace,
   hashspace::{HashspaceImplWrapper},

@@ -9,7 +9,7 @@ authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.
 edition = "2018"
 
 [lib]
-name = "yatima"
+name = "libyatima"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
