@@ -6,7 +6,7 @@ use hashexpr::{
   base::Base,
 };
 use base_x;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
 use std::sync::{Arc, Mutex};
 use std::{
   fs,
@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub mod cache;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
 use crate::wasm_binds;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;

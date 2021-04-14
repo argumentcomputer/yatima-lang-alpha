@@ -10,4 +10,4 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 yatima = { path = ".." }
-wasmlib = { git = "https://github.com/iotaledger/wasp", branch = "develop", path = "contracts/rust/wasmlib" }
+wasmlib = { git = "https://github.com/iotaledger/wasp", branch = "develop-0.4.0-refactor" }

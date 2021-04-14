@@ -6,7 +6,10 @@ use wasmlib::{
     ScColor,
     ScTransfers,
 };
-use yatima::*;
+use libyatima::{
+    parse::package::parse_text,
+    hashspace::Hashspace,
+};
 
 const PARAM_STRING: &str = "paramString";
 const VAR_STRING: &str = "storedString";
@@ -33,6 +36,22 @@ fn store_string(ctx: &ScFuncContext) {
     ctx.state().get_string(VAR_STRING).set_value(&par.value());
     // log the text
     let msg = "Message stored: ".to_string() + &par.value();
+    ctx.log(&msg);
+}
+
+fn parse_yatima(ctx: &ScFuncContext) {
+    // take parameter paramString
+    let par = ctx.params().get_string(PARAM_STRING);
+    // require parameter exists
+    ctx.require(par.exists(), "string parameter not found");
+
+    let code = par.value();
+    let hashspace = Hashspace::local();
+    parse_text(&code, None, &hashspace);
+    // store the string in "storedString" variable
+    ctx.state().get_string(VAR_STRING).set_value(&code);
+    // log the text
+    let msg = "Message stored: ".to_string() + &code;
     ctx.log(&msg);
 }
 

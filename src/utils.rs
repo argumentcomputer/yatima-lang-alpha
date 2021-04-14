@@ -1,11 +1,10 @@
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
 use web_sys::{console};
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
 use wasm_bindgen::prelude::{JsValue};
-#[cfg(not(target_arch = "wasm32"))]
 use std::io::{self,Write};
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
 pub fn log(message: &str) {
   console::log_1(&JsValue::from_str(message));
 }
