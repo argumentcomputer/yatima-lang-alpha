@@ -80,21 +80,17 @@ pub mod tests {
     Gen,
   };
 
-  use crate::term::tests::{
-    frequency
-  };
+  use crate::term::tests::frequency;
 
   impl Arbitrary for Uses {
     fn arbitrary(g: &mut Gen) -> Self {
-      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Uses>)> =
-        vec![ 
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Uses>)> = vec![
         (1, Box::new(|_| Uses::None)),
         (1, Box::new(|_| Uses::Affi)),
         (1, Box::new(|_| Uses::Once)),
         (1, Box::new(|_| Uses::Many)),
-        ];
+      ];
       frequency(g, input)
-
     }
   }
 }

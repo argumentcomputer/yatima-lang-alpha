@@ -17,15 +17,13 @@ use nom::Err;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::{
-  core::{
-    dag::DAG,
-  },
+  core::dag::DAG,
   package::Declaration,
   parse::term::parse,
 };
 
 #[cfg(target_arch = "wasm32")]
-pub fn main() -> Result<(),()> {
+pub fn main() -> Result<(), ()> {
   println!("REPL not supported yet");
   Ok(())
 }

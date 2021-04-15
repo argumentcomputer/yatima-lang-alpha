@@ -34,4 +34,3 @@ pub mod utils;
 #[cfg(target_arch = "wasm32")]
 #[cfg(not(target = "wasm32-wasi"))]
 pub mod wasm_binds;
-
