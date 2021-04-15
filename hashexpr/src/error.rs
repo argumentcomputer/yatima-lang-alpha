@@ -1,109 +1,120 @@
-use crate::{base, bytevec::ByteVec};
-use nom::{
-    error::{ErrorKind, FromExternalError},
-    AsBytes, InputLength,
+use crate::{
+  base,
+  bytevec::ByteVec,
 };
-use std::{cmp::Ordering, num::ParseIntError};
+use nom::{
+  error::{
+    ErrorKind,
+    FromExternalError,
+  },
+  AsBytes,
+  InputLength,
+};
+use std::{
+  cmp::Ordering,
+  num::ParseIntError,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum DeserialErrorKind {
-    UnknownTypeCode(Vec<u8>),
-    BadLinkLength(u64),
-    BadCharLength(u64),
-    ExpectedLink,
-    InvalidUnicodeCodepoint(u32),
-    Utf8Error(std::string::FromUtf8Error),
-    Nom(ErrorKind),
+  UnknownTypeCode(Vec<u8>),
+  BadLinkLength(u64),
+  BadCharLength(u64),
+  ExpectedLink,
+  InvalidUnicodeCodepoint(u32),
+  Utf8Error(std::string::FromUtf8Error),
+  Nom(ErrorKind),
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct DeserialError<I: AsBytes> {
-    pub input: I,
-    pub error: DeserialErrorKind,
+  pub input: I,
+  pub error: DeserialErrorKind,
 }
 
 impl<'a, I: AsBytes> DeserialError<I> {
-    pub fn new(input: I, error: DeserialErrorKind) -> Self {
-        Self { input, error }
-    }
+  pub fn new(input: I, error: DeserialErrorKind) -> Self {
+    DeserialError { input, error }
+  }
 
-    pub fn input_as_bytes(&'a self) -> DeserialError<ByteVec> {
-        DeserialError {
-            input: self.input.as_bytes().to_vec().into(),
-            error: self.error.clone(),
-        }
+  pub fn input_as_bytes(&'a self) -> DeserialError<ByteVec> {
+    DeserialError {
+      input: self.input.as_bytes().to_vec().into(),
+      error: self.error.clone(),
     }
+  }
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for DeserialError<I>
 where
-    I: InputLength + Clone,
+  I: InputLength,
+  I: Clone,
 {
-    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-        Self::new(input, DeserialErrorKind::Nom(kind))
-    }
+  fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+    DeserialError::new(input, DeserialErrorKind::Nom(kind))
+  }
 
-    fn append(input: I, kind: ErrorKind, other: Self) -> Self {
-        match input.input_len().cmp(&other.input.input_len()) {
-            Ordering::Less => Self {
-                input,
-                error: DeserialErrorKind::Nom(kind),
-            },
-            _ => other,
-        }
+  fn append(input: I, kind: ErrorKind, other: Self) -> Self {
+    match input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => {
+        DeserialError { input, error: DeserialErrorKind::Nom(kind) }
+      }
+      _ => other,
     }
+  }
 
-    fn or(self, other: Self) -> Self {
-        match self.input.input_len().cmp(&other.input.input_len()) {
-            Ordering::Less => self,
-            _ => other,
-        }
+  fn or(self, other: Self) -> Self {
+    match self.input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => self,
+      _ => other,
     }
+  }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseErrorKind {
-    InvalidBaseEncoding(base::Base),
-    ExpectedSingleChar(Vec<char>),
-    InvalidBase16EscapeSequence(String),
-    DeserialErr(DeserialError<ByteVec>),
-    ParseIntErr(ParseIntError),
-    Nom(ErrorKind),
+  InvalidBaseEncoding(base::Base),
+  ExpectedSingleChar(Vec<char>),
+  InvalidBase16EscapeSequence(String),
+  DeserialErr(DeserialError<ByteVec>),
+  ParseIntErr(ParseIntError),
+  Nom(ErrorKind),
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ParseError<I: AsBytes> {
-    pub input: I,
-    pub error: ParseErrorKind,
+  pub input: I,
+  pub error: ParseErrorKind,
 }
 
 impl<I: AsBytes> ParseError<I> {
-    pub fn new(input: I, error: ParseErrorKind) -> Self {
-        Self { input, error }
-    }
+  pub fn new(input: I, error: ParseErrorKind) -> Self {
+    ParseError { input, error }
+  }
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
 where
-    I: InputLength + Clone,
+  I: InputLength,
+  I: Clone,
 {
-    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-        Self::new(input, ParseErrorKind::Nom(kind))
-    }
+  fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+    ParseError::new(input, ParseErrorKind::Nom(kind))
+  }
 
-    fn append(input: I, kind: ErrorKind, other: Self) -> Self {
-        match input.input_len().cmp(&other.input.input_len()) {
-            Ordering::Less => Self::new(input, ParseErrorKind::Nom(kind)),
-            _ => other,
-        }
+  fn append(input: I, kind: ErrorKind, other: Self) -> Self {
+    match input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => ParseError::new(input, ParseErrorKind::Nom(kind)),
+      _ => other,
     }
+  }
 
-    fn or(self, other: Self) -> Self {
-        match self.input.input_len().cmp(&other.input.input_len()) {
-            Ordering::Less => self,
-            _ => other,
-        }
+  fn or(self, other: Self) -> Self {
+    match self.input.input_len().cmp(&other.input.input_len()) {
+      Ordering::Less => self,
+      _ => other,
     }
+  }
 }
 
 // impl<I: Clone + AsBytes> From<base::ParseError<I>> for ParseError<I> {
@@ -120,11 +131,10 @@ where
 //  }
 //}
 
-impl<'a, I: Clone + AsBytes> FromExternalError<I, ParseIntError> for ParseError<I> {
-    fn from_external_error(input: I, _: ErrorKind, e: ParseIntError) -> Self {
-        Self {
-            input,
-            error: ParseErrorKind::ParseIntErr(e),
-        }
-    }
+impl<'a, I: Clone + AsBytes> FromExternalError<I, ParseIntError>
+  for ParseError<I>
+{
+  fn from_external_error(input: I, _: ErrorKind, e: ParseIntError) -> Self {
+    ParseError { input, error: ParseErrorKind::ParseIntErr(e) }
+  }
 }
