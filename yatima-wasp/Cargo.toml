@@ -9,5 +9,5 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-yatima = { path = ".." }
+yatima = { path = "..", default-features = false, features = ["wasp"] }
 wasmlib = { git = "https://github.com/iotaledger/wasp", branch = "develop-0.4.0-refactor" }

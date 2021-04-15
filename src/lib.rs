@@ -31,6 +31,6 @@ pub mod repl;
 pub mod term;
 pub mod unembed_error;
 pub mod utils;
-#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi"), feature = "js-bindings"))]
 pub mod wasm_binds;
 

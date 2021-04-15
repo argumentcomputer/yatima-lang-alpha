@@ -6,7 +6,7 @@ use hashexpr::{
   base::Base,
 };
 use base_x;
-#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi"), feature = "js-bindings"))]
 use std::sync::{Arc, Mutex};
 use std::{
   fs,
@@ -21,9 +21,9 @@ use crate::{
 };
 
 pub mod cache;
-#[cfg(all(target_arch = "wasm32", not(os = "wasi")))]
+#[cfg(all(target_arch = "wasm32", not(os = "wasi"), feature = "js-bindings"))]
 use crate::wasm_binds;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "js-bindings"))]
 use wasm_bindgen_futures::spawn_local;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod server;
@@ -214,19 +214,29 @@ impl Hashspace {
     link
   }
 
-  #[cfg(target_arch = "wasm32")]
+  #[cfg(all(target_arch = "wasm32", feature = "js-bindings"))]
   pub fn get_local_storage(&self, cid: &String) -> Result<String,String> {
     let window = web_sys::window().unwrap();
     let storage = window.local_storage().unwrap().unwrap();
     Ok(String::from(storage.get_item(cid.as_str()).unwrap().unwrap()))
   }
 
-  #[cfg(target_arch = "wasm32")]
+  #[cfg(all(target_arch = "wasm32", feature = "js-bindings"))]
   pub fn put_local_storage(&self, cid: String, data: &str) -> Result<(),String> {
     let window = web_sys::window().unwrap();
     let storage = window.local_storage().ok().unwrap().unwrap();
     let res = storage.set_item(cid.as_str(), data);
     res.map_err(|e| e.as_string().unwrap())
+  }
+  
+  #[cfg(feature = "wasp")]
+  pub fn put_local_storage(&self, _cid: String, _data: &str) -> Result<(),String> {
+    Err("Not implemented".to_string())
+  }
+  
+  #[cfg(feature = "wasp")]
+  pub fn get_local_storage(&self, _cid: &String) -> Result<String,String> {
+    Err("Not implemented".to_string())
   }
 
   #[cfg(not(target_arch = "wasm32"))]
@@ -239,7 +249,7 @@ impl Hashspace {
     Err("Not implemented".to_string())
   }
 
-  #[cfg(target_arch = "wasm32")]
+  #[cfg(all(target_arch = "wasm32", feature = "js-bindings"))]
   pub fn remote_get(&self, cid: String) -> Result<String,String> {
     let result_rc = Arc::new(Mutex::new(Err("Async not complete".to_string())));
     let r2 = Arc::clone(&result_rc);
@@ -259,7 +269,7 @@ impl Hashspace {
     let x = result_rc.lock().unwrap().clone(); x
   }
 
-  #[cfg(target_arch = "wasm32")]
+  #[cfg(all(target_arch = "wasm32", feature = "js-bindings"))]
   pub fn remote_put(&self, data: Vec<u8>) -> Result<String, String> {
     let result_rc = Arc::new(Mutex::new(Err("Async not complete".to_string())));
     let r2 = Arc::clone(&result_rc);
@@ -272,6 +282,18 @@ impl Hashspace {
     });
     
     let x = result_rc.lock().unwrap().clone(); x
+  }
+
+  #[cfg(feature = "wasp")]
+  pub fn remote_get(&self, _cid: String) -> Result<String,String> {
+    // TODO native impl
+    Err("Not implemented".to_string())
+  }
+
+  #[cfg(feature = "wasp")]
+  pub fn remote_put(&self, _data: Vec<u8>) -> Result<String, String> {
+    // TODO native impl
+    Err("Not implemented".to_string())
   }
 
   #[cfg(not(target_arch = "wasm32"))]

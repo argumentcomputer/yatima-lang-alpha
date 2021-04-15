@@ -12,6 +12,18 @@ edition = "2018"
 name = "libyatima"
 crate-type = ["cdylib", "lib"]
 
+[features]
+default = [ "js-bindings" ]
+js-bindings = [
+  "wasm-bindgen",
+  "js-sys",
+  "wasm-bindgen-futures",
+  "serde",
+  "serde_derive",
+  "web-sys",
+]
+wasp = []
+
 [dependencies]
 hashexpr = { path = "hashexpr"}
 num-bigint = "0.3.1"
@@ -25,15 +37,16 @@ base-x = "0.2.8"
 futures = "0.3.13"
 
 # WASM dependencies
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
-js-sys = "0.3.49"
-wasm-bindgen-futures = "0.4.22"
-serde = { version = "1.0.80", features = ["derive"] }
-serde_derive = "^1.0.59"
+[target.'cfg(all(target_arch = "wasm32", not(os = "wasi")))'.dependencies]
+wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"], optional = true }
+js-sys = { version = "0.3.49", optional = true }
+wasm-bindgen-futures = { version = "0.4.22", optional = true }
+serde = { version = "1.0.80", features = ["derive"], optional = true }
+serde_derive = { version = "^1.0.59", optional = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+[target.'cfg(all(target_arch = "wasm32", not(os = "wasi")))'.dependencies.web-sys]
 version = "0.3.49"
+optional = true
 features = [
   'Document',
   'Element',

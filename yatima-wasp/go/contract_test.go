@@ -17,7 +17,7 @@ func TestTutorial3(t *testing.T) {
 	require.NoError(t, err)
 
 	// call contract to store string
-	req := solo.NewCallParams("example1", "storeString", "paramString", "Hello, world!")
+	req := solo.NewCallParams("example1", "storeString", "paramString", "Hello, world!").WithIotas(2)
 	_, err = chain.PostRequestSync(req, nil)
 	require.NoError(t, err)
 
