@@ -563,7 +563,7 @@ pub fn free_dead_node(node: DAGPtr) {
         Box::from_raw(link.as_ptr());
       }
       DAGPtr::Let(link) => {
-        let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, var, .. } =
+        let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
           link.as_ref();
         let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
@@ -583,7 +583,7 @@ pub fn free_dead_node(node: DAGPtr) {
         Box::from_raw(link.as_ptr());
       }
       DAGPtr::Var(link) => {
-        let Var { binder, nam, .. } = link.as_ref();
+        let Var { binder, .. } = link.as_ref();
         // only free Free variables, bound variables are freed with their binder
         if let BinderPtr::Free = binder {
           Box::from_raw(link.as_ptr());
@@ -920,7 +920,7 @@ impl DAG {
         (*ann.as_ptr()).exp = exp;
         DAGPtr::Ann(ann)
       },
-      Term::Let(_, true, uses, name, typ_exp_bod) => {
+      Term::Let(_, true, _uses, _name, _typ_exp_bod) => {
         panic!("letrec not implemented")
       }
       Term::Let(_, false, uses, nam, typ_exp_bod) => unsafe {
@@ -983,11 +983,11 @@ impl DAG {
     // Otherwise create a new DAG node and add it to the map
     let new_node = match node {
       DAGPtr::Var(link) => unsafe {
-        let Var { nam, dep, binder, .. } = &*link.as_ptr();
+        let Var { nam, dep, .. } = &*link.as_ptr();
         let var = alloc_val(Var {
           nam: nam.clone(),
           dep: *dep,
-          binder: *binder,
+          binder: BinderPtr::Free,
           parents,
         });
         DAGPtr::Var(var)
