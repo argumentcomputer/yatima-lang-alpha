@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, const_mut_refs, const_raw_ptr_deref)]
 
 #[cfg(test)]
 extern crate quickcheck;
@@ -34,4 +34,3 @@ pub mod utils;
 #[cfg(target_arch = "wasm32")]
 #[cfg(not(target = "wasm32-wasi"))]
 pub mod wasm_binds;
-
