@@ -170,7 +170,7 @@ impl fmt::Display for Term {
 
     match self {
       Var(_, nam, ..) | Ref(_, nam, ..) => write!(f, "{}", nam),
-      Lam(_, nam, term) => write!(f, "\u{3bb} {}", lams(nam, term)),
+      Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
       App(_, terms) => write!(f, "{}", apps(&terms.0, &terms.1)),
       Let(_, true, u, n, terms) => {
         write!(
@@ -196,7 +196,7 @@ impl fmt::Display for Term {
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
       All(_, us_, nam, terms) => {
-        write!(f, "\u{2200}{}", alls(*us_, nam, &terms.0, &terms.1))
+        write!(f, "∀{}", alls(*us_, nam, &terms.0, &terms.1))
       }
       Ann(_, terms) => {
         write!(f, "{} :: {}", parens(&terms.1), parens(&terms.0))

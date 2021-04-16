@@ -488,10 +488,10 @@ mod test {
         Err(_) => panic!("Did not parse."),
       }
     }
-    parse_assert("\u{3bb} x => x");
-    parse_assert("\u{3bb} x y => x y");
-    parse_assert("\u{3bb} y => (\u{3bb} x => x) y");
-    parse_assert("\u{3bb} y => (\u{3bb} z => z z) ((\u{3bb} x => x) y)");
+    parse_assert("λ x => x");
+    parse_assert("λ x y => x y");
+    parse_assert("λ y => (λ x => x) y");
+    parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
   }
 
   fn norm_assert(input: &str, result: &str) {
@@ -507,89 +507,77 @@ mod test {
   #[test]
   pub fn reduce_test_ann() {
     norm_assert("(Type :: Type)", "Type");
-    norm_assert("((\u{3bb} x => x) #Natural :: Type)", "#Natural");
+    norm_assert("((λ x => x) #Natural :: Type)", "#Natural");
+    norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
+    norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
     norm_assert(
-      "(\u{3bb} A => A :: \u{2200} (A: Type) -> Type)",
-      "\u{3bb} A => A",
+      "(∀ (A: Type) (x: A) -> Type :: Type)",
+      "∀ (A: Type) (x: A) -> Type",
     );
-    norm_assert(
-      "(\u{3bb} A x => A :: \u{2200} (A: Type) (x: A) -> Type)",
-      "\u{3bb} A x => A",
-    );
-    norm_assert(
-      "(\u{2200} (A: Type) (x: A) -> Type :: Type)",
-      "\u{2200} (A: Type) (x: A) -> Type",
-    );
-    norm_assert("Type :: \u{2200} (A: Type) (x: A) -> Type", "Type");
+    norm_assert("Type :: ∀ (A: Type) (x: A) -> Type", "Type");
   }
 
   #[test]
   pub fn reduce_test_app() {
     norm_assert(
-      "Type (\u{2200} (A: Type) (x: A) -> Type)",
-      "Type (\u{2200} (A: Type) (x: A) -> Type)",
+      "Type (∀ (A: Type) (x: A) -> Type)",
+      "Type (∀ (A: Type) (x: A) -> Type)",
     );
     norm_assert(
-      "(\u{2200} (A: Type) (x: A) -> Type) Type",
-      "(\u{2200} (A: Type) (x: A) -> Type) Type",
+      "(∀ (A: Type) (x: A) -> Type) Type",
+      "(∀ (A: Type) (x: A) -> Type) Type",
     )
   }
 
   #[test]
   pub fn reduce_test_all() {
     norm_assert(
-      "\u{2200} (f: \u{2200} (A: Type) (x: A) -> Type) -> Type",
-      "\u{2200} (f: \u{2200} (A: Type) (x: A) -> Type) -> Type",
+      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
     );
     norm_assert(
-      "\u{2200} (f: Type) -> \u{2200} (A: Type) (x: A) -> Type",
-      "\u{2200} (f: Type) (A: Type) (x: A) -> Type",
+      "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
+      "∀ (f: Type) (A: Type) (x: A) -> Type",
     );
   }
 
   #[test]
   pub fn reduce_test_let() {
     norm_assert("let f: Type = Type; f", "Type");
+    norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x => x");
     norm_assert(
-      "let f: \u{2200} (A: Type) (x: A) -> A = \u{3bb} A x => x; f",
-      "\u{3bb} A x => x",
+      "let f: Type = ∀ (A: Type) (x: A) -> A; f",
+      "∀ (A: Type) (x: A) -> A",
     );
     norm_assert(
-      "let f: Type = \u{2200} (A: Type) (x: A) -> A; f",
-      "\u{2200} (A: Type) (x: A) -> A",
-    );
-    norm_assert(
-      "let f: Type = Type; \u{2200} (A: Type) (x: A) -> A",
-      "\u{2200} (A: Type) (x: A) -> A",
+      "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
+      "∀ (A: Type) (x: A) -> A",
     );
   }
 
   #[test]
   pub fn reduce_test() {
     // Already normalized
-    norm_assert("\u{3bb} x => x", "\u{3bb} x => x");
-    norm_assert("\u{3bb} x y => x y", "\u{3bb} x y => x y");
+    norm_assert("λ x => x", "λ x => x");
+    norm_assert("λ x y => x y", "λ x y => x y");
     // Not normalized cases
-    norm_assert("\u{3bb} y => (\u{3bb} x => x) y", "\u{3bb} y => y");
-    norm_assert(
-      "\u{3bb} y => (\u{3bb} z => z z) ((\u{3bb} x => x) y)",
-      "\u{3bb} y => y y",
-    );
+    norm_assert("λ y => (λ x => x) y", "λ y => y");
+    norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
     // // Church arithmetic
-    let zero = "\u{3bb} s z => z";
-    let one = "\u{3bb} s z => (s z)";
-    let two = "\u{3bb} s z => s (s z)";
-    let three = "\u{3bb} s z => s (s (s z))";
-    let four = "\u{3bb} s z => s (s (s (s z)))";
-    let seven = "\u{3bb} s z => s (s (s (s (s (s (s z))))))";
-    let add = "\u{3bb} m n s z => m s (n s z)";
+    let zero = "λ s z => z";
+    let one = "λ s z => (s z)";
+    let two = "λ s z => s (s z)";
+    let three = "λ s z => s (s (s z))";
+    let four = "λ s z => s (s (s (s z)))";
+    let seven = "λ s z => s (s (s (s (s (s (s z))))))";
+    let add = "λ m n s z => m s (n s z)";
     let is_three = format!("(({}) ({}) {})", add, zero, three);
     let is_three2 = format!("(({}) ({}) {})", add, one, two);
     let is_seven = format!("(({}) ({}) {})", add, four, three);
     norm_assert(&is_three, three);
     norm_assert(&is_three2, three);
     norm_assert(&is_seven, seven);
-    let id = "\u{3bb} x => x";
+    let id = "λ x => x";
     norm_assert(
       &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
       id,

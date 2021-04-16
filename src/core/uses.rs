@@ -64,7 +64,7 @@ impl Uses {
       Self::None => text!("0"),
       Self::Affi => text!("&"),
       Self::Once => text!("1"),
-      Self::Many => text!("\u{3c9}"),
+      Self::Many => text!("ω"),
     }
   }
 
@@ -73,7 +73,7 @@ impl Uses {
       Expr::Atom(_, Text(n)) if n == "0" => Ok(Self::None),
       Expr::Atom(_, Text(n)) if n == "&" => Ok(Self::Affi),
       Expr::Atom(_, Text(n)) if n == "1" => Ok(Self::Once),
-      Expr::Atom(_, Text(n)) if n == "\u{3c9}" => Ok(Self::Many),
+      Expr::Atom(_, Text(n)) if n == "ω" => Ok(Self::Many),
       x => Err(DecodeError::new(x.position(), vec![Expected::Uses])),
     }
   }

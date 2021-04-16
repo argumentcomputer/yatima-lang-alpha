@@ -204,7 +204,7 @@ impl Hashspace {
       }
       None => {
         let data64 = base_x::encode(Base::_64.base_digits(), data.as_ref());
-        self.put_local_storage(&link.to_string(), data64.as_str()).unwrap();
+        self.put_local_storage(link.to_string(), data64.as_str()).unwrap();
         log("Before remote_put");
         let result = self.remote_put(&data);
         result

@@ -62,12 +62,12 @@ use nom::{
 pub fn reserved_symbols() -> Vector<String> {
   Vector::from(vec![
     String::from("//"),
-    String::from("\u{3bb}"),
+    String::from("λ"),
     String::from("lambda"),
     String::from("=>"),
     String::from("{"),
     String::from("}"),
-    String::from("\u{2200}"),
+    String::from("∀"),
     String::from("forall"),
     String::from("->"),
     String::from("@"),
@@ -211,7 +211,7 @@ pub fn parse_lam(
   ctx: Vector<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = alt((tag("\u{3bb}"), tag("lambda")))(from)?;
+    let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
     let (i, _) = parse_space(i)?;
     let (i, ns) = separated_list1(multispace1, parse_name)(i)?;
     let (i, _) = parse_space(i)?;
@@ -339,7 +339,7 @@ pub fn parse_all(
   ctx: Vector<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = alt((tag("\u{2200}"), tag("forall")))(from)?;
+    let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
     let (i, _) = parse_space(i)?;
     let (i, bs) = parse_binders(refs.clone(), ctx.clone(), true)(i)?;
     let (i, _) = parse_space(i)?;
@@ -705,14 +705,14 @@ pub mod tests {
     // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-      "\u{3bb} x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c \
-       x x (c x (c x (c x (c x n)))))))))))))))",
+      "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
+       x (c x (c x (c x n)))))))))))))))",
     ));
     // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-      "\u{3bb} x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c \
-       x x (c x (c x (c x (c x n)))))))))))))))",
+      "λ x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
+       x (c x (c x (c x n)))))))))))))))",
     ));
     // println!("res: {:?}", res);
     assert!(res.is_ok());
@@ -748,12 +748,12 @@ pub mod tests {
         ]
     );
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-      "\u{2200} Type -> Type",
+      "∀ Type -> Type",
     ));
     // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-      "\u{2200} (_ :Type) -> Type",
+      "∀ (_ :Type) -> Type",
     ));
     // println!("res: {:?}", res);
     assert!(res.is_ok());

@@ -1,5 +1,5 @@
 // Bottom-up reduction of lambda DAGs. Based on the paper by Olin Shivers and
-// Mitchel Wand "Bottom-up β-reduction: uplinks and \u{3bb}-DAGs" (https://www.brics.dk/RS/04/38/BRICS-RS-04-38.pdf)
+// Mitchel Wand "Bottom-up β-reduction: uplinks and λ-DAGs" (https://www.brics.dk/RS/04/38/BRICS-RS-04-38.pdf)
 
 use crate::{
   core::{
@@ -32,7 +32,7 @@ pub struct DAG {
   pub head: DAGPtr,
 }
 
-// A top-down \u{3bb}-DAG pointer. Keeps track of what kind of node it points
+// A top-down λ-DAG pointer. Keeps track of what kind of node it points
 // to.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DAGPtr {
@@ -55,7 +55,7 @@ pub enum DAGPtr {
 // Doubly-linked list of parent nodes
 pub type Parents = DLL<ParentPtr>;
 
-// A bottom-up (parent) \u{3bb}-DAG pointer. Keeps track of the relation between
+// A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
 // the child and the parent.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParentPtr {
@@ -84,7 +84,7 @@ pub enum BinderPtr {
   Let(NonNull<Let>),
 }
 
-// The \u{3bb}-DAG nodes
+// The λ-DAG nodes
 #[derive(Clone)]
 pub struct Var {
   pub nam: String,
@@ -1180,14 +1180,14 @@ impl fmt::Debug for DAG {
     fn format_uplink(p: ParentPtr) -> String {
       match p {
         ParentPtr::Root => String::from("ROOT"),
-        ParentPtr::LamBod(link) => format!("\u{3bb}B{}", link.as_ptr() as u64),
+        ParentPtr::LamBod(link) => format!("λB{}", link.as_ptr() as u64),
         ParentPtr::SlfBod(link) => format!("@B{}", link.as_ptr() as u64),
         ParentPtr::DatBod(link) => format!("DB{}", link.as_ptr() as u64),
         ParentPtr::CseBod(link) => format!("CB{}", link.as_ptr() as u64),
         ParentPtr::AppFun(link) => format!("AF{}", link.as_ptr() as u64),
         ParentPtr::AppArg(link) => format!("AA{}", link.as_ptr() as u64),
-        ParentPtr::AllDom(link) => format!("\u{2200}D{}", link.as_ptr() as u64),
-        ParentPtr::AllImg(link) => format!("\u{2200}I{}", link.as_ptr() as u64),
+        ParentPtr::AllDom(link) => format!("∀D{}", link.as_ptr() as u64),
+        ParentPtr::AllImg(link) => format!("∀I{}", link.as_ptr() as u64),
         ParentPtr::AnnExp(link) => format!(":E{}", link.as_ptr() as u64),
         ParentPtr::AnnTyp(link) => format!(":T{}", link.as_ptr() as u64),
         ParentPtr::LetExp(link) => format!("LE{}", link.as_ptr() as u64),
@@ -1431,14 +1431,12 @@ mod test {
 
   #[test]
   fn test_cases() {
-    let (_, x) = parse("\u{3bb} _z => Type").unwrap();
+    let (_, x) = parse("λ _z => Type").unwrap();
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
-    let (_, x) = parse("\u{3bb} z => z").unwrap();
+    let (_, x) = parse("λ z => z").unwrap();
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
-    let (_, x) = parse(
-      "\u{3bb} _z => (\u{3bb} _a => \u{2200} (1 _x: _a) -> #Natural) Type",
-    )
-    .unwrap();
+    let (_, x) =
+      parse("λ _z => (λ _a => ∀ (1 _x: _a) -> #Natural) Type").unwrap();
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
   }
 

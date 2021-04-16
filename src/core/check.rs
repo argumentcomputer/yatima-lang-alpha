@@ -90,7 +90,7 @@ pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
     DAGPtr::Lam(link) => unsafe {
       let Lam { var, bod, .. } = &mut *link.as_ptr();
       var.dep = dep;
-      format!("\u{3bb}{}", stringify(*bod, ini, dep + 1))
+      format!("λ{}", stringify(*bod, ini, dep + 1))
     },
     DAGPtr::Slf(link) => unsafe {
       let Slf { var, bod, .. } = &mut *link.as_ptr();
@@ -109,10 +109,10 @@ pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
       let All { var, uses, dom, img, .. } = &mut *link.as_ptr();
       var.dep = dep;
       let prefix = match uses {
-        Uses::None => "\u{2200}0",
-        Uses::Once => "\u{2200}1",
-        Uses::Affi => "\u{2200}&",
-        Uses::Many => "\u{2200}\u{3c9}",
+        Uses::None => "∀0",
+        Uses::Once => "∀1",
+        Uses::Affi => "∀&",
+        Uses::Many => "∀ω",
       };
       format!(
         "{}{}{}",

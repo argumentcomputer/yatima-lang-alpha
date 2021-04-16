@@ -248,18 +248,8 @@ pub fn merge_refs(
   with: Option<Vec<String>>,
 ) -> Refs {
   left.union_with(
-    with.map_or_else(
-      || {
-        let mut refs = right.clone();
-        if !alias.is_empty() {
-          refs = refs
-            .iter()
-            .map(|(k, v)| (format!("{}.{}", alias, k), *v))
-            .collect();
-        }
-        refs
-      },
-      |ns| {
+    match with {
+      Some(ns) => {
         let mut refs = right.clone();
         let set: HashSet<String> = ns.iter().collect();
         refs.retain(|k, _| set.contains(k));
@@ -270,8 +260,18 @@ pub fn merge_refs(
             .collect();
         }
         refs
-      },
-    ),
+      }
+      None => {
+        let mut refs = right.clone();
+        if !alias.is_empty() {
+          refs = refs
+            .iter()
+            .map(|(k, v)| (format!("{}.{}", alias, k), *v))
+            .collect();
+        }
+        refs
+      }
+    },
     |_, right| right,
   )
 }
