@@ -32,8 +32,10 @@ type Ctx = Vec<(String, DAG)>;
 type UseCtx = Vec<Uses>;
 
 #[inline]
-pub fn to_use_ctx(ctx: Ctx) -> UseCtx {
-  vec![Uses::None; ctx.len()]
+pub fn free_ctx(mut ctx: Ctx) {
+  while let Some(bind) = ctx.pop() {
+    bind.1.free();
+  }
 }
 
 #[inline]
@@ -202,25 +204,24 @@ pub fn check(
   typ: &mut DAG,
 ) -> Result<UseCtx, CheckError> {
   match term.head {
-    DAGPtr::Lam(link) => {
-      let Lam { bod: term_bod, var: lam_var, .. } = unsafe { &mut *link.as_ptr() };
+    DAGPtr::Lam(lam_link) => {
       typ.whnf(defs);
       match typ.head {
-        DAGPtr::All(mut link) => {
-          let All { uses: lam_uses, var, dom, img, .. } =
-            unsafe { link.as_mut() };
+        DAGPtr::All(all_link) => {
+          let Lam { bod: lam_bod, var: lam_var, .. } =
+            unsafe { &mut *lam_link.as_ptr() };
+          let All { uses: lam_uses, var: all_var, dom, img, .. } =
+            unsafe { &mut *all_link.as_ptr() };
           // Annotate the depth of the node that binds each variable
-          (*var).dep = ctx.len() as u64;
+          (*all_var).dep = ctx.len() as u64;
           (*lam_var).dep = ctx.len() as u64;
           // Add the domain of the function to the ctxcontext
           let dom = DAG::new(*dom);
-          let term_bod = DAG::new(*term_bod);
+          let lam_bod = DAG::new(*lam_bod);
           let mut img = DAG::new(*img);
-          ctx.push((var.nam.to_string(), dom.clone()));
-          let mut use_ctx = check(defs, ctx, Uses::Once, &term_bod, &mut img)?;
-          let infer_uses = use_ctx
-            .pop()
-            .ok_or(CheckError::GenericError(format!("Empty context.")))?;
+          ctx.push((all_var.nam.to_string(), dom.clone()));
+          let mut use_ctx = check(defs, ctx, Uses::Once, &lam_bod, &mut img)?;
+          let infer_uses = use_ctx.pop().unwrap();
           if Uses::gth(infer_uses, *lam_uses) {
             Err(CheckError::GenericError(format!("Quantity mismatch.")))
           }
@@ -234,34 +235,25 @@ pub fn check(
         ))),
       }
     }
-    DAGPtr::Dat(link) => {
-      let Dat { bod: dat_bod, .. } = unsafe { &mut *link.as_ptr() };
+    DAGPtr::Dat(dat_link) => {
       typ.whnf(defs);
       match typ.head {
-        DAGPtr::Slf(_) => {
-          // Copy the self type
-          let new_link = match typ.clone().head {
-            DAGPtr::Slf(link) => link,
-            _ => panic!("Error in the clone implementation"),
-          };
-          let Slf { var: new_var, bod: new_bod, .. } =
-            unsafe { &mut *new_link.as_ptr() };
-          // Substitute the term for its variable
-          if new_var.parents.is_some() {
-            // Create the term DAG
-            let term_copy = term.clone();
-            replace_child(
-              DAGPtr::Var(NonNull::new(new_var).unwrap()),
-              term_copy.head,
-            );
+        DAGPtr::Slf(slf_link) => {
+          let Dat { bod: dat_bod, .. } =
+            unsafe { &mut *dat_link.as_ptr() };
+          let Slf { var, bod: slf_bod, .. } =
+            unsafe { &mut *slf_link.as_ptr() };
+          let mut map = if var.parents.is_some() {
+            HashMap::unit(DAGPtr::Var(NonNull::new(var).unwrap()), term.clone().head)
           }
-          // Replace the copied self type with its body and free the dead nodes
-          replace_child(DAGPtr::Slf(new_link), *new_bod);
-          // Check against `new_bod` and free it later
+          else {
+            HashMap::new()
+          };
+          let root = alloc_val(DLL::singleton(ParentPtr::Root));
+          let mut new_bod =
+            DAG::new(DAG::from_subdag(*slf_bod, &mut map, Some(root)));
           let dat_bod = DAG::new(*dat_bod);
-          let mut new_bod = DAG::new(*new_bod);
           let use_ctx = check(defs, ctx, uses, &dat_bod, &mut new_bod)?;
-          free_dead_node(DAGPtr::Slf(new_link));
           new_bod.free();
           Ok(use_ctx)
         }
@@ -299,12 +291,18 @@ pub fn infer(
   match term.head {
     DAGPtr::Var(mut link) => {
       let Var { dep, .. } = unsafe { link.as_mut() };
-      let bind = ctx
-        .get(*dep as usize)
-        .ok_or(CheckError::GenericError(format!("Unbound variable.")))?;
-      let typ = bind.1.clone();
-      let mut use_ctx = to_use_ctx(ctx);
+      let mut use_ctx = vec![Uses::None; ctx.len()];
       use_ctx[*dep as usize] = uses;
+      let mut typ = None;
+      while let Some(bind) = ctx.pop() {
+        if ctx.len() == *dep as usize {
+          typ = Some(bind.1);
+        } else {
+          bind.1.free();
+        }
+      }
+      let typ = typ
+        .ok_or(CheckError::GenericError(format!("Unbound variable.")))?;
       Ok((use_ctx, typ))
     }
     DAGPtr::Ref(mut link) => {
@@ -313,7 +311,8 @@ pub fn infer(
         "Undefined reference: {}, {}",
         nam, def_link
       )))?;
-      let use_ctx = to_use_ctx(ctx);
+      let use_ctx = vec![Uses::None; ctx.len()];
+      free_ctx(ctx);
       let typ = DAG::from_term(&def.typ_);
       Ok((use_ctx, typ))
     }
@@ -394,7 +393,11 @@ pub fn infer(
       let use_ctx = check(defs, ctx, Uses::None, &bod, &mut typ)?;
       Ok((use_ctx, typ))
     }
-    DAGPtr::Typ(_) => Ok((to_use_ctx(ctx), term.clone())),
+    DAGPtr::Typ(_) => {
+      let use_ctx = vec![Uses::None; ctx.len()];
+      free_ctx(ctx);
+      Ok((use_ctx, term.clone())) 
+    },
     DAGPtr::Ann(mut link) => {
       let Ann { typ, exp, .. } = unsafe { link.as_mut() };
       let mut typ_clone = DAG::new(*typ).clone();
@@ -407,16 +410,22 @@ pub fn infer(
     }
     DAGPtr::Lit(mut link) => {
       let Lit { lit, .. } = unsafe { link.as_mut() };
-      Ok((to_use_ctx(ctx), DAG::from_term(&infer_lit(lit.to_owned()))))
+      let use_ctx = vec![Uses::None; ctx.len()];
+      free_ctx(ctx);
+      Ok((use_ctx, DAG::from_term(&infer_lit(lit.to_owned()))))
     }
     DAGPtr::LTy(mut link) => {
       let LTy { lty, .. } = unsafe { link.as_mut() };
-      Ok((to_use_ctx(ctx), DAG::from_term(&infer_lty(*lty))))
+      let use_ctx = vec![Uses::None; ctx.len()];
+      free_ctx(ctx);
+      Ok((use_ctx, DAG::from_term(&infer_lty(*lty))))
     }
     DAGPtr::Opr(_link) => {
       Err(CheckError::GenericError(format!("TODO")))
       // let Opr { opr, .. } = unsafe { &*link.as_ptr() };
-      // Ok((to_use_ctx(ctx), DAG::from_term(&infer_opr(*opr))))
+      // let use_ctx = vec![Uses::None; ctx.len()];
+      // free_ctx(ctx);
+      // Ok((use_ctx, DAG::from_term(&infer_opr(*opr))))
     }
     DAGPtr::Lam(_) => Err(CheckError::GenericError(format!("Untyped lambda."))),
     _ => Err(CheckError::GenericError(format!("TODO"))),
