@@ -87,7 +87,9 @@ pub fn number_of_bytes(x: u64) -> u8 {
   let base: u64 = 256;
   while base.pow(n) <= x {
     n += 1;
-    if n == 8 { break; }
+    if n == 8 {
+      break;
+    }
   }
   return n as u8;
 }
@@ -97,7 +99,7 @@ pub fn pack_u64(x: u64) -> (u8, Vec<u8>) {
   let u64_max_size = std::mem::size_of::<u64>();
   (
     x_len,
-    x.to_be_bytes()[u64_max_size-(x_len as usize)..u64_max_size].to_vec(),
+    x.to_be_bytes()[u64_max_size - (x_len as usize)..u64_max_size].to_vec(),
   )
 }
 
@@ -643,30 +645,28 @@ pub mod tests {
 
   #[test]
   fn test_pack_u64() {
-
     let (num_of_bytes, bytes) = pack_u64(0x0112345678);
-    assert_eq!(num_of_bytes,  5);
-    assert_eq!(vec![1, 18, 52, 86, 120],  bytes);
+    assert_eq!(num_of_bytes, 5);
+    assert_eq!(vec![1, 18, 52, 86, 120], bytes);
 
     let (num_of_bytes, bytes) = pack_u64(0x010203040506);
-    assert_eq!(num_of_bytes,  6);
-    assert_eq!(vec![1, 2, 3, 4, 5, 6],  bytes);
+    assert_eq!(num_of_bytes, 6);
+    assert_eq!(vec![1, 2, 3, 4, 5, 6], bytes);
 
     let (num_of_bytes, bytes) = pack_u64(0x321415);
-    assert_eq!(num_of_bytes,  3);
-    assert_eq!(vec![50, 20, 21],  bytes);
+    assert_eq!(num_of_bytes, 3);
+    assert_eq!(vec![50, 20, 21], bytes);
 
     let (num_of_bytes, bytes) = pack_u64(0x9999999);
-    assert_eq!(num_of_bytes,  4);
-    assert_eq!(vec![9, 153, 153, 153],  bytes);
+    assert_eq!(num_of_bytes, 4);
+    assert_eq!(vec![9, 153, 153, 153], bytes);
 
     let (num_of_bytes, bytes) = pack_u64(0);
-    assert_eq!(num_of_bytes,  1);
-    assert_eq!(vec![0],  bytes);
+    assert_eq!(num_of_bytes, 1);
+    assert_eq!(vec![0], bytes);
 
     let (num_of_bytes, bytes) = pack_u64(u64::MAX);
-    assert_eq!(num_of_bytes,  8);
-    assert_eq!(vec![255, 255, 255, 255, 255, 255, 255, 255],  bytes);
-
+    assert_eq!(num_of_bytes, 8);
+    assert_eq!(vec![255, 255, 255, 255, 255, 255, 255, 255], bytes);
   }
 }

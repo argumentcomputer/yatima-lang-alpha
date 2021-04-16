@@ -4,21 +4,26 @@ use crate::{
 };
 use hashexpr::Expr;
 
-use std::collections::HashMap;
-use rocket_contrib::serve::StaticFiles;
-use rocket_contrib::templates::Template;
 use rocket::{
+  fairing::{
+    Fairing,
+    Info,
+    Kind,
+  },
+  http::Header,
   Data,
   Request,
   Response,
-  fairing::{Fairing, Info, Kind},
-  http::{Header},
 };
+use rocket_contrib::{
+  serve::StaticFiles,
+  templates::Template,
+};
+use std::collections::HashMap;
 
 #[get("/")]
 fn index() -> Template {
-  let context: HashMap<&str, &str> = [("name", "")]
-        .iter().cloned().collect();
+  let context: HashMap<&str, &str> = [("name", "")].iter().cloned().collect();
   Template::render("index", &context)
 }
 
@@ -56,27 +61,26 @@ fn put(data: Data) -> Result<String, std::io::Error> {
 }
 
 #[options("/store")]
-fn options() {
-  
-}
+fn options() {}
 
 /// Add CORS headers to requests
 pub struct CORS();
 
 impl Fairing for CORS {
-    fn info(&self) -> Info {
-        Info {
-            name: "Add CORS headers to requests",
-            kind: Kind::Response
-        }
-    }
+  fn info(&self) -> Info {
+    Info { name: "Add CORS headers to requests", kind: Kind::Response }
+  }
 
-    fn on_response(&self, _request: &Request, response: &mut Response) {
-        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-        response.set_header(Header::new("Access-Control-Allow-Methods", "GET, PUT, OPTIONS"));
-        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
-        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
-    }
+  fn on_response(&self, _request: &Request, response: &mut Response) {
+    response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+    response.set_header(Header::new(
+      "Access-Control-Allow-Methods",
+      "GET, PUT, OPTIONS",
+    ));
+    response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+    response
+      .set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+  }
 }
 
 pub fn start_server(_opt_host: Option<String>) {
