@@ -46,40 +46,39 @@ pub struct DecodeError {
 }
 
 impl DecodeError {
+  #[must_use]
   pub fn new(p: Option<Pos>, es: Vec<Expected>) -> Self {
-    DecodeError { position: p, expected: es }
+    Self { position: p, expected: es }
   }
 
+  #[must_use]
   pub fn join(self, other: Self) -> Self {
     match (self.position, other.position) {
       (Some(sp), Some(op)) => {
-        if sp.from_offset > op.from_offset {
-          self
-        }
-        else if sp.from_offset < op.from_offset {
-          other
-        }
-        else {
-          let (upto_offset, upto_line, upto_column) =
-            if sp.upto_offset >= op.upto_offset {
-              (sp.upto_offset, sp.upto_line, sp.upto_column)
-            }
-            else {
-              (op.upto_offset, op.upto_line, op.upto_column)
-            };
-          let new_pos = Pos {
-            from_offset: sp.from_offset,
-            from_line: sp.from_line,
-            from_column: sp.from_column,
-            upto_offset,
-            upto_line,
-            upto_column,
-          };
-          let mut exp = Vec::new();
-          exp.extend(self.expected.into_iter());
-          exp.extend(other.expected.into_iter());
-          DecodeError { position: Some(new_pos), expected: exp }
-        }
+        match sp.from_offset.cmp(&op.from_offset) {
+          std::cmp::Ordering::Greater => self,
+          std::cmp::Ordering::Less => other,
+          std::cmp::Ordering::Equal => {
+              let (upto_offset, upto_line, upto_column) =
+              if sp.upto_offset >= op.upto_offset {
+                  (sp.upto_offset, sp.upto_line, sp.upto_column)
+              }
+              else {
+                  (op.upto_offset, op.upto_line, op.upto_column)
+              };
+              let new_pos = Pos {
+                  from_offset: sp.from_offset,
+                  from_line: sp.from_line,
+                  from_column: sp.from_column,
+                  upto_offset,
+                  upto_line,
+                  upto_column,
+              };
+              let mut exp = Vec::new();
+              exp.extend(self.expected.into_iter());
+              exp.extend(other.expected.into_iter());
+              Self { position: Some(new_pos), expected: exp }
+          }}
       }
       (Some(_), _) => self,
       (_, Some(_)) => other,
@@ -87,7 +86,7 @@ impl DecodeError {
         let mut exp = Vec::new();
         exp.extend(self.expected.into_iter());
         exp.extend(other.expected.into_iter());
-        DecodeError { position: None, expected: exp }
+        Self { position: None, expected: exp }
       }
     }
   }
@@ -96,5 +95,5 @@ pub fn or_else_join<A>(
   a: Result<A, DecodeError>,
   b: Result<A, DecodeError>,
 ) -> Result<A, DecodeError> {
-  a.or_else(|ea| b.or_else(|eb| Err(ea.join(eb))))
+  a.or_else(|ea| b.map_err(|eb| ea.join(eb)))
 }

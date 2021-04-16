@@ -15,13 +15,14 @@ pub struct Pos {
 }
 
 impl Pos {
+  #[must_use]
   pub fn from_upto(from: Span, upto: Span) -> Self {
-    Pos {
+    Self {
       from_offset: (from.location_offset() as u64),
-      from_line: from.location_line() as u64,
+      from_line: u64::from(from.location_line()),
       from_column: from.get_utf8_column() as u64,
       upto_offset: (upto.location_offset() as u64),
-      upto_line: upto.location_line() as u64,
+      upto_line: u64::from(upto.location_line()),
       upto_column: upto.get_utf8_column() as u64,
     }
   }

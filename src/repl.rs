@@ -36,13 +36,13 @@ pub fn main() -> rustyline::Result<()> {
   let mut rl = Editor::<()>::with_config(config);
   let defs = HashMap::new();
   let mut _decls: Vec<Declaration> = Vec::new();
-  rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
-  rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
+  rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("\u{3bb} ")));
+  rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("\u{2200} ")));
   if rl.load_history("history.txt").is_err() {
     println!("No previous history.");
   }
   loop {
-    let readline = rl.readline("⅄ ");
+    let readline = rl.readline("\u{2144} ");
     match readline {
       Ok(line) => {
         rl.add_history_entry(line.as_str());

@@ -37,6 +37,7 @@ enum Branch {
 
 // Substitute a variable
 #[inline]
+#[must_use]
 pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
@@ -254,6 +255,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
 
 // Contract a lambda redex, return the body.
 #[inline]
+#[must_use]
 pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
@@ -325,7 +327,7 @@ impl DAG {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
           if let Some(def) = defs.get(exp) {
-            let parents = ref_parents.clone();
+            let parents = *ref_parents;
             *ref_parents = None;
             node = DAG::from_subterm(
               &def.term,
@@ -346,7 +348,7 @@ impl DAG {
           let opr = unsafe { (*link.as_ptr()).opr };
           let len = trail.len();
           if len >= 1 && opr.arity() == 1 {
-            let mut arg = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg = unsafe { Self::new((*trail[len - 1].as_ptr()).arg) };
             arg.whnf(defs);
             match arg.head {
               DAGPtr::Lit(link) => {
@@ -367,8 +369,8 @@ impl DAG {
             }
           }
           else if len >= 2 && opr.arity() == 2 {
-            let mut arg1 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
-            let mut arg2 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg1 = unsafe { Self::new((*trail[len - 2].as_ptr()).arg) };
+            let mut arg2 = unsafe { Self::new((*trail[len - 1].as_ptr()).arg) };
             arg1.whnf(defs);
             arg2.whnf(defs);
             match (arg1.head, arg2.head) {
@@ -416,8 +418,8 @@ impl DAG {
       match node {
         DAGPtr::App(link) => unsafe {
           let app = link.as_ptr();
-          let mut fun = DAG::new((*app).fun);
-          let mut arg = DAG::new((*app).arg);
+          let mut fun = Self::new((*app).fun);
+          let mut arg = Self::new((*app).arg);
           fun.whnf(defs);
           arg.whnf(defs);
           trail.push(fun.head);
@@ -425,8 +427,8 @@ impl DAG {
         },
         DAGPtr::All(link) => unsafe {
           let all = link.as_ptr();
-          let mut dom = DAG::new((*all).dom);
-          let mut img = DAG::new((*all).img);
+          let mut dom = Self::new((*all).dom);
+          let mut img = Self::new((*all).img);
           dom.whnf(defs);
           img.whnf(defs);
           trail.push(dom.head);
@@ -434,25 +436,25 @@ impl DAG {
         },
         DAGPtr::Lam(link) => unsafe {
           let lam = link.as_ptr();
-          let mut body = DAG::new((*lam).bod);
+          let mut body = Self::new((*lam).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
         DAGPtr::Slf(link) => unsafe {
           let slf = link.as_ptr();
-          let mut body = DAG::new((*slf).bod);
+          let mut body = Self::new((*slf).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
         DAGPtr::Cse(link) => unsafe {
           let cse = link.as_ptr();
-          let mut body = DAG::new((*cse).bod);
+          let mut body = Self::new((*cse).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
         DAGPtr::Dat(link) => unsafe {
           let dat = link.as_ptr();
-          let mut body = DAG::new((*dat).bod);
+          let mut body = Self::new((*dat).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
@@ -481,19 +483,19 @@ mod test {
   #[test]
   pub fn parse_test() {
     fn parse_assert(input: &str) {
-      match parse(&input) {
+      match parse(input) {
         Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
         Err(_) => panic!("Did not parse."),
       }
     }
-    parse_assert("λ x => x");
-    parse_assert("λ x y => x y");
-    parse_assert("λ y => (λ x => x) y");
-    parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
+    parse_assert("\u{3bb} x => x");
+    parse_assert("\u{3bb} x y => x y");
+    parse_assert("\u{3bb} y => (\u{3bb} x => x) y");
+    parse_assert("\u{3bb} y => (\u{3bb} z => z z) ((\u{3bb} x => x) y)");
   }
 
   fn norm_assert(input: &str, result: &str) {
-    match parse(&input) {
+    match parse(input) {
       Ok((_, mut dag)) => {
         dag.norm(&HashMap::new());
         assert_eq!(format!("{}", dag), result)
@@ -505,77 +507,77 @@ mod test {
   #[test]
   pub fn reduce_test_ann() {
     norm_assert("(Type :: Type)", "Type");
-    norm_assert("((λ x => x) #Natural :: Type)", "#Natural");
-    norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
-    norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
+    norm_assert("((\u{3bb} x => x) #Natural :: Type)", "#Natural");
+    norm_assert("(\u{3bb} A => A :: \u{2200} (A: Type) -> Type)", "\u{3bb} A => A");
+    norm_assert("(\u{3bb} A x => A :: \u{2200} (A: Type) (x: A) -> Type)", "\u{3bb} A x => A");
     norm_assert(
-      "(∀ (A: Type) (x: A) -> Type :: Type)",
-      "∀ (A: Type) (x: A) -> Type",
+      "(\u{2200} (A: Type) (x: A) -> Type :: Type)",
+      "\u{2200} (A: Type) (x: A) -> Type",
     );
-    norm_assert("Type :: ∀ (A: Type) (x: A) -> Type", "Type");
+    norm_assert("Type :: \u{2200} (A: Type) (x: A) -> Type", "Type");
   }
 
   #[test]
   pub fn reduce_test_app() {
     norm_assert(
-      "Type (∀ (A: Type) (x: A) -> Type)",
-      "Type (∀ (A: Type) (x: A) -> Type)",
+      "Type (\u{2200} (A: Type) (x: A) -> Type)",
+      "Type (\u{2200} (A: Type) (x: A) -> Type)",
     );
     norm_assert(
-      "(∀ (A: Type) (x: A) -> Type) Type",
-      "(∀ (A: Type) (x: A) -> Type) Type",
+      "(\u{2200} (A: Type) (x: A) -> Type) Type",
+      "(\u{2200} (A: Type) (x: A) -> Type) Type",
     )
   }
 
   #[test]
   pub fn reduce_test_all() {
     norm_assert(
-      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+      "\u{2200} (f: \u{2200} (A: Type) (x: A) -> Type) -> Type",
+      "\u{2200} (f: \u{2200} (A: Type) (x: A) -> Type) -> Type",
     );
     norm_assert(
-      "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
-      "∀ (f: Type) (A: Type) (x: A) -> Type",
+      "\u{2200} (f: Type) -> \u{2200} (A: Type) (x: A) -> Type",
+      "\u{2200} (f: Type) (A: Type) (x: A) -> Type",
     );
   }
 
   #[test]
   pub fn reduce_test_let() {
     norm_assert("let f: Type = Type; f", "Type");
-    norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x => x");
+    norm_assert("let f: \u{2200} (A: Type) (x: A) -> A = \u{3bb} A x => x; f", "\u{3bb} A x => x");
     norm_assert(
-      "let f: Type = ∀ (A: Type) (x: A) -> A; f",
-      "∀ (A: Type) (x: A) -> A",
+      "let f: Type = \u{2200} (A: Type) (x: A) -> A; f",
+      "\u{2200} (A: Type) (x: A) -> A",
     );
     norm_assert(
-      "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
-      "∀ (A: Type) (x: A) -> A",
+      "let f: Type = Type; \u{2200} (A: Type) (x: A) -> A",
+      "\u{2200} (A: Type) (x: A) -> A",
     );
   }
 
   #[test]
   pub fn reduce_test() {
     // Already normalized
-    norm_assert("λ x => x", "λ x => x");
-    norm_assert("λ x y => x y", "λ x y => x y");
+    norm_assert("\u{3bb} x => x", "\u{3bb} x => x");
+    norm_assert("\u{3bb} x y => x y", "\u{3bb} x y => x y");
     // Not normalized cases
-    norm_assert("λ y => (λ x => x) y", "λ y => y");
-    norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
+    norm_assert("\u{3bb} y => (\u{3bb} x => x) y", "\u{3bb} y => y");
+    norm_assert("\u{3bb} y => (\u{3bb} z => z z) ((\u{3bb} x => x) y)", "\u{3bb} y => y y");
     // // Church arithmetic
-    let zero = "λ s z => z";
-    let one = "λ s z => (s z)";
-    let two = "λ s z => s (s z)";
-    let three = "λ s z => s (s (s z))";
-    let four = "λ s z => s (s (s (s z)))";
-    let seven = "λ s z => s (s (s (s (s (s (s z))))))";
-    let add = "λ m n s z => m s (n s z)";
+    let zero = "\u{3bb} s z => z";
+    let one = "\u{3bb} s z => (s z)";
+    let two = "\u{3bb} s z => s (s z)";
+    let three = "\u{3bb} s z => s (s (s z))";
+    let four = "\u{3bb} s z => s (s (s (s z)))";
+    let seven = "\u{3bb} s z => s (s (s (s (s (s (s z))))))";
+    let add = "\u{3bb} m n s z => m s (n s z)";
     let is_three = format!("(({}) ({}) {})", add, zero, three);
     let is_three2 = format!("(({}) ({}) {})", add, one, two);
     let is_seven = format!("(({}) ({}) {})", add, four, three);
     norm_assert(&is_three, three);
     norm_assert(&is_three2, three);
     norm_assert(&is_seven, seven);
-    let id = "λ x => x";
+    let id = "\u{3bb} x => x";
     norm_assert(
       &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
       id,

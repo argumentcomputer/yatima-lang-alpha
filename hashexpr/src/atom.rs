@@ -30,6 +30,7 @@ pub enum Atom {
 }
 
 impl Atom {
+  #[must_use]
   pub fn type_code(&self) -> Vec<u8> {
     match self {
       Self::Link(_) => vec![0x00],
@@ -50,11 +51,12 @@ impl Atom {
     }
   }
 
+  #[must_use]
   pub fn data_bytes(&self) -> Vec<u8> {
     match self {
       Self::Link(x) => x.as_bytes().to_vec(),
-      Self::Bits(x) => x.to_owned(),
-      Self::Text(x) => x.to_owned().into_bytes(),
+      Self::Bits(x) => x.clone(),
+      Self::Text(x) => x.clone().into_bytes(),
       Self::Char(x) => (*x as u32).to_be_bytes().to_vec(),
       Self::Nat(x) => x.to_bytes_be(),
       Self::Int(x) => x.to_signed_bytes_be(),
@@ -77,7 +79,7 @@ impl fmt::Display for Atom {
     match self {
       Self::Bits(x) => {
         let x: &[u8] = x.as_ref();
-        write!(f, "~\"{}\"", Base::encode(&Base::_64, x))
+        write!(f, "~\"{}\"", Base::_64.encode(x))
       }
       Self::Link(l) => write!(f, "{}", l),
       Self::Nat(x) => {

@@ -1,4 +1,5 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![feature(proc_macro_hygiene, decl_macro, const_raw_ptr_deref)]
 
 #[cfg(test)]
 extern crate quickcheck;
@@ -34,4 +35,3 @@ pub mod utils;
 #[cfg(target_arch = "wasm32")]
 #[cfg(not(target = "wasm32-wasi"))]
 pub mod wasm_binds;
-

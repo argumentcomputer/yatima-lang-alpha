@@ -39,8 +39,7 @@ pub fn clean_up(cc: &ParentPtr) {
     },
     ParentPtr::AppFun(mut link) | ParentPtr::AppArg(mut link) => unsafe {
       let app = link.as_mut();
-      match app.copy {
-        Some(app_copy) => {
+      if let Some(app_copy) = app.copy {
           let App { fun, arg, fun_ref, arg_ref, .. } = &mut *app_copy.as_ptr();
           app.copy = None;
           add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
@@ -49,13 +48,10 @@ pub fn clean_up(cc: &ParentPtr) {
             clean_up(parent);
           }
         }
-        None => (),
-      }
     },
     ParentPtr::AnnExp(mut link) | ParentPtr::AnnTyp(mut link) => unsafe {
       let ann = link.as_mut();
-      match ann.copy {
-        Some(ann_copy) => {
+      if let Some(ann_copy) = ann.copy {
           let Ann { typ, exp, typ_ref, exp_ref, .. } = &mut *ann_copy.as_ptr();
           ann.copy = None;
           add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
@@ -64,13 +60,10 @@ pub fn clean_up(cc: &ParentPtr) {
             clean_up(parent);
           }
         }
-        None => (),
-      }
     },
     ParentPtr::AllDom(mut link) | ParentPtr::AllImg(mut link) => unsafe {
       let all = link.as_mut();
-      match all.copy {
-        Some(all_copy) => {
+      if let Some(all_copy) = all.copy {
           let All { var, dom, img, dom_ref, img_ref, .. } =
             &mut *all_copy.as_ptr();
           all.copy = None;
@@ -83,15 +76,12 @@ pub fn clean_up(cc: &ParentPtr) {
             clean_up(parent);
           }
         }
-        None => (),
-      }
     },
     ParentPtr::LetTyp(mut link)
     | ParentPtr::LetExp(mut link)
     | ParentPtr::LetBod(mut link) => unsafe {
       let let_ = link.as_mut();
-      match let_.copy {
-        Some(let_copy) => {
+      if let Some(let_copy) = let_.copy {
           let Let { var, typ, exp, bod, typ_ref, exp_ref, bod_ref, .. } =
             &mut *let_copy.as_ptr();
           let_.copy = None;
@@ -105,8 +95,6 @@ pub fn clean_up(cc: &ParentPtr) {
             clean_up(parent);
           }
         }
-        None => (),
-      }
     },
     ParentPtr::Root => (),
   }

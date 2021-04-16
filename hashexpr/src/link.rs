@@ -24,23 +24,28 @@ use std::fmt;
 pub struct Link(blake3::Hash);
 
 impl Link {
-  pub fn make(x: &[u8]) -> Link { Link(blake3::hash(x)) }
+  #[must_use]
+  pub fn make(x: &[u8]) -> Self { Link(blake3::hash(x)) }
 
-  pub fn from(x: [u8; 32]) -> Link { Link(blake3::Hash::from(x)) }
+  #[must_use]
+  pub fn from(x: [u8; 32]) -> Self { Link(blake3::Hash::from(x)) }
 
-  pub fn as_hash(&self) -> &blake3::Hash {
+  #[must_use]
+  pub const fn as_hash(&self) -> &blake3::Hash {
     match self {
       Link(h) => h,
     }
   }
 
+  #[must_use]
   pub fn as_bytes(&self) -> &[u8; 32] { self.as_hash().as_bytes() }
 
+  #[must_use]
   pub fn serialize(&self) -> Vec<u8> {
-    Expr::Atom(None, Atom::Link(self.clone())).serialize()
+    Expr::Atom(None, Atom::Link(*self)).serialize()
   }
 
-  pub fn deserialize(i: &[u8]) -> IResult<&[u8], Link, DeserialError<&[u8]>> {
+  pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self, DeserialError<&[u8]>> {
     match Expr::deserialize(i) {
       Ok((i, Expr::Atom(_, Atom::Link(x)))) => Ok((i, x)),
       Ok((i, _)) => {
@@ -50,19 +55,15 @@ impl Link {
     }
   }
 
-  pub fn parse(i: &str) -> IResult<Span, Link, ParseError<Span>> {
+  pub fn parse(i: &str) -> IResult<Span, Self, ParseError<Span>> {
     let i = Span::new(i);
     let (i, _) = opt(tag("#"))(i)?;
-    let (i, (_, raw)) = base::parse(i).map_err(|e| nom::Err::convert(e))?;
-    let (_, x) = Link::deserialize(&raw).map_err(|e| match e {
+    let (i, (_, raw)) = base::parse(i).map_err(nom::Err::convert)?;
+    let (_, x) = Self::deserialize(&raw).map_err(|e| match e {
       Err::Incomplete(n) => Err::Incomplete(n),
-      Err::Error(e) => Err::Error(ParseError::new(
+      Err::Error(e) | Err::Failure(e) => Err::Error(ParseError::new(
         i,
-        ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
-      )),
-      Err::Failure(e) => Err::Error(ParseError::new(
-        i,
-        ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
+        ParseErrorKind::DeserialErr(e.clone().input_as_bytes()),
       )),
     })?;
     Ok((i, x))

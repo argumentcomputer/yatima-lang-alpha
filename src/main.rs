@@ -88,7 +88,7 @@ fn handle_cli() -> io::Result<()> {
     }
     Cli::Check { input } => {
       let hashspace = hashspace::Hashspace::local();
-      let env = parse::package::PackageEnv::new(input.clone());
+      let env = parse::package::PackageEnv::new(input);
       let (_, p, defs, refs) = parse::package::parse_file(env, &hashspace);
       for dec in p.decls {
         if let package::Declaration::Defn { name, .. } = &dec {
@@ -105,7 +105,7 @@ fn handle_cli() -> io::Result<()> {
       let env = parse::package::PackageEnv::new(input.clone());
       let hashspace = hashspace::Hashspace::local();
       let (_, p, defs, refs) = parse::package::parse_file(env, &hashspace);
-      let (def_link, _) = refs.get("main").expect(&format!(
+      let (def_link, _) = refs.get("main").unwrap_or_else(|| panic!(
         "No `main` expression in package {} from file {:?}",
         p.name, input
       ));

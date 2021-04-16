@@ -29,11 +29,11 @@ pub enum AnonTerm {
 }
 
 impl AnonTerm {
+  #[must_use]
   pub fn encode(self) -> Expr {
     match self {
       Self::Ctor(ctor, xs) => {
-        let mut ys = Vec::new();
-        ys.push(text!(ctor));
+        let mut ys = vec![text!(ctor)];
         for x in xs {
           ys.push(x.encode());
         }
@@ -52,14 +52,14 @@ impl AnonTerm {
         [Atom(_, Text(ctor)), tail @ ..] => {
           let mut xs = Vec::new();
           for y in tail {
-            let x = AnonTerm::decode(y.to_owned())?;
+            let x = Self::decode(y.clone())?;
             xs.push(x);
           }
           Ok(Self::Ctor(ctor.to_owned(), xs))
         }
         [bound] => {
-          let x = AnonTerm::decode(bound.to_owned())?;
-          Ok(Self::Bind(Box::new(x.to_owned())))
+          let x = Self::decode(bound.clone())?;
+          Ok(Self::Bind(Box::new(x)))
         }
         _ => Err(DecodeError::new(pos, vec![Expected::AnonTermCons])),
       },
@@ -71,7 +71,7 @@ impl AnonTerm {
       }
       Atom(_, Link(link)) => Ok(Self::Link(link)),
       Atom(_, Bits(data)) => Ok(Self::Data(data)),
-      _ => Err(DecodeError::new(expr.position(), vec![Expected::AnonTermAtom])),
+      Atom(..) => Err(DecodeError::new(expr.position(), vec![Expected::AnonTermAtom])),
     }
   }
 }
@@ -83,11 +83,11 @@ impl fmt::Display for AnonTerm {
       Vari(i) => write!(f, "{}", i),
       Bind(x) => write!(f, "(bind ({}))", x),
       Link(l) => write!(f, "{}", l),
-      Data(d) => write!(f, "{}", bits!(d.to_owned())),
+      Data(d) => write!(f, "{}", bits!(d.clone())),
       Ctor(n, xs) => {
         let mut res = String::new();
         for x in xs {
-          res.push_str(" ");
+          res.push(' ');
           res.push_str(&format!("{}", x));
         }
         write!(f, "(ctor \"{}\"{})", n, res)
@@ -114,6 +114,7 @@ pub mod tests {
     frequency
   };
 
+  #[must_use]
   pub fn arbitrary_anon_ctor(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
     Box::new(move |g: &mut Gen| {
       let mut rng = rand::thread_rng();
@@ -126,10 +127,11 @@ pub mod tests {
     })
   }
 
+  #[must_use]
   pub fn arbitrary_vari(ctx: u64) -> Box<dyn Fn(&mut Gen) -> AnonTerm> {
     Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
-      Vari(rng.gen_range(0..ctx + 1))
+      Vari(rng.gen_range(0..=ctx))
     })
   }
 
@@ -160,7 +162,7 @@ pub mod tests {
 
   #[test]
   fn test_cases() {
-    let f = Ctor(format!("lam"), vec![Bind(Box::new(Vari(0)))]);
+    let f = Ctor("lam".to_string(), vec![Bind(Box::new(Vari(0)))]);
     assert_eq!(String::from(r##"(ctor "lam" (bind (0)))"##), format!("{}", f))
   }
 }

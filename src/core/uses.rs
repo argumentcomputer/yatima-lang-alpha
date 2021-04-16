@@ -16,57 +16,60 @@ pub enum Uses {
   Many,
 }
 
+impl std::ops::Mul for Uses {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        match (self, rhs) {
+          (Self::None, _) | (_, Self::None) => Self::None,
+          (Self::Many, _) | (_, Self::Many) => Self::Many,
+          (Self::Affi, _) => Self::Affi,
+          (Self::Once, x) => x,
+        }
+    }
+}
+
+impl std::ops::Add for Uses {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Self::None, y) => y,
+            (x, Self::None) => x,
+            (..) => Self::Many,
+        }
+    }
+}
+
 impl Uses {
-  pub fn add(x: Self, y: Self) -> Self {
+  #[must_use]
+  pub const fn lte(x: Self, y: Self) -> bool {
     match (x, y) {
-      (Self::None, y) => y,
-      (x, Self::None) => x,
-      (..) => Self::Many,
-    }
-  }
-
-  pub fn mul(x: Self, y: Self) -> Self {
-    match (x, y) {
-      (Self::None, _) => Self::None,
-      (_, Self::None) => Self::None,
-      (Self::Many, _) => Self::Many,
-      (_, Self::Many) => Self::Many,
-      (Self::Affi, _) => Self::Affi,
-      (Self::Once, x) => x,
-    }
-  }
-
-  pub fn lte(x: Self, y: Self) -> bool {
-    match (x, y) {
-      (Self::None, Self::Once) => false,
-      (Self::None, _) => true,
-      (Self::Affi, Self::None) => false,
-      (Self::Affi, Self::Once) => false,
-      (Self::Affi, _) => true,
-      (Self::Once, Self::None) => false,
-      (Self::Once, _) => true,
       (Self::Many, Self::Many) => true,
-      (Self::Many, _) => false,
+      (Self::None, Self::Once) | (Self::Affi, Self::None) | (Self::Affi, Self::Once) | (Self::Once, Self::None) | (Self::Many, _) => false,
+      _ => true,
     }
   }
 
-  pub fn gth(x: Self, y: Self) -> bool { !Self::lte(x, y) }
+  #[must_use]
+  pub const fn gth(x: Self, y: Self) -> bool { !Self::lte(x, y) }
 
+  #[must_use]
   pub fn encode(self) -> Expr {
     match self {
       Self::None => text!("0"),
       Self::Affi => text!("&"),
       Self::Once => text!("1"),
-      Self::Many => text!("ω"),
+      Self::Many => text!("\u{3c9}"),
     }
   }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Expr::Atom(_, Text(n)) if *n == String::from("0") => Ok(Self::None),
-      Expr::Atom(_, Text(n)) if *n == String::from("&") => Ok(Self::Affi),
-      Expr::Atom(_, Text(n)) if *n == String::from("1") => Ok(Self::Once),
-      Expr::Atom(_, Text(n)) if *n == String::from("ω") => Ok(Self::Many),
+      Expr::Atom(_, Text(n)) if n == "0" => Ok(Self::None),
+      Expr::Atom(_, Text(n)) if n == "&" => Ok(Self::Affi),
+      Expr::Atom(_, Text(n)) if n == "1" => Ok(Self::Once),
+      Expr::Atom(_, Text(n)) if n == "\u{3c9}" => Ok(Self::Many),
       x => Err(DecodeError::new(x.position(), vec![Expected::Uses])),
     }
   }
@@ -86,12 +89,12 @@ pub mod tests {
 
   impl Arbitrary for Uses {
     fn arbitrary(g: &mut Gen) -> Self {
-      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Uses>)> =
-        vec![ 
-        (1, Box::new(|_| Uses::None)),
-        (1, Box::new(|_| Uses::Affi)),
-        (1, Box::new(|_| Uses::Once)),
-        (1, Box::new(|_| Uses::Many)),
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Self>)> =
+        vec![
+        (1, Box::new(|_| Self::None)),
+        (1, Box::new(|_| Self::Affi)),
+        (1, Box::new(|_| Self::Once)),
+        (1, Box::new(|_| Self::Many)),
         ];
       frequency(g, input)
 

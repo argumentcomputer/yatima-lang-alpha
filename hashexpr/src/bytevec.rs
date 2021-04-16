@@ -5,7 +5,7 @@ use nom::AsBytes;
 pub struct ByteVec(Vec<u8>);
 
 impl From<Vec<u8>> for ByteVec {
-  fn from(x: Vec<u8>) -> Self { ByteVec(x) }
+  fn from(x: Vec<u8>) -> Self { Self(x) }
 }
 
 impl AsBytes for ByteVec {

@@ -18,10 +18,12 @@ pub struct Iter<'a, T> {
 
 impl<'a, T> Iter<'a, T> {
   #[inline]
-  pub fn is_last(&self) -> bool { self.next.is_none() }
+  #[must_use]
+  pub const fn is_last(&self) -> bool { self.next.is_none() }
 
   #[inline]
-  pub fn this(&self) -> Option<NonNull<DLL<T>>> { self.this }
+  #[must_use]
+  pub const fn this(&self) -> Option<NonNull<DLL<T>>> { self.this }
 }
 impl<'a, T> Iterator for Iter<'a, T> {
   type Item = &'a mut T;
@@ -39,9 +41,11 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 impl<T> DLL<T> {
   #[inline]
-  pub fn singleton(elem: T) -> Self { DLL { next: None, prev: None, elem } }
+  #[must_use]
+  pub const fn singleton(elem: T) -> Self { Self { next: None, prev: None, elem } }
 
   #[inline]
+  #[must_use]
   pub fn is_singleton(dll: Option<NonNull<Self>>) -> bool {
     dll.map_or(false, |dll| unsafe {
       let dll = &*dll.as_ptr();
@@ -50,7 +54,7 @@ impl<T> DLL<T> {
   }
 
   pub fn add_after(&mut self, elem: T) {
-    let new_next = NonNull::new(Box::into_raw(Box::new(DLL {
+    let new_next = NonNull::new(Box::into_raw(Box::new(Self {
       next: self.next,
       prev: NonNull::new(self),
       elem,
@@ -60,7 +64,7 @@ impl<T> DLL<T> {
   }
 
   pub fn add_before(&mut self, elem: T) {
-    let new_prev = NonNull::new(Box::into_raw(Box::new(DLL {
+    let new_prev = NonNull::new(Box::into_raw(Box::new(Self {
       next: NonNull::new(self),
       prev: self.prev,
       elem,
@@ -94,7 +98,8 @@ impl<T> DLL<T> {
     }
   }
 
-  pub fn first(mut node: NonNull<Self>) -> NonNull<Self> {
+  #[must_use]
+  pub const fn first(mut node: NonNull<Self>) -> NonNull<Self> {
     loop {
       let prev = unsafe { (*node.as_ptr()).prev };
       match prev {
@@ -105,7 +110,8 @@ impl<T> DLL<T> {
     node
   }
 
-  pub fn last(mut node: NonNull<Self>) -> NonNull<Self> {
+  #[must_use]
+  pub const fn last(mut node: NonNull<Self>) -> NonNull<Self> {
     loop {
       let next = unsafe { (*node.as_ptr()).next };
       match next {
@@ -117,8 +123,8 @@ impl<T> DLL<T> {
   }
 
   pub fn concat(dll: NonNull<Self>, rest: Option<NonNull<Self>>) {
-    let last = DLL::last(dll);
-    let first = rest.map(|dll| DLL::first(dll));
+    let last = Self::last(dll);
+    let first = rest.map(Self::first);
     unsafe {
       (*last.as_ptr()).next = first;
     }
@@ -128,9 +134,10 @@ impl<T> DLL<T> {
   }
 
   #[inline]
+  #[must_use]
   pub fn iter_option<'a>(dll: Option<NonNull<Self>>) -> Iter<'a, T> {
     Iter {
-      next: dll.map(|dll| DLL::first(dll)),
+      next: dll.map(Self::first),
       this: None,
       marker: PhantomData,
     }
@@ -139,12 +146,12 @@ impl<T> DLL<T> {
   #[inline]
   pub fn iter(&mut self) -> Iter<'_, T> {
     let link: NonNull<Self> = NonNull::from(self);
-    Iter { next: Some(DLL::first(link)), this: None, marker: PhantomData }
+    Iter { next: Some(Self::first(link)), this: None, marker: PhantomData }
   }
 }
 
 impl<T: ToString> DLL<T> {
-  pub fn to_string(&mut self) -> String {
+  pub fn as_string(&mut self) -> String {
     let mut iter = self.iter();
     let head = &iter.next().map_or(String::from(""), |head| head.to_string());
     let mut msg = String::from("[ ") + head;
@@ -172,24 +179,24 @@ mod tests {
       node.add_before(0);
       node.add_before(1);
       node.add_before(2);
-      assert_eq!(node.to_string(), "[ 0 <-> 1 <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 ]");
+      assert_eq!(node.as_string(), "[ 0 <-> 1 <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 ]");
       // Remove elements
       let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
-        None => return (),
+        None => return,
       };
       assert_eq!(
-        (*dll.as_ptr()).to_string(),
+        (*dll.as_ptr()).as_string(),
         "[ 0 <-> 1 <-> 2 <-> 4 <-> 5 <-> 6 ]"
       );
       let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
-        None => return (),
+        None => return,
       };
-      assert_eq!((*dll.as_ptr()).to_string(), "[ 0 <-> 1 <-> 4 <-> 5 <-> 6 ]");
+      assert_eq!((*dll.as_ptr()).as_string(), "[ 0 <-> 1 <-> 4 <-> 5 <-> 6 ]");
       let dll = match DLL::unlink_node(dll.as_ref()) {
         Some(dll) => dll,
-        None => return (),
+        None => return,
       };
       let node = &mut *dll.as_ptr();
       let mut iter = node.iter();

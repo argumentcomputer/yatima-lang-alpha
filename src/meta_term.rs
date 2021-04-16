@@ -28,6 +28,7 @@ pub enum MetaTerm {
 }
 
 impl MetaTerm {
+  #[must_use]
   pub fn encode(&self) -> Expr {
     match self {
       Self::Ctor(pos, xs) => {
@@ -49,23 +50,23 @@ impl MetaTerm {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
         [Atom(_, Text(name)), Atom(_, Link(l))] => {
-          Ok(Self::Link(name.to_owned(), *l))
+          Ok(Self::Link(name.clone(), *l))
         }
         [Atom(_, Text(name)), bound] => {
-          let bound = MetaTerm::decode(bound.to_owned())?;
-          Ok(Self::Bind(name.to_owned(), Box::new(bound)))
+          let bound = Self::decode(bound.clone())?;
+          Ok(Self::Bind(name.clone(), Box::new(bound)))
         }
         [xs @ ..] => {
           let mut ys = Vec::new();
           for x in xs {
-            let y = MetaTerm::decode(x.to_owned())?;
+            let y = Self::decode(x.clone())?;
             ys.push(y);
           }
           Ok(Self::Ctor(pos, ys))
         }
       },
       Atom(_, Bits(..)) => Ok(Self::Leaf),
-      _ => Err(DecodeError::new(expr.position(), vec![Expected::MetaTerm])),
+      Atom(..) => Err(DecodeError::new(expr.position(), vec![Expected::MetaTerm])),
     }
   }
 }
@@ -80,7 +81,7 @@ impl fmt::Display for MetaTerm {
       Ctor(p, xs) => {
         let mut res = String::new();
         for x in xs {
-          res.push_str(" ");
+          res.push(' ');
           res.push_str(&format!("{}", x));
         }
         match p {
@@ -111,6 +112,7 @@ pub mod tests {
     frequency
   };
 
+  #[must_use]
   pub fn arbitrary_meta_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
     Box::new(move |g: &mut Gen| {
       let mut rng = rand::thread_rng();
@@ -124,7 +126,7 @@ pub mod tests {
   }
   impl Arbitrary for MetaTerm {
     fn arbitrary(g: &mut Gen) -> Self {
-      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> MetaTerm>)> =
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Self>)> =
         vec![
           // arbitrary_meta_ctor() causes stack overflow unless Leaf is set to at least 3
           (1, arbitrary_meta_ctor()),
@@ -138,7 +140,7 @@ pub mod tests {
 
   #[quickcheck]
   fn meta_term_encode_decode(x: MetaTerm) -> bool {
-    match MetaTerm::decode(x.clone().encode()) {
+    match MetaTerm::decode(x.encode()) {
       Ok(y) => x == y,
       _ => false,
     }
@@ -146,7 +148,7 @@ pub mod tests {
 
   #[test]
   fn test_cases() {
-    let f = Ctor(None, vec![Bind(format!("x"), Box::new(Leaf))]);
+    let f = Ctor(None, vec![Bind("x".to_owned(), Box::new(Leaf))]);
     assert_eq!(
       String::from(r##"(ctor () (bind "x" (leaf)))"##),
       format!("{}", f)
@@ -159,7 +161,7 @@ pub mod tests {
       upto_line: 2,
       upto_column: 1,
     };
-    let f = Ctor(Some(p), vec![Bind(format!("x"), Box::new(Leaf))]);
+    let f = Ctor(Some(p), vec![Bind("x".to_owned(), Box::new(Leaf))]);
     assert_eq!(
       String::from(r##"(ctor (1:1-2:1) (bind "x" (leaf)))"##),
       format!("{}", f)

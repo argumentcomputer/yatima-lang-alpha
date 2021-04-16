@@ -58,7 +58,8 @@ impl Base {
   }
 
   /// Get the code corresponding to the base algorithm.
-  pub fn code(&self) -> char {
+  #[must_use]
+  pub const fn code(self) -> char {
     match self {
       Self::_2 => 'b',
       Self::_8 => 'o',
@@ -70,6 +71,7 @@ impl Base {
     }
   }
 
+  #[must_use]
   pub fn base_digits(&self) -> &str {
     match self {
       Self::_2 => "01",
@@ -84,32 +86,33 @@ impl Base {
     }
   }
 
-  pub fn is_digit(&self, x: char) -> bool {
+  #[must_use]
+  pub fn is_digit(self, x: char) -> bool {
     self.base_digits().chars().any(|y| x == y)
   }
 
-  pub fn encode<I: AsRef<[u8]>>(&self, input: I) -> String {
+  pub fn encode<I: AsRef<[u8]>>(self, input: I) -> String {
     base_x::encode(self.base_digits(), input.as_ref())
   }
 
-  pub fn decode<'a>(
-    &self,
-    input: Span<'a>,
-  ) -> IResult<Span<'a>, Vec<u8>, ParseError<Span<'a>>> {
+  pub fn decode(
+    self,
+    input: Span,
+  ) -> IResult<Span, Vec<u8>, ParseError<Span>> {
     let (i, o) = input.split_at_position_complete(|x| !self.is_digit(x))?;
     match base_x::decode(self.base_digits(), o.fragment()) {
       Ok(bytes) => Ok((i, bytes)),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
-        ParseErrorKind::InvalidBaseEncoding(self.clone()),
+        ParseErrorKind::InvalidBaseEncoding(self),
       ))),
     }
   }
 
-  pub fn decode1<'a>(
-    &self,
-    input: Span<'a>,
-  ) -> IResult<Span<'a>, Vec<u8>, ParseError<Span<'a>>> {
+  pub fn decode1(
+    self,
+    input: Span,
+  ) -> IResult<Span, Vec<u8>, ParseError<Span>> {
     let (i, o) = input.split_at_position1_complete(
       |x| !self.is_digit(x),
       nom::error::ErrorKind::Digit,
@@ -118,7 +121,7 @@ impl Base {
       Ok(bytes) => Ok((i, bytes)),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
-        ParseErrorKind::InvalidBaseEncoding(self.clone()),
+        ParseErrorKind::InvalidBaseEncoding(self),
       ))),
     }
   }

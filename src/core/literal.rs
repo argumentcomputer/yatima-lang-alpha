@@ -64,7 +64,7 @@ impl fmt::Display for Literal {
       },
       BitString(x) => {
         let x: &[u8] = x.as_ref();
-        write!(f, "~\"{}\"", Base::encode(&Base::_64, x))
+        write!(f, "~\"{}\"", Base::_64.encode(x))
       }
       Text(x) => write!(f, "\"{}\"", x.escape_default()),
       Char(x) => write!(f, "'{}'", x.escape_default()),
@@ -83,6 +83,7 @@ impl fmt::Display for Literal {
 }
 
 impl Literal {
+  #[must_use]
   pub fn encode(self) -> Expr {
     match self {
       Self::Natural(x) => nat!(x),
@@ -124,6 +125,7 @@ impl Literal {
 }
 
 impl LitType {
+  #[must_use]
   pub fn encode(self) -> Expr {
     match self {
       Self::Natural => text!("#Natural"),
@@ -145,22 +147,22 @@ impl LitType {
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     match x {
-      Atom(_, Text(n)) if *n == String::from("#Natural") => Ok(Self::Natural),
-      Atom(_, Text(n)) if *n == String::from("#Integer") => Ok(Self::Integer),
-      Atom(_, Text(n)) if *n == String::from("#BitString") => {
+      Atom(_, Text(n)) if n == "#Natural" => Ok(Self::Natural),
+      Atom(_, Text(n)) if n == "#Integer" => Ok(Self::Integer),
+      Atom(_, Text(n)) if n == "#BitString" => {
         Ok(Self::BitString)
       }
-      Atom(_, Text(n)) if *n == String::from("#Text") => Ok(Self::Text),
-      Atom(_, Text(n)) if *n == String::from("#Char") => Ok(Self::Char),
-      Atom(_, Text(n)) if *n == String::from("#Bool") => Ok(Self::Bool),
-      Atom(_, Text(n)) if *n == String::from("#U8") => Ok(Self::U8),
-      Atom(_, Text(n)) if *n == String::from("#U16") => Ok(Self::U16),
-      Atom(_, Text(n)) if *n == String::from("#U32") => Ok(Self::U32),
-      Atom(_, Text(n)) if *n == String::from("#U64") => Ok(Self::U64),
-      Atom(_, Text(n)) if *n == String::from("#I8") => Ok(Self::I8),
-      Atom(_, Text(n)) if *n == String::from("#I16") => Ok(Self::I16),
-      Atom(_, Text(n)) if *n == String::from("#I32") => Ok(Self::I32),
-      Atom(_, Text(n)) if *n == String::from("#I64") => Ok(Self::I64),
+      Atom(_, Text(n)) if n == "#Text" => Ok(Self::Text),
+      Atom(_, Text(n)) if n == "#Char" => Ok(Self::Char),
+      Atom(_, Text(n)) if n == "#Bool" => Ok(Self::Bool),
+      Atom(_, Text(n)) if n == "#U8" => Ok(Self::U8),
+      Atom(_, Text(n)) if n == "#U16" => Ok(Self::U16),
+      Atom(_, Text(n)) if n == "#U32" => Ok(Self::U32),
+      Atom(_, Text(n)) if n == "#U64" => Ok(Self::U64),
+      Atom(_, Text(n)) if n == "#I8" => Ok(Self::I8),
+      Atom(_, Text(n)) if n == "#I16" => Ok(Self::I16),
+      Atom(_, Text(n)) if n == "#I32" => Ok(Self::I32),
+      Atom(_, Text(n)) if n == "#I64" => Ok(Self::I64),
       _ => Err(DecodeError::new(x.position(), vec![Expected::LitType])),
     }
   }
@@ -197,6 +199,7 @@ pub mod tests {
 
   use crate::term::tests::frequency;
 
+  #[must_use]
   pub fn arbitrary_bits() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let x: Vec<u8> = Arbitrary::arbitrary(g);
@@ -204,12 +207,15 @@ pub mod tests {
     })
   }
 
+  #[must_use]
   pub fn arbitrary_text() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let x: String = Arbitrary::arbitrary(g);
       Literal::Text(x)
     })
   }
+
+  #[must_use]
   pub fn arbitrary_nat() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let v: Vec<u8> = Arbitrary::arbitrary(g);
@@ -218,6 +224,7 @@ pub mod tests {
     })
   }
 
+  #[must_use]
   pub fn arbitrary_int() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let v: Vec<u8> = Arbitrary::arbitrary(g);
@@ -247,7 +254,7 @@ pub mod tests {
 
   impl Arbitrary for LitType {
     fn arbitrary(g: &mut Gen) -> Self {
-      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> LitType>)> = vec![
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> Self>)> = vec![
         (1, Box::new(|_| Self::Natural)),
         (1, Box::new(|_| Self::Integer)),
         (1, Box::new(|_| Self::BitString)),
@@ -259,7 +266,7 @@ pub mod tests {
   }
   #[quickcheck]
   fn lit_type_encode_decode(x: LitType) -> bool {
-    match LitType::decode(x.clone().encode()) {
+    match LitType::decode(x.encode()) {
       Ok(y) => x == y,
       _ => false,
     }
