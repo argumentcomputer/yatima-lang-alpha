@@ -42,7 +42,9 @@ impl<'a, T> Iterator for Iter<'a, T> {
 impl<T> DLL<T> {
   #[inline]
   #[must_use]
-  pub const fn singleton(elem: T) -> Self { Self { next: None, prev: None, elem } }
+  pub const fn singleton(elem: T) -> Self {
+    Self { next: None, prev: None, elem }
+  }
 
   #[inline]
   #[must_use]
@@ -136,11 +138,7 @@ impl<T> DLL<T> {
   #[inline]
   #[must_use]
   pub fn iter_option<'a>(dll: Option<NonNull<Self>>) -> Iter<'a, T> {
-    Iter {
-      next: dll.map(Self::first),
-      this: None,
-      marker: PhantomData,
-    }
+    Iter { next: dll.map(Self::first), this: None, marker: PhantomData }
   }
 
   #[inline]

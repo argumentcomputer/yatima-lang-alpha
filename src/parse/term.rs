@@ -116,7 +116,7 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   else if s.starts_with('#') | s.starts_with("~\"") {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::HashExprSyntax(s))))
   }
-  else if is_numeric_symbol_string1(&s) ||  is_numeric_symbol_string2(&s) {
+  else if is_numeric_symbol_string1(&s) || is_numeric_symbol_string2(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::NumericSyntax(s))))
   }
   else if is_valid_symbol_string(&s) {
@@ -481,10 +481,7 @@ pub fn parse_let(
     ctx2.push_front(nam.clone());
     let (upto, bod) = parse_expression(refs.clone(), ctx2)(i)?;
     let pos = Some(Pos::from_upto(from, upto));
-    Ok((
-      upto,
-      Term::Let(pos, rec, uses, nam, Box::new((typ, exp, bod))),
-    ))
+    Ok((upto, Term::Let(pos, rec, uses, nam, Box::new((typ, exp, bod)))))
   }
 }
 
@@ -513,10 +510,7 @@ pub fn parse_lty() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
       value(LitType::Char, tag("#Char")),
     ))(from)?;
     let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
-      ParseError::new(
-        i,
-        ParseErrorKind::LitTypeLacksWhitespaceTermination(lty),
-      )
+      ParseError::new(i, ParseErrorKind::LitTypeLacksWhitespaceTermination(lty))
     })?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::LTy(pos, lty)))
@@ -578,10 +572,7 @@ pub fn parse_opr() -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
       alt((value(PrimOp::Len, tag("#len")), value(PrimOp::Cat, tag("#cat")))),
     ))(from)?;
     let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
-      ParseError::new(
-        i,
-        ParseErrorKind::PrimOpLacksWhitespaceTermination(op),
-      )
+      ParseError::new(i, ParseErrorKind::PrimOpLacksWhitespaceTermination(op))
     })?;
     let pos = Some(Pos::from_upto(from, upto));
     Ok((upto, Term::Opr(pos, op)))
@@ -633,11 +624,11 @@ pub fn parse_apps(
     loop {
       let (i2, _) = parse_space(i)?;
       if let Ok((..)) = parse_app_end(i2) {
-          let pos = Some(Pos::from_upto(from, i2));
-          let trm = args
-            .into_iter()
-            .fold(fun, |acc, arg| Term::App(pos, Box::new((acc, arg))));
-          return Ok((i2, trm));
+        let pos = Some(Pos::from_upto(from, i2));
+        let trm = args
+          .into_iter()
+          .fold(fun, |acc, arg| Term::App(pos, Box::new((acc, arg))));
+        return Ok((i2, trm));
       }
       let (i2, arg) = parse_term(refs.clone(), ctx.clone())(i2)?;
       args.push(arg);
@@ -714,14 +705,14 @@ pub mod tests {
     // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-      "\u{3bb} x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
-       x (c x (c x (c x n)))))))))))))))",
+      "\u{3bb} x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c \
+       x x (c x (c x (c x (c x n)))))))))))))))",
     ));
     // println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-      "\u{3bb} x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x x (c \
-       x (c x (c x (c x n)))))))))))))))",
+      "\u{3bb} x c n => (c x (c x (c x (c x (c x (c x (c x (c x (c x (c x (c \
+       x x (c x (c x (c x (c x n)))))))))))))))",
     ));
     // println!("res: {:?}", res);
     assert!(res.is_ok());

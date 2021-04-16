@@ -72,12 +72,15 @@ impl PartialEq for Term {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
       (Self::Var(_, na, ia), Self::Var(_, nb, ib)) => na == nb && ia == ib,
-      (Self::Lam(_, na, ba), Self::Lam(_, nb, bb)) | (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
-      (Self::App(_, ta), Self::App(_, tb)) | (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
+      (Self::Lam(_, na, ba), Self::Lam(_, nb, bb))
+      | (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
+      (Self::App(_, ta), Self::App(_, tb))
+      | (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::All(_, ua, na, ta), Self::All(_, ub, nb, tb)) => {
         ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1
       }
-      (Self::Dat(_, ba), Self::Dat(_, bb)) | (Self::Cse(_, ba), Self::Cse(_, bb)) => ba == bb,
+      (Self::Dat(_, ba), Self::Dat(_, bb))
+      | (Self::Cse(_, ba), Self::Cse(_, bb)) => ba == bb,
       (Self::Ref(_, na, da, aa), Self::Ref(_, nb, db, ab)) => {
         na == nb && da == db && aa == ab
       }
@@ -103,7 +106,9 @@ impl fmt::Display for Term {
     use Term::*;
     const WILDCARD: &str = "_";
 
-    const fn name(nam: &str) -> &str { if nam.is_empty() { WILDCARD } else { nam } }
+    const fn name(nam: &str) -> &str {
+      if nam.is_empty() { WILDCARD } else { nam }
+    }
 
     const fn uses(uses: &Uses) -> &str {
       match uses {
@@ -121,21 +126,24 @@ impl fmt::Display for Term {
     fn lams(nam: &str, bod: &Term) -> String {
       if let Lam(_, nam2, bod2) = bod {
         format!("{} {}", name(nam), lams(nam2, bod2))
-      } else { format!("{} => {}", nam, bod)
+      }
+      else {
+        format!("{} => {}", nam, bod)
       }
     }
 
     fn alls(use_: Uses, nam: &str, typ: &Term, bod: &Term) -> String {
       if let All(_, bod_use, bod_nam, bod) = bod {
-          format!(
-            " ({}{}: {}){}",
-            uses(&use_),
-            name(nam),
-            typ,
-            alls(*bod_use, bod_nam, &bod.0, &bod.1)
-          )
-      } else {
-          format!(" ({}{}: {}) -> {}", uses(&use_), name(nam), typ, bod)
+        format!(
+          " ({}{}: {}){}",
+          uses(&use_),
+          name(nam),
+          typ,
+          alls(*bod_use, bod_nam, &bod.0, &bod.1)
+        )
+      }
+      else {
+        format!(" ({}{}: {}) -> {}", uses(&use_), name(nam), typ, bod)
       }
     }
 
@@ -291,10 +299,7 @@ impl Term {
           AnonTerm::Ctor(String::from("lam"), vec![AnonTerm::Bind(Box::new(
             anon,
           ))]),
-          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(
-            name,
-            Box::new(meta),
-          )]),
+          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(name, Box::new(meta))]),
         )
       }
       Self::Slf(pos, name, body) => {
@@ -303,10 +308,7 @@ impl Term {
           AnonTerm::Ctor(String::from("slf"), vec![AnonTerm::Bind(Box::new(
             anon,
           ))]),
-          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(
-            name,
-            Box::new(meta),
-          )]),
+          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(name, Box::new(meta))]),
         )
       }
       Self::App(pos, terms) => {
@@ -400,7 +402,7 @@ impl Term {
     ctx: Vector<String>,
     anon_term: &AnonTerm,
     name_meta: &MetaTerm,
-) -> Result<Self, UnembedError> {
+  ) -> Result<Self, UnembedError> {
     match (anon_term, name_meta) {
       (AnonTerm::Ctor(n, xs), MetaTerm::Ctor(pos, ys)) => {
         match (&n[..], xs.as_slice(), ys.as_slice()) {
@@ -430,8 +432,7 @@ impl Term {
           ("opr", [AnonTerm::Data(data)], [MetaTerm::Leaf]) => {
             let (_, opr) = hashexpr::Expr::deserialize(data)
               .map_err(|_| UnembedError::DeserialError)?;
-            let opr =
-              PrimOp::decode(opr).map_err(UnembedError::DecodeError)?;
+            let opr = PrimOp::decode(opr).map_err(UnembedError::DecodeError)?;
             Ok(Self::Opr(*pos, opr))
           }
           ("typ", [], []) => Ok(Self::Typ(*pos)),
@@ -472,8 +473,7 @@ impl Term {
           ) => {
             let (_, uses) = hashexpr::Expr::deserialize(uses)
               .map_err(|_| UnembedError::DeserialError)?;
-            let uses =
-              Uses::decode(uses).map_err(UnembedError::DecodeError)?;
+            let uses = Uses::decode(uses).map_err(UnembedError::DecodeError)?;
             let typ_ = Self::unembed(ctx.clone(), tanon, tmeta)?;
             let mut new_ctx = ctx;
             new_ctx.push_front(n.clone());
@@ -489,8 +489,7 @@ impl Term {
               if n1 == n2 { Ok(n1) } else { Err(UnembedError::BadLet) }?;
             let (_, uses) = hashexpr::Expr::deserialize(uses)
               .map_err(|_| UnembedError::DeserialError)?;
-            let uses =
-              Uses::decode(uses).map_err(UnembedError::DecodeError)?;
+            let uses = Uses::decode(uses).map_err(UnembedError::DecodeError)?;
             let typ_ = Self::unembed(ctx.clone(), tanon, tmeta)?;
             let mut new_ctx = ctx;
             new_ctx.push_front(name.clone());
@@ -511,8 +510,7 @@ impl Term {
           ) => {
             let (_, uses) = hashexpr::Expr::deserialize(uses)
               .map_err(|_| UnembedError::DeserialError)?;
-            let uses =
-              Uses::decode(uses).map_err(UnembedError::DecodeError)?;
+            let uses = Uses::decode(uses).map_err(UnembedError::DecodeError)?;
             let typ_ = Self::unembed(ctx.clone(), tanon, tmeta)?;
             let exp = Self::unembed(ctx.clone(), xanon, xmeta)?;
             let mut new_ctx = ctx;
@@ -586,8 +584,7 @@ impl Def {
     hashspace: &Hashspace,
   ) -> Result<Self, UnembedError> {
     let def = hashspace.get(defn).ok_or(UnembedError::UnknownLink(defn))?;
-    let def =
-      Definition::decode(def).map_err(UnembedError::DecodeError)?;
+    let def = Definition::decode(def).map_err(UnembedError::DecodeError)?;
     let type_anon =
       hashspace.get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
     let type_anon =

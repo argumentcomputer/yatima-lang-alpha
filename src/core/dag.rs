@@ -32,7 +32,8 @@ pub struct DAG {
   pub head: DAGPtr,
 }
 
-// A top-down \u{3bb}-DAG pointer. Keeps track of what kind of node it points to.
+// A top-down \u{3bb}-DAG pointer. Keeps track of what kind of node it points
+// to.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DAGPtr {
   Var(NonNull<Var>),
@@ -643,7 +644,10 @@ impl DAG {
       match node {
         DAGPtr::Var(link) => {
           let Var { nam, dep: var_depth, .. } = unsafe { link.as_ref() };
-          map.get(&link.as_ptr()).map_or_else(|| Term::Var(None, nam.clone(), *var_depth), |level| Term::Var(None, nam.clone(), depth - level - 1))
+          map.get(&link.as_ptr()).map_or_else(
+            || Term::Var(None, nam.clone(), *var_depth),
+            |level| Term::Var(None, nam.clone(), depth - level - 1),
+          )
         }
         DAGPtr::Typ(_) => Term::Typ(None),
         DAGPtr::LTy(link) => {
@@ -772,10 +776,12 @@ impl DAG {
           }
           *val
         }
-        None => if let Some((nam, exp, ast)) = rec_ref {
+        None => {
+          if let Some((nam, exp, ast)) = rec_ref {
             let ref_ = alloc_val(Ref { nam, exp, ast, parents });
             DAGPtr::Ref(ref_)
-        } else {
+          }
+          else {
             let var = alloc_val(Var {
               nam: name.clone(),
               dep: depth - 1 - idx,
@@ -783,7 +789,8 @@ impl DAG {
               parents,
             });
             DAGPtr::Var(var)
-        },
+          }
+        }
       },
       Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
       Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
@@ -984,9 +991,9 @@ impl Clone for DAG {
       // If the node is in the hash map then it was already copied,
       // so we update the parent list and return the copy
       if let Some(copy) = (*map).get(&node) {
-          DLL::concat(parents, get_parents(*copy));
-          set_parents(*copy, Some(parents));
-          return *copy;
+        DLL::concat(parents, get_parents(*copy));
+        set_parents(*copy, Some(parents));
+        return *copy;
       }
       // Otherwise create a new DAG node and add it to the map
       let new_node = match node {
@@ -1193,9 +1200,8 @@ impl fmt::Debug for DAG {
       match dll {
         Some(dll) => unsafe {
           let mut iter = (*dll.as_ptr()).iter();
-          let head = &iter.next().map_or(String::from(""), |head| {
-            format_uplink(*head)
-          });
+          let head =
+            &iter.next().map_or(String::from(""), |head| format_uplink(*head));
           let mut msg = String::from("[ ") + head;
           for val in iter {
             msg = msg + " <-> " + &format_uplink(*val).to_string();
@@ -1429,8 +1435,10 @@ mod test {
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
     let (_, x) = parse("\u{3bb} z => z").unwrap();
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
-    let (_, x) =
-      parse("\u{3bb} _z => (\u{3bb} _a => \u{2200} (1 _x: _a) -> #Natural) Type").unwrap();
+    let (_, x) = parse(
+      "\u{3bb} _z => (\u{3bb} _a => \u{2200} (1 _x: _a) -> #Natural) Type",
+    )
+    .unwrap();
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
   }
 

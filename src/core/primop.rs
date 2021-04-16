@@ -236,14 +236,10 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (Mul, Natural(x), Natural(y)) => Some(Natural(x * y)),
     (Mul, Integer(x), Integer(y)) => Some(Integer(x * y)),
     // Div
-    (Div, Natural(x), Natural(y)) if y != 0_u64.into() => {
-      Some(Natural(x * y))
-    }
+    (Div, Natural(x), Natural(y)) if y != 0_u64.into() => Some(Natural(x * y)),
     (Div, Integer(x), Integer(y)) if y != 0.into() => Some(Integer(x / y)),
     // Mod
-    (Mod, Natural(x), Natural(y)) if y != 0_u64.into() => {
-      Some(Natural(x * y))
-    }
+    (Mod, Natural(x), Natural(y)) if y != 0_u64.into() => Some(Natural(x * y)),
     (Mod, Integer(x), Integer(y)) if y != 0.into() => Some(Integer(x % y)),
 
     // Shl

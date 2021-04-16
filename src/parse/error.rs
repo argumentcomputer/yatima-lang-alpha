@@ -190,9 +190,7 @@ impl ParseErrorKind {
   }
 
   #[must_use]
-  pub const fn is_nom_err(&self) -> bool {
-    matches!(self, Self::Nom(_))
-  }
+  pub const fn is_nom_err(&self) -> bool { matches!(self, Self::Nom(_)) }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -261,8 +259,7 @@ impl<'a> fmt::Display for ParseError<Span<'a>> {
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
-where
-  I: InputLength + Clone,
+where I: InputLength + Clone
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
     Self::new(input, ParseErrorKind::Nom(kind))
@@ -294,14 +291,11 @@ where
 }
 
 impl<I: AsBytes> nom::error::ContextError<I> for ParseError<I>
-where
-  I: InputLength + Clone,
+where I: InputLength + Clone
 {
   fn add_context(input: I, ctx: &'static str, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
-      Ordering::Less => {
-        Self { input, expected: Some(ctx), errors: vec![] }
-      }
+      Ordering::Less => Self { input, expected: Some(ctx), errors: vec![] },
       Ordering::Equal => match other.expected {
         None => Self { input, expected: Some(ctx), errors: other.errors },
         _ => other,

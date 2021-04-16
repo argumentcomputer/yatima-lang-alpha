@@ -61,9 +61,7 @@ fn put(data: Data) -> String {
 }
 
 #[options("/store")]
-const fn options() {
-
-}
+const fn options() {}
 
 /// Add CORS headers to requests
 pub struct CORS();

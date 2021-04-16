@@ -46,8 +46,7 @@ impl<'a, I: AsBytes> DeserialError<I> {
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for DeserialError<I>
-where
-  I: InputLength + Clone,
+where I: InputLength + Clone
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
     Self::new(input, DeserialErrorKind::Nom(kind))
@@ -55,9 +54,7 @@ where
 
   fn append(input: I, kind: ErrorKind, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
-      Ordering::Less => {
-        Self { input, error: DeserialErrorKind::Nom(kind) }
-      }
+      Ordering::Less => Self { input, error: DeserialErrorKind::Nom(kind) },
       _ => other,
     }
   }
@@ -87,14 +84,11 @@ pub struct ParseError<I: AsBytes> {
 }
 
 impl<I: AsBytes> ParseError<I> {
-  pub fn new(input: I, error: ParseErrorKind) -> Self {
-    Self { input, error }
-  }
+  pub fn new(input: I, error: ParseErrorKind) -> Self { Self { input, error } }
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
-where
-  I: InputLength + Clone,
+where I: InputLength + Clone
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
     Self::new(input, ParseErrorKind::Nom(kind))

@@ -60,28 +60,29 @@ impl Definition {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     if let Cons(pos, xs) = expr {
       match xs.as_slice() {
-        [Atom(_, Text(c)), tail @ ..] if *c == "def" => {
-          match tail {
-            [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(t)), Atom(_, Link(x)), tm, xm] =>
-            {
-              let type_meta = MetaTerm::decode(tm.clone())?;
-              let term_meta = MetaTerm::decode(xm.clone())?;
-              Ok(Self {
-                name: n.clone(),
-                pos,
-                docs: d.clone(),
-                type_anon: *t,
-                term_anon: *x,
-                type_meta,
-                term_meta,
-              })
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::DefinitionContents])),
+        [Atom(_, Text(c)), tail @ ..] if *c == "def" => match tail {
+          [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(t)), Atom(_, Link(x)), tm, xm] =>
+          {
+            let type_meta = MetaTerm::decode(tm.clone())?;
+            let term_meta = MetaTerm::decode(xm.clone())?;
+            Ok(Self {
+              name: n.clone(),
+              pos,
+              docs: d.clone(),
+              type_anon: *t,
+              term_anon: *x,
+              type_meta,
+              term_meta,
+            })
           }
-        }
+          _ => Err(DecodeError::new(pos, vec![Expected::DefinitionContents])),
+        },
         _ => Err(DecodeError::new(pos, vec![Expected::Definition])),
-    } } else {
-        println!("foo");
-        Err(DecodeError::new(expr.position(), vec![Expected::Definition]))
+      }
     }
-} }
+    else {
+      println!("foo");
+      Err(DecodeError::new(expr.position(), vec![Expected::Definition]))
+    }
+  }
+}

@@ -149,9 +149,7 @@ impl LitType {
     match x {
       Atom(_, Text(n)) if n == "#Natural" => Ok(Self::Natural),
       Atom(_, Text(n)) if n == "#Integer" => Ok(Self::Integer),
-      Atom(_, Text(n)) if n == "#BitString" => {
-        Ok(Self::BitString)
-      }
+      Atom(_, Text(n)) if n == "#BitString" => Ok(Self::BitString),
       Atom(_, Text(n)) if n == "#Text" => Ok(Self::Text),
       Atom(_, Text(n)) if n == "#Char" => Ok(Self::Char),
       Atom(_, Text(n)) if n == "#Bool" => Ok(Self::Bool),

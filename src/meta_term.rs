@@ -66,7 +66,9 @@ impl MetaTerm {
         }
       },
       Atom(_, Bits(..)) => Ok(Self::Leaf),
-      Atom(..) => Err(DecodeError::new(expr.position(), vec![Expected::MetaTerm])),
+      Atom(..) => {
+        Err(DecodeError::new(expr.position(), vec![Expected::MetaTerm]))
+      }
     }
   }
 }

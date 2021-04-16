@@ -239,9 +239,7 @@ impl Expr {
   #[must_use]
   pub fn to_desugared_string(&self) -> String {
     match self {
-      Self::Atom(..) => {
-        base::encode(Base::_64, self.serialize())
-      }
+      Self::Atom(..) => base::encode(Base::_64, self.serialize()),
       Self::Cons(_, xs) => {
         let xs = xs
           .iter()
@@ -286,13 +284,13 @@ pub fn parse_char(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (upto, c) = delimited(tag("'"), p, tag("'"))(from)?;
   let s: Vec<char> = c.chars().collect();
   if s.len() == 1 {
-      Ok((upto, char!(Some(Pos::from_upto(from, upto)), s[0])))
+    Ok((upto, char!(Some(Pos::from_upto(from, upto)), s[0])))
   }
   else {
-      Err(Err::Error(ParseError::new(
-        upto,
-        ParseErrorKind::ExpectedSingleChar(s),
-      )))
+    Err(Err::Error(ParseError::new(
+      upto,
+      ParseErrorKind::ExpectedSingleChar(s),
+    )))
   }
 }
 

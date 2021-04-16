@@ -71,7 +71,9 @@ impl AnonTerm {
       }
       Atom(_, Link(link)) => Ok(Self::Link(link)),
       Atom(_, Bits(data)) => Ok(Self::Data(data)),
-      Atom(..) => Err(DecodeError::new(expr.position(), vec![Expected::AnonTermAtom])),
+      Atom(..) => {
+        Err(DecodeError::new(expr.position(), vec![Expected::AnonTermAtom]))
+      }
     }
   }
 }

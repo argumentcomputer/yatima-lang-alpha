@@ -95,10 +95,7 @@ impl Base {
     base_x::encode(self.base_digits(), input.as_ref())
   }
 
-  pub fn decode(
-    self,
-    input: Span,
-  ) -> IResult<Span, Vec<u8>, ParseError<Span>> {
+  pub fn decode(self, input: Span) -> IResult<Span, Vec<u8>, ParseError<Span>> {
     let (i, o) = input.split_at_position_complete(|x| !self.is_digit(x))?;
     match base_x::decode(self.base_digits(), o.fragment()) {
       Ok(bytes) => Ok((i, bytes)),

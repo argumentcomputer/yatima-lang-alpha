@@ -98,12 +98,7 @@ impl Declaration {
             }
           }
           let with = Some(ns);
-          Ok(Self::Open {
-            name: n.clone(),
-            alias: a.clone(),
-            with,
-            from: *f,
-          })
+          Ok(Self::Open { name: n.clone(), alias: a.clone(), with, from: *f })
         }
         [Atom(_, Text(c)), Atom(_, Text(n)), Atom(_, Text(a)), Atom(_, Link(f))]
           if *c == "open" =>
@@ -184,34 +179,29 @@ impl Package {
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
     match expr {
       Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Text(c)), tail @ ..] if *c == "package" => {
-          match tail {
-            [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(s)), ds] => {
-              let mut decls = Vec::new();
-              match ds {
-                Cons(_, xs) => {
-                  for x in xs {
-                    let decl = Declaration::decode(x.clone())?;
-                    decls.push(decl);
-                  }
-                  Ok(Self {
-                    name: n.clone(),
-                    docs: d.clone(),
-                    source: *s,
-                    decls,
-                  })
+        [Atom(_, Text(c)), tail @ ..] if *c == "package" => match tail {
+          [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(s)), ds] => {
+            let mut decls = Vec::new();
+            match ds {
+              Cons(_, xs) => {
+                for x in xs {
+                  let decl = Declaration::decode(x.clone())?;
+                  decls.push(decl);
                 }
-                expr @ Atom(..) => Err(DecodeError::new(expr.position(), vec![
-                  Expected::PackageDecls,
-                ])),
+                Ok(Self { name: n.clone(), docs: d.clone(), source: *s, decls })
               }
+              expr @ Atom(..) => Err(DecodeError::new(expr.position(), vec![
+                Expected::PackageDecls,
+              ])),
             }
-            _ => Err(DecodeError::new(pos, vec![Expected::PackageContents])),
           }
-        }
+          _ => Err(DecodeError::new(pos, vec![Expected::PackageContents])),
+        },
         _ => Err(DecodeError::new(pos, vec![Expected::Package])),
       },
-      Atom(..) => Err(DecodeError::new(expr.position(), vec![Expected::Package])),
+      Atom(..) => {
+        Err(DecodeError::new(expr.position(), vec![Expected::Package]))
+      }
     }
   }
 
@@ -239,8 +229,7 @@ impl Package {
         Declaration::Open { alias, from, with, .. } => {
           let pack =
             hashspace.get(from).ok_or(UnembedError::UnknownLink(from))?;
-          let pack =
-            Self::decode(pack).map_err(UnembedError::DecodeError)?;
+          let pack = Self::decode(pack).map_err(UnembedError::DecodeError)?;
           let (import_refs, import_defs) = pack.refs_defs(hashspace)?;
           refs = merge_refs(refs, import_refs, &alias, with);
           defs = merge_defs(defs, import_defs);
@@ -258,23 +247,33 @@ pub fn merge_refs(
   alias: &str,
   with: Option<Vec<String>>,
 ) -> Refs {
-  left.union_with(with.map_or_else(|| {
-      let mut refs = right.clone();
-      if !alias.is_empty() {
-        refs =
-          refs.iter().map(|(k, v)| (format!("{}.{}", alias, k), *v)).collect();
-      }
-      refs
-  }, |ns| {
-      let mut refs = right.clone();
-      let set: HashSet<String> = ns.iter().collect();
-      refs.retain(|k, _| set.contains(k));
-      if !alias.is_empty() {
-        refs =
-          refs.iter().map(|(k, v)| (format!("{}.{}", alias, k), *v)).collect();
-      }
-      refs
-  }), |_, right| right)
+  left.union_with(
+    with.map_or_else(
+      || {
+        let mut refs = right.clone();
+        if !alias.is_empty() {
+          refs = refs
+            .iter()
+            .map(|(k, v)| (format!("{}.{}", alias, k), *v))
+            .collect();
+        }
+        refs
+      },
+      |ns| {
+        let mut refs = right.clone();
+        let set: HashSet<String> = ns.iter().collect();
+        refs.retain(|k, _| set.contains(k));
+        if !alias.is_empty() {
+          refs = refs
+            .iter()
+            .map(|(k, v)| (format!("{}.{}", alias, k), *v))
+            .collect();
+        }
+        refs
+      },
+    ),
+    |_, right| right,
+  )
 }
 
 #[must_use]

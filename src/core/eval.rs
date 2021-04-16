@@ -508,8 +508,14 @@ mod test {
   pub fn reduce_test_ann() {
     norm_assert("(Type :: Type)", "Type");
     norm_assert("((\u{3bb} x => x) #Natural :: Type)", "#Natural");
-    norm_assert("(\u{3bb} A => A :: \u{2200} (A: Type) -> Type)", "\u{3bb} A => A");
-    norm_assert("(\u{3bb} A x => A :: \u{2200} (A: Type) (x: A) -> Type)", "\u{3bb} A x => A");
+    norm_assert(
+      "(\u{3bb} A => A :: \u{2200} (A: Type) -> Type)",
+      "\u{3bb} A => A",
+    );
+    norm_assert(
+      "(\u{3bb} A x => A :: \u{2200} (A: Type) (x: A) -> Type)",
+      "\u{3bb} A x => A",
+    );
     norm_assert(
       "(\u{2200} (A: Type) (x: A) -> Type :: Type)",
       "\u{2200} (A: Type) (x: A) -> Type",
@@ -544,7 +550,10 @@ mod test {
   #[test]
   pub fn reduce_test_let() {
     norm_assert("let f: Type = Type; f", "Type");
-    norm_assert("let f: \u{2200} (A: Type) (x: A) -> A = \u{3bb} A x => x; f", "\u{3bb} A x => x");
+    norm_assert(
+      "let f: \u{2200} (A: Type) (x: A) -> A = \u{3bb} A x => x; f",
+      "\u{3bb} A x => x",
+    );
     norm_assert(
       "let f: Type = \u{2200} (A: Type) (x: A) -> A; f",
       "\u{2200} (A: Type) (x: A) -> A",
@@ -562,7 +571,10 @@ mod test {
     norm_assert("\u{3bb} x y => x y", "\u{3bb} x y => x y");
     // Not normalized cases
     norm_assert("\u{3bb} y => (\u{3bb} x => x) y", "\u{3bb} y => y");
-    norm_assert("\u{3bb} y => (\u{3bb} z => z z) ((\u{3bb} x => x) y)", "\u{3bb} y => y y");
+    norm_assert(
+      "\u{3bb} y => (\u{3bb} z => z z) ((\u{3bb} x => x) y)",
+      "\u{3bb} y => y y",
+    );
     // // Church arithmetic
     let zero = "\u{3bb} s z => z";
     let one = "\u{3bb} s z => (s z)";

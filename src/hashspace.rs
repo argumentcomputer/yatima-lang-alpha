@@ -73,28 +73,36 @@ pub fn hashspace_directory() -> PathBuf {
         if you see this message.");
   let path = proj_dir.cache_dir();
   if let Err(..) = fs::read_dir(&path) {
-      let path_name = path.to_str().unwrap_or_else(|| panic!(
+    let path_name = path.to_str().unwrap_or_else(|| {
+      panic!(
           "Error: hashspace path {} contains invalid Unicode. \
            Please open an issue at \
           \"https://github.com/yatima-inc/yatima/issues\" \
-          if you see this message", path.to_string_lossy()));
-      println!("Creating new hashspace at {}", path_name);
-      fs::create_dir_all(path).unwrap_or_else(|_| panic!(
+          if you see this message", path.to_string_lossy())
+    });
+    println!("Creating new hashspace at {}", path_name);
+    fs::create_dir_all(path).unwrap_or_else(|_| {
+      panic!(
         "Error: cannot create hashspace path {}, likely due to lacking \
          sufficient filesystem permissions. \
          Please contact your system administrator or open an issue at \
-         \"https://github.com/yatima-inc/yatima/issues\"", path_name));
-      let mut perms = fs::metadata(path)
-        .unwrap_or_else(|_| panic!(
+         \"https://github.com/yatima-inc/yatima/issues\"", path_name)
+    });
+    let mut perms = fs::metadata(path)
+      .unwrap_or_else(|_| {
+        panic!(
           "Error: cannot read metadata on hashspace path {}. \
             Please contact your system administrator or open an issue at \
-            \"https://github.com/yatima-inc/yatima/issues\"", path_name))
-        .permissions();
-      perms.set_readonly(false);
-      fs::set_permissions(path, perms).unwrap_or_else(|_| panic!(
+            \"https://github.com/yatima-inc/yatima/issues\"", path_name)
+      })
+      .permissions();
+    perms.set_readonly(false);
+    fs::set_permissions(path, perms).unwrap_or_else(|_| {
+      panic!(
         "Error: cannot set hashspace path {} as writeable. \
             Please contact your system administrator or open an issue at \
-            \"https://github.com/yatima-inc/yatima/issues\"", path_name))
+            \"https://github.com/yatima-inc/yatima/issues\"", path_name)
+    })
   }
   PathBuf::from(path)
 }
@@ -104,25 +112,25 @@ pub fn hashspace_directory() -> PathBuf {
 pub fn hashspace_directory() -> PathBuf {
   let path = Path::new("/hashspace");
   if let Err(..) = fs::read_dir(&path) {
-      let path_name = path.to_str().expect(&format!(
+    let path_name = path.to_str().expect(&format!(
           "Error: hashspace path {} contains invalid Unicode. \
            Please open an issue at \
           \"https://github.com/yatima-inc/yatima/issues\" \
           if you see this message", path.to_string_lossy()));
-      println!("Creating new hashspace at {}", path_name);
-      fs::create_dir_all(path).expect(&format!(
+    println!("Creating new hashspace at {}", path_name);
+    fs::create_dir_all(path).expect(&format!(
         "Error: cannot create hashspace path {}, likely due to lacking \
          sufficient filesystem permissions. \
          Please contact your system administrator or open an issue at \
          \"https://github.com/yatima-inc/yatima/issues\"", path_name));
-      let mut perms = fs::metadata(path)
-        .expect(&format!(
+    let mut perms = fs::metadata(path)
+      .expect(&format!(
           "Error: cannot read metadata on hashspace path {}. \
             Please contact your system administrator or open an issue at \
             \"https://github.com/yatima-inc/yatima/issues\"", path_name))
-        .permissions();
-      perms.set_readonly(false);
-      fs::set_permissions(path, perms).expect(&format!(
+      .permissions();
+    perms.set_readonly(false);
+    fs::set_permissions(path, perms).expect(&format!(
         "Error: cannot set hashspace path {} as writeable. \
             Please contact your system administrator or open an issue at \
             \"https://github.com/yatima-inc/yatima/issues\"", path_name))
@@ -144,12 +152,7 @@ impl Hashspace {
   }
 
   #[must_use]
-  pub fn with_hosts(hosts: Vec<String>) -> Self {
-    Self {
-      dir: None,
-      hosts,
-    }
-  }
+  pub fn with_hosts(hosts: Vec<String>) -> Self { Self { dir: None, hosts } }
 
   #[must_use]
   pub fn get(&self, link: Link) -> Option<Expr> {
@@ -171,8 +174,7 @@ impl Hashspace {
           Ok(d) => log(format!("After remote_get = {}", d).as_str()),
           Err(s) => log(format!("After error remote_get = {}", s).as_str()),
         };
-        base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref())
-            .unwrap()
+        base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref()).unwrap()
       }
     };
     match Expr::deserialize(&data) {
@@ -191,12 +193,14 @@ impl Hashspace {
     match &self.dir {
       Some(dir) => {
         let path = dir.as_path().join(Path::new(&link.to_string()));
-        fs::write(path, data).unwrap_or_else(|_| panic!(
+        fs::write(path, data).unwrap_or_else(|_| {
+          panic!(
             "Error: cannot write to hashspace path {}. \
              Please open an issue at \
              \"https://github.com/yatima-inc/yatima/issues\" \
              if you see this message",
-             link));
+             link)
+        });
       }
       None => {
         let data64 = base_x::encode(Base::_64.base_digits(), data.as_ref());

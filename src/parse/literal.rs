@@ -74,10 +74,10 @@ pub fn parse_char(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
     Ok((upto, Literal::Char(s[0])))
   }
   else {
-      Err(Err::Error(ParseError::new(
-        upto,
-        ParseErrorKind::ExpectedSingleChar(s),
-      )))
+    Err(Err::Error(ParseError::new(
+      upto,
+      ParseErrorKind::ExpectedSingleChar(s),
+    )))
   }
 }
 

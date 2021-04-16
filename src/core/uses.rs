@@ -17,28 +17,28 @@ pub enum Uses {
 }
 
 impl std::ops::Mul for Uses {
-    type Output = Self;
+  type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self {
-        match (self, rhs) {
-          (Self::None, _) | (_, Self::None) => Self::None,
-          (Self::Many, _) | (_, Self::Many) => Self::Many,
-          (Self::Affi, _) => Self::Affi,
-          (Self::Once, x) => x,
-        }
+  fn mul(self, rhs: Self) -> Self {
+    match (self, rhs) {
+      (Self::None, _) | (_, Self::None) => Self::None,
+      (Self::Many, _) | (_, Self::Many) => Self::Many,
+      (Self::Affi, _) => Self::Affi,
+      (Self::Once, x) => x,
     }
+  }
 }
 
 impl std::ops::Add for Uses {
-    type Output = Self;
+  type Output = Self;
 
-    fn add(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (Self::None, y) => y,
-            (x, Self::None) => x,
-            (..) => Self::Many,
-        }
+  fn add(self, rhs: Self) -> Self {
+    match (self, rhs) {
+      (Self::None, y) => y,
+      (x, Self::None) => x,
+      (..) => Self::Many,
     }
+  }
 }
 
 impl Uses {
@@ -46,7 +46,11 @@ impl Uses {
   pub const fn lte(x: Self, y: Self) -> bool {
     match (x, y) {
       (Self::Many, Self::Many) => true,
-      (Self::None, Self::Once) | (Self::Affi, Self::None) | (Self::Affi, Self::Once) | (Self::Once, Self::None) | (Self::Many, _) => false,
+      (Self::None, Self::Once)
+      | (Self::Affi, Self::None)
+      | (Self::Affi, Self::Once)
+      | (Self::Once, Self::None)
+      | (Self::Many, _) => false,
       _ => true,
     }
   }

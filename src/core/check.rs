@@ -221,9 +221,9 @@ pub fn check(
           let mut img = DAG::new(*img);
           pre.push((var.nam.to_string(), dom));
           let mut ctx = check(defs, pre, Uses::Once, &term_bod, &mut img)?;
-          let (_, infer_uses, infer_typ) = ctx
-            .pop()
-            .ok_or_else(|| CheckError::GenericError("Empty context.".to_owned()))?;
+          let (_, infer_uses, infer_typ) = ctx.pop().ok_or_else(|| {
+            CheckError::GenericError("Empty context.".to_owned())
+          })?;
           // Discard the popped type
           infer_typ.free();
           if Uses::gth(infer_uses, *lam_uses) {
@@ -235,8 +235,8 @@ pub fn check(
           }
         }
         _ => Err(CheckError::GenericError(
-          "The type of a lambda must be a forall."
-        .to_owned())),
+          "The type of a lambda must be a forall.".to_owned(),
+        )),
       }
     }
     DAGPtr::Dat(link) => {
@@ -271,8 +271,8 @@ pub fn check(
           Ok(ctx)
         }
         _ => Err(CheckError::GenericError(
-          "The type of data must be a self."
-        .to_owned())),
+          "The type of data must be a self.".to_owned(),
+        )),
       }
     }
     DAGPtr::Let(_) => {
@@ -302,9 +302,9 @@ pub fn infer(
   match term.head {
     DAGPtr::Var(mut link) => {
       let Var { dep, .. } = unsafe { link.as_mut() };
-      let bind = pre
-        .get(*dep as usize)
-        .ok_or_else(|| CheckError::GenericError("Unbound variable.".to_owned()))?;
+      let bind = pre.get(*dep as usize).ok_or_else(|| {
+        CheckError::GenericError("Unbound variable.".to_owned())
+      })?;
       let typ = bind.1.clone();
       let mut ctx = to_ctx(pre);
       ctx[*dep as usize].1 = uses;
@@ -312,10 +312,12 @@ pub fn infer(
     }
     DAGPtr::Ref(mut link) => {
       let Ref { nam, exp: def_link, .. } = unsafe { link.as_mut() };
-      let def = defs.get(def_link).ok_or_else(|| CheckError::GenericError(format!(
-        "Undefined reference: {}, {}",
-        nam, def_link
-      )))?;
+      let def = defs.get(def_link).ok_or_else(|| {
+        CheckError::GenericError(format!(
+          "Undefined reference: {}, {}",
+          nam, def_link
+        ))
+      })?;
       let ctx = to_ctx(pre);
       let typ = DAG::from_term(&def.typ_);
       Ok((ctx, typ))
@@ -324,15 +326,13 @@ pub fn infer(
       let App { fun, arg, .. } = unsafe { link.as_mut() };
       let fun = DAG::new(*fun);
       let arg = DAG::new(*arg);
-      let (mut fun_ctx, mut fun_typ) =
-        infer(defs, pre.clone(), uses, &fun)?;
+      let (mut fun_ctx, mut fun_typ) = infer(defs, pre.clone(), uses, &fun)?;
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(link) => {
           let All { uses: lam_uses, dom, .. } = unsafe { &mut *link.as_ptr() };
           let mut dom = DAG::new(*dom);
-          let arg_ctx =
-            check(defs, pre, *lam_uses * uses, &arg, &mut dom)?;
+          let arg_ctx = check(defs, pre, *lam_uses * uses, &arg, &mut dom)?;
           add_ctx(&mut fun_ctx, &arg_ctx);
           // Copy the All type (in a efficient implementation, only image is
           // copied)
@@ -357,8 +357,8 @@ pub fn infer(
           Ok((fun_ctx, new_img))
         }
         _ => Err(CheckError::GenericError(
-          "Tried to apply something that isn't a lambda."
-        .to_owned())),
+          "Tried to apply something that isn't a lambda.".to_owned(),
+        )),
       }
     }
     DAGPtr::Cse(mut link) => {
@@ -385,8 +385,8 @@ pub fn infer(
           Ok((exp_ctx, new_bod))
         }
         _ => Err(CheckError::GenericError(
-          "Tried to case on something that isn't a datatype."
-        .to_owned())),
+          "Tried to case on something that isn't a datatype.".to_owned(),
+        )),
       }
     }
     DAGPtr::All(link) => {
@@ -434,7 +434,9 @@ pub fn infer(
       // let Opr { opr, .. } = unsafe { &*link.as_ptr() };
       // Ok((to_ctx(pre), DAG::from_term(&infer_opr(*opr))))
     }
-    DAGPtr::Lam(_) => Err(CheckError::GenericError("Untyped lambda.".to_owned())),
+    DAGPtr::Lam(_) => {
+      Err(CheckError::GenericError("Untyped lambda.".to_owned()))
+    }
     DAGPtr::Dat(_) => Err(CheckError::GenericError("TODO".to_owned())),
   }
 }
@@ -460,9 +462,7 @@ pub const fn infer_lit(lit: &Literal) -> Term {
 }
 
 #[must_use]
-pub const fn infer_lty(_lty: LitType) -> Term {
-  Term::Typ(None)
-}
+pub const fn infer_lty(_lty: LitType) -> Term { Term::Typ(None) }
 
 // pub fn infer_opr(lit: PrimOp) -> Term {}
 
@@ -471,12 +471,12 @@ pub fn check_def(
   refs: &Refs,
   name: &str,
 ) -> Result<(), CheckError> {
-  let (def_link, ast_link) = refs
-    .get(name)
-    .ok_or_else(|| CheckError::GenericError("Undefined reference.".to_owned()))?;
-  let def = defs
-    .get(def_link)
-    .ok_or_else(|| CheckError::GenericError("Undefined reference.".to_owned()))?;
+  let (def_link, ast_link) = refs.get(name).ok_or_else(|| {
+    CheckError::GenericError("Undefined reference.".to_owned())
+  })?;
+  let def = defs.get(def_link).ok_or_else(|| {
+    CheckError::GenericError("Undefined reference.".to_owned())
+  })?;
   let trm = DAG::from_def(&def.term, (def.name.clone(), *def_link, *ast_link));
   let mut typ = DAG::from_term(&def.typ_);
   let ctx = check(defs, vec![], Uses::Once, &trm, &mut typ)?;
