@@ -138,6 +138,8 @@ pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
+  a.whnf(defs);
+  b.whnf(defs);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
@@ -267,11 +269,11 @@ pub fn check(
     }
     _ => {
       let depth = ctx.len();
+      let mut typ_clone = typ.clone();
       let (use_ctx, mut infer_typ) = infer(defs, ctx, uses, term)?;
-      let mut typ = typ.clone();
-      let eq = equal(defs, &mut typ, &mut infer_typ, depth as u64);
-      // typ.free();
-      // infer_typ.free();
+      let eq = equal(defs, &mut typ_clone, &mut infer_typ, depth as u64);
+      typ_clone.free();
+      infer_typ.free();
       if eq {
         Ok(use_ctx)
       }
@@ -326,10 +328,8 @@ pub fn infer(
       match fun_typ.head {
         DAGPtr::All(link) => {
           let All { var, uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
-          let mut new_dom = DAG::new(*dom).clone();
           let arg_use_ctx =
-            check(defs, ctx, Uses::mul(*lam_uses, uses), &arg, &mut new_dom)?;
-          new_dom.free();
+            check(defs, ctx, Uses::mul(*lam_uses, uses), &arg, &mut DAG::new(*dom))?;
           add_use_ctx(&mut fun_use_ctx, arg_use_ctx);
           let mut map = if var.parents.is_some() {
             HashMap::unit(DAGPtr::Var(NonNull::new(var).unwrap()), arg.clone().head)
@@ -340,6 +340,7 @@ pub fn infer(
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let new_img =
             DAG::from_subdag(*img, &mut map, Some(root));
+          fun_typ.free();
           Ok((fun_use_ctx, DAG::new(new_img)))
         }
         _ => Err(CheckError::GenericError(format!(
@@ -364,6 +365,7 @@ pub fn infer(
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let new_bod =
             DAG::from_subdag(*bod, &mut map, Some(root));
+          exp_typ.free();
           Ok((exp_use_ctx, DAG::new(new_bod)))
         }
         _ => Err(CheckError::GenericError(format!(
@@ -375,8 +377,8 @@ pub fn infer(
       let All { var, dom, img, .. } = unsafe { &mut *link.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(None));
       let dom = DAG::new(*dom);
-      let _ = check(defs, ctx.clone(), Uses::None, &dom, &mut typ)?;
       let dom_clone = dom.clone();
+      let _ = check(defs, ctx.clone(), Uses::None, &dom, &mut typ)?;
       (*var).dep = ctx.len() as u64;
       ctx.push((var.nam.to_string(), dom_clone));
       let img = DAG::new(*img);
