@@ -1,19 +1,18 @@
-  hashspace,
-  hashspace::{
-    anon_term::AnonTerm,
-    cache::Cache,
-    meta_term::MetaTerm,
-  },
-  imports::Imports,
-  term,
-};
+// hashspace,
+// hashspace::{
+//   anon_term::AnonTerm,
+//   cache::Cache,
+//   meta_term::MetaTerm,
+// },
+// imports::Imports,
+// term,
+// };
 
-
-use im::{
-  HashMap,
-  OrdMap,
-  Vector,
-};
+// use im::{
+// HashMap,
+// OrdMap,
+// Vector,
+// };
 
 // impl Index {
 //  pub fn encode(self) -> Expr {
@@ -25,7 +24,6 @@ use im::{
 //    }
 //  }
 //}
-
 
 // pub fn embed_defs(defs: Defs, cache: Cache) -> (Index, Cache) {
 //  let mut ds = OrdMap::new();
@@ -80,7 +78,6 @@ pub mod tests {
     test_defs,
   };
 
-
   impl Arbitrary for Def {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
       let name = arbitrary_name(g);
@@ -114,7 +111,6 @@ pub mod tests {
       }
     }
   }
-
 
   #[quickcheck]
   fn defs_embed_unembed(x: defs::Defs) -> bool {

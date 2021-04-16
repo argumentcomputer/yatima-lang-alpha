@@ -108,7 +108,7 @@ pub mod tests {
   use crate::term::tests::{
     arbitrary_link,
     arbitrary_name,
-    frequency
+    frequency,
   };
 
   pub fn arbitrary_meta_ctor() -> Box<dyn Fn(&mut Gen) -> MetaTerm> {
@@ -124,14 +124,14 @@ pub mod tests {
   }
   impl Arbitrary for MetaTerm {
     fn arbitrary(g: &mut Gen) -> Self {
-      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> MetaTerm>)> =
-        vec![
-          // arbitrary_meta_ctor() causes stack overflow unless Leaf is set to at least 3
-          (1, arbitrary_meta_ctor()),
-          (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
-          (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
-          (3, Box::new(|_| Leaf))
-        ];
+      let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> MetaTerm>)> = vec![
+        // arbitrary_meta_ctor() causes stack overflow unless Leaf is set to at
+        // least 3
+        (1, arbitrary_meta_ctor()),
+        (1, Box::new(|g| Bind(arbitrary_name(g), Arbitrary::arbitrary(g)))),
+        (1, Box::new(|g| Link(arbitrary_name(g), arbitrary_link(g)))),
+        (3, Box::new(|_| Leaf)),
+      ];
       frequency(g, input)
     }
   }

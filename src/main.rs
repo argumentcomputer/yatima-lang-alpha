@@ -4,11 +4,6 @@ use std::{
 };
 
 // #[cfg(not(target_arch = "wasm32"))]
-use std::io::{
-  self,
-  Read,
-};
-use structopt::StructOpt;
 use libyatima::{
   core,
   hashspace,
@@ -17,6 +12,11 @@ use libyatima::{
   parse,
   repl,
 };
+use std::io::{
+  self,
+  Read,
+};
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]
