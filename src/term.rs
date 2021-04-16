@@ -1,6 +1,6 @@
 use crate::{
   definition::Definition,
-  hashspace::{Hashspace},
+  hashspace::Hashspace,
   unembed_error::UnembedError,
 };
 
@@ -581,7 +581,10 @@ impl Def {
     Ok(Self::new(def.pos, def.name, def.docs, typ_, term))
   }
 
-  pub fn get_link(defn: Link, hashspace: &Hashspace) -> Result<Self, UnembedError> {
+  pub fn get_link(
+    defn: Link,
+    hashspace: &Hashspace,
+  ) -> Result<Self, UnembedError> {
     let def = hashspace.get(defn).ok_or(UnembedError::UnknownLink(defn))?;
     let def =
       Definition::decode(def).map_err(UnembedError::DecodeError)?;
@@ -597,7 +600,10 @@ impl Def {
   }
 }
 
-pub fn refs_to_defs(refs: Refs, hashspace: &Hashspace) -> Result<Defs, UnembedError> {
+pub fn refs_to_defs(
+  refs: Refs,
+  hashspace: &Hashspace,
+) -> Result<Defs, UnembedError> {
   let mut def_map = HashMap::new();
   for (_, (d, _)) in refs {
     let def = Def::get_link(d, hashspace)?;

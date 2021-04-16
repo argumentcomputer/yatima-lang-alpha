@@ -1,22 +1,24 @@
+use crate::utils::log;
+use base_x;
 #[cfg(not(target_arch = "wasm32"))]
 use directories_next::ProjectDirs;
 use hashexpr::{
+  base::Base,
   link::Link,
   Expr,
-  base::Base,
 };
 #[cfg(target_arch = "wasm32")]
-use std::sync::{Arc, Mutex};
+use std::sync::{
+  Arc,
+  Mutex,
+};
 use std::{
-  fs,
   fmt,
+  fs,
   path::{
     Path,
     PathBuf,
   },
-};
-use crate::{
-  utils::log
 };
 
 pub mod cache;
@@ -30,25 +32,27 @@ pub mod server;
 /// Allows for defining impl methods that are dependent on hashspace
 /// info to be wrapped.
 pub trait HashspaceDependent {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>, hashspace: &Hashspace) -> fmt::Result;
+  fn fmt(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    hashspace: &Hashspace,
+  ) -> fmt::Result;
 }
 
 pub struct HashspaceImplWrapper<T: HashspaceDependent> {
   hashspace: Hashspace,
-  value: T
+  value: T,
 }
 
 impl<T: Clone + HashspaceDependent> HashspaceImplWrapper<T> {
   pub fn wrap(hashspace: &Hashspace, value: &T) -> Self {
-    Self {
-      hashspace: (*hashspace).clone(),
-      value: (*value).clone()
-    }
+    Self { hashspace: (*hashspace).clone(), value: (*value).clone() }
   }
 }
 
 impl<T> fmt::Display for HashspaceImplWrapper<T>
-where T: HashspaceDependent {
+where T: HashspaceDependent
+{
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.value.fmt(f, &self.hashspace)
   }
@@ -127,19 +131,16 @@ pub fn hashspace_directory() -> PathBuf {
 }
 
 // Contains the configuration of hashspace
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Hashspace {
   dir: Option<PathBuf>,
-  hosts: Vec<String>
+  hosts: Vec<String>,
 }
 
 impl Hashspace {
   #[must_use]
   pub fn local() -> Self {
-    Self {
-      dir: Some(hashspace_directory()),
-      hosts: Vec::new()
-    }
+    Self { dir: Some(hashspace_directory()), hosts: Vec::new() }
   }
 
   #[must_use]
@@ -153,33 +154,33 @@ impl Hashspace {
   #[must_use]
   pub fn get(&self, link: Link) -> Option<Expr> {
     let cid = link.to_string();
-    let data =
-      match &self.dir {
-        Some(dir) => {
-          let path = dir.as_path().join(Path::new(&cid));
-          fs::read(path).ok()?
-        }
-        None => {
-          let result = self.get_local_storage(&cid);
-          log(format!("Before remote_get({})", &cid).as_str());
-          // let result = self.remote_get(cid);
-          // result
-          //   .clone()
-          //   .map(|s| log(format!("Ok: {}", s).as_str()))
-          //   .map_err(|s| log(format!("Error: {}", s).as_str()));
-          match &result {
-            Ok(d) => log(format!("After remote_get = {}", d).as_str()),
-            Err(s) => log(format!("After error remote_get = {}", s).as_str()),
-          };
-          base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref()).unwrap()
-        }
-      };
+    let data = match &self.dir {
+      Some(dir) => {
+        let path = dir.as_path().join(Path::new(&cid));
+        fs::read(path).ok()?
+      }
+      None => {
+        let result = self.get_local_storage(&cid);
+        log(format!("Before remote_get({})", &cid).as_str());
+        // let result = self.remote_get(cid);
+        // result
+        //   .clone()
+        //   .map(|s| log(format!("Ok: {}", s).as_str()))
+        //   .map_err(|s| log(format!("Error: {}", s).as_str()));
+        match &result {
+          Ok(d) => log(format!("After remote_get = {}", d).as_str()),
+          Err(s) => log(format!("After error remote_get = {}", s).as_str()),
+        };
+        base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref())
+            .unwrap()
+      }
+    };
     match Expr::deserialize(&data) {
       Ok((_, x)) => Some(x),
       Err(e) => {
         log(format!("deserialization error: {}", e).as_str());
         panic!("deserialization error: {}", e)
-      },
+      }
     }
   }
 
@@ -204,7 +205,8 @@ impl Hashspace {
         let result = self.remote_put(&data);
         result
           .map(|s| log(format!("Ok: {}", s).as_str()))
-          .map_err(|s| log(format!("Error: {}", s).as_str())).ok();
+          .map_err(|s| log(format!("Error: {}", s).as_str()))
+          .ok();
         log("After remote_put");
       }
     }
@@ -213,14 +215,18 @@ impl Hashspace {
   }
 
   #[cfg(target_arch = "wasm32")]
-  pub fn get_local_storage(&self, cid: &String) -> Result<String,String> {
+  pub fn get_local_storage(&self, cid: &String) -> Result<String, String> {
     let window = web_sys::window().unwrap();
     let storage = window.local_storage().unwrap().unwrap();
     Ok(String::from(storage.get_item(cid.as_str()).unwrap().unwrap()))
   }
 
   #[cfg(target_arch = "wasm32")]
-  pub fn put_local_storage(&self, cid: String, data: &str) -> Result<(),String> {
+  pub fn put_local_storage(
+    &self,
+    cid: String,
+    data: &str,
+  ) -> Result<(), String> {
     let window = web_sys::window().unwrap();
     let storage = window.local_storage().ok().unwrap().unwrap();
     let res = storage.set_item(cid.as_str(), data);
@@ -228,25 +234,27 @@ impl Hashspace {
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn put_local_storage(&self, _cid: &str, _data: &str) -> Result<(),String> {
+  pub fn put_local_storage(
+    &self,
+    _cid: String,
+    _data: &str,
+  ) -> Result<(), String> {
     Err("Not implemented".to_string())
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn get_local_storage(&self, _cid: &str) -> Result<String,String> {
+  pub fn get_local_storage(&self, _cid: &String) -> Result<String, String> {
     Err("Not implemented".to_string())
   }
 
   #[cfg(target_arch = "wasm32")]
-  pub fn remote_get(&self, cid: String) -> Result<String,String> {
+  pub fn remote_get(&self, cid: String) -> Result<String, String> {
     let result_rc = Arc::new(Mutex::new(Err("Async not complete".to_string())));
     let r2 = Arc::clone(&result_rc);
     spawn_local(async move {
       let js_result = wasm_binds::hashspace_get(cid).await;
       *r2.lock().unwrap() = match js_result {
-        Ok(js_value) => {
-          Ok(js_value.as_string().unwrap())
-        }
+        Ok(js_value) => Ok(js_value.as_string().unwrap()),
         Err(js_value) => {
           let error = js_value.as_string().unwrap();
           Err(error)
@@ -254,7 +262,8 @@ impl Hashspace {
       };
     });
 
-    let x = result_rc.lock().unwrap().clone(); x
+    let x = result_rc.lock().unwrap().clone();
+    x
   }
 
   #[cfg(target_arch = "wasm32")]
@@ -265,15 +274,15 @@ impl Hashspace {
       let js_result = wasm_binds::hashspace_put(data).await;
       *r2.lock().unwrap() = match js_result {
         Ok(js_value) => Ok(js_value.as_string().unwrap()),
-        Err(js_value) => Err(js_value.as_string().unwrap())
+        Err(js_value) => Err(js_value.as_string().unwrap()),
       };
     });
 
-    let x = result_rc.lock().unwrap().clone(); x
+    result_rc.lock().unwrap()
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn remote_get(&self, _cid: &str) -> Result<String,String> {
+  pub fn remote_get(&self, _cid: String) -> Result<String, String> {
     // TODO native impl
     Err("Not implemented".to_string())
   }

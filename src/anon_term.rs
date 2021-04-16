@@ -111,7 +111,7 @@ pub mod tests {
   use crate::term::tests::{
     arbitrary_link,
     arbitrary_name,
-    frequency
+    frequency,
   };
 
   #[must_use]
@@ -136,16 +136,15 @@ pub mod tests {
   }
 
   pub fn arbitrary_anon_term(g: &mut Gen, ctx: u64) -> AnonTerm {
-    let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> AnonTerm>)> =
-      vec![
-        // arbitrary_anon_ctor() causes stack overflow unless Data
-        // is set to at least 2
-        (1, arbitrary_anon_ctor(ctx)),
-        (1, arbitrary_vari(ctx)),
-        (1, Box::new(|g| Bind(Box::new(arbitrary_anon_term(g, ctx + 1))))),
-        (1, Box::new(|g| Link(arbitrary_link(g)))),
-        (2, Box::new(|g| Data(Arbitrary::arbitrary(g))))
-      ];
+    let input: Vec<(i64, Box<dyn Fn(&mut Gen) -> AnonTerm>)> = vec![
+      // arbitrary_anon_ctor() causes stack overflow unless Data
+      // is set to at least 2
+      (1, arbitrary_anon_ctor(ctx)),
+      (1, arbitrary_vari(ctx)),
+      (1, Box::new(|g| Bind(Box::new(arbitrary_anon_term(g, ctx + 1))))),
+      (1, Box::new(|g| Link(arbitrary_link(g)))),
+      (2, Box::new(|g| Data(Arbitrary::arbitrary(g)))),
+    ];
     frequency(g, input)
   }
 
