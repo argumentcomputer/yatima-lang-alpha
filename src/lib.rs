@@ -1,5 +1,4 @@
-#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
-#![feature(proc_macro_hygiene, decl_macro, const_raw_ptr_deref)]
+#![feature(proc_macro_hygiene, decl_macro, const_raw_ptr_deref, const_mut_refs)]
 
 #[cfg(test)]
 extern crate quickcheck;
