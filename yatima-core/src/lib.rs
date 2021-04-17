@@ -9,10 +9,10 @@ extern crate rand;
 pub mod anon;
 // pub mod check;
 pub mod dag;
-pub mod dll;
-// pub mod eval;
 pub mod defs;
+pub mod dll;
 pub mod embed_error;
+pub mod eval;
 pub mod ipld_error;
 pub mod literal;
 pub mod meta;
@@ -20,9 +20,8 @@ pub mod package;
 pub mod position;
 pub mod primop;
 pub mod term;
+pub mod upcopy;
 pub mod uses;
-// pub mod upcopy;
-//
 
 #[cfg(test)]
 pub mod tests {

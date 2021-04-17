@@ -1,5 +1,5 @@
 [workspace]
-members = [ "hashexpr" ]
+members = [ "hashexpr", "yatima-core" ]
 
 [package]
 name = "yatima"
@@ -66,5 +66,5 @@ quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
 
-[provile.dev]
+[profile.dev]
 debug = 2

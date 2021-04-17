@@ -5,11 +5,12 @@ use libipld::ipld::Ipld;
 
 use crate::ipld_error::IpldError;
 
-// use num_bigint::{
-//  BigInt,
-//  BigUint,
-//};
-// use crate::literal::Literal;
+use crate::literal::Literal;
+use num_bigint::{
+  BigInt,
+  BigUint,
+  Sign,
+};
 
 use std::fmt;
 
@@ -166,6 +167,95 @@ impl PrimOp {
       },
       xs => Err(IpldError::PrimOp(xs.to_owned())),
     }
+  }
+
+  pub fn arity(self) -> u64 {
+    match self {
+      Self::NatEql => 2,
+      Self::NatLth => 2,
+      Self::NatLte => 2,
+      Self::NatGth => 2,
+      Self::NatGte => 2,
+      Self::NatSuc => 1,
+      Self::NatPre => 1,
+      Self::NatAdd => 2,
+      Self::NatSub => 2,
+      Self::NatMul => 2,
+      Self::NatDiv => 2,
+      Self::NatMod => 2,
+      Self::IntNew => 2,
+      Self::IntSgn => 1,
+      Self::IntAbs => 1,
+      Self::IntEql => 2,
+      Self::IntLth => 2,
+      Self::IntLte => 2,
+      Self::IntGth => 2,
+      Self::IntGte => 2,
+      Self::IntAdd => 2,
+      Self::IntSub => 2,
+      Self::IntMul => 2,
+      Self::IntDiv => 2,
+      Self::IntMod => 2,
+    }
+  }
+}
+
+pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
+  use Literal::*;
+  use PrimOp::*;
+  match (opr, x) {
+    (NatSuc, Nat(x)) => Some(Nat(x + BigUint::from(1u64))),
+    (NatPre, Nat(x)) if x != 0u64.into() => Some(Nat(x - BigUint::from(1u64))),
+    (IntSgn, Int(x)) => match x.sign() {
+      Sign::NoSign => Some(Int(BigInt::from(0i64))),
+      Sign::Plus => Some(Int(BigInt::from(1i64))),
+      Sign::Minus => Some(Int(BigInt::from(-1i64))),
+    },
+    (IntAbs, Int(x)) => Some(Nat(x.into_parts().1)),
+    _ => None,
+  }
+}
+
+pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
+  use Literal::*;
+  use PrimOp::*;
+  let tt = Bool(true);
+  let ff = Bool(false);
+  let ite = |c| if c { tt } else { ff };
+  match (opr, x, y) {
+    // Construction
+    (IntNew, Bool(x), Nat(y)) => {
+      if y == 0u64.into() {
+        Some(Int(BigInt::from_biguint(Sign::NoSign, y)))
+      }
+      else if x == true {
+        Some(Int(BigInt::from_biguint(Sign::Plus, y)))
+      }
+      else {
+        Some(Int(BigInt::from_biguint(Sign::Minus, y)))
+      }
+    }
+    // Comparison
+    (NatEql, Nat(x), Nat(y)) => Some(ite(x == y)),
+    (IntEql, Int(x), Int(y)) => Some(ite(x == y)),
+    (NatLth, Nat(x), Nat(y)) => Some(ite(x < y)),
+    (IntLth, Int(x), Int(y)) => Some(ite(x < y)),
+    (NatLte, Nat(x), Nat(y)) => Some(ite(x <= y)),
+    (IntLte, Int(x), Int(y)) => Some(ite(x <= y)),
+    (NatGth, Nat(x), Nat(y)) => Some(ite(x > y)),
+    (IntGth, Int(x), Int(y)) => Some(ite(x > y)),
+    // Arithmetic
+    (IntAdd, Nat(x), Nat(y)) => Some(Nat(x + y)),
+    (NatAdd, Int(x), Int(y)) => Some(Int(x + y)),
+    (IntSub, Nat(x), Nat(y)) if x >= y => Some(Nat(x - y)),
+    (NatSub, Int(x), Int(y)) => Some(Int(x - y)),
+    (IntMul, Nat(x), Nat(y)) => Some(Nat(x * y)),
+    (NatMul, Int(x), Int(y)) => Some(Int(x * y)),
+    (IntDiv, Nat(x), Nat(y)) if y != (0 as u64).into() => Some(Nat(x * y)),
+    (IntDiv, Int(x), Int(y)) if y != 0.into() => Some(Int(x / y)),
+    (NatMod, Nat(x), Nat(y)) if y != (0 as u64).into() => Some(Nat(x * y)),
+    (IntMod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
+    _ => None,
   }
 }
 
