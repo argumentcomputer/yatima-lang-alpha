@@ -34,7 +34,7 @@ pub struct DeserialError<I: AsBytes> {
 
 impl<'a, I: AsBytes> DeserialError<I> {
   pub fn new(input: I, error: DeserialErrorKind) -> Self {
-    DeserialError { input, error }
+    Self { input, error }
   }
 
   pub fn input_as_bytes(&'a self) -> DeserialError<ByteVec> {
@@ -46,19 +46,15 @@ impl<'a, I: AsBytes> DeserialError<I> {
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for DeserialError<I>
-where
-  I: InputLength,
-  I: Clone,
+where I: InputLength + Clone
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-    DeserialError::new(input, DeserialErrorKind::Nom(kind))
+    Self::new(input, DeserialErrorKind::Nom(kind))
   }
 
   fn append(input: I, kind: ErrorKind, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
-      Ordering::Less => {
-        DeserialError { input, error: DeserialErrorKind::Nom(kind) }
-      }
+      Ordering::Less => Self { input, error: DeserialErrorKind::Nom(kind) },
       _ => other,
     }
   }
@@ -88,23 +84,19 @@ pub struct ParseError<I: AsBytes> {
 }
 
 impl<I: AsBytes> ParseError<I> {
-  pub fn new(input: I, error: ParseErrorKind) -> Self {
-    ParseError { input, error }
-  }
+  pub fn new(input: I, error: ParseErrorKind) -> Self { Self { input, error } }
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
-where
-  I: InputLength,
-  I: Clone,
+where I: InputLength + Clone
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-    ParseError::new(input, ParseErrorKind::Nom(kind))
+    Self::new(input, ParseErrorKind::Nom(kind))
   }
 
   fn append(input: I, kind: ErrorKind, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
-      Ordering::Less => ParseError::new(input, ParseErrorKind::Nom(kind)),
+      Ordering::Less => Self::new(input, ParseErrorKind::Nom(kind)),
       _ => other,
     }
   }
@@ -135,6 +127,6 @@ impl<'a, I: Clone + AsBytes> FromExternalError<I, ParseIntError>
   for ParseError<I>
 {
   fn from_external_error(input: I, _: ErrorKind, e: ParseIntError) -> Self {
-    ParseError { input, error: ParseErrorKind::ParseIntErr(e) }
+    Self { input, error: ParseErrorKind::ParseIntErr(e) }
   }
 }

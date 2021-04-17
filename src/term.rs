@@ -56,7 +56,7 @@ pub struct Def {
 }
 
 impl PartialEq for Def {
-  fn eq(&self, other: &Def) -> bool {
+  fn eq(&self, other: &Self) -> bool {
     self.name == other.name
       && self.typ_ == other.typ_
       && self.term == other.term
@@ -72,14 +72,15 @@ impl PartialEq for Term {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
       (Self::Var(_, na, ia), Self::Var(_, nb, ib)) => na == nb && ia == ib,
-      (Self::Lam(_, na, ba), Self::Lam(_, nb, bb)) => na == nb && ba == bb,
-      (Self::App(_, ta), Self::App(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
+      (Self::Lam(_, na, ba), Self::Lam(_, nb, bb))
+      | (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
+      (Self::App(_, ta), Self::App(_, tb))
+      | (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::All(_, ua, na, ta), Self::All(_, ub, nb, tb)) => {
         ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1
       }
-      (Self::Slf(_, na, ba), Self::Slf(_, nb, bb)) => na == nb && ba == bb,
-      (Self::Dat(_, ba), Self::Dat(_, bb)) => ba == bb,
-      (Self::Cse(_, ba), Self::Cse(_, bb)) => ba == bb,
+      (Self::Dat(_, ba), Self::Dat(_, bb))
+      | (Self::Cse(_, ba), Self::Cse(_, bb)) => ba == bb,
       (Self::Ref(_, na, da, aa), Self::Ref(_, nb, db, ab)) => {
         na == nb && da == db && aa == ab
       }
@@ -92,7 +93,6 @@ impl PartialEq for Term {
           && ta.2 == tb.2
       }
       (Self::Typ(_), Self::Typ(_)) => true,
-      (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
       (Self::LTy(_, a), Self::LTy(_, b)) => a == b,
       (Self::Opr(_, a), Self::Opr(_, b)) => a == b,
@@ -106,9 +106,11 @@ impl fmt::Display for Term {
     use Term::*;
     const WILDCARD: &str = "_";
 
-    fn name(nam: &str) -> &str { if nam.is_empty() { WILDCARD } else { nam } }
+    const fn name(nam: &str) -> &str {
+      if nam.is_empty() { WILDCARD } else { nam }
+    }
 
-    fn uses(uses: &Uses) -> &str {
+    const fn uses(uses: &Uses) -> &str {
       match uses {
         Uses::None => "0 ",
         Uses::Affi => "& ",
@@ -117,37 +119,31 @@ impl fmt::Display for Term {
       }
     }
 
-    fn is_atom(term: &Term) -> bool {
-      match term {
-        Var(..) => true,
-        Ref(..) => true,
-        Lit(..) => true,
-        LTy(..) => true,
-        Opr(..) => true,
-        Typ(..) => true,
-        _ => false,
-      }
+    const fn is_atom(term: &Term) -> bool {
+      matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
     }
 
     fn lams(nam: &str, bod: &Term) -> String {
-      match bod {
-        Lam(_, nam2, bod2) => format!("{} {}", name(nam), lams(nam2, bod2)),
-        _ => format!("{} => {}", nam, bod),
+      if let Lam(_, nam2, bod2) = bod {
+        format!("{} {}", name(nam), lams(nam2, bod2))
+      }
+      else {
+        format!("{} => {}", nam, bod)
       }
     }
 
-    fn alls(use_: &Uses, nam: &str, typ: &Term, bod: &Term) -> String {
-      match bod {
-        All(_, bod_use, bod_nam, bod) => {
-          format!(
-            " ({}{}: {}){}",
-            uses(use_),
-            name(nam),
-            typ,
-            alls(bod_use, bod_nam, &bod.0, &bod.1)
-          )
-        }
-        _ => format!(" ({}{}: {}) -> {}", uses(use_), name(nam), typ, bod),
+    fn alls(use_: Uses, nam: &str, typ: &Term, bod: &Term) -> String {
+      if let All(_, bod_use, bod_nam, bod) = bod {
+        format!(
+          " ({}{}: {}){}",
+          uses(&use_),
+          name(nam),
+          typ,
+          alls(*bod_use, bod_nam, &bod.0, &bod.1)
+        )
+      }
+      else {
+        format!(" ({}{}: {}) -> {}", uses(&use_), name(nam), typ, bod)
       }
     }
 
@@ -173,8 +169,7 @@ impl fmt::Display for Term {
     }
 
     match self {
-      Var(_, nam, ..) => write!(f, "{}", nam),
-      Ref(_, nam, ..) => write!(f, "{}", nam),
+      Var(_, nam, ..) | Ref(_, nam, ..) => write!(f, "{}", nam),
       Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
       App(_, terms) => write!(f, "{}", apps(&terms.0, &terms.1)),
       Let(_, true, u, n, terms) => {
@@ -201,7 +196,7 @@ impl fmt::Display for Term {
       }
       Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
       All(_, us_, nam, terms) => {
-        write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1))
+        write!(f, "∀{}", alls(*us_, nam, &terms.0, &terms.1))
       }
       Ann(_, terms) => {
         write!(f, "{} :: {}", parens(&terms.1), parens(&terms.0))
@@ -217,6 +212,7 @@ impl fmt::Display for Term {
 }
 
 impl Term {
+  #[must_use]
   pub fn shift(self, inc: u64, dep: u64) -> Self {
     match self {
       Self::Var(pos, nam, idx) if idx < dep => Self::Var(pos, nam, idx),
@@ -264,6 +260,7 @@ impl Term {
     }
   }
 
+  #[must_use]
   pub fn embed(self) -> (AnonTerm, MetaTerm) {
     match self {
       Self::Var(pos, _, idx) => (
@@ -302,10 +299,7 @@ impl Term {
           AnonTerm::Ctor(String::from("lam"), vec![AnonTerm::Bind(Box::new(
             anon,
           ))]),
-          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(
-            name.to_owned(),
-            Box::new(meta),
-          )]),
+          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(name, Box::new(meta))]),
         )
       }
       Self::Slf(pos, name, body) => {
@@ -314,10 +308,7 @@ impl Term {
           AnonTerm::Ctor(String::from("slf"), vec![AnonTerm::Bind(Box::new(
             anon,
           ))]),
-          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(
-            name.to_owned(),
-            Box::new(meta),
-          )]),
+          MetaTerm::Ctor(pos, vec![MetaTerm::Bind(name, Box::new(meta))]),
         )
       }
       Self::App(pos, terms) => {
@@ -411,85 +402,83 @@ impl Term {
     ctx: Vector<String>,
     anon_term: &AnonTerm,
     name_meta: &MetaTerm,
-  ) -> Result<Term, UnembedError> {
+  ) -> Result<Self, UnembedError> {
     match (anon_term, name_meta) {
       (AnonTerm::Ctor(n, xs), MetaTerm::Ctor(pos, ys)) => {
         match (&n[..], xs.as_slice(), ys.as_slice()) {
           ("var", [AnonTerm::Vari(idx)], [MetaTerm::Leaf]) => {
             match ctx.iter().enumerate().find(|(i, _)| (*i as u64) == *idx) {
-              Some((_, n)) => Ok(Term::Var(*pos, n.to_owned(), *idx)),
+              Some((_, n)) => Ok(Self::Var(*pos, n.clone(), *idx)),
               None => Err(UnembedError::FreeVariable),
             }
           }
           ("ref", [AnonTerm::Link(ast)], [MetaTerm::Link(name, def)]) => {
-            Ok(Term::Ref(*pos, name.clone(), *def, *ast))
+            Ok(Self::Ref(*pos, name.clone(), *def, *ast))
           }
           ("lit", [AnonTerm::Data(data)], [MetaTerm::Leaf]) => {
-            let (_, lit) = hashexpr::Expr::deserialize(&data)
+            let (_, lit) = hashexpr::Expr::deserialize(data)
               .map_err(|_| UnembedError::DeserialError)?;
             let lit =
-              Literal::decode(lit).map_err(|e| UnembedError::DecodeError(e))?;
-            Ok(Term::Lit(*pos, lit))
+              Literal::decode(lit).map_err(UnembedError::DecodeError)?;
+            Ok(Self::Lit(*pos, lit))
           }
           ("lty", [AnonTerm::Data(data)], [MetaTerm::Leaf]) => {
-            let (_, lty) = hashexpr::Expr::deserialize(&data)
+            let (_, lty) = hashexpr::Expr::deserialize(data)
               .map_err(|_| UnembedError::DeserialError)?;
             let lty =
-              LitType::decode(lty).map_err(|e| UnembedError::DecodeError(e))?;
-            Ok(Term::LTy(*pos, lty))
+              LitType::decode(lty).map_err(UnembedError::DecodeError)?;
+            Ok(Self::LTy(*pos, lty))
           }
           ("opr", [AnonTerm::Data(data)], [MetaTerm::Leaf]) => {
-            let (_, opr) = hashexpr::Expr::deserialize(&data)
+            let (_, opr) = hashexpr::Expr::deserialize(data)
               .map_err(|_| UnembedError::DeserialError)?;
-            let opr =
-              PrimOp::decode(opr).map_err(|e| UnembedError::DecodeError(e))?;
-            Ok(Term::Opr(*pos, opr))
+            let opr = PrimOp::decode(opr).map_err(UnembedError::DecodeError)?;
+            Ok(Self::Opr(*pos, opr))
           }
-          ("typ", [], []) => Ok(Term::Typ(*pos)),
+          ("typ", [], []) => Ok(Self::Typ(*pos)),
           ("dat", [anon], [meta]) => {
-            let body = Term::unembed(ctx, anon, meta)?;
-            Ok(Term::Dat(*pos, Box::new(body)))
+            let body = Self::unembed(ctx, anon, meta)?;
+            Ok(Self::Dat(*pos, Box::new(body)))
           }
           ("cse", [anon], [meta]) => {
-            let body = Term::unembed(ctx, anon, meta)?;
-            Ok(Term::Cse(*pos, Box::new(body)))
+            let body = Self::unembed(ctx, anon, meta)?;
+            Ok(Self::Cse(*pos, Box::new(body)))
           }
           ("lam", [AnonTerm::Bind(anon)], [MetaTerm::Bind(n, meta)]) => {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             new_ctx.push_front(n.clone());
-            let body = Term::unembed(new_ctx, &anon, meta)?;
-            Ok(Term::Lam(*pos, n.clone(), Box::new(body)))
+            let body = Self::unembed(new_ctx, anon, meta)?;
+            Ok(Self::Lam(*pos, n.clone(), Box::new(body)))
           }
           ("slf", [AnonTerm::Bind(anon)], [MetaTerm::Bind(n, meta)]) => {
-            let mut new_ctx = ctx.clone();
+            let mut new_ctx = ctx;
             new_ctx.push_front(n.clone());
-            let body = Term::unembed(new_ctx, &anon, meta)?;
-            Ok(Term::Slf(*pos, n.clone(), Box::new(body)))
+            let body = Self::unembed(new_ctx, anon, meta)?;
+            Ok(Self::Slf(*pos, n.clone(), Box::new(body)))
           }
           ("app", [fanon, aanon], [fmeta, ameta]) => {
-            let fun = Term::unembed(ctx.clone(), fanon, fmeta)?;
-            let arg = Term::unembed(ctx.clone(), aanon, ameta)?;
-            Ok(Term::App(*pos, Box::new((fun, arg))))
+            let fun = Self::unembed(ctx.clone(), fanon, fmeta)?;
+            let arg = Self::unembed(ctx, aanon, ameta)?;
+            Ok(Self::App(*pos, Box::new((fun, arg))))
           }
           ("ann", [xanon, tanon], [xmeta, tmeta]) => {
-            let xpr = Term::unembed(ctx.clone(), xanon, xmeta)?;
-            let typ = Term::unembed(ctx.clone(), tanon, tmeta)?;
-            Ok(Term::Ann(*pos, Box::new((xpr, typ))))
+            let xpr = Self::unembed(ctx.clone(), xanon, xmeta)?;
+            let typ = Self::unembed(ctx, tanon, tmeta)?;
+            Ok(Self::Ann(*pos, Box::new((xpr, typ))))
           }
           (
             "all",
             [AnonTerm::Data(uses), tanon, banon],
             [MetaTerm::Leaf, tmeta, MetaTerm::Bind(n, bmeta)],
           ) => {
-            let (_, uses) = hashexpr::Expr::deserialize(&uses)
+            let (_, uses) = hashexpr::Expr::deserialize(uses)
               .map_err(|_| UnembedError::DeserialError)?;
-            let uses =
-              Uses::decode(uses).map_err(|e| UnembedError::DecodeError(e))?;
-            let typ_ = Term::unembed(ctx.clone(), tanon, tmeta)?;
-            let mut new_ctx = ctx.clone();
+            let uses = Uses::decode(uses).map_err(UnembedError::DecodeError)?;
+            let typ_ = Self::unembed(ctx.clone(), tanon, tmeta)?;
+            let mut new_ctx = ctx;
             new_ctx.push_front(n.clone());
-            let body = Term::unembed(new_ctx, banon, bmeta)?;
-            Ok(Term::All(*pos, uses, n.clone(), Box::new((typ_, body))))
+            let body = Self::unembed(new_ctx, banon, bmeta)?;
+            Ok(Self::All(*pos, uses, n.clone(), Box::new((typ_, body))))
           }
           (
             "rec",
@@ -498,16 +487,15 @@ impl Term {
           ) => {
             let name =
               if n1 == n2 { Ok(n1) } else { Err(UnembedError::BadLet) }?;
-            let (_, uses) = hashexpr::Expr::deserialize(&uses)
+            let (_, uses) = hashexpr::Expr::deserialize(uses)
               .map_err(|_| UnembedError::DeserialError)?;
-            let uses =
-              Uses::decode(uses).map_err(|e| UnembedError::DecodeError(e))?;
-            let typ_ = Term::unembed(ctx.clone(), tanon, tmeta)?;
-            let mut new_ctx = ctx.clone();
+            let uses = Uses::decode(uses).map_err(UnembedError::DecodeError)?;
+            let typ_ = Self::unembed(ctx.clone(), tanon, tmeta)?;
+            let mut new_ctx = ctx;
             new_ctx.push_front(name.clone());
-            let exp = Term::unembed(new_ctx.clone(), &xanon, xmeta)?;
-            let body = Term::unembed(new_ctx, &banon, bmeta)?;
-            Ok(Term::Let(
+            let exp = Self::unembed(new_ctx.clone(), xanon, xmeta)?;
+            let body = Self::unembed(new_ctx, banon, bmeta)?;
+            Ok(Self::Let(
               *pos,
               true,
               uses,
@@ -520,16 +508,15 @@ impl Term {
             [AnonTerm::Data(uses), tanon, xanon, AnonTerm::Bind(banon)],
             [MetaTerm::Leaf, tmeta, xmeta, MetaTerm::Bind(name, bmeta)],
           ) => {
-            let (_, uses) = hashexpr::Expr::deserialize(&uses)
+            let (_, uses) = hashexpr::Expr::deserialize(uses)
               .map_err(|_| UnembedError::DeserialError)?;
-            let uses =
-              Uses::decode(uses).map_err(|e| UnembedError::DecodeError(e))?;
-            let typ_ = Term::unembed(ctx.clone(), tanon, tmeta)?;
-            let exp = Term::unembed(ctx.clone(), xanon, xmeta)?;
+            let uses = Uses::decode(uses).map_err(UnembedError::DecodeError)?;
+            let typ_ = Self::unembed(ctx.clone(), tanon, tmeta)?;
+            let exp = Self::unembed(ctx.clone(), xanon, xmeta)?;
             let mut new_ctx = ctx;
             new_ctx.push_front(name.clone());
-            let body = Term::unembed(new_ctx, &banon, bmeta)?;
-            Ok(Term::Let(
+            let body = Self::unembed(new_ctx, banon, bmeta)?;
+            Ok(Self::Let(
               *pos,
               false,
               uses,
@@ -551,16 +538,18 @@ impl Term {
 }
 
 impl Def {
-  pub fn new(
+  #[must_use]
+  pub const fn new(
     pos: Option<Pos>,
     name: String,
     docs: String,
     typ_: Term,
     term: Term,
   ) -> Self {
-    Def { pos, name, docs, typ_, term }
+    Self { pos, name, docs, typ_, term }
   }
 
+  #[must_use]
   pub fn embed(self) -> (Definition, AnonTerm, AnonTerm) {
     let (type_anon, type_meta) = self.typ_.embed();
     let (term_anon, term_meta) = self.term.embed();
@@ -578,16 +567,16 @@ impl Def {
 
   pub fn unembed(
     def: Definition,
-    type_anon: AnonTerm,
-    term_anon: AnonTerm,
+    type_anon: &AnonTerm,
+    term_anon: &AnonTerm,
   ) -> Result<Self, UnembedError> {
-    let typ_ = Term::unembed(Vector::new(), &type_anon, &def.type_meta)?;
+    let typ_ = Term::unembed(Vector::new(), type_anon, &def.type_meta)?;
     let term = Term::unembed(
       Vector::from(vec![def.name.clone()]),
-      &term_anon,
+      term_anon,
       &def.term_meta,
     )?;
-    Ok(Def::new(def.pos, def.name, def.docs, typ_, term))
+    Ok(Self::new(def.pos, def.name, def.docs, typ_, term))
   }
 
   pub fn get_link(
@@ -595,17 +584,16 @@ impl Def {
     hashspace: &Hashspace,
   ) -> Result<Self, UnembedError> {
     let def = hashspace.get(defn).ok_or(UnembedError::UnknownLink(defn))?;
-    let def =
-      Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
+    let def = Definition::decode(def).map_err(UnembedError::DecodeError)?;
     let type_anon =
       hashspace.get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
     let type_anon =
-      AnonTerm::decode(type_anon).map_err(|e| UnembedError::DecodeError(e))?;
+      AnonTerm::decode(type_anon).map_err(UnembedError::DecodeError)?;
     let term_anon =
       hashspace.get(def.term_anon).ok_or(UnembedError::UnknownLink(defn))?;
     let term_anon =
-      AnonTerm::decode(term_anon).map_err(|e| UnembedError::DecodeError(e))?;
-    Def::unembed(def, type_anon, term_anon)
+      AnonTerm::decode(term_anon).map_err(UnembedError::DecodeError)?;
+    Self::unembed(def, &type_anon, &term_anon)
   }
 }
 
@@ -615,7 +603,7 @@ pub fn refs_to_defs(
 ) -> Result<Defs, UnembedError> {
   let mut def_map = HashMap::new();
   for (_, (d, _)) in refs {
-    let def = Def::get_link(d, &hashspace)?;
+    let def = Def::get_link(d, hashspace)?;
     def_map.insert(d, def);
   }
   Ok(def_map)
@@ -650,7 +638,7 @@ pub mod tests {
 
   pub fn arbitrary_link(g: &mut Gen) -> hashexpr::Link {
     let mut bytes: [u8; 32] = [0; 32];
-    for x in bytes.iter_mut() {
+    for x in &mut bytes {
       *x = Arbitrary::arbitrary(g);
     }
     hashexpr::Link::from(bytes)
@@ -703,16 +691,14 @@ pub mod tests {
       let n = arbitrary_name(g);
       let u: Uses = Arbitrary::arbitrary(g);
       let typ = arbitrary_term(g, refs.clone(), ctx.clone());
+      let mut ctx2 = ctx.clone();
+      ctx2.push_front(n.clone());
       if rec {
-        let mut ctx2 = ctx.clone();
-        ctx2.push_front(n.clone());
         let exp = arbitrary_term(g, refs.clone(), ctx2.clone());
         let bod = arbitrary_term(g, refs.clone(), ctx2);
         Let(None, rec, u, n, Box::new((typ, exp, bod)))
       }
       else {
-        let mut ctx2 = ctx.clone();
-        ctx2.push_front(n.clone());
         let exp = arbitrary_term(g, refs.clone(), ctx.clone());
         let bod = arbitrary_term(g, refs.clone(), ctx2);
         Let(None, rec, u, n, Box::new((typ, exp, bod)))
@@ -741,6 +727,7 @@ pub mod tests {
     })
   }
 
+  #[must_use]
   pub fn test_refs() -> Refs {
     // let inp = "(\"def\" \"id\" \"\" (\"forall\" \"ω\" \"A\" \"Type\" \"A\") \
     //           (\"lambda\" \"x\" \"x\"))";
@@ -755,7 +742,7 @@ pub mod tests {
 
   fn arbitrary_var(ctx: Vector<String>) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
-      if ctx.len() == 0 {
+      if ctx.is_empty() {
         return Term::Typ(None);
       }
       let mut rng = rand::thread_rng();
@@ -847,9 +834,7 @@ pub mod tests {
       if weight - gen.0 <= 0 {
         return gen.1(g);
       }
-      else {
-        weight -= gen.0;
-      }
+      weight -= gen.0;
     }
     panic!("Calculation error for weight = {}", weight);
   }
@@ -874,7 +859,7 @@ pub mod tests {
         (90, arbitrary_all(refs.clone(), ctx.clone())),
         (90, arbitrary_app(refs.clone(), ctx.clone())),
         (90, arbitrary_ann(refs.clone(), ctx.clone())),
-        (30, arbitrary_let(refs.clone(), ctx.clone())),
+        (30, arbitrary_let(refs, ctx)),
       ])
     }
   }
@@ -908,46 +893,16 @@ pub mod tests {
   fn term_embed_unembed(x: Term) -> bool {
     let (a, m) = x.clone().embed();
     match Term::unembed(Vector::new(), &a, &m) {
-      Ok(y) => {
-        if x == y {
-          true
-        }
-        else {
-          //          println!("x: {:?}", x);
-          //          println!("y: {:?}", y);
-          false
-        }
-      }
-      _e => {
-        //        println!("x: {:?}", x);
-        //        println!("a: {:?}", a);
-        //        println!("m: {:?}", m);
-        //        println!("e: {:?}", e);
-        false
-      }
+      Ok(y) => x == y,
+      _e => false,
     }
   }
   #[quickcheck]
   fn def_embed_unembed(x: Def) -> bool {
     let (d, ta, xa) = x.clone().embed();
-    match Def::unembed(d, ta, xa) {
-      Ok(y) => {
-        if x == y {
-          true
-        }
-        else {
-          //          println!("x: {:?}", x);
-          //          println!("y: {:?}", y);
-          false
-        }
-      }
-      _e => {
-        //        println!("x: {:?}", x);
-        //        println!("a: {:?}", a);
-        //        println!("m: {:?}", m);
-        //        println!("e: {:?}", e);
-        false
-      }
+    match Def::unembed(d, &ta, &xa) {
+      Ok(y) => x == y,
+      _e => false,
     }
   }
 

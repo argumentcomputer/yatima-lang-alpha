@@ -82,18 +82,20 @@ impl PartialEq for Expr {
 
 impl Eq for Expr {}
 
-pub fn number_of_bytes(x: u64) -> u8 {
-  let mut n: u32 = 1;
-  let base: u64 = 256;
+#[must_use]
+pub const fn number_of_bytes(x: u64) -> u8 {
+  let mut n = 1_u32;
+  let base = 256_u64;
   while base.pow(n) <= x {
     n += 1;
     if n == 8 {
       break;
     }
   }
-  return n as u8;
+  n as u8
 }
 
+#[must_use]
 pub fn pack_u64(x: u64) -> (u8, Vec<u8>) {
   let x_len = number_of_bytes(x);
   let u64_max_size = std::mem::size_of::<u64>();
@@ -103,29 +105,33 @@ pub fn pack_u64(x: u64) -> (u8, Vec<u8>) {
   )
 }
 
-pub fn bytelen_from_bitlen(bits: u64) -> u64 {
+#[must_use]
+pub const fn bytelen_from_bitlen(bits: u64) -> u64 {
   if bits % 8 == 0 { bits / 8 } else { bits / 8 + 1 }
 }
 
 impl Expr {
-  pub fn from_bits<A: AsRef<[u8]>>(x: A) -> Expr { bits!(x.as_ref().to_vec()) }
+  pub fn from_bits<A: AsRef<[u8]>>(x: A) -> Self { bits!(x.as_ref().to_vec()) }
 
-  pub fn from_string(x: &str) -> Expr { text!(x.to_owned()) }
+  #[must_use]
+  pub fn from_string(x: &str) -> Self { text!(x.to_owned()) }
 
-  pub fn set_postion(&self, p: Pos) -> Expr {
+  #[must_use]
+  pub fn set_postion(&self, p: Pos) -> Self {
     match self {
       Self::Atom(_, x) => Self::Atom(Some(p), x.clone()),
       Self::Cons(_, x) => Self::Cons(Some(p), x.clone()),
     }
   }
 
-  pub fn position(&self) -> Option<Pos> {
+  #[must_use]
+  pub const fn position(&self) -> Option<Pos> {
     match self {
-      Self::Atom(p, _) => *p,
-      Self::Cons(p, _) => *p,
+      Self::Atom(p, _) | Self::Cons(p, _) => *p,
     }
   }
 
+  #[must_use]
   pub fn serialize(&self) -> Vec<u8> {
     match self {
       Self::Atom(_, atom) => {
@@ -135,7 +141,7 @@ impl Expr {
         let data_len = (data.len() as u64) * 8;
         let (data_len_len, data_len_bytes) = pack_u64(data_len);
 
-        let size_byte: u8 = type_len - 1 << 3 | data_len_len - 1;
+        let size_byte: u8 = (type_len - 1) << 3 | (data_len_len - 1);
 
         let mut ret = vec![];
         ret.extend(vec![size_byte]);
@@ -151,7 +157,7 @@ impl Expr {
         ret.extend(vec![size_byte]);
         ret.extend(xs_count);
         ret.extend(xs.iter().fold(vec![], |mut acc, x| {
-          acc.extend(Expr::serialize(x));
+          acc.extend(Self::serialize(x));
           acc
         }));
         ret
@@ -159,12 +165,14 @@ impl Expr {
     }
   }
 
+  #[must_use]
   pub fn link(&self) -> Link { Link::make(&self.serialize()) }
 
-  pub fn hash(&self) -> Expr { link!(self.position(), self.link()) }
+  #[must_use]
+  pub fn hash(&self) -> Self { link!(self.position(), self.link()) }
 
-  pub fn deserialize(i: &[u8]) -> IResult<&[u8], Expr, DeserialError<&[u8]>> {
-    let (i, size) = take(1 as usize)(i)?;
+  pub fn deserialize(i: &[u8]) -> IResult<&[u8], Self, DeserialError<&[u8]>> {
+    let (i, size) = take(1_usize)(i)?;
     let (is_atom, type_len, data_len_len) = (
       ((size[0] & 0b1000_0000) >> 7) == 0,
       ((size[0] & 0b0011_1000) >> 3) + 1,
@@ -174,7 +182,7 @@ impl Expr {
       let (i_type, type_code) = take(type_len)(i)?;
       let (i, data_len) = take(data_len_len)(i_type)?;
       let data_bitlen =
-        data_len.iter().fold(0, |acc, &x| (acc * 256) + x as u64);
+        data_len.iter().fold(0, |acc, &x| (acc * 256) + u64::from(x));
       let data_bytelen = bytelen_from_bitlen(data_bitlen);
       let (i, data) = take(data_bytelen as usize)(i)?;
       match type_code {
@@ -222,21 +230,20 @@ impl Expr {
       // println!("de is_atom {}", is_atom);
       let (i, xs_len) = take(data_len_len)(i)?;
       // println!("de xs_len {:?}", xs_len);
-      let xs_len = xs_len.iter().fold(0, |acc, &x| (acc * 256) + x as u64);
-      let (i, xs) = count(Expr::deserialize, xs_len as usize)(i)?;
+      let xs_len = xs_len.iter().fold(0, |acc, &x| (acc * 256) + u64::from(x));
+      let (i, xs) = count(Self::deserialize, xs_len as usize)(i)?;
       Ok((i, Expr::Cons(None, xs)))
     }
   }
 
+  #[must_use]
   pub fn to_desugared_string(&self) -> String {
     match self {
-      Self::Atom(..) => {
-        format!("{}", base::encode(Base::_64, self.serialize()))
-      }
+      Self::Atom(..) => base::encode(Base::_64, self.serialize()),
       Self::Cons(_, xs) => {
         let xs = xs
           .iter()
-          .map(|x| x.to_desugared_string())
+          .map(Self::to_desugared_string)
           .collect::<Vec<String>>()
           .join(" ");
         format!("({})", xs)
@@ -264,13 +271,9 @@ pub fn parse_raw(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (upto, (_, raw)) = base::parse(from)?;
   let (_, x) = Expr::deserialize(&raw).map_err(|e| match e {
     Err::Incomplete(n) => Err::Incomplete(n),
-    Err::Error(e) => Err::Error(ParseError::new(
+    Err::Error(e) | Err::Failure(e) => Err::Error(ParseError::new(
       from,
-      ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
-    )),
-    Err::Failure(e) => Err::Error(ParseError::new(
-      from,
-      ParseErrorKind::DeserialErr(e.to_owned().input_as_bytes()),
+      ParseErrorKind::DeserialErr(e.clone().input_as_bytes()),
     )),
   })?;
   Ok((upto, x.set_postion(Pos::from_upto(from, upto))))
@@ -280,14 +283,14 @@ pub fn parse_char(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let p = |i| parse_string("'", i);
   let (upto, c) = delimited(tag("'"), p, tag("'"))(from)?;
   let s: Vec<char> = c.chars().collect();
-  if s.len() != 1 {
+  if s.len() == 1 {
+    Ok((upto, char!(Some(Pos::from_upto(from, upto)), s[0])))
+  }
+  else {
     Err(Err::Error(ParseError::new(
       upto,
       ParseErrorKind::ExpectedSingleChar(s),
     )))
-  }
-  else {
-    Ok((upto, char!(Some(Pos::from_upto(from, upto)), s[0])))
   }
 }
 
@@ -300,7 +303,7 @@ pub fn parse_text(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 pub fn parse_nat(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (i, base) = opt(preceded(tag("0"), base::Base::parse_code))(from)?;
   let base = base.unwrap_or(Base::_10);
-  let (upto, val) = base.decode1(i).map_err(|e| nom::Err::convert(e))?;
+  let (upto, val) = base.decode1(i).map_err(nom::Err::convert)?;
   Ok((
     upto,
     nat!(Some(Pos::from_upto(from, upto)), BigUint::from_bytes_be(&val)),
@@ -312,7 +315,7 @@ pub fn parse_int(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
     alt((value(Sign::Minus, tag("-")), value(Sign::Plus, tag("+"))))(from)?;
   let (i, base) = opt(preceded(tag("0"), base::Base::parse_code))(i)?;
   let base = base.unwrap_or(Base::_10);
-  let (upto, val) = base.decode1(i).map_err(|e| nom::Err::convert(e))?;
+  let (upto, val) = base.decode1(i).map_err(nom::Err::convert)?;
   Ok((
     upto,
     int!(Some(Pos::from_upto(from, upto)), BigInt::from_bytes_be(s, &val)),
@@ -321,7 +324,7 @@ pub fn parse_int(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
 
 pub fn parse_bits(from: Span) -> IResult<Span, Expr, ParseError<Span>> {
   let (i, base) = terminated(Base::parse_code, tag("\""))(from)?;
-  let (i, bytes) = Base::decode(&base, i)?;
+  let (i, bytes) = base.decode(i)?;
   let (upto, _) = tag("\"")(i)?;
   Ok((upto, bits!(Some(Pos::from_upto(from, upto)), bytes)))
 }

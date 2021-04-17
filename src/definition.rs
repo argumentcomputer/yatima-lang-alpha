@@ -30,7 +30,8 @@ pub struct Definition {
 }
 
 impl Definition {
-  pub fn new(
+  #[must_use]
+  pub const fn new(
     name: String,
     pos: Option<Pos>,
     docs: String,
@@ -39,9 +40,10 @@ impl Definition {
     type_meta: MetaTerm,
     term_meta: MetaTerm,
   ) -> Self {
-    Definition { name, pos, docs, type_anon, term_anon, type_meta, term_meta }
+    Self { name, pos, docs, type_anon, term_anon, type_meta, term_meta }
   }
 
+  #[must_use]
   pub fn encode(self) -> Expr {
     cons!(
       self.pos,
@@ -56,33 +58,31 @@ impl Definition {
   }
 
   pub fn decode(expr: Expr) -> Result<Self, DecodeError> {
-    match expr {
-      Cons(pos, xs) => match xs.as_slice() {
-        [Atom(_, Text(c)), tail @ ..] if *c == String::from("def") => {
-          match tail {
-            [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(t)), Atom(_, Link(x)), tm, xm] =>
-            {
-              let type_meta = MetaTerm::decode(tm.to_owned())?;
-              let term_meta = MetaTerm::decode(xm.to_owned())?;
-              Ok(Definition {
-                name: n.to_owned(),
-                pos,
-                docs: d.to_owned(),
-                type_anon: *t,
-                term_anon: *x,
-                type_meta,
-                term_meta,
-              })
-            }
-            _ => Err(DecodeError::new(pos, vec![Expected::DefinitionContents])),
+    if let Cons(pos, xs) = expr {
+      match xs.as_slice() {
+        [Atom(_, Text(c)), tail @ ..] if *c == "def" => match tail {
+          [Atom(_, Text(n)), Atom(_, Text(d)), Atom(_, Link(t)), Atom(_, Link(x)), tm, xm] =>
+          {
+            let type_meta = MetaTerm::decode(tm.clone())?;
+            let term_meta = MetaTerm::decode(xm.clone())?;
+            Ok(Self {
+              name: n.clone(),
+              pos,
+              docs: d.clone(),
+              type_anon: *t,
+              term_anon: *x,
+              type_meta,
+              term_meta,
+            })
           }
-        }
+          _ => Err(DecodeError::new(pos, vec![Expected::DefinitionContents])),
+        },
         _ => Err(DecodeError::new(pos, vec![Expected::Definition])),
-      },
-      _ => {
-        println!("foo");
-        Err(DecodeError::new(expr.position(), vec![Expected::Definition]))
       }
+    }
+    else {
+      println!("foo");
+      Err(DecodeError::new(expr.position(), vec![Expected::Definition]))
     }
   }
 }

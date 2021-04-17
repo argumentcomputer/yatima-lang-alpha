@@ -40,7 +40,7 @@ pub fn main() -> rustyline::Result<()> {
     println!("No previous history.");
   }
   loop {
-    let readline = rl.readline("⅄ ");
+    let readline = rl.readline("\u{2144} ");
     match readline {
       Ok(line) => {
         rl.add_history_entry(line.as_str());

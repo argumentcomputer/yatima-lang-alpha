@@ -1,5 +1,3 @@
-use base_x;
-
 use crate::parse::error::{
   throw_err,
   ParseError,
@@ -75,6 +73,7 @@ pub fn parse_base64_digits(
   context("base 64 digits", take_till1(|x| !Base::_64.is_digit(x)))(from)
 }
 
+#[must_use]
 pub fn parse_base_digits(
   base: Base,
 ) -> Box<dyn Fn(Span) -> IResult<Span, Span, ParseError<Span>>> {

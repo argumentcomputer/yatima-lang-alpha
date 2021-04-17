@@ -174,6 +174,7 @@ impl<'a> fmt::Display for ParseErrorKind {
 }
 
 impl ParseErrorKind {
+  #[must_use]
   pub fn from_hashexpr_error(x: hashexpr::error::ParseErrorKind) -> Self {
     use hashexpr::error::ParseErrorKind::*;
     match x {
@@ -188,12 +189,8 @@ impl ParseErrorKind {
     }
   }
 
-  pub fn is_nom_err(&self) -> bool {
-    match self {
-      Self::Nom(_) => true,
-      _ => false,
-    }
-  }
+  #[must_use]
+  pub const fn is_nom_err(&self) -> bool { matches!(self, Self::Nom(_)) }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -205,14 +202,14 @@ pub struct ParseError<I: AsBytes> {
 
 impl<I: AsBytes> ParseError<I> {
   pub fn new(input: I, error: ParseErrorKind) -> Self {
-    ParseError { input, expected: None, errors: vec![error] }
+    Self { input, expected: None, errors: vec![error] }
   }
 
   pub fn from_hashexpr_error(
     from: I,
     x: hashexpr::error::ParseError<I>,
   ) -> Self {
-    ParseError {
+    Self {
       input: from,
       expected: None,
       errors: vec![ParseErrorKind::from_hashexpr_error(x.error)],
@@ -224,36 +221,36 @@ impl<'a> fmt::Display for ParseError<Span<'a>> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let mut res = String::new();
 
-    write!(
+    writeln!(
       &mut res,
-      "at line {}:{} \n",
+      "at line {}:{} ",
       self.input.location_line(),
       self.input.get_column()
     )?;
     let line = String::from_utf8_lossy(self.input.get_line_beginning());
 
-    write!(&mut res, "{} | {}\n", self.input.location_line(), line)?;
+    writeln!(&mut res, "{} | {}", self.input.location_line(), line)?;
 
     let cols = format!("{} | ", self.input.location_line()).len()
       + self.input.get_column();
     for _ in 0..(cols - 1) {
       write!(&mut res, " ")?;
     }
-    write!(&mut res, "^\n")?;
+    writeln!(&mut res, "^")?;
 
     if let Some(exp) = self.expected {
-      write!(&mut res, "Expected {}\n", exp)?;
+      writeln!(&mut res, "Expected {}", exp)?;
     }
 
     let mut errs = self.errors.iter().filter(|x| !x.is_nom_err()).peekable();
     if errs.peek() == None {
       // TODO: Nom verbose mode
-      write!(&mut res, "Internal parser error\n")?;
+      writeln!(&mut res, "Internal parser error")?;
     }
     else {
-      write!(&mut res, "Reported errors:\n")?;
+      writeln!(&mut res, "Reported errors:")?;
       for kind in errs {
-        write!(&mut res, "- {}\n", kind)?;
+        writeln!(&mut res, "- {}", kind)?;
       }
     }
 
@@ -262,17 +259,15 @@ impl<'a> fmt::Display for ParseError<Span<'a>> {
 }
 
 impl<I: AsBytes> nom::error::ParseError<I> for ParseError<I>
-where
-  I: InputLength,
-  I: Clone,
+where I: InputLength + Clone
 {
   fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-    ParseError::new(input, ParseErrorKind::Nom(kind))
+    Self::new(input, ParseErrorKind::Nom(kind))
   }
 
   fn append(input: I, kind: ErrorKind, mut other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
-      Ordering::Less => ParseError::new(input, ParseErrorKind::Nom(kind)),
+      Ordering::Less => Self::new(input, ParseErrorKind::Nom(kind)),
       Ordering::Equal => {
         other.errors.push(ParseErrorKind::Nom(kind));
         other
@@ -296,17 +291,13 @@ where
 }
 
 impl<I: AsBytes> nom::error::ContextError<I> for ParseError<I>
-where
-  I: InputLength,
-  I: Clone,
+where I: InputLength + Clone
 {
   fn add_context(input: I, ctx: &'static str, other: Self) -> Self {
     match input.input_len().cmp(&other.input.input_len()) {
-      Ordering::Less => {
-        ParseError { input, expected: Some(ctx), errors: vec![] }
-      }
+      Ordering::Less => Self { input, expected: Some(ctx), errors: vec![] },
       Ordering::Equal => match other.expected {
-        None => ParseError { input, expected: Some(ctx), errors: other.errors },
+        None => Self { input, expected: Some(ctx), errors: other.errors },
         _ => other,
       },
       Ordering::Greater => other,

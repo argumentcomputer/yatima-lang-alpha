@@ -32,7 +32,8 @@ pub struct DAG {
   pub head: DAGPtr,
 }
 
-// A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
+// A top-down λ-DAG pointer. Keeps track of what kind of node it points
+// to.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DAGPtr {
   Var(NonNull<Var>),
@@ -195,6 +196,7 @@ pub fn alloc_val<T>(val: T) -> NonNull<T> {
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_lam(
   var_nam: String,
   var_dep: u64,
@@ -221,6 +223,7 @@ pub fn alloc_lam(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_slf(
   var_nam: String,
   var_dep: u64,
@@ -247,6 +250,7 @@ pub fn alloc_slf(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_dat(
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
@@ -259,6 +263,7 @@ pub fn alloc_dat(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_cse(
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
@@ -271,6 +276,7 @@ pub fn alloc_cse(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_all(
   var_nam: String,
   var_dep: u64,
@@ -304,6 +310,7 @@ pub fn alloc_all(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_app(
   fun: DAGPtr,
   arg: DAGPtr,
@@ -325,6 +332,7 @@ pub fn alloc_app(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_ann(
   typ: DAGPtr,
   exp: DAGPtr,
@@ -346,6 +354,7 @@ pub fn alloc_ann(
 }
 
 #[inline]
+#[must_use]
 pub fn alloc_let(
   var_nam: String,
   var_dep: u64,
@@ -384,7 +393,8 @@ pub fn alloc_let(
 
 // Auxiliary parent functions
 #[inline]
-pub fn get_parents(term: DAGPtr) -> Option<NonNull<Parents>> {
+#[must_use]
+pub const fn get_parents(term: DAGPtr) -> Option<NonNull<Parents>> {
   unsafe {
     match term {
       DAGPtr::Var(link) => (*link.as_ptr()).parents,
@@ -406,7 +416,8 @@ pub fn get_parents(term: DAGPtr) -> Option<NonNull<Parents>> {
 }
 
 #[inline]
-pub fn set_parents(term: DAGPtr, pref: Option<NonNull<Parents>>) {
+#[must_use]
+pub const fn set_parents(term: DAGPtr, pref: Option<NonNull<Parents>>) {
   unsafe {
     match term {
       DAGPtr::Var(link) => (*link.as_ptr()).parents = pref,
@@ -456,7 +467,7 @@ pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
       let mut iter = (*old_parents.as_ptr()).iter();
       let newpref = get_parents(newchild);
       let mut last_old = None;
-      let first_new = newpref.map(|dll| DLL::first(dll));
+      let first_new = newpref.map(DLL::first);
       while let Some(parent) = iter.next() {
         if iter.is_last() {
           last_old = iter.this();
@@ -563,7 +574,7 @@ pub fn free_dead_node(node: DAGPtr) {
         Box::from_raw(link.as_ptr());
       }
       DAGPtr::Let(link) => {
-        let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, var, .. } =
+        let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
           link.as_ref();
         let new_exp_parents = exp_ref.unlink_node();
         set_parents(*exp, new_exp_parents);
@@ -583,7 +594,7 @@ pub fn free_dead_node(node: DAGPtr) {
         Box::from_raw(link.as_ptr());
       }
       DAGPtr::Var(link) => {
-        let Var { binder, nam, .. } = link.as_ref();
+        let Var { binder, .. } = link.as_ref();
         // only free Free variables, bound variables are freed with their binder
         if let BinderPtr::Free = binder {
           Box::from_raw(link.as_ptr());
@@ -609,7 +620,8 @@ pub fn free_dead_node(node: DAGPtr) {
 }
 
 impl DAG {
-  pub fn new(head: DAGPtr) -> DAG { DAG { head } }
+  #[must_use]
+  pub const fn new(head: DAGPtr) -> Self { Self { head } }
 
   pub fn free(self) {
     match get_parents(self.head) {
@@ -622,6 +634,7 @@ impl DAG {
     free_dead_node(self.head)
   }
 
+  #[must_use]
   pub fn to_term(&self) -> Term {
     pub fn go(
       node: &DAGPtr,
@@ -631,12 +644,10 @@ impl DAG {
       match node {
         DAGPtr::Var(link) => {
           let Var { nam, dep: var_depth, .. } = unsafe { link.as_ref() };
-          if let Some(level) = map.get(&link.as_ptr()) {
-            Term::Var(None, nam.clone(), depth - level - 1)
-          }
-          else {
-            Term::Var(None, nam.clone(), *var_depth)
-          }
+          map.get(&link.as_ptr()).map_or_else(
+            || Term::Var(None, nam.clone(), *var_depth),
+            |level| Term::Var(None, nam.clone(), depth - level - 1),
+          )
         }
         DAGPtr::Typ(_) => Term::Typ(None),
         DAGPtr::LTy(link) => {
@@ -730,14 +741,16 @@ impl DAG {
     go(&self.head, &mut map, 0)
   }
 
+  #[must_use]
   pub fn from_term(tree: &Term) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(DAG::from_subterm(tree, 0, Vector::new(), Some(root), None))
+    Self::new(Self::from_subterm(tree, 0, Vector::new(), Some(root), None))
   }
 
+  #[must_use]
   pub fn from_def(tree: &Term, rec_ref: (String, Link, Link)) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(DAG::from_subterm(
+    Self::new(Self::from_subterm(
       tree,
       0,
       Vector::new(),
@@ -746,6 +759,7 @@ impl DAG {
     ))
   }
 
+  #[must_use]
   pub fn from_subterm(
     tree: &Term,
     depth: u64,
@@ -762,12 +776,12 @@ impl DAG {
           }
           *val
         }
-        None => match rec_ref {
-          Some((nam, exp, ast)) => {
-            let ref_ = alloc_val(Ref { nam: nam.clone(), exp, ast, parents });
+        None => {
+          if let Some((nam, exp, ast)) = rec_ref {
+            let ref_ = alloc_val(Ref { nam, exp, ast, parents });
             DAGPtr::Ref(ref_)
           }
-          None => {
+          else {
             let var = alloc_val(Var {
               nam: name.clone(),
               dep: depth - 1 - idx,
@@ -776,7 +790,7 @@ impl DAG {
             });
             DAGPtr::Var(var)
           }
-        },
+        }
       },
       Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
       Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
@@ -902,14 +916,14 @@ impl DAG {
         let (typ, exp) = (**typ_exp).clone();
         let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents);
         let Ann { typ_ref, exp_ref, .. } = &mut *ann.as_ptr();
-        let typ = DAG::from_subterm(
+        let typ = Self::from_subterm(
           &typ,
           depth,
           ctx.clone(),
           NonNull::new(typ_ref),
           rec_ref.clone(),
         );
-        let exp = DAG::from_subterm(
+        let exp = Self::from_subterm(
           &exp,
           depth,
           ctx,
@@ -920,7 +934,7 @@ impl DAG {
         (*ann.as_ptr()).exp = exp;
         DAGPtr::Ann(ann)
       },
-      Term::Let(_, true, uses, name, typ_exp_bod) => {
+      Term::Let(_, true, _uses, _name, _typ_exp_bod) => {
         panic!("letrec not implemented")
       }
       Term::Let(_, false, uses, nam, typ_exp_bod) => unsafe {
@@ -936,14 +950,14 @@ impl DAG {
           parents,
         );
         let Let { var, typ_ref, exp_ref, bod_ref, .. } = &mut *let_.as_ptr();
-        let typ = DAG::from_subterm(
+        let typ = Self::from_subterm(
           &typ,
           depth,
           ctx.clone(),
           NonNull::new(typ_ref),
           rec_ref.clone(),
         );
-        let exp = DAG::from_subterm(
+        let exp = Self::from_subterm(
           &exp,
           depth,
           ctx.clone(),
@@ -951,7 +965,7 @@ impl DAG {
           rec_ref.clone(),
         );
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
-        let bod = DAG::from_subterm(
+        let bod = Self::from_subterm(
           &bod,
           depth + 1,
           ctx,
@@ -976,13 +990,10 @@ impl Clone for DAG {
     ) -> DAGPtr {
       // If the node is in the hash map then it was already copied,
       // so we update the parent list and return the copy
-      match (*map).get(&node) {
-        Some(copy) => {
-          DLL::concat(parents, get_parents(*copy));
-          set_parents(*copy, Some(parents));
-          return *copy;
-        }
-        None => (),
+      if let Some(copy) = (*map).get(&node) {
+        DLL::concat(parents, get_parents(*copy));
+        set_parents(*copy, Some(parents));
+        return *copy;
       }
       // Otherwise create a new DAG node and add it to the map
       let new_node = match node {
@@ -1159,7 +1170,7 @@ impl Clone for DAG {
     }
     let mut map: HashMap<DAGPtr, DAGPtr> = HashMap::new();
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(go(self.head, &mut map, root))
+    Self::new(go(self.head, &mut map, root))
   }
 }
 
@@ -1189,12 +1200,11 @@ impl fmt::Debug for DAG {
       match dll {
         Some(dll) => unsafe {
           let mut iter = (*dll.as_ptr()).iter();
-          let head = &iter.next().map_or(String::from(""), |head| {
-            format!("{}", format_uplink(*head))
-          });
+          let head =
+            &iter.next().map_or(String::from(""), |head| format_uplink(*head));
           let mut msg = String::from("[ ") + head;
           for val in iter {
-            msg = msg + " <-> " + &format!("{}", format_uplink(*val));
+            msg = msg + " <-> " + &format_uplink(*val).to_string();
           }
           msg + " ]"
         },

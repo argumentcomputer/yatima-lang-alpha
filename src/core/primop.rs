@@ -65,6 +65,7 @@ pub enum PrimOp {
 }
 
 impl PrimOp {
+  #[must_use]
   pub fn symbol(self) -> String {
     match self {
       Self::Eql => String::from("#eql"),
@@ -91,8 +92,9 @@ impl PrimOp {
     }
   }
 
-  pub fn from_symbol(s: String) -> Option<Self> {
-    match s.as_str() {
+  #[must_use]
+  pub fn from_symbol(s: &str) -> Option<Self> {
+    match s {
       "#eql" => Some(Self::Eql),
       "#lth" => Some(Self::Lth),
       "#lte" => Some(Self::Lte),
@@ -118,22 +120,21 @@ impl PrimOp {
     }
   }
 
-  pub fn arity(self) -> u64 {
+  #[must_use]
+  pub const fn arity(self) -> u64 {
     match self {
-      Self::Not => 1,
-      Self::Len => 1,
-      Self::Suc => 1,
-      Self::Pre => 1,
+      Self::Not | Self::Len | Self::Suc | Self::Pre => 1,
       _ => 2,
     }
   }
 
+  #[must_use]
   pub fn encode(self) -> Expr { Atom(None, Text(self.symbol())) }
 
   pub fn decode(x: Expr) -> Result<Self, DecodeError> {
     let err = |pos| DecodeError::new(pos, vec![Expected::PrimOp]);
     match x {
-      Atom(pos, Text(n)) => Self::from_symbol(n).ok_or(err(pos)),
+      Atom(pos, Text(n)) => Self::from_symbol(&n).ok_or_else(|| err(pos)),
       x => Err(err(x.position())),
     }
   }
@@ -141,15 +142,16 @@ impl PrimOp {
 
 impl fmt::Display for PrimOp {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.clone().symbol())
+    write!(f, "{}", (*self).symbol())
   }
 }
 
+#[must_use]
 pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
-  let one: BigUint = (1 as u64).into();
-  let one_i: BigInt = (1 as u64).into();
+  let one: BigUint = 1_u64.into();
+  let one_i: BigInt = 1_u64.into();
   match (opr, x) {
     (Not, BitString(x)) => {
       let mut bs = BitVec::from_bytes(&x);
@@ -158,7 +160,7 @@ pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
     }
     (Suc, Natural(x)) => Some(Natural(x + one)),
     (Suc, Integer(x)) => Some(Integer(x + one_i)),
-    (Pre, Natural(x)) if x != (0 as u64).into() => Some(Natural(x - one)),
+    (Pre, Natural(x)) if x != 0_u64.into() => Some(Natural(x - one)),
     (Pre, Integer(x)) => Some(Integer(x - one_i)),
     (Len, Natural(x)) => Some(Natural(x.bits().into())),
     (Len, Integer(x)) => Some(Natural(x.bits().into())),
@@ -166,11 +168,12 @@ pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
       x.len().checked_mul(8).expect("impossible length overflow").into(),
     )),
     (Len, Text(x)) => Some(Natural(x.chars().count().into())),
-    (Len, Char(_)) => Some(Natural((32 as u64).into())),
+    (Len, Char(_)) => Some(Natural(32_u64.into())),
     _ => None,
   }
 }
 
+#[must_use]
 pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
@@ -233,14 +236,10 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (Mul, Natural(x), Natural(y)) => Some(Natural(x * y)),
     (Mul, Integer(x), Integer(y)) => Some(Integer(x * y)),
     // Div
-    (Div, Natural(x), Natural(y)) if y != (0 as u64).into() => {
-      Some(Natural(x * y))
-    }
+    (Div, Natural(x), Natural(y)) if y != 0_u64.into() => Some(Natural(x * y)),
     (Div, Integer(x), Integer(y)) if y != 0.into() => Some(Integer(x / y)),
     // Mod
-    (Mod, Natural(x), Natural(y)) if y != (0 as u64).into() => {
-      Some(Natural(x * y))
-    }
+    (Mod, Natural(x), Natural(y)) if y != 0_u64.into() => Some(Natural(x * y)),
     (Mod, Integer(x), Integer(y)) if y != 0.into() => Some(Integer(x % y)),
 
     // Shl
@@ -325,7 +324,7 @@ pub mod tests {
   }
   #[quickcheck]
   fn primop_type_encode_decode(x: PrimOp) -> bool {
-    match PrimOp::decode(x.clone().encode()) {
+    match PrimOp::decode(x.encode()) {
       Ok(y) => x == y,
       _ => false,
     }

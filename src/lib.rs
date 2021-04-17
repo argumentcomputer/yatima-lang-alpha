@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, const_raw_ptr_deref, const_mut_refs)]
 
 #[cfg(test)]
 extern crate quickcheck;

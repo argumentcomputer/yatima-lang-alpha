@@ -62,6 +62,7 @@ where T: HashspaceDependent
 /// Returns the hashspace directory. This function panics if the directory
 /// cannot be created, read from or written to.
 #[cfg(not(target_arch = "wasm32"))]
+#[must_use]
 pub fn hashspace_directory() -> PathBuf {
   let proj_dir =
     ProjectDirs::from("io", "yatima", "hashspace")
@@ -71,65 +72,68 @@ pub fn hashspace_directory() -> PathBuf {
         \"https://github.com/yatima-inc/yatima/issues\" \
         if you see this message.");
   let path = proj_dir.cache_dir();
-  match fs::read_dir(&path) {
-    Ok(_) => (),
-    Err(_) => {
-      let path_name = path.to_str().expect(&format!(
+  if let Err(..) = fs::read_dir(&path) {
+    let path_name = path.to_str().unwrap_or_else(|| {
+      panic!(
           "Error: hashspace path {} contains invalid Unicode. \
            Please open an issue at \
           \"https://github.com/yatima-inc/yatima/issues\" \
-          if you see this message", path.to_string_lossy()));
-      println!("Creating new hashspace at {}", path_name);
-      fs::create_dir_all(path).expect(&format!(
+          if you see this message", path.to_string_lossy())
+    });
+    println!("Creating new hashspace at {}", path_name);
+    fs::create_dir_all(path).unwrap_or_else(|_| {
+      panic!(
         "Error: cannot create hashspace path {}, likely due to lacking \
          sufficient filesystem permissions. \
          Please contact your system administrator or open an issue at \
-         \"https://github.com/yatima-inc/yatima/issues\"", path_name));
-      let mut perms = fs::metadata(path)
-        .expect(&format!(
+         \"https://github.com/yatima-inc/yatima/issues\"", path_name)
+    });
+    let mut perms = fs::metadata(path)
+      .unwrap_or_else(|_| {
+        panic!(
           "Error: cannot read metadata on hashspace path {}. \
             Please contact your system administrator or open an issue at \
-            \"https://github.com/yatima-inc/yatima/issues\"", path_name))
-        .permissions();
-      perms.set_readonly(false);
-      fs::set_permissions(path, perms).expect(&format!(
+            \"https://github.com/yatima-inc/yatima/issues\"", path_name)
+      })
+      .permissions();
+    perms.set_readonly(false);
+    fs::set_permissions(path, perms).unwrap_or_else(|_| {
+      panic!(
         "Error: cannot set hashspace path {} as writeable. \
             Please contact your system administrator or open an issue at \
-            \"https://github.com/yatima-inc/yatima/issues\"", path_name))
-    }
+            \"https://github.com/yatima-inc/yatima/issues\"", path_name)
+    })
   }
   PathBuf::from(path)
 }
 
 #[cfg(target_arch = "wasm32")]
+#[must_use]
 pub fn hashspace_directory() -> PathBuf {
   let path = Path::new("/hashspace");
-  match fs::read_dir(&path) {
-    Ok(_) => (),
-    Err(_) => {
-      let path_name = path.to_str().expect(&format!(
+  if let Err(..) = fs::read_dir(&path) {
+    let path_name = path.to_str().expect(&format!(
           "Error: hashspace path {} contains invalid Unicode. \
            Please open an issue at \
           \"https://github.com/yatima-inc/yatima/issues\" \
           if you see this message", path.to_string_lossy()));
-      println!("Creating new hashspace at {}", path_name);
-      fs::create_dir_all(path).expect(&format!(
+    println!("Creating new hashspace at {}", path_name);
+    fs::create_dir_all(path).expect(&format!(
         "Error: cannot create hashspace path {}, likely due to lacking \
          sufficient filesystem permissions. \
          Please contact your system administrator or open an issue at \
          \"https://github.com/yatima-inc/yatima/issues\"", path_name));
-      let mut perms = fs::metadata(path)
-        .expect(&format!(
+    let mut perms = fs::metadata(path)
+      .expect(&format!(
           "Error: cannot read metadata on hashspace path {}. \
             Please contact your system administrator or open an issue at \
             \"https://github.com/yatima-inc/yatima/issues\"", path_name))
-        .permissions();
-      perms.set_readonly(false);
-      fs::set_permissions(path, perms).expect(&format!(
+      .permissions();
+    perms.set_readonly(false);
+    fs::set_permissions(path, perms).expect(&format!(
         "Error: cannot set hashspace path {} as writeable. \
             Please contact your system administrator or open an issue at \
             \"https://github.com/yatima-inc/yatima/issues\"", path_name))
-    }
   }
   PathBuf::from(path)
 }
@@ -142,12 +146,15 @@ pub struct Hashspace {
 }
 
 impl Hashspace {
+  #[must_use]
   pub fn local() -> Self {
     Self { dir: Some(hashspace_directory()), hosts: Vec::new() }
   }
 
+  #[must_use]
   pub fn with_hosts(hosts: Vec<String>) -> Self { Self { dir: None, hosts } }
 
+  #[must_use]
   pub fn get(&self, link: Link) -> Option<Expr> {
     let cid = link.to_string();
     let data = match &self.dir {
@@ -167,10 +174,7 @@ impl Hashspace {
           Ok(d) => log(format!("After remote_get = {}", d).as_str()),
           Err(s) => log(format!("After error remote_get = {}", s).as_str()),
         };
-        let data =
-          base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref())
-            .unwrap();
-        data.to_vec()
+        base_x::decode(Base::_64.base_digits(), result.ok()?.as_ref()).unwrap()
       }
     };
     match Expr::deserialize(&data) {
@@ -182,24 +186,27 @@ impl Hashspace {
     }
   }
 
-  pub fn put(&self, expr: Expr) -> Link {
+  #[must_use]
+  pub fn put(&self, expr: &Expr) -> Link {
     let link = expr.link();
     let data = expr.serialize();
     match &self.dir {
       Some(dir) => {
         let path = dir.as_path().join(Path::new(&link.to_string()));
-        fs::write(path, data).expect(&format!(
+        fs::write(path, data).unwrap_or_else(|_| {
+          panic!(
             "Error: cannot write to hashspace path {}. \
              Please open an issue at \
              \"https://github.com/yatima-inc/yatima/issues\" \
              if you see this message",
-             link));
+             link)
+        });
       }
       None => {
         let data64 = base_x::encode(Base::_64.base_digits(), data.as_ref());
         self.put_local_storage(link.to_string(), data64.as_str()).unwrap();
         log("Before remote_put");
-        let result = self.remote_put(data);
+        let result = self.remote_put(&data);
         result
           .map(|s| log(format!("Ok: {}", s).as_str()))
           .map_err(|s| log(format!("Error: {}", s).as_str()))
@@ -275,8 +282,7 @@ impl Hashspace {
       };
     });
 
-    let x = result_rc.lock().unwrap().clone();
-    x
+    result_rc.lock().unwrap()
   }
 
   #[cfg(not(target_arch = "wasm32"))]
@@ -286,7 +292,7 @@ impl Hashspace {
   }
 
   #[cfg(not(target_arch = "wasm32"))]
-  pub fn remote_put(&self, _data: Vec<u8>) -> Result<String, String> {
+  pub fn remote_put(&self, _data: &[u8]) -> Result<String, String> {
     // TODO native impl
     Err("Not implemented".to_string())
   }

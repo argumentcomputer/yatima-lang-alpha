@@ -37,12 +37,12 @@ fn get(hash: String) -> Option<Vec<u8>> {
 }
 
 #[put("/store", data = "<data>")]
-fn put(data: Data) -> Result<String, std::io::Error> {
+fn put(data: Data) -> String {
   let stream: &[u8] = data.peek();
 
   let expr = match Expr::deserialize(stream) {
     Ok((_, x)) => x,
-    _ => Expr::from_bits(stream.clone().as_ref()),
+    _ => Expr::from_bits(&(*stream).as_ref()),
   };
   let hash = expr.link().to_string();
   let hashspace = hashspace::Hashspace::local();
@@ -54,14 +54,14 @@ fn put(data: Data) -> Result<String, std::io::Error> {
   );
 
   // Write the paste out to the file and return the URL
-  hashspace.put(expr);
+  let _ = hashspace.put(&expr);
   let reply = format!("Your hash {} at {}", hash, url);
   log(reply.as_str());
-  Ok(reply)
+  reply
 }
 
 #[options("/store")]
-fn options() {}
+const fn options() {}
 
 /// Add CORS headers to requests
 pub struct CORS();
@@ -83,7 +83,7 @@ impl Fairing for CORS {
   }
 }
 
-pub fn start_server(_opt_host: Option<String>) {
+pub fn start_server(_opt_host: &Option<String>) {
   rocket::ignite()
     .attach(Template::fairing())
     .attach(CORS())

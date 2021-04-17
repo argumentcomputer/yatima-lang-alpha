@@ -37,6 +37,7 @@ enum Branch {
 
 // Substitute a variable
 #[inline]
+#[must_use]
 pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
@@ -254,6 +255,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
 
 // Contract a lambda redex, return the body.
 #[inline]
+#[must_use]
 pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
@@ -325,7 +327,7 @@ impl DAG {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
           if let Some(def) = defs.get(exp) {
-            let parents = ref_parents.clone();
+            let parents = *ref_parents;
             *ref_parents = None;
             node = DAG::from_subterm(
               &def.term,
@@ -346,7 +348,7 @@ impl DAG {
           let opr = unsafe { (*link.as_ptr()).opr };
           let len = trail.len();
           if len >= 1 && opr.arity() == 1 {
-            let mut arg = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg = unsafe { Self::new((*trail[len - 1].as_ptr()).arg) };
             arg.whnf(defs);
             match arg.head {
               DAGPtr::Lit(link) => {
@@ -367,8 +369,8 @@ impl DAG {
             }
           }
           else if len >= 2 && opr.arity() == 2 {
-            let mut arg1 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
-            let mut arg2 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg1 = unsafe { Self::new((*trail[len - 2].as_ptr()).arg) };
+            let mut arg2 = unsafe { Self::new((*trail[len - 1].as_ptr()).arg) };
             arg1.whnf(defs);
             arg2.whnf(defs);
             match (arg1.head, arg2.head) {
@@ -416,8 +418,8 @@ impl DAG {
       match node {
         DAGPtr::App(link) => unsafe {
           let app = link.as_ptr();
-          let mut fun = DAG::new((*app).fun);
-          let mut arg = DAG::new((*app).arg);
+          let mut fun = Self::new((*app).fun);
+          let mut arg = Self::new((*app).arg);
           fun.whnf(defs);
           arg.whnf(defs);
           trail.push(fun.head);
@@ -425,8 +427,8 @@ impl DAG {
         },
         DAGPtr::All(link) => unsafe {
           let all = link.as_ptr();
-          let mut dom = DAG::new((*all).dom);
-          let mut img = DAG::new((*all).img);
+          let mut dom = Self::new((*all).dom);
+          let mut img = Self::new((*all).img);
           dom.whnf(defs);
           img.whnf(defs);
           trail.push(dom.head);
@@ -434,25 +436,25 @@ impl DAG {
         },
         DAGPtr::Lam(link) => unsafe {
           let lam = link.as_ptr();
-          let mut body = DAG::new((*lam).bod);
+          let mut body = Self::new((*lam).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
         DAGPtr::Slf(link) => unsafe {
           let slf = link.as_ptr();
-          let mut body = DAG::new((*slf).bod);
+          let mut body = Self::new((*slf).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
         DAGPtr::Cse(link) => unsafe {
           let cse = link.as_ptr();
-          let mut body = DAG::new((*cse).bod);
+          let mut body = Self::new((*cse).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
         DAGPtr::Dat(link) => unsafe {
           let dat = link.as_ptr();
-          let mut body = DAG::new((*dat).bod);
+          let mut body = Self::new((*dat).bod);
           body.whnf(defs);
           trail.push(body.head);
         },
@@ -481,7 +483,7 @@ mod test {
   #[test]
   pub fn parse_test() {
     fn parse_assert(input: &str) {
-      match parse(&input) {
+      match parse(input) {
         Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
         Err(_) => panic!("Did not parse."),
       }
@@ -493,7 +495,7 @@ mod test {
   }
 
   fn norm_assert(input: &str, result: &str) {
-    match parse(&input) {
+    match parse(input) {
       Ok((_, mut dag)) => {
         dag.norm(&HashMap::new());
         assert_eq!(format!("{}", dag), result)

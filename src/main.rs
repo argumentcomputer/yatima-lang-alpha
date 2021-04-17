@@ -88,7 +88,7 @@ fn handle_cli() -> io::Result<()> {
     }
     Cli::Check { input } => {
       let hashspace = hashspace::Hashspace::local();
-      let env = parse::package::PackageEnv::new(input.clone());
+      let env = parse::package::PackageEnv::new(input);
       let (_, p, defs, refs) = parse::package::parse_file(env, &hashspace);
       for dec in p.decls {
         if let package::Declaration::Defn { name, .. } = &dec {
@@ -105,10 +105,12 @@ fn handle_cli() -> io::Result<()> {
       let env = parse::package::PackageEnv::new(input.clone());
       let hashspace = hashspace::Hashspace::local();
       let (_, p, defs, refs) = parse::package::parse_file(env, &hashspace);
-      let (def_link, _) = refs.get("main").expect(&format!(
-        "No `main` expression in package {} from file {:?}",
-        p.name, input
-      ));
+      let (def_link, _) = refs.get("main").unwrap_or_else(|| {
+        panic!(
+          "No `main` expression in package {} from file {:?}",
+          p.name, input
+        )
+      });
       let def = defs.get(def_link).expect("Unknown link for `main` expression");
       let mut dag = core::dag::DAG::from_term(&def.to_owned().term);
       dag.norm(&defs);
@@ -123,13 +125,13 @@ fn handle_hashspace_cmd(hashspace_opt: HashspaceOpt) {
   match hashspace_opt {
     HashspaceOpt::Server { opt_host } => {
       #[cfg(not(target_arch = "wasm32"))]
-      hashspace::server::start_server(opt_host);
+      hashspace::server::start_server(&opt_host);
     }
     HashspaceOpt::Save { input } => {
       let string = fs::read_to_string(input).unwrap();
       let expr = hashexpr::parse(&string).unwrap().1;
       let hashspace = hashspace::Hashspace::local();
-      let link = hashspace.put(expr);
+      let link = hashspace.put(&expr);
       println!("Saved as {}", link)
     }
     HashspaceOpt::Show { input } => {

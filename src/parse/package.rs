@@ -65,12 +65,12 @@ pub struct PackageEnv {
 }
 
 impl PackageEnv {
-  pub fn new(path: PathBuf) -> Self {
-    PackageEnv { path, open: HashSet::new() }
-  }
+  #[must_use]
+  pub fn new(path: PathBuf) -> Self { Self { path, open: HashSet::new() } }
 
+  #[must_use]
   pub fn set_path(self, path: PathBuf) -> Self {
-    PackageEnv { path, open: self.open }
+    Self { path, open: self.open }
   }
 }
 
@@ -113,7 +113,7 @@ pub fn parse_open<'a>(
     let (i, name) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
     let (i, alias) = opt(terminated(parse_alias, parse_space))(i)?;
-    let alias = alias.unwrap_or(String::from(""));
+    let alias = alias.unwrap_or_else(|| String::from(""));
     let (i, with) = opt(terminated(parse_with, parse_space))(i)?;
     let (i, from) = opt(terminated(parse_link, parse_space))(i)?;
     match from {
@@ -121,7 +121,7 @@ pub fn parse_open<'a>(
       None => {
         if let Some(env) = &opt_env {
           let mut path = env.path.parent().unwrap().to_path_buf();
-          for n in name.split(".") {
+          for n in name.split('.') {
             path.push(n);
           }
           path.set_extension("ya");
@@ -135,7 +135,7 @@ pub fn parse_open<'a>(
           }
           else {
             let env = PackageEnv { path, open };
-            let (link, ..) = parse_file(env, &hashspace);
+            let (link, ..) = parse_file(env, hashspace);
             Ok((i, Declaration::Open { name, alias, with, from: link }))
           }
         }
@@ -155,28 +155,25 @@ pub fn parse_defn(
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (upto, (name, term, typ_)) =
-      parse_typed_definition(refs.to_owned(), Vector::new(), true, false)(i)?;
+      parse_typed_definition(refs.clone(), Vector::new(), true, false)(i)?;
     let pos = Some(Pos::from_upto(from, upto));
     let def = Def { pos, name, docs: String::new(), typ_, term };
     let def_name = def.name.clone();
     let (defn, typ_, term) = def.embed();
     let typ_enc = typ_.encode();
     // println!("type {}", typ_enc.clone());
-    let _type_link = hashspace.put(typ_enc);
+    let _type_link = hashspace.put(&typ_enc);
     // println!("type link {:?} {}", _type_link, _type_link);
     let trm_enc = term.encode();
     // println!("term {}", trm_enc.clone());
-    let term_link = hashspace.put(trm_enc);
+    let term_link = hashspace.put(&trm_enc);
     // println!("term link {:?} {}", term_link, term_link);
     let def_enc = defn.encode();
     // println!("def {}", def_enc.clone());
-    let def_link = hashspace.put(def_enc);
+    let def_link = hashspace.put(&def_enc);
     // println!("def link {:?} {}", def_link, def_link);
-    let def = Declaration::Defn {
-      name: def_name.clone(),
-      defn: def_link,
-      term: term_link,
-    };
+    let def =
+      Declaration::Defn { name: def_name, defn: def_link, term: term_link };
     Ok((upto, def))
   }
 }
@@ -195,15 +192,14 @@ pub fn parse_package<'a>(
     let (i, _) = multispace1(i)?;
     let (i, name) = parse_name(i)?;
     if let Some(env) = &opt_env {
-      let file_name = env
-        .path
-        .file_name()
-        .ok_or(Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath)))?;
-      let name_os: OsString = format!("{}.ya", name.clone()).into();
+      let file_name = env.path.file_name().ok_or_else(|| {
+        Err::Error(ParseError::new(i, ParseErrorKind::MalformedPath))
+      })?;
+      let name_os: OsString = format!("{}.ya", name).into();
       if name_os != file_name {
         return Err(Err::Error(ParseError::new(
           i,
-          ParseErrorKind::MisnamedPackage(name.clone()),
+          ParseErrorKind::MisnamedPackage(name),
         )));
       }
     }
@@ -219,67 +215,65 @@ pub fn parse_package<'a>(
       let end: IResult<Span, Span, ParseError<Span>> = eof(i);
       if end.is_ok() {
         let pack = Package { name, docs, source: source_link, decls };
-        let pack_link = hashspace.put(pack.clone().encode());
+        let pack_link = hashspace.put(&pack.clone().encode());
         return Ok((i, (pack_link, pack, defs, refs)));
       }
-      else {
-        let (i2, decl) = alt((
-          parse_defn(refs.to_owned(), &hashspace),
-          parse_open(opt_env.to_owned(), &hashspace),
-        ))(i)?;
-        decls.push(decl.clone());
-        match decl {
-          Declaration::Defn { name, defn, term } => {
-            let def = Def::get_link(defn, &hashspace).map_err(|e| {
-              Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
-            })?;
-            refs.insert(name, (defn, term));
-            defs.insert(defn, def);
-          }
-          Declaration::Open { name, alias, with, from } => {
-            let pack = Package::get_link(from, &hashspace).map_err(|e| {
-              Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
-            })?;
-            if name != pack.name {
-              return Err(Err::Error(ParseError::new(
-                i2,
-                ParseErrorKind::MisnamedImport(name, from, pack.name),
-              )));
-            };
-            let (import_refs, import_defs): (Refs, Defs) =
-              pack.refs_defs(&hashspace).map_err(|e| {
-                Err::Error(ParseError::new(
-                  i2,
-                  ParseErrorKind::EmbeddingError(e),
-                ))
-              })?;
-            defs = merge_defs(defs, import_defs);
-            refs = merge_refs(refs, import_refs, alias, with);
-          }
+
+      let (i2, decl) = alt((
+        parse_defn(refs.clone(), hashspace),
+        parse_open(opt_env.clone(), hashspace),
+      ))(i)?;
+      decls.push(decl.clone());
+      match decl {
+        Declaration::Defn { name, defn, term } => {
+          let def = Def::get_link(defn, hashspace).map_err(|e| {
+            Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
+          })?;
+          refs.insert(name, (defn, term));
+          defs.insert(defn, def);
         }
-        i = i2;
+        Declaration::Open { name, alias, with, from } => {
+          let pack = Package::get_link(from, hashspace).map_err(|e| {
+            Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
+          })?;
+          if name != pack.name {
+            return Err(Err::Error(ParseError::new(
+              i2,
+              ParseErrorKind::MisnamedImport(name, from, pack.name),
+            )));
+          };
+          let (import_refs, import_defs): (Refs, Defs) =
+            pack.refs_defs(hashspace).map_err(|e| {
+              Err::Error(ParseError::new(i2, ParseErrorKind::EmbeddingError(e)))
+            })?;
+          defs = merge_defs(defs, import_defs);
+          refs = merge_refs(refs, import_refs, &alias, with);
+        }
       }
+      i = i2;
     }
   }
 }
 
-pub fn parse_file<'a>(
+#[must_use]
+pub fn parse_file(
   env: PackageEnv,
   hashspace: &Hashspace,
 ) -> (Link, Package, Defs, Refs) {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).expect("file not found");
-  parse_text(&txt, Some(env), &hashspace)
+  parse_text(&txt, Some(env), hashspace)
 }
 
-pub fn parse_text<'a>(
+#[must_use]
+pub fn parse_text(
   txt: &str,
   opt_env: Option<PackageEnv>,
   hashspace: &Hashspace,
 ) -> (Link, Package, Defs, Refs) {
-  let source_link = hashspace.put(text!(txt.to_string()));
-  let span = Span::new(&txt);
-  match parse_package(opt_env, source_link, &hashspace)(span) {
+  let source_link = hashspace.put(&text!(txt.to_string()));
+  let span = Span::new(txt);
+  match parse_package(opt_env, source_link, hashspace)(span) {
     Ok((_, p)) => p,
     Err(e) => match e {
       Err::Incomplete(_) => panic!("Incomplete"),
