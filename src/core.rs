@@ -6,3 +6,4 @@ pub mod eval;
 pub mod literal;
 pub mod primop;
 pub mod uses;
+pub mod machine;
