@@ -259,9 +259,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
     replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *arg);
-    // We have to read `body` again because `lam`'s body could be mutated
-    // through `replace_child`
-    unsafe { (*lam.as_ptr()).bod }
+    *bod
   }
   else if var.parents.is_none() {
     *bod
@@ -410,8 +408,7 @@ impl DAG {
   // Reduce term to its normal form
   pub fn norm(&mut self, defs: &HashMap<Link, Def>) {
     self.whnf(defs);
-    let top_node = self.head;
-    let mut trail = vec![top_node];
+    let mut trail = vec![self.head];
     while let Some(node) = trail.pop() {
       match node {
         DAGPtr::App(link) => unsafe {
