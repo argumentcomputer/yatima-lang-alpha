@@ -17,6 +17,7 @@ pub mod ipld_error;
 pub mod literal;
 pub mod meta;
 pub mod package;
+pub mod parse;
 pub mod position;
 pub mod primop;
 pub mod term;

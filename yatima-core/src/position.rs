@@ -1,4 +1,5 @@
 use crate::ipld_error::IpldError;
+use crate::parse::span::Span;
 
 use cid::Cid;
 use libipld::ipld::Ipld;
@@ -36,6 +37,18 @@ impl Position {
       Ipld::Integer(self.upto_line as i128),
       Ipld::Integer(self.upto_column as i128),
     ])
+  }
+
+  pub fn from_upto(input: Cid, from: Span, upto: Span) -> Self {
+    Self {
+      input,
+      from_offset: (from.location_offset() as u64),
+      from_line: from.location_line() as u64,
+      from_column: from.get_utf8_column() as u64,
+      upto_offset: (upto.location_offset() as u64),
+      upto_line: upto.location_line() as u64,
+      upto_column: upto.get_utf8_column() as u64,
+    }
   }
 
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
@@ -95,6 +108,9 @@ impl Pos {
         Ok(Self::Some(pos))
       }
     }
+  }
+  pub fn from_upto(input: Cid, from: Span, upto: Span) -> Self {
+    Pos::Some(Position::from_upto(input, from, upto))
   }
 }
 

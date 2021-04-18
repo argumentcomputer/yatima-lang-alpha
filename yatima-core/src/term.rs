@@ -407,20 +407,6 @@ impl Term {
 //  }
 //  Ok(def_map)
 //}
-// impl fmt::Display for Def {
-//  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//    if self.docs.is_empty() {
-//      write!(f, "def {} : {} = {}", self.name, self.typ_, self.term)
-//    }
-//    else {
-//      write!(
-//        f,
-//        "//{}\n def {} : {} = {}",
-//        self.docs, self.name, self.typ_, self.term
-//      )
-//    }
-//  }
-//}
 
 #[cfg(test)]
 pub mod tests {
