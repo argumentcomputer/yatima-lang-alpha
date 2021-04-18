@@ -1,8 +1,12 @@
 // A G-machine like graph reducer using closures instead of supercombinators, reference counting,
 // and a bottom-up, hash-consed, construction of graphs 
 
+// In this initial draft, each function will take exactly one argument. The elements of the stack
+// will be copied as needed to the environment of closures.
+
 use std::convert::TryInto;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -26,14 +30,18 @@ const REF_ARG: CODE = 4;
 const REF_ENV: CODE = 5;
 // Evaluate last node
 const EVAL: CODE = 6;
+// Update the root node
+const UPDATE: CODE = 7;
 // End of code
 const END: CODE = 0;
 
+type Link<T> = Rc<RefCell<T>>;
+
 pub enum Graph {
-  // Hash, a  and array of bound variable values
-  Fun(u64, usize, Vec<Rc<Graph>>),
+  // Hash, index of function code and environment
+  Fun(u64, usize, Vec<Link<Graph>>),
   // Hash, function node, argument node
-  App(u64, Rc<Graph>, Rc<Graph>),
+  App(u64, Link<Graph>, Link<Graph>),
   // Hash
   Var(u64),
 }
@@ -65,43 +73,46 @@ pub fn bytes_to_usize(bytes: &[u8], len: usize) -> usize {
 }
 
 #[inline]
-pub fn build_graph(code: Vec<CODE>, bind: Vec<Rc<Graph>>, argm: Rc<Graph>) -> Rc<Graph> {
+pub fn build_graph(code: &Vec<CODE>, env: &Vec<Link<Graph>>, arg: Link<Graph>, redex: Link<Graph>) -> Link<Graph> {
   let mut pc = 0;
-  let mut args: Vec<Rc<Graph>> = vec![];
+  let mut args: Vec<Link<Graph>> = vec![];
   loop {
     match code[pc] {
       MK_APP => {
         let arg1 = args.pop().unwrap();
         let arg2 = args.pop().unwrap();
-        let hash1 = get_hash(&*arg1);
-        let hash2 = get_hash(&*arg2);
+        let hash1 = get_hash(&arg1.borrow());
+        let hash2 = get_hash(&arg2.borrow());
         let app_hash =
           hash(MK_APP as u64 + hash1 + hash2);
-        args.push(Rc::new(
+        args.push(Rc::new(RefCell::new(
           Graph::App(app_hash, arg1, arg2)
-        ));
+        )));
       },
       MK_FUN => {
         panic!("MK_FUN TODO")
       }
       REF_ARG => {
-        args.push(argm.clone());
+        args.push(arg.clone());
       },
       REF_ENV => {
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
         let index = bytes_to_usize(bytes, ENV_SIZE);
-        args.push(bind[index].clone());
+        args.push(env[index].clone());
         pc = pc+ENV_SIZE;
       },
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
         let hash = u64::from_be_bytes(bytes.try_into().unwrap());
-        args.push(Rc::new(
+        args.push(Rc::new(RefCell::new(
           Graph::Var(hash)
-        ));
+        )));
       },
       EVAL => {
         panic!("EVAL TODO")
+      }
+      UPDATE => {
+        panic!("UPDATE TODO")
       }
       END => break,
       _ => panic!("Operation does not exist"),
@@ -111,7 +122,44 @@ pub fn build_graph(code: Vec<CODE>, bind: Vec<Rc<Graph>>, argm: Rc<Graph>) -> Rc
   if args.len() != 1 {
     panic!("Invalid graph")
   }
-  drop(bind);
-  drop(argm);
   args.pop().unwrap()
+}
+
+pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Rc<RefCell<Graph>>) -> Rc<RefCell<Graph>> {
+  let mut node = top_node;
+  let mut trail = vec![];
+  loop {
+    let next_node = match &*node.borrow() {
+      Graph::App(_, fun, _) => {
+        trail.push(node.clone());
+        fun.clone()
+      }
+      Graph::Fun(_, idx, env) => {
+        if let Some(redex) = trail.pop() {
+          // Since we know these are app nodes, can't we extract the field without matching
+          // i.e., without double checking the tag?
+          let arg = match &*redex.borrow() { 
+            Graph::App(_,_,arg) => {
+              arg.clone()
+            }
+            _ => panic!("Implementation of reduce incorrect")
+          };
+          build_graph(&fun_defs[*idx], env, arg, redex)
+        }
+        else {
+          break
+        }
+      },
+      _ => break,
+    };
+    node = next_node;
+  }
+  if trail.is_empty() {
+    node
+  }
+  else {
+    // This is only correct if we are correctly updating the redex nodes
+    // Can we extract without cloning, since we know that `trail` will be collected afterwards?
+    trail[0].clone()
+  }
 }
