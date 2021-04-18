@@ -770,16 +770,10 @@ pub mod tests {
        x (c x (c x (c x n)))))))))))))))",
     );
     assert!(res.is_ok());
-    // let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-    //  "∀ Type -> Type",
-    //));
-    //// println!("res: {:?}", res);
-    // assert!(res.is_ok());
-    // let res = parse_expression(HashMap::new(), Vector::new())(Span::new(
-    //  "∀ (_ :Type) -> Type",
-    //));
-    //// println!("res: {:?}", res);
-    // assert!(res.is_ok());
+    let res = test("∀ Type -> Type");
+    assert!(res.is_ok());
+    let res = test("∀ (_ :Type) -> Type");
+    assert!(res.is_ok());
   }
 
   #[test]
