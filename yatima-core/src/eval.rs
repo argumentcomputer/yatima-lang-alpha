@@ -3,7 +3,10 @@ use core::ptr::NonNull;
 
 use crate::{
   dag::*,
-  defs::Def,
+  defs::{
+    Def,
+    Defs,
+  },
   dll::*,
   primop::{
     apply_bin_op,
@@ -12,10 +15,7 @@ use crate::{
   upcopy::*,
 };
 
-use im::{
-  HashMap,
-  Vector,
-};
+use im::HashMap;
 
 enum Single {
   Lam(Var),
@@ -270,7 +270,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
 
 impl DAG {
   // Reduce term to its weak head normal form
-  pub fn whnf(&mut self, defs: &HashMap<Cid, Def>) {
+  pub fn whnf(&mut self, defs: &Defs) {
     let mut node = self.head;
     let mut trail = vec![];
     loop {
@@ -318,7 +318,7 @@ impl DAG {
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
-          if let Some(def) = defs.get(exp) {
+          if let Some(def) = defs.get(nam) {
             let parents = ref_parents.clone();
             *ref_parents = None;
             node = DAG::from_ref(&def, nam.clone(), *exp, *ast);
@@ -395,7 +395,7 @@ impl DAG {
   }
 
   // Reduce term to its normal form
-  pub fn norm(&mut self, defs: &HashMap<Cid, Def>) {
+  pub fn norm(&mut self, defs: &Defs) {
     self.whnf(defs);
     let mut trail = vec![self.head];
     while let Some(node) = trail.pop() {

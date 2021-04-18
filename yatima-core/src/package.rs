@@ -119,16 +119,13 @@ pub mod tests {
   };
 
   use crate::{
-    defs::Def,
+    defs::tests::arbitrary_def,
     term::tests::arbitrary_name,
     tests::arbitrary_cid,
   };
 
   impl Arbitrary for Definition {
-    fn arbitrary(g: &mut Gen) -> Self {
-      let def: Def = Arbitrary::arbitrary(g);
-      def.embed().0
-    }
+    fn arbitrary(g: &mut Gen) -> Self { arbitrary_def(g).1 }
   }
 
   impl Arbitrary for Index {
