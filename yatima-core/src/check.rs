@@ -54,7 +54,7 @@ pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
         format!("^{}", dep - 1 - var_dep)
       }
     },
-    DAGPtr::Typ(_) => format!("*"),
+    DAGPtr::Typ(_) => "*".to_string(),
     DAGPtr::Lit(link) => unsafe { format!("I<{}>", link.as_ref().lit) },
     DAGPtr::LTy(link) => unsafe { format!("T<{}>", link.as_ref().lty) },
     DAGPtr::Opr(link) => unsafe { format!("O<{}>", link.as_ref().opr) },
@@ -180,6 +180,7 @@ type UseCtx = Vec<Uses>;
 
 #[inline]
 pub fn add_use_ctx(use_ctx: &mut UseCtx, use_ctx2: UseCtx) {
+  #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
     use_ctx[i] = use_ctx[i] + use_ctx2[i]
   }
@@ -187,6 +188,7 @@ pub fn add_use_ctx(use_ctx: &mut UseCtx, use_ctx2: UseCtx) {
 
 #[inline]
 pub fn mul_use_ctx(uses: Uses, use_ctx: &mut UseCtx) {
+  #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
     use_ctx[i] = use_ctx[i] * uses
   }
@@ -219,16 +221,16 @@ pub fn check(
             check(defs, ctx, Uses::Once, &mut lam_bod, &mut img)?;
           let infer_uses = use_ctx.pop().unwrap();
           if Uses::covers(infer_uses, *lam_uses) {
-            Err(CheckError::GenericError(format!("Quantity mismatch.")))
+            Err(CheckError::GenericError("Quantity mismatch.".to_string()))
           }
           else {
             mul_use_ctx(uses, &mut use_ctx);
             Ok(use_ctx)
           }
         }
-        _ => Err(CheckError::GenericError(format!(
-          "The type of a lambda must be a forall."
-        ))),
+        _ => Err(CheckError::GenericError(
+          "The type of a lambda must be a forall.".to_string(),
+        )),
       }
     }
     DAGPtr::Dat(dat_link) => {
@@ -255,13 +257,13 @@ pub fn check(
           new_bod.free();
           Ok(use_ctx)
         }
-        _ => Err(CheckError::GenericError(format!(
-          "The type of data must be a self."
-        ))),
+        _ => Err(CheckError::GenericError(
+          "The type of data must be a self.".to_string(),
+        )),
       }
     }
     DAGPtr::Let(_) => {
-      Err(CheckError::GenericError(format!("TODO: Let typecheck")))
+      Err(CheckError::GenericError("TODO: Let typecheck".to_string()))
     }
     _ => {
       let depth = ctx.len();
@@ -272,7 +274,7 @@ pub fn check(
         Ok(use_ctx)
       }
       else {
-        Err(CheckError::GenericError(format!("Type mismatch.")))
+        Err(CheckError::GenericError("Type mismatch.".to_string()))
       }
     }
   }
@@ -289,21 +291,24 @@ pub fn infer(
       let Var { dep, .. } = unsafe { link.as_mut() };
       let mut use_ctx = vec![Uses::None; ctx.len()];
       use_ctx[*dep as usize] = uses;
-      let bind = ctx
-        .get(*dep as usize)
-        .ok_or(CheckError::GenericError(format!("Unbound variable.")))?;
+      let bind = ctx.get(*dep as usize).ok_or_else(|| {
+        CheckError::GenericError("Unbound variable.".to_string())
+      })?;
       let typ = unsafe {
         let dag = DAG::new(*bind.1);
+        #[allow(clippy::redundant_clone)]
         dag.clone()
       };
       Ok((use_ctx, typ))
     }
     DAGPtr::Ref(mut link) => {
       let Ref { nam, exp: def_link, .. } = unsafe { link.as_mut() };
-      let def = defs.get(nam).ok_or(CheckError::GenericError(format!(
-        "Undefined reference: {}, {}",
-        nam, def_link
-      )))?;
+      let def = defs.get(nam).ok_or_else(|| {
+        CheckError::GenericError(format!(
+          "Undefined reference: {}, {}",
+          nam, def_link
+        ))
+      })?;
       let use_ctx = vec![Uses::None; ctx.len()];
       let typ = DAG::from_term(&def.typ_);
       Ok((use_ctx, typ))
@@ -325,6 +330,7 @@ pub fn infer(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
+              #[allow(clippy::redundant_clone)]
               arg.clone().head,
             )
           }
@@ -336,9 +342,9 @@ pub fn infer(
           fun_typ.free();
           Ok((fun_use_ctx, DAG::new(new_img)))
         }
-        _ => Err(CheckError::GenericError(format!(
-          "Tried to apply something that isn't a lambda."
-        ))),
+        _ => Err(CheckError::GenericError(
+          "Tried to apply something that isn't a lambda.".to_string(),
+        )),
       }
     }
     DAGPtr::Cse(mut link) => {
@@ -352,6 +358,7 @@ pub fn infer(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
+              #[allow(clippy::redundant_clone)]
               exp.clone().head,
             )
           }
@@ -363,9 +370,9 @@ pub fn infer(
           exp_typ.free();
           Ok((exp_use_ctx, DAG::new(new_bod)))
         }
-        _ => Err(CheckError::GenericError(format!(
-          "Tried to case on something that isn't a datatype."
-        ))),
+        _ => Err(CheckError::GenericError(
+          "Tried to case on something that isn't a datatype.".to_string(),
+        )),
       }
     }
     DAGPtr::All(link) => {
@@ -395,6 +402,7 @@ pub fn infer(
     }
     DAGPtr::Ann(mut link) => {
       let Ann { typ, exp, .. } = unsafe { link.as_mut() };
+      #[allow(clippy::redundant_clone)]
       let mut typ_clone = DAG::new(*typ).clone();
       let mut exp = DAG::new(*exp);
       let use_ctx = check(defs, ctx, uses, &mut exp, &mut typ_clone)?;
@@ -414,13 +422,15 @@ pub fn infer(
       Ok((use_ctx, DAG::from_term(&infer_lty(*lty))))
     }
     DAGPtr::Opr(_link) => {
-      Err(CheckError::GenericError(format!("TODO")))
+      Err(CheckError::GenericError("TODO".to_string()))
       // let Opr { opr, .. } = unsafe { &*link.as_ptr() };
       // let use_ctx = vec![Uses::None; ctx.len()];
       // Ok((use_ctx, DAG::from_term(&infer_opr(*opr))))
     }
-    DAGPtr::Lam(_) => Err(CheckError::GenericError(format!("Untyped lambda."))),
-    _ => Err(CheckError::GenericError(format!("TODO"))),
+    DAGPtr::Lam(_) => {
+      Err(CheckError::GenericError("Untyped lambda.".to_string()))
+    }
+    _ => Err(CheckError::GenericError("TODO".to_string())),
   }
 }
 
@@ -445,6 +455,7 @@ pub fn infer_lit(lit: Literal) -> Term {
   }
 }
 
+#[allow(clippy::match_single_binding)]
 pub fn infer_lty(lty: LitType) -> Term {
   match lty {
     _ => Term::Typ(Pos::None),
@@ -453,12 +464,12 @@ pub fn infer_lty(lty: LitType) -> Term {
 
 // pub fn infer_opr(lit: PrimOp) -> Term {}
 
-pub fn check_def(defs: &Defs, name: &String) -> Result<(), CheckError> {
-  let def = defs
-    .get(name)
-    .ok_or(CheckError::GenericError(format!("Undefined reference.")))?;
+pub fn check_def(defs: &Defs, name: &str) -> Result<(), CheckError> {
+  let def = defs.get(name).ok_or_else(|| {
+    CheckError::GenericError("Undefined reference.".to_string())
+  })?;
   let mut trm =
-    DAG::new(DAG::from_ref(&def, name.clone(), def.def_cid, def.ast_cid));
+    DAG::new(DAG::from_ref(&def, name.to_string(), def.def_cid, def.ast_cid));
   let mut typ = DAG::from_term(&def.typ_);
   check(&defs, vec![], Uses::Once, &mut trm, &mut typ)?;
   trm.free();

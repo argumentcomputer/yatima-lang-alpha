@@ -1,6 +1,5 @@
 use crate::{
   embed_error::EmbedError,
-  ipld_error::IpldError,
   parse::{
     base,
     span::Span,
@@ -56,7 +55,7 @@ pub enum ParseErrorKind {
   // MisnamedImport(String, Cid, String),
   MalformedPath,
   ImportCycle(PathBuf),
-  EmbeddingError(EmbedError),
+  EmbeddingError(Box<EmbedError>),
   Nom(ErrorKind),
 }
 
@@ -128,42 +127,8 @@ impl<'a> fmt::Display for ParseErrorKind {
           x
         )
       }
-      // Self::ExpectedImportLink(expr) => {
-      //  write!(
-      //    f,
-      //    "Expected the hashexpr encoding of a link, instead found {}",
-      //    expr
-      //  )
-      //}
-      Self::UnknownImportLink(link) => {
-        write!(f, "Link {} not found in local hashspace", link)
-      }
-      Self::MisnamedPackage(name) => {
-        write!(
-          f,
-          "Package {} must be in a file named {}.ya",
-          name.clone(),
-          name
-        )
-      }
-      // Self::MisnamedImport(name, link, pack_name) => {
-      //  write!(
-      //    f,
-      //    "Tried to import a package {} from {}, but package is actually \
-      //     named {}",
-      //    name, link, pack_name
-      //  )
-      //}
       Self::MalformedPath => {
         write!(f, "malformed path")
-      }
-      Self::ImportCycle(path) => {
-        write!(
-          f,
-          "An `open` declaration creates an import cycle with file {:?}, \
-           which is not allowed",
-          path
-        )
       }
       Self::EmbeddingError(e) => {
         write!(f, "Error reading package from hashspace: {:?}", e)
@@ -188,12 +153,7 @@ impl ParseErrorKind {
   //  }
   //}
 
-  pub fn is_nom_err(&self) -> bool {
-    match self {
-      Self::Nom(_) => true,
-      _ => false,
-    }
-  }
+  pub fn is_nom_err(&self) -> bool { matches!(self, Self::Nom(_)) }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -224,36 +184,36 @@ impl<'a> fmt::Display for ParseError<Span<'a>> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let mut res = String::new();
 
-    write!(
+    writeln!(
       &mut res,
-      "at line {}:{} \n",
+      "at line {}:{}",
       self.input.location_line(),
       self.input.get_column()
     )?;
     let line = String::from_utf8_lossy(self.input.get_line_beginning());
 
-    write!(&mut res, "{} | {}\n", self.input.location_line(), line)?;
+    writeln!(&mut res, "{} | {}", self.input.location_line(), line)?;
 
     let cols = format!("{} | ", self.input.location_line()).len()
       + self.input.get_column();
     for _ in 0..(cols - 1) {
       write!(&mut res, " ")?;
     }
-    write!(&mut res, "^\n")?;
+    writeln!(&mut res, "^")?;
 
     if let Some(exp) = self.expected {
-      write!(&mut res, "Expected {}\n", exp)?;
+      writeln!(&mut res, "Expected {}", exp)?;
     }
 
     let mut errs = self.errors.iter().filter(|x| !x.is_nom_err()).peekable();
     if errs.peek() == None {
       // TODO: Nom verbose mode
-      write!(&mut res, "Internal parser error\n")?;
+      writeln!(&mut res, "Internal parser error")?;
     }
     else {
-      write!(&mut res, "Reported errors:\n")?;
+      writeln!(&mut res, "Reported errors:")?;
       for kind in errs {
-        write!(&mut res, "- {}\n", kind)?;
+        writeln!(&mut res, "- {}", kind)?;
       }
     }
 

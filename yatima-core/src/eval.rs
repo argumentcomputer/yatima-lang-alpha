@@ -1,12 +1,8 @@
-use cid::Cid;
 use core::ptr::NonNull;
 
 use crate::{
   dag::*,
-  defs::{
-    Def,
-    Defs,
-  },
+  defs::Defs,
   dll::*,
   primop::{
     apply_bin_op,
@@ -14,8 +10,6 @@ use crate::{
   },
   upcopy::*,
 };
-
-use im::HashMap;
 
 enum Single {
   Lam(Var),
@@ -319,7 +313,7 @@ impl DAG {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
           if let Some(def) = defs.get(nam) {
-            let parents = ref_parents.clone();
+            let parents = *ref_parents;
             *ref_parents = None;
             node = DAG::from_ref(&def, nam.clone(), *exp, *ast);
             for parent in DLL::iter_option(parents) {

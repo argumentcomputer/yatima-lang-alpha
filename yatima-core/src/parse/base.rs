@@ -78,7 +78,7 @@ impl LitBase {
       Ok(bytes) => Ok((i, bytes)),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
-        ParseErrorKind::InvalidBaseEncoding(self.clone()),
+        ParseErrorKind::InvalidBaseEncoding(*self),
       ))),
     }
   }
@@ -95,7 +95,7 @@ impl LitBase {
       Ok(bytes) => Ok((i, bytes)),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
-        ParseErrorKind::InvalidBaseEncoding(self.clone()),
+        ParseErrorKind::InvalidBaseEncoding(*self),
       ))),
     }
   }

@@ -121,13 +121,10 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   if reserved_symbols().contains(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedKeyword(s))))
   }
-  else if s.starts_with("#") | s.starts_with("~\"") {
+  else if s.starts_with('#') | s.starts_with("~\"") {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::HashExprSyntax(s))))
   }
-  else if is_numeric_symbol_string1(&s) {
-    Err(Err::Error(ParseError::new(from, ParseErrorKind::NumericSyntax(s))))
-  }
-  else if is_numeric_symbol_string2(&s) {
+  else if is_numeric_symbol_string1(&s) | is_numeric_symbol_string2(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::NumericSyntax(s))))
   }
   else if !is_valid_symbol_string(&s) {
@@ -138,19 +135,19 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   }
 }
 
-pub fn is_numeric_symbol_string1(s: &String) -> bool {
-  s.starts_with("0")
-    || s.starts_with("1")
-    || s.starts_with("2")
-    || s.starts_with("3")
-    || s.starts_with("4")
-    || s.starts_with("5")
-    || s.starts_with("6")
-    || s.starts_with("7")
-    || s.starts_with("8")
-    || s.starts_with("9")
+pub fn is_numeric_symbol_string1(s: &str) -> bool {
+  s.starts_with('0')
+    || s.starts_with('1')
+    || s.starts_with('2')
+    || s.starts_with('3')
+    || s.starts_with('4')
+    || s.starts_with('5')
+    || s.starts_with('6')
+    || s.starts_with('7')
+    || s.starts_with('8')
+    || s.starts_with('9')
 }
-pub fn is_numeric_symbol_string2(s: &String) -> bool {
+pub fn is_numeric_symbol_string2(s: &str) -> bool {
   s.starts_with("-0")
     || s.starts_with("-1")
     || s.starts_with("-2")
@@ -183,13 +180,12 @@ pub fn is_valid_symbol_char(c: char) -> bool {
     && !char::is_control(c)
 }
 
-pub fn is_valid_symbol_string(s: &String) -> bool {
-  let zero_length = s.len() == 0;
-  let invalid_chars = s.starts_with("\"")
-    || s.starts_with("\'")
-    || s.starts_with("#")
+pub fn is_valid_symbol_string(s: &str) -> bool {
+  let invalid_chars = s.starts_with('"')
+    || s.starts_with('\'')
+    || s.starts_with('#')
     || s.chars().any(|x| !is_valid_symbol_char(x));
-  !zero_length && !invalid_chars
+  !s.is_empty() && !invalid_chars
 }
 
 pub fn parse_var(
@@ -363,7 +359,7 @@ pub fn parse_all(
     let (i, _) = tag("->")(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
-    for (_, n, _) in bs.clone().iter() {
+    for (_, n, _) in bs.iter() {
       ctx2.push_front(n.clone());
     }
     let (upto, bod) = parse_expression(input, defs.to_owned(), ctx2)(i)?;
@@ -443,7 +439,7 @@ pub fn parse_typed_definition(
     if defs.get(&nam).is_some() && !shadow {
       Err(Err::Error(ParseError::new(
         from,
-        ParseErrorKind::TopLevelRedefinition(nam.clone()),
+        ParseErrorKind::TopLevelRedefinition(nam),
       )))
     }
     else {
@@ -458,7 +454,7 @@ pub fn parse_typed_definition(
       let (i, _) = tag(":")(i)?;
       let (i, _) = parse_space(i)?;
       let mut type_ctx = ctx.clone();
-      for (_, n, _) in bs.clone().iter() {
+      for (_, n, _) in bs.iter() {
         type_ctx.push_front(n.clone());
       }
       let (i, typ) = parse_expression(input, defs.clone(), type_ctx)(i)?;
@@ -466,7 +462,7 @@ pub fn parse_typed_definition(
       if rec {
         term_ctx.push_front(nam.clone());
       };
-      for (_, n, _) in bs.clone().iter() {
+      for (_, n, _) in bs.iter() {
         term_ctx.push_front(n.clone());
       }
       let (i, _) = parse_space(i)?;
@@ -505,10 +501,7 @@ pub fn parse_let(
     ctx2.push_front(nam.clone());
     let (upto, bod) = parse_expression(input, defs.to_owned(), ctx2)(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((
-      upto,
-      Term::Let(pos, rec, uses, nam.clone(), Box::new((typ, exp, bod))),
-    ))
+    Ok((upto, Term::Let(pos, rec, uses, nam, Box::new((typ, exp, bod)))))
   }
 }
 
@@ -631,7 +624,7 @@ pub fn parse_expression(
   move |from: Span| {
     let (i, trm) = parse_apps(input, defs.clone(), ctx.clone())(from)?;
     let (i, has_ann) = opt(tag("::"))(i)?;
-    if let Some(_) = has_ann {
+    if has_ann.is_some() {
       let (i, typ) = context(
         "type annotation",
         parse_apps(input, defs.clone(), ctx.clone()),

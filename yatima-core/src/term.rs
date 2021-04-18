@@ -426,17 +426,10 @@ pub mod tests {
     Vector,
   };
 
-  use crate::tests::frequency;
-
-  pub fn is_valid_symbol_char(c: char) -> bool {
-    c != ':'
-      && c != ';'
-      && c != '('
-      && c != ')'
-      && c != ','
-      && !char::is_whitespace(c)
-      && !char::is_control(c)
-  }
+  use crate::{
+    parse::term::is_valid_symbol_char,
+    tests::frequency,
+  };
 
   pub fn arbitrary_name(g: &mut Gen) -> String {
     let s: String = Arbitrary::arbitrary(g);

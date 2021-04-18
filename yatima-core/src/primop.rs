@@ -228,7 +228,7 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
       if y == 0u64.into() {
         Some(Int(BigInt::from_biguint(Sign::NoSign, y)))
       }
-      else if x == true {
+      else if x {
         Some(Int(BigInt::from_biguint(Sign::Plus, y)))
       }
       else {
@@ -251,9 +251,9 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (NatSub, Int(x), Int(y)) => Some(Int(x - y)),
     (IntMul, Nat(x), Nat(y)) => Some(Nat(x * y)),
     (NatMul, Int(x), Int(y)) => Some(Int(x * y)),
-    (IntDiv, Nat(x), Nat(y)) if y != (0 as u64).into() => Some(Nat(x * y)),
+    (IntDiv, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
     (IntDiv, Int(x), Int(y)) if y != 0.into() => Some(Int(x / y)),
-    (NatMod, Nat(x), Nat(y)) if y != (0 as u64).into() => Some(Nat(x * y)),
+    (NatMod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
     (IntMod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
     _ => None,
   }
