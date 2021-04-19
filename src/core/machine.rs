@@ -47,7 +47,7 @@ pub enum Graph {
 }
 
 #[inline]
-pub fn hash(x: u64) -> u64 {
+pub fn make_hash(x: u64) -> u64 {
   let mut hasher = DefaultHasher::new();
   x.hash(&mut hasher);
   hasher.finish()
@@ -73,24 +73,43 @@ pub fn bytes_to_usize(bytes: &[u8], len: usize) -> usize {
 }
 
 #[inline]
-pub fn build_graph(code: &Vec<CODE>, env: &Vec<Link<Graph>>, arg: Link<Graph>, redex: Link<Graph>) -> Link<Graph> {
+pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<Graph>>, arg: Link<Graph>, redex: Link<Graph>) -> Link<Graph> {
   let mut pc = 0;
   let mut args: Vec<Link<Graph>> = vec![];
   loop {
     match code[pc] {
       MK_APP => {
-        let arg1 = args.pop().unwrap();
-        let arg2 = args.pop().unwrap();
-        let hash1 = get_hash(&arg1.borrow());
-        let hash2 = get_hash(&arg2.borrow());
+        let fun = args.pop().unwrap();
+        let arg = args.pop().unwrap();
+        let hash_fun = get_hash(&fun.borrow());
+        let hash_arg = get_hash(&arg.borrow());
         let app_hash =
-          hash(MK_APP as u64 + hash1 + hash2);
+          make_hash(MK_APP as u64 + hash_fun + hash_arg);
         args.push(Rc::new(RefCell::new(
-          Graph::App(app_hash, arg1, arg2)
+          Graph::App(app_hash, fun, arg)
         )));
       },
       MK_FUN => {
-        panic!("MK_FUN TODO")
+        let bytes = &code[pc+1..pc+9];
+        let mut hash = bytes_to_usize(bytes, 8) as u64;
+        pc = pc+8;
+        let bytes = &code[pc+1..pc+1+MAP_SIZE];
+        let fun_index = bytes_to_usize(bytes, MAP_SIZE);
+        pc = pc+MAP_SIZE;
+        let bytes = &code[pc+1..pc+1+ENV_SIZE];
+        let env_length = bytes_to_usize(bytes, ENV_SIZE);
+        pc = pc+ENV_SIZE;
+        let mut fun_env = vec![];
+        for i in 0..env_length {
+          let bytes = &code[pc+1..pc+1+ENV_SIZE];
+          let index = bytes_to_usize(bytes, MAP_SIZE);
+          fun_env.push(env[index].clone());
+          hash = make_hash(hash+get_hash(&env[index].borrow()));
+          pc = pc+ENV_SIZE;
+        }
+        args.push(Rc::new(RefCell::new(
+          Graph::Fun(hash, fun_index, fun_env)
+        )));
       }
       REF_ARG => {
         args.push(arg.clone());
@@ -125,6 +144,7 @@ pub fn build_graph(code: &Vec<CODE>, env: &Vec<Link<Graph>>, arg: Link<Graph>, r
   args.pop().unwrap()
 }
 
+#[inline]
 pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Rc<RefCell<Graph>>) -> Rc<RefCell<Graph>> {
   let mut node = top_node;
   let mut trail = vec![];
@@ -144,7 +164,7 @@ pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Rc<RefCell<Graph>>) -> Rc<Ref
             }
             _ => panic!("Implementation of reduce incorrect")
           };
-          build_graph(&fun_defs[*idx], env, arg, redex)
+          build_graph(fun_defs, &fun_defs[*idx], env, arg, redex)
         }
         else {
           break
