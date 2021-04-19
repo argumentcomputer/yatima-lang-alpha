@@ -139,7 +139,7 @@ fn fmt_term(
   match term {
     Var(_, nam, ..) => write!(f, "{}", nam),
     Ref(_, nam, ..) => write!(f, "{}", nam),
-    Rec(_) => write!(f, "{}", rec.unwrap_or_else(|| "^".to_owned())),
+    Rec(_) => write!(f, "{}", rec.unwrap_or_else(|| "#^".to_owned())),
     Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
     App(_, terms) => write!(f, "{}", apps(&terms.0, &terms.1)),
     Let(_, true, u, n, terms) => {

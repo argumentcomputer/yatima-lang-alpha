@@ -1,5 +1,5 @@
 [workspace]
-members = [ "hashexpr", "yatima-core" ]
+members = [ "yatima_core" ]
 
 [package]
 name = "yatima"
@@ -13,9 +13,7 @@ name = "yatima"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-hashexpr = { path = "hashexpr"}
-num-bigint = "0.3.1"
-blake3 = "0.3.7"
+yatima_core = { path = "yatima_core"}
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"

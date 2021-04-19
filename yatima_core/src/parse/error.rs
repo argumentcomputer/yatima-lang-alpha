@@ -40,6 +40,7 @@ pub enum ParseErrorKind {
   ExpectedSingleChar(Vec<char>),
   InvalidBase16EscapeSequence(String),
   MultibaseError(multibase::Error),
+  CidError,
   // DeserialErr(DeserialError<ByteVec>),
   ParseIntErr(ParseIntError),
   ReservedKeyword(String),
@@ -274,16 +275,6 @@ where
   }
 }
 
-// pub fn convert<I: AsBytes>(
-//  from: I,
-//  x: Err<hashexpr::error::ParseError<I>>,
-//) -> Err<ParseError<I>> {
-//  match x {
-//    Err::Incomplete(n) => Err::Incomplete(n),
-//    Err::Error(e) => Err::Error(ParseError::from_hashexpr_error(from, e)),
-//    Err::Failure(e) => Err::Failure(ParseError::from_hashexpr_error(from, e)),
-//  }
-//}
 pub fn throw_err<I: AsBytes, A, F: Fn(ParseError<I>) -> ParseError<I>>(
   x: IResult<I, A, ParseError<I>>,
   f: F,

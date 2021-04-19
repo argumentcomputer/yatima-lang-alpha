@@ -17,4 +17,7 @@ pub enum IpldError {
   Definition(Ipld),
   Index(Ipld),
   IndexEntry(Ipld),
+  Import(Ipld),
+  ImportEntry(Ipld),
+  Package(Ipld),
 }

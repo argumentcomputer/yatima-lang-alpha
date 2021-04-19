@@ -32,15 +32,30 @@ impl PartialEq for Def {
 pub type Defs = HashMap<String, Def>;
 
 impl Def {
+  pub fn make(pos: Pos, typ_: Term, term: Term) -> (Self, Definition) {
+    let (type_anon, type_meta) = typ_.embed();
+    let (term_anon, term_meta) = term.embed();
+    let ast_cid = term_anon.cid();
+    let defn = Definition {
+      pos,
+      type_anon: type_anon.cid(),
+      type_meta,
+      term_anon: ast_cid,
+      term_meta,
+    };
+    let def = Def { pos, def_cid: defn.cid(), ast_cid, typ_, term };
+    (def, defn)
+  }
+
   pub fn embed(&self) -> (Definition, Anon, Anon) {
     let (type_anon, type_meta) = self.typ_.embed();
     let (term_anon, term_meta) = self.term.embed();
     let d = Definition {
       pos: self.pos,
-      term_anon: self.ast_cid,
       type_anon: type_anon.cid(),
-      term_meta,
+      term_anon: self.ast_cid,
       type_meta,
+      term_meta,
     };
     (d, type_anon, term_anon)
   }
@@ -77,17 +92,7 @@ pub mod tests {
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Definition) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term = arbitrary_term(g, true, test_defs(), im::Vector::new());
-    let (term_anon, term_meta) = term.embed();
-    let (type_anon, type_meta) = typ_.embed();
-    let ast_cid = term_anon.cid();
-    let def = Definition {
-      pos: Pos::None,
-      type_anon: type_anon.cid(),
-      term_anon: ast_cid,
-      type_meta,
-      term_meta,
-    };
-    (Def { pos: Pos::None, def_cid: def.cid(), ast_cid, typ_, term }, def)
+    Def::make(Pos::None, typ_, term)
   }
 
   impl Arbitrary for Def {
