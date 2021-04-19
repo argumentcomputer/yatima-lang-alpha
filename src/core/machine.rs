@@ -10,8 +10,6 @@ use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-// The size of pointers, which depends on the architecture
-const PTR_SIZE: usize = 8;
 // The maximum byte size of the environment
 const ENV_SIZE: usize = 4;
 // The maximum byte size of the closure mapping size
@@ -30,13 +28,12 @@ const REF_ARG: CODE = 4;
 const REF_ENV: CODE = 5;
 // Evaluate last node
 const EVAL: CODE = 6;
-// Update the root node
-const UPDATE: CODE = 7;
 // End of code
 const END: CODE = 0;
 
 type Link<T> = Rc<RefCell<T>>;
 
+#[derive(Clone)]
 pub enum Graph {
   // Hash, index of function code and environment
   Fun(u64, usize, Vec<Link<Graph>>),
@@ -100,7 +97,7 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
         let env_length = bytes_to_usize(bytes, ENV_SIZE);
         pc = pc+ENV_SIZE;
         let mut fun_env = vec![];
-        for i in 0..env_length {
+        for _ in 0..env_length {
           let bytes = &code[pc+1..pc+1+ENV_SIZE];
           let index = bytes_to_usize(bytes, MAP_SIZE);
           fun_env.push(env[index].clone());
@@ -128,20 +125,26 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
         )));
       },
       EVAL => {
-        panic!("EVAL TODO")
-      }
-      UPDATE => {
-        panic!("UPDATE TODO")
+        // EVAL should be used for projection functions, i.e., functions where the body is a single variable node
+        if let Some(arg) = args.last() {
+          reduce(fun_defs, arg.clone());
+        }
+        else {
+          panic!("Stack underflow")
+        }
       }
       END => break,
       _ => panic!("Operation does not exist"),
     }
     pc = pc+1;
   }
-  if args.len() != 1 {
-    panic!("Invalid graph")
+  // Optimization TODO: build the argument on top of the redex instead of copying over the redex
+  let arg = args.pop().unwrap();
+  {
+    let mut mut_ref = (*redex).borrow_mut();
+    *mut_ref = (*arg.borrow()).clone();
   }
-  args.pop().unwrap()
+  redex
 }
 
 #[inline]
