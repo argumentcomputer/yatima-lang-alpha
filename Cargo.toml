@@ -14,6 +14,10 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 yatima_core = { path = "yatima_core"}
+cid = "0.6.1"
+multihash = "0.13.2"
+multibase = "0.9.1"
+libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"
@@ -21,43 +25,8 @@ nom_locate = "3.0.0"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"
-
-# WASM dependencies
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
-js-sys = "0.3.49"
-wasm-bindgen-futures = "0.4.22"
-serde = { version = "1.0.80", features = ["derive"] }
-serde_derive = "^1.0.59"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.49"
-features = [
-  'Document',
-  'Element',
-  'HtmlElement',
-  'Node',
-  'Headers',
-  'Request',
-  'RequestInit',
-  'RequestMode',
-  'Response',
-  'Window',
-  'Storage',
-  'console',
-]
-
-# Not WASM dependencies
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustyline = "7.1.0"
 directories-next = "2.0.0"
-rocket = "0.4.6"
-log = "0.4.6"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rocket_contrib]
-version = "0.4.7"
-default-features = false
-features = ["serve", "templates", "handlebars_templates"]
 
 [dev-dependencies]
 quickcheck = "1.0.3"

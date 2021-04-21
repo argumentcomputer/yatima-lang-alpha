@@ -1,7 +1,7 @@
 use crate::{
   anon::Anon,
   embed_error::EmbedError,
-  package::Definition,
+  package::Entry,
   position::Pos,
   term::Term,
 };
@@ -9,6 +9,8 @@ use crate::{
 use cid::Cid;
 
 use im::HashMap;
+
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -29,14 +31,15 @@ impl PartialEq for Def {
 }
 
 /// A map of content-ids to defs, with content ids for the def
-pub type Defs = HashMap<String, Def>;
+#[derive(PartialEq, Clone, Debug)]
+pub struct Defs(pub HashMap<String, Def>);
 
 impl Def {
-  pub fn make(pos: Pos, typ_: Term, term: Term) -> (Self, Definition) {
+  pub fn make(pos: Pos, typ_: Term, term: Term) -> (Self, Entry) {
     let (type_anon, type_meta) = typ_.embed();
     let (term_anon, term_meta) = term.embed();
     let ast_cid = term_anon.cid();
-    let defn = Definition {
+    let defn = Entry {
       pos,
       type_anon: type_anon.cid(),
       type_meta,
@@ -47,10 +50,10 @@ impl Def {
     (def, defn)
   }
 
-  pub fn embed(&self) -> (Definition, Anon, Anon) {
+  pub fn embed(&self) -> (Entry, Anon, Anon) {
     let (type_anon, type_meta) = self.typ_.embed();
     let (term_anon, term_meta) = self.term.embed();
-    let d = Definition {
+    let d = Entry {
       pos: self.pos,
       type_anon: type_anon.cid(),
       term_anon: self.ast_cid,
@@ -61,7 +64,7 @@ impl Def {
   }
 
   pub fn unembed(
-    def: Definition,
+    def: Entry,
     type_anon: Anon,
     term_anon: Anon,
   ) -> Result<Self, EmbedError> {
@@ -74,6 +77,36 @@ impl Def {
       typ_,
       term,
     })
+  }
+
+  pub fn fmt(&self, name: String, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "def {} : {} = {}", name, self.typ_, self.term)
+  }
+}
+
+impl Defs {
+  pub fn new() -> Self { Defs(HashMap::new()) }
+}
+
+impl fmt::Display for Def {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.fmt("#*".to_owned(), f)
+  }
+}
+impl fmt::Display for Defs {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    for (k, v) in &self.0 {
+      writeln!(f, "{}:", v.def_cid)?;
+      writeln!(
+        f,
+        "def {} : {} = {}",
+        k.clone(),
+        v.typ_.pretty(Some(&k.clone())),
+        v.term.pretty(Some(&k.clone())),
+      )?;
+      writeln!(f, "")?;
+    }
+    Ok(())
   }
 }
 
@@ -89,7 +122,7 @@ pub mod tests {
     Gen,
   };
 
-  pub fn arbitrary_def(g: &mut Gen) -> (Def, Definition) {
+  pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term = arbitrary_term(g, true, test_defs(), im::Vector::new());
     Def::make(Pos::None, typ_, term)

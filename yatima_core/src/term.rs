@@ -68,124 +68,6 @@ impl PartialEq for Term {
   }
 }
 
-fn fmt_term(
-  term: &Term,
-  rec: Option<String>,
-  f: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
-  use Term::*;
-  const WILDCARD: &str = "_";
-
-  fn name(nam: &str) -> &str { if nam.is_empty() { WILDCARD } else { nam } }
-
-  // fn rec(nam: &str) -> &str { rec.map_or(
-
-  fn uses(uses: &Uses) -> &str {
-    match uses {
-      Uses::None => "0 ",
-      Uses::Affi => "& ",
-      Uses::Once => "1 ",
-      Uses::Many => "",
-    }
-  }
-
-  fn is_atom(term: &Term) -> bool {
-    matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
-  }
-
-  fn lams(nam: &str, bod: &Term) -> String {
-    match bod {
-      Lam(_, nam2, bod2) => format!("{} {}", name(nam), lams(nam2, bod2)),
-      _ => format!("{} => {}", nam, bod),
-    }
-  }
-
-  fn alls(use_: &Uses, nam: &str, typ: &Term, bod: &Term) -> String {
-    match bod {
-      All(_, bod_use, bod_nam, bod) => {
-        format!(
-          " ({}{}: {}){}",
-          uses(use_),
-          name(nam),
-          typ,
-          alls(bod_use, bod_nam, &bod.0, &bod.1)
-        )
-      }
-      _ => format!(" ({}{}: {}) -> {}", uses(use_), name(nam), typ, bod),
-    }
-  }
-
-  fn parens(term: &Term) -> String {
-    if is_atom(term) { format!("{}", term) } else { format!("({})", term) }
-  }
-
-  fn apps(fun: &Term, arg: &Term) -> String {
-    match (fun, arg) {
-      (App(_, f), App(_, a)) => {
-        format!("{} ({})", apps(&f.0, &f.1), apps(&a.0, &a.1))
-      }
-      (App(_, f), arg) => {
-        format!("{} {}", apps(&f.0, &f.1), parens(arg))
-      }
-      (fun, App(_, a)) => {
-        format!("{} ({})", parens(fun), apps(&a.0, &a.1))
-      }
-      (fun, arg) => {
-        format!("{} {}", parens(fun), parens(arg))
-      }
-    }
-  }
-
-  match term {
-    Var(_, nam, ..) => write!(f, "{}", nam),
-    Ref(_, nam, ..) => write!(f, "{}", nam),
-    Rec(_) => write!(f, "{}", rec.unwrap_or_else(|| "#^".to_owned())),
-    Lam(_, nam, term) => write!(f, "λ {}", lams(nam, term)),
-    App(_, terms) => write!(f, "{}", apps(&terms.0, &terms.1)),
-    Let(_, true, u, n, terms) => {
-      write!(
-        f,
-        "letrec {}{}: {} = {}; {}",
-        uses(u),
-        name(n),
-        terms.0,
-        terms.1,
-        terms.2
-      )
-    }
-    Let(_, false, u, n, terms) => {
-      write!(
-        f,
-        "let {}{}: {} = {}; {}",
-        uses(u),
-        name(n),
-        terms.0,
-        terms.1,
-        terms.2
-      )
-    }
-    Slf(_, nam, bod) => write!(f, "@{} {}", name(nam), bod),
-    All(_, us_, nam, terms) => {
-      write!(f, "∀{}", alls(us_, nam, &terms.0, &terms.1))
-    }
-    Ann(_, terms) => {
-      write!(f, "{} :: {}", parens(&terms.1), parens(&terms.0))
-    }
-    Dat(_, bod) => write!(f, "data {}", bod),
-    Cse(_, bod) => write!(f, "case {}", bod),
-    Typ(_) => write!(f, "Type"),
-    Lit(_, lit) => write!(f, "{}", lit),
-    LTy(_, lty) => write!(f, "{}", lty),
-    Opr(_, opr) => write!(f, "{}", opr),
-  }
-}
-
-impl fmt::Display for Term {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    fmt_term(&self, None, f)
-  }
-}
-
 impl Term {
   pub fn shift(self, inc: u64, dep: u64) -> Self {
     match self {
@@ -376,37 +258,131 @@ impl Term {
       (anon, meta) => Err(EmbedError::Term(anon.clone(), meta.clone())),
     }
   }
+
+  pub fn pretty(&self, rec: Option<&String>) -> String {
+    use Term::*;
+    const WILDCARD: &str = "_";
+
+    fn name(nam: &str) -> &str { if nam.is_empty() { WILDCARD } else { nam } }
+
+    fn uses(uses: &Uses) -> &str {
+      match uses {
+        Uses::None => "0 ",
+        Uses::Affi => "& ",
+        Uses::Once => "1 ",
+        Uses::Many => "",
+      }
+    }
+
+    fn is_atom(term: &Term) -> bool {
+      matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
+    }
+
+    fn lams(rec: Option<&String>, nam: &str, bod: &Term) -> String {
+      match bod {
+        Lam(_, nam2, bod2) => {
+          format!("{} {}", name(nam), lams(rec, nam2, bod2))
+        }
+        _ => format!("{} => {}", nam, bod.pretty(rec)),
+      }
+    }
+
+    fn alls(
+      rec: Option<&String>,
+      use_: &Uses,
+      nam: &str,
+      typ: &Term,
+      bod: &Term,
+    ) -> String {
+      match bod {
+        All(_, bod_use, bod_nam, bod) => {
+          format!(
+            " ({}{}: {}){}",
+            uses(use_),
+            name(nam),
+            typ.pretty(rec),
+            alls(rec, bod_use, bod_nam, &bod.0, &bod.1)
+          )
+        }
+        _ => format!(
+          " ({}{}: {}) -> {}",
+          uses(use_),
+          name(nam),
+          typ.pretty(rec),
+          bod.pretty(rec)
+        ),
+      }
+    }
+
+    fn parens(rec: Option<&String>, term: &Term) -> String {
+      if is_atom(term) {
+        term.pretty(rec)
+      }
+      else {
+        format!("({})", term.pretty(rec))
+      }
+    }
+
+    fn apps(rec: Option<&String>, fun: &Term, arg: &Term) -> String {
+      match (fun, arg) {
+        (App(_, f), App(_, a)) => {
+          format!("{} ({})", apps(rec, &f.0, &f.1), apps(rec, &a.0, &a.1))
+        }
+        (App(_, f), arg) => {
+          format!("{} {}", apps(rec, &f.0, &f.1), parens(rec, arg))
+        }
+        (fun, App(_, a)) => {
+          format!("{} ({})", parens(rec, fun), apps(rec, &a.0, &a.1))
+        }
+        (fun, arg) => {
+          format!("{} {}", parens(rec, fun), parens(rec, arg))
+        }
+      }
+    }
+
+    match self {
+      Var(_, nam, ..) => format!("{}", nam),
+      Ref(_, nam, ..) => format!("{}", nam),
+      Rec(_) => match rec {
+        Some(rec) => format!("{}", rec),
+        _ => format!("{}", "#^"),
+      },
+
+      Lam(_, nam, term) => format!("λ {}", lams(rec, nam, term)),
+      App(_, terms) => format!("{}", apps(rec, &terms.0, &terms.1)),
+      Let(_, letrec, u, n, terms) => {
+        format!(
+          "let{} {}{}: {} = {}; {}",
+          if *letrec { "rec" } else { "" },
+          uses(u),
+          name(n),
+          terms.0.pretty(rec),
+          terms.1.pretty(rec),
+          terms.2.pretty(rec),
+        )
+      }
+      Slf(_, nam, bod) => format!("@{} {}", name(nam), bod.pretty(rec)),
+      All(_, us_, nam, terms) => {
+        format!("∀{}", alls(rec, us_, nam, &terms.0, &terms.1))
+      }
+      Ann(_, terms) => {
+        format!("{} :: {}", parens(rec, &terms.1), parens(rec, &terms.0))
+      }
+      Dat(_, bod) => format!("data {}", bod.pretty(rec)),
+      Cse(_, bod) => format!("case {}", bod.pretty(rec)),
+      Typ(_) => format!("Type"),
+      Lit(_, lit) => format!("{}", lit),
+      LTy(_, lty) => format!("{}", lty),
+      Opr(_, opr) => format!("{}", opr),
+    }
+  }
 }
 
-//  pub fn get_link(
-//    defn: Link,
-//    hashspace: &Hashspace,
-//  ) -> Result<Self, UnembedError> {
-//    let def = hashspace.get(defn).ok_or(UnembedError::UnknownLink(defn))?;
-//    let def =
-//      Definition::decode(def).map_err(|e| UnembedError::DecodeError(e))?;
-//    let type_anon =
-//      hashspace.get(def.type_anon).ok_or(UnembedError::UnknownLink(defn))?;
-//    let type_anon =
-//      AnonTerm::decode(type_anon).map_err(|e| UnembedError::DecodeError(e))?;
-//    let term_anon =
-//      hashspace.get(def.term_anon).ok_or(UnembedError::UnknownLink(defn))?;
-//    let term_anon =
-//      AnonTerm::decode(term_anon).map_err(|e| UnembedError::DecodeError(e))?;
-//    Def::unembed(def, type_anon, term_anon)
-//  }
-//}
-// pub fn refs_to_defs(
-//  refs: Refs,
-//  hashspace: &Hashspace,
-//) -> Result<Defs, UnembedError> {
-//  let mut def_map = HashMap::new();
-//  for (_, (d, _)) in refs {
-//    let def = Def::get_link(d, &hashspace)?;
-//    def_map.insert(d, def);
-//  }
-//  Ok(def_map)
-//}
+impl fmt::Display for Term {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.pretty(None))
+  }
+}
 
 #[cfg(test)]
 pub mod tests {
@@ -463,7 +439,7 @@ pub mod tests {
     // let mut refs = HashMap::new();
     // refs.insert(String::from("id"), (d.encode().link(), t.encode().link()));
     // refs
-    HashMap::new()
+    Defs::new()
   }
 
   fn arbitrary_ref(
@@ -472,7 +448,7 @@ pub mod tests {
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
-      let mut ref_iter = defs.iter().filter(|(n, _)| !ctx.contains(n));
+      let mut ref_iter = defs.0.iter().filter(|(n, _)| !ctx.contains(n));
       let len = ref_iter.by_ref().count();
       if len == 0 {
         return Term::Typ(Pos::None);

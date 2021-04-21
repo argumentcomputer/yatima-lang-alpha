@@ -212,7 +212,7 @@ pub fn parse_var(
     else if is_rec_name {
       Ok((upto, Term::Rec(pos)))
     }
-    else if let Some(def) = defs.get(&nam) {
+    else if let Some(def) = defs.0.get(&nam) {
       Ok((upto, Term::Ref(pos, nam.clone(), def.def_cid, def.ast_cid)))
     }
     else {
@@ -780,9 +780,7 @@ pub fn input_cid(i: &str) -> Cid {
 }
 
 pub fn parse(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), HashMap::new(), None, Vector::new())(
-    Span::new(i),
-  )
+  parse_expression(input_cid(i), Defs::new(), None, Vector::new())(Span::new(i))
 }
 
 #[cfg(test)]
@@ -793,9 +791,7 @@ pub mod tests {
   #[test]
   fn test_parse_apps() {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-      parse_apps(input_cid(i), HashMap::new(), None, Vector::new())(Span::new(
-        i,
-      ))
+      parse_apps(input_cid(i), Defs::new(), None, Vector::new())(Span::new(i))
     }
     let res = test("0d1");
     assert!(res.is_ok());
@@ -808,7 +804,7 @@ pub mod tests {
   #[test]
   fn test_parse_expression() {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-      parse_expression(input_cid(i), HashMap::new(), None, Vector::new())(
+      parse_expression(input_cid(i), Defs::new(), None, Vector::new())(
         Span::new(i),
       )
     }
@@ -834,14 +830,14 @@ pub mod tests {
       nam_opt: bool,
       i: &str,
     ) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>> {
-      parse_binders(input_cid(i), HashMap::new(), None, Vector::new(), nam_opt)(
+      parse_binders(input_cid(i), Defs::new(), None, Vector::new(), nam_opt)(
         Span::new(i),
       )
     }
     fn test_full(
       i: &str,
     ) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>> {
-      parse_binder_full(input_cid(i), HashMap::new(), None, Vector::new())(
+      parse_binder_full(input_cid(i), Defs::new(), None, Vector::new())(
         Span::new(i),
       )
     }

@@ -1,5 +1,4 @@
 use crate::{
-  embed_error::EmbedError,
   parse::{
     base,
     span::Span,
@@ -12,7 +11,6 @@ use crate::{
 };
 
 use im::Vector;
-use libipld::Cid;
 use nom::{
   error::ErrorKind,
   AsBytes,
@@ -25,7 +23,6 @@ use std::{
   fmt,
   fmt::Write,
   num::ParseIntError,
-  path::PathBuf,
   string::String,
 };
 
@@ -34,14 +31,12 @@ pub enum ParseErrorKind {
   UndefinedReference(String, Vector<String>),
   TopLevelRedefinition(String),
   UnknownLiteralType(String),
-  // UnexpectedLiteral(hashexpr::Expr),
   InvalidBaseEncoding(base::LitBase),
   UnknownBaseCode,
   ExpectedSingleChar(Vec<char>),
   InvalidBase16EscapeSequence(String),
   MultibaseError(multibase::Error),
   CidError,
-  // DeserialErr(DeserialError<ByteVec>),
   ParseIntErr(ParseIntError),
   ReservedKeyword(String),
   HashExprSyntax(String),
@@ -50,13 +45,6 @@ pub enum ParseErrorKind {
   LitTypeLacksWhitespaceTermination(LitType),
   PrimOpLacksWhitespaceTermination(PrimOp),
   InvalidSymbol(String),
-  // ExpectedImportLink(hashexpr::Expr),
-  UnknownImportLink(Cid),
-  MisnamedPackage(String),
-  // MisnamedImport(String, Cid, String),
-  MalformedPath,
-  ImportCycle(PathBuf),
-  EmbeddingError(Box<EmbedError>),
   Nom(ErrorKind),
 }
 
@@ -73,13 +61,6 @@ impl<'a> fmt::Display for ParseErrorKind {
           name
         )
       }
-      // Self::InvalidBaseEncoding(base) => {
-      //  write!(f, "Invalid digits for {} encoding", base)
-      //}
-      // Self::UnknownBaseCode => {
-      //  write!(f, "Base code must be one of 'b', 'o', 'd', 'x', 'v', 'I',
-      // '~'")
-      //}
       Self::ExpectedSingleChar(chrs) => {
         write!(
           f,
@@ -91,9 +72,6 @@ impl<'a> fmt::Display for ParseErrorKind {
       Self::InvalidBase16EscapeSequence(seq) => {
         write!(f, "Unknown base 16 string escape sequence {}.", seq)
       }
-      // Self::DeserialErr(e) => {
-      //  write!(f, "Error deserializing hashexpr: {:?}", e)
-      //}
       Self::ParseIntErr(e) => {
         write!(f, "Error parsing number: {}", e)
       }
@@ -128,32 +106,12 @@ impl<'a> fmt::Display for ParseErrorKind {
           x
         )
       }
-      Self::MalformedPath => {
-        write!(f, "malformed path")
-      }
-      Self::EmbeddingError(e) => {
-        write!(f, "Error reading package from hashspace: {:?}", e)
-      }
       _ => write!(f, "internal parser error"),
     }
   }
 }
 
 impl ParseErrorKind {
-  // pub fn from_hashexpr_error(x: hashexpr::error::ParseErrorKind) -> Self {
-  //  use hashexpr::error::ParseErrorKind::*;
-  //  match x {
-  //    InvalidBaseEncoding(base) => Self::InvalidBaseEncoding(base),
-  //    ExpectedSingleChar(chars) => Self::ExpectedSingleChar(chars),
-  //    InvalidBase16EscapeSequence(seq) => {
-  //      Self::InvalidBase16EscapeSequence(seq)
-  //    }
-  //    DeserialErr(err) => Self::DeserialErr(err),
-  //    ParseIntErr(err) => Self::ParseIntErr(err),
-  //    Nom(e) => Self::Nom(e),
-  //  }
-  //}
-
   pub fn is_nom_err(&self) -> bool { matches!(self, Self::Nom(_)) }
 }
 
@@ -168,17 +126,6 @@ impl<I: AsBytes> ParseError<I> {
   pub fn new(input: I, error: ParseErrorKind) -> Self {
     ParseError { input, expected: None, errors: vec![error] }
   }
-
-  // pub fn from_hashexpr_error(
-  //  from: I,
-  //  x: hashexpr::error::ParseError<I>,
-  //) -> Self {
-  //  ParseError {
-  //    input: from,
-  //    expected: None,
-  //    errors: vec![ParseErrorKind::from_hashexpr_error(x.error)],
-  //  }
-  //}
 }
 
 impl<'a> fmt::Display for ParseError<Span<'a>> {

@@ -40,6 +40,10 @@ pub enum Anon {
   Rec,
 }
 
+/// var: [0, idx]
+/// lam: [1, <body>]
+/// app: [2, <fun>, <arg>]
+
 impl Anon {
   pub fn to_ipld(&self) -> Ipld {
     match self {

@@ -14,7 +14,6 @@ use multihash::{
   Code,
   MultihashDigest,
 };
-use std::collections::BTreeMap;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
@@ -31,10 +30,10 @@ pub enum Import {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Index(pub BTreeMap<String, Cid>);
+pub struct Index(pub Vec<(String, Cid)>);
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Definition {
+pub struct Entry {
   pub pos: Pos,
   pub type_anon: Cid,
   pub term_anon: Cid,
@@ -42,7 +41,7 @@ pub struct Definition {
   pub term_meta: Meta,
 }
 
-impl Definition {
+impl Entry {
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
       self.pos.to_ipld(),
@@ -66,7 +65,7 @@ impl Definition {
           let pos = Pos::from_ipld(pos)?;
           let type_meta = Meta::from_ipld(type_meta)?;
           let term_meta = Meta::from_ipld(term_meta)?;
-          Ok(Definition {
+          Ok(Entry {
             pos,
             type_anon: *type_anon,
             term_anon: *term_anon,
@@ -74,9 +73,9 @@ impl Definition {
             term_meta
             })
         }
-        xs => Err(IpldError::Definition(Ipld::List(xs.to_owned()))),
+        xs => Err(IpldError::Entry(Ipld::List(xs.to_owned()))),
       },
-      xs => Err(IpldError::Definition(xs.to_owned())),
+      xs => Err(IpldError::Entry(xs.to_owned())),
     }
   }
 
@@ -90,20 +89,29 @@ impl Definition {
 
 impl Index {
   pub fn to_ipld(&self) -> Ipld {
-    Ipld::StringMap(
-      self.0.iter().map(|(k, v)| (k.clone(), Ipld::Link(*v))).collect(),
+    Ipld::List(
+      self
+        .0
+        .iter()
+        .map(|(k, v)| Ipld::List(vec![Ipld::String(k.clone()), Ipld::Link(*v)]))
+        .collect(),
     )
   }
 
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
-      Ipld::StringMap(xs) => {
-        let mut res: BTreeMap<String, Cid> = BTreeMap::new();
-        for (k, v) in xs {
-          match v {
-            Ipld::Link(cid) => {
-              res.insert(k.clone(), *cid);
-            }
+      Ipld::List(xs) => {
+        let mut res: Vec<(String, Cid)> = Vec::new();
+        for x in xs {
+          match x {
+            Ipld::List(xs) => match xs.as_slice() {
+              [Ipld::String(n), Ipld::Link(cid)] => {
+                res.push((n.clone(), *cid));
+              }
+              xs => {
+                return Err(IpldError::IndexEntry(Ipld::List(xs.to_owned())));
+              }
+            },
             x => {
               return Err(IpldError::IndexEntry(x.to_owned()));
             }
@@ -200,7 +208,7 @@ pub mod tests {
     tests::arbitrary_cid,
   };
 
-  impl Arbitrary for Definition {
+  impl Arbitrary for Entry {
     fn arbitrary(g: &mut Gen) -> Self { arbitrary_def(g).1 }
   }
 
@@ -247,8 +255,8 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn definition_ipld(x: Definition) -> bool {
-    match Definition::from_ipld(&x.to_ipld()) {
+  fn entry_ipld(x: Entry) -> bool {
+    match Entry::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
     }

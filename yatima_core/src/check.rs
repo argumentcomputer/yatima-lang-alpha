@@ -303,7 +303,7 @@ pub fn infer(
     }
     DAGPtr::Ref(mut link) => {
       let Ref { nam, exp: def_link, .. } = unsafe { link.as_mut() };
-      let def = defs.get(nam).ok_or_else(|| {
+      let def = defs.0.get(nam).ok_or_else(|| {
         CheckError::GenericError(format!(
           "Undefined reference: {}, {}",
           nam, def_link
@@ -465,7 +465,7 @@ pub fn infer_lty(lty: LitType) -> Term {
 // pub fn infer_opr(lit: PrimOp) -> Term {}
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<(), CheckError> {
-  let def = defs.get(name).ok_or_else(|| {
+  let def = defs.0.get(name).ok_or_else(|| {
     CheckError::GenericError("Undefined reference.".to_string())
   })?;
   let mut trm =

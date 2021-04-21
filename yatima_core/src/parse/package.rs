@@ -4,8 +4,9 @@ use crate::{
     Defs,
   },
   package::{
-    Definition,
+    Entry,
     Import,
+    Index,
   },
   parse::{
     base::parse_multibase,
@@ -24,10 +25,7 @@ use std::{
   rc::Rc,
 };
 
-use im::{
-  HashMap,
-  Vector,
-};
+use im::Vector;
 
 use nom::{
   bytes::complete::tag,
@@ -85,16 +83,15 @@ pub fn parse_import(
   }
 }
 
-pub fn parse_defn(
+pub fn parse_entry(
   input: Cid,
   defs: Defs,
-) -> impl Fn(Span) -> IResult<Span, (String, Def, Definition), ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, (String, Def, Entry), ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
-    if defs.get(&nam).is_some() {
+    if defs.0.get(&nam).is_some() {
       Err(Err::Error(ParseError::new(
         from,
         ParseErrorKind::TopLevelRedefinition(nam),
@@ -111,8 +108,8 @@ pub fn parse_defn(
         false,
       )(i)?;
       let pos = Pos::from_upto(input, from, upto);
-      let (def, defn) = Def::make(pos, typ_, term);
-      Ok((upto, (nam.clone(), def, defn)))
+      let (def, entry) = Def::make(pos, typ_, term);
+      Ok((upto, (nam.clone(), def, entry)))
     }
   }
 }
@@ -120,20 +117,22 @@ pub fn parse_defn(
 pub fn parse_defs(
   input: Cid,
   import_defs: Defs,
-) -> impl Fn(Span) -> IResult<Span, Defs, ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, (Defs, Index), ParseError<Span>> {
   move |i: Span| {
-    let mut defs: HashMap<String, Def> = import_defs.clone();
+    let mut defs: Defs = import_defs.clone();
+    let mut ind: Vec<(String, Cid)> = Vec::new();
     let mut i = i;
     loop {
       let (i2, _) = parse_space(i)?;
       i = i2;
       let end: IResult<Span, Span, ParseError<Span>> = eof(i);
       if end.is_ok() {
-        return Ok((i2, defs));
+        return Ok((i2, (defs, Index(ind))));
       }
       else {
-        let (i2, (name, def, _)) = parse_defn(input, defs.clone())(i)?;
-        defs.insert(name.clone(), def);
+        let (i2, (name, def, _)) = parse_entry(input, defs.clone())(i)?;
+        ind.push((name.clone(), def.def_cid));
+        defs.0.insert(name, def);
         i = i2;
       }
     }
