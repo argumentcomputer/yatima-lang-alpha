@@ -18,7 +18,7 @@ in
 
   # provided by shell.nix
   devTools = {
-    inherit (pkgs) niv wasm-pack wasmtime valgrind;
+    inherit (pkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
     inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter;
     inherit rust;
   };

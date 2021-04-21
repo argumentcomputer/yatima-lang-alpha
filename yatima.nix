@@ -20,6 +20,9 @@ let
     ./.;
 in
 naersk.buildPackage {
+  buildInputs = with pkgs; [ openssl pkg-config ];
+  PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+  # OPENSSL_DIR = "${pkgs.openssl.dev}";
   targets = if target then [ target ] else [ ];
   inherit src;
   remapPathPrefix =
