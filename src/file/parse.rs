@@ -49,10 +49,7 @@ use im::HashSet;
 
 use nom::{
   bytes::complete::tag,
-  combinator::{
-    eof,
-    opt,
-  },
+  combinator::opt,
   sequence::terminated,
   Err,
   IResult,

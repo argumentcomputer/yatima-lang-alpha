@@ -18,11 +18,11 @@ enum Cli {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
+  Check {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
 }
-//  Check {
-//    #[structopt(parse(from_os_str))]
-//    input: PathBuf,
-//  },
 //  Run {
 //    #[structopt(parse(from_os_str))]
 //    input: PathBuf,
@@ -43,22 +43,24 @@ fn main() -> std::io::Result<()> {
       println!("{}", d);
       Ok(())
     }
+    Cli::Check { path } => {
+      let root = std::env::current_dir()?;
+      let env = file::parse::PackageEnv::new(root, path);
+      let (_, p, ds) = file::parse::parse_file(env);
+      let cid = file::store::put(p.to_ipld());
+      println!("Checking package {} at {}", p.name, cid);
+      for (n, _) in &p.index.0 {
+        match yatima_core::check::check_def(&ds, n) {
+          Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
+          Err(err) => {
+            println!("✕ {}: {}", n, err);
+          }
+        }
+      }
+      Ok(())
+    }
   }
 }
-//    Cli::Check { input } => {
-//      let hashspace = hashspace::Hashspace::local();
-//      let env = parse::package::PackageEnv::new(input.clone());
-//      let (_, p, defs, refs) = parse::package::parse_file(env, &hashspace);
-//      for dec in p.decls {
-//        if let package::Declaration::Defn { name, .. } = &dec {
-//          match core::check::check_def(&defs, &refs, name) {
-//            Ok(_) => println!("{}: checks", name),
-//            Err(err) => {
-//              println!("{}: {}", name, err);
-//            }
-//          }
-//        }
-//      }
 //    }
 //    Cli::Run { input } => {
 //      let env = parse::package::PackageEnv::new(input.clone());

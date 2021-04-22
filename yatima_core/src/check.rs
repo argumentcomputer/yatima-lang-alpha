@@ -464,7 +464,7 @@ pub fn infer_lty(lty: LitType) -> Term {
 
 // pub fn infer_opr(lit: PrimOp) -> Term {}
 
-pub fn check_def(defs: &Defs, name: &str) -> Result<(), CheckError> {
+pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.0.get(name).ok_or_else(|| {
     CheckError::GenericError("Undefined reference.".to_string())
   })?;
@@ -474,5 +474,5 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<(), CheckError> {
   check(&defs, vec![], Uses::Once, &mut trm, &mut typ)?;
   trm.free();
   typ.free();
-  Ok(())
+  Ok(def.typ_.clone())
 }
