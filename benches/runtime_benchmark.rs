@@ -1,5 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion}; 
 use yatima::parse::term::parse;
+use yatima::core::upcopy::NUM_UPCOPIES;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 
 pub fn factorial(c: &mut Criterion) {
     let input = String::from("
@@ -17,10 +20,11 @@ pub fn factorial(c: &mut Criterion) {
     let leq: Type = (λ n m => is_zero (minus n m));
     let Z: Type = (λ f => (λ x => (x x) λ x => f (λ y => x x y)));
     let factorial: Type = (Z (λ f n => ((leq n zero)(succ zero)(λ y => (mult n (f (pred n))) y))));
-    factorial one"
+    factorial succ succ succ one"
 );
   //c.bench_with_input(BenchmarkId::new("fact one", &input), &input, |b, s| b.iter(|| parse(&s)));
     c.bench_function("fact one", |b| b.iter(|| parse(black_box(&input))));
+    println!("Number of upcopies = {}", NUM_UPCOPIES.load(Ordering::SeqCst));
 
 }
 

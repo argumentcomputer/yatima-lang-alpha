@@ -1418,9 +1418,11 @@ impl fmt::Display for DAG {
 mod test {
   use super::*;
   use crate::parse::term::parse;
+  use crate::core::upcopy::NUM_UPCOPIES;
+  use std::sync::atomic::Ordering;
 
   #[test]
-  fn test_cases() {
+  fn dag_test_cases() {
     let (_, x) = parse("λ _z => Type").unwrap();
     assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
     let (_, x) = parse("λ z => z").unwrap();
@@ -1446,12 +1448,20 @@ mod test {
     let Z: Type = (λ f => (λ x => (x x) λ x => f (λ y => x x y)));
     let factorial: Type = (Z (λ f n => ((leq n zero)(succ zero)(λ y => (mult n (f (pred n))) y))));
     factorial one"
-);
+    );
+
+    //(λx.(x(λy.x(uy)))(λy.x(uy)))t
+    //Function taken from https://www.ccs.neu.edu/home/wand/papers/shivers-wand-10.pdf
+    let _sharing = String::from(
+    "let shared_expression: Type = ((λ x => (x (λ y => x (u y)))(λ y => x (u y))) t);
+    shared_expression"
+    );
 
     let (_, x) = 
       parse(&input).unwrap();
-    println!("{:?}", x);
-    assert_eq!(x, DAG::to_term(&DAG::from_term(x.clone())));
+    //println!("{:?}", x);
+    assert_eq!(x, DAG::to_term(&DAG::from_term(&x)));
+    println!("Number of upcopies = {}", NUM_UPCOPIES.load(Ordering::SeqCst));
   }
 
   #[quickcheck]
@@ -1464,14 +1474,5 @@ mod test {
     x == y
   }
 
-  //#[quickcheck]
-  //fn term_encode_decode(x: Term) -> bool {
-  //  println!("x: {}", x);
-  //  println!("x: {:?}", x);
-  //  let y = DAG::to_term(&DAG::from_term(x.clone()));
-  //  println!("y: {}", y);
-  //  println!("y: {:?}", y);
-  //  x == y
-  //}
 }
 

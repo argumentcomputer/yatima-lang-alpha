@@ -5,6 +5,10 @@ use crate::core::{
 
 use core::ptr::NonNull;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+pub static NUM_UPCOPIES: AtomicUsize = AtomicUsize::new(0);
+
 pub fn clean_up(cc: &ParentPtr) {
   match cc {
     ParentPtr::LamBod(link) => unsafe {
@@ -114,6 +118,7 @@ pub fn clean_up(cc: &ParentPtr) {
 
 // The core up-copy function.
 pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
+  NUM_UPCOPIES.fetch_add(1, Ordering::SeqCst);
   unsafe {
     match cc {
       ParentPtr::LamBod(link) => {
