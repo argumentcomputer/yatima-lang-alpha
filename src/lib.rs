@@ -21,6 +21,7 @@ extern crate hashexpr;
 
 pub mod anon_term;
 pub mod core;
+pub mod machine;
 pub mod decode_error;
 pub mod definition;
 pub mod hashspace;
