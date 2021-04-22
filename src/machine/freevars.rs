@@ -6,9 +6,51 @@ pub struct FreeVars {
 }
 
 impl FreeVars {
+  #[inline]
+  pub fn new() -> FreeVars {
+    FreeVars {
+      list: vec![]
+    }
+  }
+
+  #[inline]
   pub fn singleton(x: u64) -> FreeVars {
     FreeVars {
       list: vec![x]
+    }
+  }
+
+  #[inline]
+  pub fn peek(&self) -> &Vec<u64> {
+    &self.list
+  }
+
+  #[inline]
+  pub fn len(&self) -> usize {
+    self.list.len()
+  }
+
+  #[inline]
+  pub fn from_vec(vec: &Vec<u64>) -> FreeVars {
+    let mut list = vec.clone();
+    list.sort_by(|a, b| b.cmp(a));
+    list.dedup();
+    FreeVars {
+      list
+    }
+  }
+
+  pub fn get(&self, val: u64) -> Option<usize> {
+    // Uses a linear search instead of a binary search since the vectors are usually small
+    let mut i = 0;
+    while i < self.list.len() && self.list[i] > val {
+      i = i+1;
+    }
+    if self.list[i] == val {
+      Some(i)
+    }
+    else {
+      None
     }
   }
 
@@ -91,5 +133,19 @@ mod test {
     assert_eq!(format!("{:?}", x.list), format!("[3, 0]"));
     x.bind();
     assert_eq!(format!("{:?}", x.list), format!("[2]"));
+  }
+
+  #[test]
+  fn get_test() {
+    let mut x = FreeVars {
+      list: vec![8, 5, 3, 2, 0],
+    };
+    assert_eq!(format!("{:?}", x.get(5)), format!("Some(1)"));
+    assert_eq!(format!("{:?}", x.get(3)), format!("Some(2)"));
+    assert_eq!(format!("{:?}", x.get(4)), format!("None"));
+    assert_eq!(format!("{:?}", x.get(8)), format!("Some(0)"));
+    assert_eq!(format!("{:?}", x.get(0)), format!("Some(4)"));
+    assert_eq!(format!("{:?}", x.get(2)), format!("Some(3)"));
+    assert_eq!(format!("{:?}", x.get(9)), format!("None"));
   }
 }

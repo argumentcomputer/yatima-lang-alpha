@@ -11,27 +11,27 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 // The maximum byte size of the environment
-const ENV_SIZE: usize = 4;
+pub const ENV_SIZE: usize = 4;
 // The maximum byte size of the closure mapping size
-const MAP_SIZE: usize = 4;
+pub const MAP_SIZE: usize = 4;
 
-type CODE = u8;
+pub type CODE = u8;
 // Build a closure
-const MK_FUN: CODE = 1;
+pub const MK_FUN: CODE = 1;
 // Build an application node
-const MK_APP: CODE = 2;
+pub const MK_APP: CODE = 2;
 // Build a free variable node
-const MK_VAR: CODE = 3;
+pub const MK_VAR: CODE = 3;
 // Reference to the argument of the function
-const REF_ARG: CODE = 4;
+pub const REF_ARG: CODE = 4;
 // Reference to a value in the environment
-const REF_ENV: CODE = 5;
+pub const REF_ENV: CODE = 5;
 // Evaluate last node
-const EVAL: CODE = 6;
+pub const EVAL: CODE = 6;
 // End of code
-const END: CODE = 0;
+pub const END: CODE = 0;
 
-type Link<T> = Rc<RefCell<T>>;
+pub type Link<T> = Rc<RefCell<T>>;
 
 #[derive(Clone)]
 pub enum Graph {
@@ -39,8 +39,8 @@ pub enum Graph {
   Fun(u64, usize, Vec<Link<Graph>>),
   // Hash, function node, argument node
   App(u64, Link<Graph>, Link<Graph>),
-  // Hash
-  Var(u64),
+  // Hash, name
+  Var(u64, String),
 }
 
 #[inline]
@@ -54,17 +54,28 @@ pub fn make_hash(x: u64) -> u64 {
 pub fn get_hash(term: &Graph) -> u64 {
   match term {
     Graph::Fun(hash, _, _) => *hash,
-    Graph::Var(hash) => *hash,
+    Graph::Var(hash, _) => *hash,
     Graph::App(hash, _, _) => *hash,
   }
 }
 
 // little endian encoding of bytes
 #[inline]
-pub fn bytes_to_usize(bytes: &[u8], len: usize) -> usize {
+pub fn bytes_to_usize(bytes: &[u8]) -> usize {
   let mut result: usize = 0;
-  for i in 0..len {
-    result = result + ((bytes[i] as usize) << (8*i));
+  let mut i: usize = 0;
+  for byte in bytes.iter() {
+    result = result + ((*byte as usize) << (8*i));
+    i = i+1;
+  }
+  result
+}
+
+#[inline]
+pub fn usize_to_bytes<const N: usize>(num: usize) -> [u8; N] {
+  let mut result: [u8; N] = [0; N];
+  for i in 0..N {
+    result[i] = (num >> (N*i)) as u8;
   }
   result
 }
@@ -88,18 +99,18 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
       },
       MK_FUN => {
         let bytes = &code[pc+1..pc+9];
-        let mut hash = bytes_to_usize(bytes, 8) as u64;
+        let mut hash = bytes_to_usize(bytes) as u64;
         pc = pc+8;
         let bytes = &code[pc+1..pc+1+MAP_SIZE];
-        let fun_index = bytes_to_usize(bytes, MAP_SIZE);
+        let fun_index = bytes_to_usize(bytes);
         pc = pc+MAP_SIZE;
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
-        let env_length = bytes_to_usize(bytes, ENV_SIZE);
+        let env_length = bytes_to_usize(bytes);
         pc = pc+ENV_SIZE;
         let mut fun_env = vec![];
         for _ in 0..env_length {
           let bytes = &code[pc+1..pc+1+ENV_SIZE];
-          let index = bytes_to_usize(bytes, MAP_SIZE);
+          let index = bytes_to_usize(bytes);
           fun_env.push(env[index].clone());
           hash = make_hash(hash+get_hash(&env[index].borrow()));
           pc = pc+ENV_SIZE;
@@ -113,15 +124,16 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
       },
       REF_ENV => {
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
-        let index = bytes_to_usize(bytes, ENV_SIZE);
+        let index = bytes_to_usize(bytes);
         args.push(env[index].clone());
         pc = pc+ENV_SIZE;
       },
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
         let hash = u64::from_be_bytes(bytes.try_into().unwrap());
+        // TODO: add proper names
         args.push(Rc::new(RefCell::new(
-          Graph::Var(hash)
+          Graph::Var(hash, "x".to_string())
         )));
       },
       EVAL => {
@@ -148,7 +160,7 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
 }
 
 #[inline]
-pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Rc<RefCell<Graph>>) -> Rc<RefCell<Graph>> {
+pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Link<Graph>) -> Link<Graph> {
   let mut node = top_node;
   let mut trail = vec![];
   loop {
