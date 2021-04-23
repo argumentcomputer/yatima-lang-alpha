@@ -44,7 +44,7 @@ pub enum Graph {
 }
 
 #[inline]
-pub fn make_hash(x: u64) -> u64 {
+pub fn make_hash<T: Hash>(x: &T) -> u64 {
   let mut hasher = DefaultHasher::new();
   x.hash(&mut hasher);
   hasher.finish()
@@ -92,18 +92,16 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
         let hash_fun = get_hash(&fun.borrow());
         let hash_arg = get_hash(&arg.borrow());
         let app_hash =
-          make_hash(MK_APP as u64 + hash_fun + hash_arg);
+          make_hash(&(MK_APP as u64 + hash_fun + hash_arg));
         args.push(Rc::new(RefCell::new(
           Graph::App(app_hash, fun, arg)
         )));
       },
       MK_FUN => {
-        let bytes = &code[pc+1..pc+9];
-        let mut hash = bytes_to_usize(bytes) as u64;
-        pc = pc+8;
         let bytes = &code[pc+1..pc+1+MAP_SIZE];
         let fun_index = bytes_to_usize(bytes);
         pc = pc+MAP_SIZE;
+        let mut hash = make_hash(&fun_defs[fun_index]);
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
         let env_length = bytes_to_usize(bytes);
         pc = pc+ENV_SIZE;
@@ -111,8 +109,17 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
         for _ in 0..env_length {
           let bytes = &code[pc+1..pc+1+ENV_SIZE];
           let index = bytes_to_usize(bytes);
-          fun_env.push(env[index].clone());
-          hash = make_hash(hash+get_hash(&env[index].borrow()));
+          // Index 0 is a reference to the argument of the function, other indices are
+          // references to the environment. We encode the difference by a trick: 0 is
+          // argument, otherwise n = pos+1, where pos is the position of the variable
+          // in the environment
+          if index == 0 {
+            fun_env.push(arg.clone());
+          }
+          else {
+            fun_env.push(env[index-1].clone());
+          }
+          hash = make_hash(&(hash+get_hash(&env[index].borrow())));
           pc = pc+ENV_SIZE;
         }
         args.push(Rc::new(RefCell::new(
