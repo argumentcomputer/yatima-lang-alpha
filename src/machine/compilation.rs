@@ -23,8 +23,10 @@ pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
     IR::App(fun, arg) => {
       let fun = ir_to_graph(fun, fun_defs);
       let arg = ir_to_graph(arg, fun_defs);
-      let hash =
-        make_hash(&(MK_APP as u64 + get_hash(&fun.borrow()) + get_hash(&arg.borrow())));
+      let mut hash = (MK_APP as u64)
+        .wrapping_add(get_hash(&fun.borrow()))
+        .wrapping_add(get_hash(&arg.borrow()));
+      hash = make_hash(&hash);
       Rc::new(RefCell::new(
         Graph::App(hash, fun, arg)
       ))

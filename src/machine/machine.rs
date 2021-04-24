@@ -98,8 +98,10 @@ pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, 
         let arg = args.pop().unwrap();
         let hash_fun = get_hash(&fun.borrow());
         let hash_arg = get_hash(&arg.borrow());
-        let app_hash =
-          make_hash(&(MK_APP as u64 + hash_fun + hash_arg));
+        let mut app_hash = (MK_APP as u64)
+          .wrapping_add(hash_fun)
+          .wrapping_add(hash_arg);
+        app_hash = make_hash(&app_hash);
         args.push(Rc::new(RefCell::new(
           Graph::App(app_hash, fun, arg)
         )));
@@ -122,11 +124,15 @@ pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, 
           // in the environment
           if index == 0 {
             fun_env.push(arg.clone());
+            hash = hash
+              .wrapping_add(get_hash(&arg.borrow()));
           }
           else {
             fun_env.push(env[index-1].clone());
+            hash = hash
+              .wrapping_add(get_hash(&env[index-1].borrow()));
           }
-          hash = make_hash(&(hash+get_hash(&env[index].borrow())));
+          hash = make_hash(&hash);
           pc = pc+ENV_SIZE;
         }
         args.push(Rc::new(RefCell::new(
@@ -221,8 +227,12 @@ pub fn stringify_graph(fun_defs: &Vec<FunCell>, graph: Link<Graph>) -> String {
         let arg = stringify_graph(fun_defs, arg.clone());
         format!("(App {} {})", fun, arg)
       }
-      Graph::Fun(_, idx, _) => {
-        stringify_code(fun_defs, *idx, &vec![])
+      Graph::Fun(_, idx, env) => {
+        let mut env_str = vec![];
+        for graph in env {
+          env_str.push(stringify_graph(fun_defs, graph.clone()));
+        }
+        stringify_code(fun_defs, *idx, &env_str)
       }
       Graph::Var(name, _) => {
         format!("(Var {})", name)
