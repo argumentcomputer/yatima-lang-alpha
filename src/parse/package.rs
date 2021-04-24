@@ -161,17 +161,11 @@ pub fn parse_defn(
     let def_name = def.name.clone();
     let (defn, typ_, term) = def.embed();
     let typ_enc = typ_.encode();
-    // println!("type {}", typ_enc.clone());
     let _type_link = hashspace.put(typ_enc);
-    // println!("type link {:?} {}", _type_link, _type_link);
     let trm_enc = term.encode();
-    // println!("term {}", trm_enc.clone());
     let term_link = hashspace.put(trm_enc);
-    // println!("term link {:?} {}", term_link, term_link);
     let def_enc = defn.encode();
-    // println!("def {}", def_enc.clone());
     let def_link = hashspace.put(def_enc);
-    // println!("def link {:?} {}", def_link, def_link);
     let def = Declaration::Defn {
       name: def_name.clone(),
       defn: def_link,
@@ -314,16 +308,12 @@ pub mod tests {
   #[test]
   fn test_cases() {
     let res = parse_with(Span::new("()"));
-    println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_with(Span::new("(a)"));
-    println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_with(Span::new("(a,b)"));
-    println!("res: {:?}", res);
     assert!(res.is_ok());
     let res = parse_with(Span::new("(a,b,c)"));
-    println!("res: {:?}", res);
     assert!(res.is_ok());
   }
 }

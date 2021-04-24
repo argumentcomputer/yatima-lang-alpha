@@ -1432,11 +1432,7 @@ mod test {
 
   #[quickcheck]
   fn term_encode_decode(x: Term) -> bool {
-    println!("x: {}", x);
-    println!("x: {:?}", x);
     let y = DAG::to_term(&DAG::from_term(&x));
-    println!("y: {}", y);
-    println!("y: {:?}", y);
     x == y
   }
 }
