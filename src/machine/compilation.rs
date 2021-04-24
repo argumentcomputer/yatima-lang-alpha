@@ -5,17 +5,17 @@ use crate::machine::machine::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<Vec<CODE>>) -> Link<Graph> {
+pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
   match ir {
     IR::Var(name, idx) => Rc::new(RefCell::new(
       Graph::Var(*idx, name.clone())
     )),
-    IR::Lam(_, _, bod) => {
+    IR::Lam(name, _, bod) => {
       // It is assumed that bod has no free variables, since this function
       // will be called on top-level terms. It will be possible in the future,
       // however, to add a non-empty environment of only top-level terms, which
       // will give a better sharing of graphs.
-      let (hash, pos) = compile_ir(&bod, &FreeVars::new(), fun_defs);
+      let (hash, pos) = compile_ir(&name, &bod, &FreeVars::new(), fun_defs);
       Rc::new(RefCell::new(
         Graph::Fun(hash, pos, vec![])
       ))
@@ -33,8 +33,8 @@ pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<Vec<CODE>>) -> Link<Graph> {
 }
 
 // TODO: change `fun_defs` into a hashmap as to not duplicate lambdas
-pub fn compile_ir(ir: &IR, env: &FreeVars, fun_defs: &mut Vec<Vec<CODE>>) -> (u64, usize) {
-  fn go(is_proj: bool, ir: &IR, code: &mut Vec<CODE>, env: &FreeVars, fun_defs: &mut Vec<Vec<CODE>>) {
+pub fn compile_ir(name: &String, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCell>) -> (u64, usize) {
+  fn go(is_proj: bool, ir: &IR, code: &mut Vec<CODE>, env: &FreeVars, fun_defs: &mut Vec<FunCell>) {
     match ir {
       IR::Var(_, idx) => {
         if *idx == 0 {
@@ -60,8 +60,8 @@ pub fn compile_ir(ir: &IR, env: &FreeVars, fun_defs: &mut Vec<Vec<CODE>>) -> (u6
           code.push(EVAL);
         }
       },
-      IR::Lam(_, free, bod) => {
-        let (_, pos) = compile_ir(bod, &free, fun_defs);
+      IR::Lam(name, free, bod) => {
+        let (_, pos) = compile_ir(name, bod, &free, fun_defs);
         code.push(MK_FUN);
         let bytes = usize_to_bytes::<MAP_SIZE>(pos);
         code.extend_from_slice(&bytes);
@@ -84,6 +84,7 @@ pub fn compile_ir(ir: &IR, env: &FreeVars, fun_defs: &mut Vec<Vec<CODE>>) -> (u6
         }
       },
       IR::App(fun, arg) => {
+        // Argument first, function second
         go(false, arg, code, env, fun_defs);
         go(false, fun, code, env, fun_defs);
         code.push(MK_APP);
@@ -95,6 +96,31 @@ pub fn compile_ir(ir: &IR, env: &FreeVars, fun_defs: &mut Vec<Vec<CODE>>) -> (u6
   go(true, ir, &mut code, env, fun_defs);
   code.push(END);
   let hash = make_hash(&code);
-  fun_defs.push(code);
-  (hash, fun_defs.len())
+  fun_defs.push(FunCell {
+    arg_name: name.clone(),
+    code,
+  });
+  (hash, fun_defs.len()-1)
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::parse::term::parse;
+
+  #[test]
+  fn compilation_test() {
+    let (_, x) = parse("λ x y z => y (λ w => w x z) z").unwrap();
+    let string = "(Lam x (Lam y (Lam z (App (App (Var y) (Lam w (App (App (Var w) (Var x)) (Var z)))) (Var z)))))";
+    let x = term_to_ir(&x);
+    let mut fun_defs = vec![];
+    let graph = ir_to_graph(&x, &mut fun_defs);
+    assert_eq!(string, stringify_graph(&fun_defs, graph));
+    let (_, x) = parse("λ x y => y (λ z w => w x z y) x").unwrap();
+    let string = "(Lam x (Lam y (App (App (Var y) (Lam z (Lam w (App (App (App (Var w) (Var x)) (Var z)) (Var y))))) (Var x))))";
+    let x = term_to_ir(&x);
+    let mut fun_defs = vec![];
+    let graph = ir_to_graph(&x, &mut fun_defs);
+    assert_eq!(string, stringify_graph(&fun_defs, graph));
+  }
 }

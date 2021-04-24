@@ -137,7 +137,7 @@ mod test {
 
   #[test]
   fn get_test() {
-    let mut x = FreeVars {
+    let x = FreeVars {
       list: vec![8, 5, 3, 2, 0],
     };
     assert_eq!(format!("{:?}", x.get(5)), format!("Some(1)"));

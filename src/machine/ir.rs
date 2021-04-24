@@ -29,9 +29,9 @@ pub fn term_to_ir(term: &Term) -> Rc<IR> {
       Term::Lam(_, nam, link) => {
         let bod = &**link;
         let (bod, mut set) = go(bod);
+        set.bind();
         let ir =
           Rc::new(IR::Lam(nam.clone(), set.clone(), bod));
-        set.bind();
         (ir, set)
       },
       Term::App(_, link) => {

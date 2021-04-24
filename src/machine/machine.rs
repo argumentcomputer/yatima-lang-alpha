@@ -43,6 +43,11 @@ pub enum Graph {
   Var(u64, String),
 }
 
+pub struct FunCell {
+  pub arg_name: String,
+  pub code: Vec<CODE>,
+}
+
 #[inline]
 pub fn make_hash<T: Hash>(x: &T) -> u64 {
   let mut hasher = DefaultHasher::new();
@@ -81,12 +86,14 @@ pub fn usize_to_bytes<const N: usize>(num: usize) -> [u8; N] {
 }
 
 #[inline]
-pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<Graph>>, arg: Link<Graph>, redex: Link<Graph>) -> Link<Graph> {
+pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, arg: Link<Graph>, redex: Link<Graph>) -> Link<Graph> {
+  let code = &fun_defs[idx].code;
   let mut pc = 0;
   let mut args: Vec<Link<Graph>> = vec![];
   loop {
     match code[pc] {
       MK_APP => {
+        // Function comes last, so it is popped first
         let fun = args.pop().unwrap();
         let arg = args.pop().unwrap();
         let hash_fun = get_hash(&fun.borrow());
@@ -101,7 +108,7 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
         let bytes = &code[pc+1..pc+1+MAP_SIZE];
         let fun_index = bytes_to_usize(bytes);
         pc = pc+MAP_SIZE;
-        let mut hash = make_hash(&fun_defs[fun_index]);
+        let mut hash = make_hash(&fun_defs[fun_index].code);
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
         let env_length = bytes_to_usize(bytes);
         pc = pc+ENV_SIZE;
@@ -167,7 +174,7 @@ pub fn build_graph(fun_defs: &Vec<Vec<CODE>>, code: &Vec<CODE>, env: &Vec<Link<G
 }
 
 #[inline]
-pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Link<Graph>) -> Link<Graph> {
+pub fn reduce(fun_defs: &Vec<FunCell>, top_node: Link<Graph>) -> Link<Graph> {
   let mut node = top_node;
   let mut trail = vec![];
   loop {
@@ -186,7 +193,7 @@ pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Link<Graph>) -> Link<Graph> {
             }
             _ => panic!("Implementation of reduce incorrect")
           };
-          build_graph(fun_defs, &fun_defs[*idx], env, arg, redex)
+          build_graph(fun_defs, *idx, env, arg, redex)
         }
         else {
           break
@@ -204,4 +211,77 @@ pub fn reduce(fun_defs: &Vec<Vec<CODE>>, top_node: Link<Graph>) -> Link<Graph> {
     // Can we extract without cloning, since we know that `trail` will be collected afterwards?
     trail[0].clone()
   }
+}
+
+#[inline]
+pub fn stringify_graph(fun_defs: &Vec<FunCell>, graph: Link<Graph>) -> String {
+  match &*graph.borrow() {
+      Graph::App(_, fun, arg) => {
+        let fun = stringify_graph(fun_defs, fun.clone());
+        let arg = stringify_graph(fun_defs, arg.clone());
+        format!("(App {} {})", fun, arg)
+      }
+      Graph::Fun(_, idx, _) => {
+        stringify_code(fun_defs, *idx, &vec![])
+      }
+      Graph::Var(name, _) => {
+        format!("(Var {})", name)
+      }
+  }
+}
+
+pub fn stringify_code(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<String>) -> String {
+  let code = &fun_defs[idx].code;
+  let arg_name = &fun_defs[idx].arg_name;
+  let mut pc = 0;
+  let mut args = vec![];
+  loop {
+    match code[pc] {
+      MK_APP => {
+        // Function comes last, so it is popped first
+        let fun = args.pop().unwrap();
+        let arg = args.pop().unwrap();
+        args.push(format!("(App {} {})", fun, arg));
+      },
+      MK_FUN => {
+        let bytes = &code[pc+1..pc+1+MAP_SIZE];
+        let fun_index = bytes_to_usize(bytes);
+        pc = pc+MAP_SIZE;
+        let bytes = &code[pc+1..pc+1+ENV_SIZE];
+        let env_length = bytes_to_usize(bytes);
+        pc = pc+ENV_SIZE;
+        let mut fun_env = vec![];
+        for _ in 0..env_length {
+          let bytes = &code[pc+1..pc+1+ENV_SIZE];
+          let index = bytes_to_usize(bytes);
+          if index == 0 {
+            fun_env.push(format!("(Var {})", arg_name));
+          }
+          else {
+            fun_env.push(env[index-1].clone());
+          }
+          pc = pc+ENV_SIZE;
+        }
+        args.push(stringify_code(fun_defs, fun_index, &fun_env));
+      }
+      REF_ARG => {
+        args.push(format!("(Var {})", arg_name));
+      },
+      REF_ENV => {
+        let bytes = &code[pc+1..pc+1+ENV_SIZE];
+        let index = bytes_to_usize(bytes);
+        args.push(env[index].clone());
+        pc = pc+ENV_SIZE;
+      },
+      MK_VAR => {
+        todo!()
+      },
+      EVAL => {
+      }
+      END => break,
+      _ => panic!("Operation does not exist"),
+    }
+    pc = pc+1;
+  }
+  format!("(Lam {} {})", arg_name, args.pop().unwrap())
 }
