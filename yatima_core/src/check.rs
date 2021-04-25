@@ -18,6 +18,8 @@ use crate::{
 
 use im::HashMap;
 
+use libipld::Cid;
+
 use core::ptr::NonNull;
 use std::collections::HashSet;
 
@@ -42,85 +44,39 @@ impl Error for CheckError {
   }
 }
 
-// TODO: quickly return the values of nodes that were ctxviously computed
-pub fn stringify(dag: DAGPtr, ini: u64, dep: u64) -> String {
-  match dag {
-    DAGPtr::Var(link) => unsafe {
-      let var_dep = link.as_ref().dep;
-      if var_dep < ini {
-        format!("#{}", var_dep)
-      }
-      else {
-        format!("^{}", dep - 1 - var_dep)
-      }
-    },
-    DAGPtr::Typ(_) => "*".to_string(),
-    DAGPtr::Lit(link) => unsafe { format!("I<{}>", link.as_ref().lit) },
-    DAGPtr::LTy(link) => unsafe { format!("T<{}>", link.as_ref().lty) },
-    DAGPtr::Opr(link) => unsafe { format!("O<{}>", link.as_ref().opr) },
-    DAGPtr::Ref(link) => unsafe { format!("R<{}>", link.as_ref().nam) },
-    DAGPtr::Lam(link) => unsafe {
-      let Lam { var, bod, .. } = &mut *link.as_ptr();
-      var.dep = dep;
-      format!("λ{}", stringify(*bod, ini, dep + 1))
-    },
-    DAGPtr::Slf(link) => unsafe {
-      let Slf { var, bod, .. } = &mut *link.as_ptr();
-      var.dep = dep;
-      format!("${}", stringify(*bod, ini, dep + 1))
-    },
-    DAGPtr::Cse(link) => unsafe {
-      let Cse { bod, .. } = link.as_ref();
-      format!("C{}", stringify(*bod, ini, dep))
-    },
-    DAGPtr::Dat(link) => unsafe {
-      let Dat { bod, .. } = link.as_ref();
-      format!("D{}", stringify(*bod, ini, dep))
-    },
-    DAGPtr::All(link) => unsafe {
-      let All { var, uses, dom, img, .. } = &mut *link.as_ptr();
-      var.dep = dep;
-      let ctxfix = match uses {
-        Uses::None => "∀0",
-        Uses::Once => "∀1",
-        Uses::Affi => "∀&",
-        Uses::Many => "∀ω",
-      };
-      format!(
-        "{}{}{}",
-        ctxfix,
-        stringify(*dom, ini, dep),
-        stringify(*img, ini, dep + 1)
-      )
-    },
-    DAGPtr::App(link) => unsafe {
-      let App { fun, arg, .. } = &mut *link.as_ptr();
-      format!("@{}{}", stringify(*fun, ini, dep), stringify(*arg, ini, dep))
-    },
-    DAGPtr::Let(link) => unsafe {
-      let Let { var, exp, bod, .. } = &mut *link.as_ptr();
-      var.dep = dep;
-      format!("L{}{}", stringify(*exp, ini, dep), stringify(*bod, ini, dep + 1))
-    },
-    DAGPtr::Ann(link) => unsafe { stringify((*link.as_ptr()).exp, ini, dep) },
-  }
+pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
+  let mut map = HashMap::new();
+  DAG::dag_ptr_to_term(&dag, &mut map, dep).embed().0.cid()
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
+  // println!("a: {}", a);
+  // println!("b: {}", b);
+  // println!("a debug: {:?}", a);
+  // println!("b debug: {:?}", b);
   a.whnf(defs);
   b.whnf(defs);
+  // println!("whnf a: {}", a);
+  // println!("whnf b: {}", b);
+  // println!("whnf a debug: {:?}", a);
+  // println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
-  let mut set = HashSet::new();
+  let mut set: HashSet<(Cid, Cid)> = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
+    //    println!("loop a: {}", a);
+    //    println!("loop b: {}", b);
     a.whnf(defs);
     b.whnf(defs);
-    let hash_a = stringify(a.head, dep, dep);
-    let hash_b = stringify(b.head, dep, dep);
-    let hash_ab = format!("{}{}", hash_a, hash_b);
-    let eq = hash_a == hash_b || set.contains(&hash_ab);
-    set.insert(hash_ab);
+    let hash_a = hash(a.head, dep);
+    let hash_b = hash(b.head, dep);
+    //    println!("hash a: {}", hash_a);
+    //    println!("hash b: {}", hash_b);
+    let eq = hash_a == hash_b
+      || set.contains(&(hash_a, hash_b))
+      || set.contains(&(hash_b, hash_a));
+    set.insert((hash_a, hash_b));
     if !eq {
       match (a.head, b.head) {
         (DAGPtr::Lam(a_link), DAGPtr::Lam(b_link)) => unsafe {
