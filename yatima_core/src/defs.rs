@@ -86,6 +86,14 @@ impl Def {
 
 impl Defs {
   pub fn new() -> Self { Defs(HashMap::new()) }
+
+  pub fn keys(&self) -> Vec<String> {
+    let mut res = Vec::new();
+    for (n, _) in &self.0 {
+      res.push(n.clone())
+    }
+    res
+  }
 }
 
 impl fmt::Display for Def {

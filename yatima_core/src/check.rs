@@ -220,7 +220,7 @@ pub fn check(
           let mut use_ctx =
             check(defs, ctx, Uses::Once, &mut lam_bod, &mut img)?;
           let infer_uses = use_ctx.pop().unwrap();
-          if Uses::covers(infer_uses, *lam_uses) {
+          if Uses::gth(infer_uses, *lam_uses) {
             Err(CheckError::GenericError("Quantity mismatch.".to_string()))
           }
           else {

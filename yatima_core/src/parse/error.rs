@@ -39,8 +39,8 @@ pub enum ParseErrorKind {
   CidError,
   ParseIntErr(ParseIntError),
   ReservedKeyword(String),
-  HashExprSyntax(String),
   NumericSyntax(String),
+  ReservedSyntax(String),
   LiteralLacksWhitespaceTermination(Literal),
   LitTypeLacksWhitespaceTermination(LitType),
   PrimOpLacksWhitespaceTermination(PrimOp),
@@ -57,7 +57,7 @@ impl<'a> fmt::Display for ParseErrorKind {
       Self::TopLevelRedefinition(name) => {
         write!(
           f,
-          "Definition {} conflicts with previous or imported declaration",
+          "Overlapping definition names, \"{}\" already defined or imported",
           name
         )
       }
@@ -78,7 +78,7 @@ impl<'a> fmt::Display for ParseErrorKind {
       Self::ReservedKeyword(name) => {
         write!(f, "{}` is a reserved language keyword", name)
       }
-      Self::HashExprSyntax(_) => {
+      Self::ReservedSyntax(_) => {
         write!(f, "Symbols beginning with '#' are reserved")
       }
       Self::NumericSyntax(_) => {

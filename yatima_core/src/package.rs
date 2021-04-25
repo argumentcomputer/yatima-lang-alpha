@@ -24,9 +24,11 @@ pub struct Package {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub enum Import {
-  All { cid: Cid, alias: String },
-  Some { cid: Cid, alias: String, with: Vec<String> },
+pub struct Import {
+  pub cid: Cid,
+  pub name: String,
+  pub alias: String,
+  pub with: Vec<String>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -122,31 +124,31 @@ impl Index {
       xs => Err(IpldError::Index(xs.to_owned())),
     }
   }
+
+  pub fn keys(&self) -> Vec<String> {
+    let mut res = Vec::new();
+    for (n, _) in &self.0 {
+      res.push(n.clone())
+    }
+    res
+  }
 }
 
 impl Import {
   pub fn to_ipld(&self) -> Ipld {
-    match self {
-      Self::All { cid, alias } => Ipld::List(vec![
-        Ipld::Link(*cid),
-        Ipld::String(alias.clone()),
-        Ipld::Null,
-      ]),
-      Self::Some { cid, alias, with } => Ipld::List(vec![
-        Ipld::Link(*cid),
-        Ipld::String(alias.clone()),
-        Ipld::List(with.iter().map(|x| Ipld::String(x.clone())).collect()),
-      ]),
-    }
+    Ipld::List(vec![
+      Ipld::Link(self.cid),
+      Ipld::String(self.name.clone()),
+      Ipld::String(self.alias.clone()),
+      Ipld::List(self.with.iter().map(|x| Ipld::String(x.clone())).collect()),
+    ])
   }
 
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
-        [Ipld::Link(cid), Ipld::String(alias), Ipld::Null] => {
-          Ok(Self::All { cid: *cid, alias: alias.clone() })
-        }
-        [Ipld::Link(cid), Ipld::String(alias), Ipld::List(with)] => {
+        [Ipld::Link(cid), Ipld::String(name), Ipld::String(alias), Ipld::List(with)] =>
+        {
           let mut res: Vec<String> = Vec::new();
           for w in with {
             match w {
@@ -156,7 +158,12 @@ impl Import {
               w => return Err(IpldError::ImportEntry(w.to_owned())),
             }
           }
-          Ok(Self::Some { cid: *cid, alias: alias.clone(), with: res })
+          Ok(Self {
+            cid: *cid,
+            name: name.clone(),
+            alias: alias.clone(),
+            with: res,
+          })
         }
         xs => Err(IpldError::Import(Ipld::List(xs.to_owned()))),
       },
@@ -226,20 +233,10 @@ pub mod tests {
 
   impl Arbitrary for Import {
     fn arbitrary(g: &mut Gen) -> Self {
-      let b: bool = Arbitrary::arbitrary(g);
-      if b {
-        Self::All { cid: arbitrary_cid(g), alias: arbitrary_name(g) }
-      }
-      else {
-        let vec: Vec<()> = Arbitrary::arbitrary(g);
-        let vec: Vec<String> =
-          vec.into_iter().map(|_| arbitrary_name(g)).collect();
-        Self::Some {
-          cid: arbitrary_cid(g),
-          alias: arbitrary_name(g),
-          with: vec,
-        }
-      }
+      let vec: Vec<()> = Arbitrary::arbitrary(g);
+      let vec: Vec<String> =
+        vec.into_iter().map(|_| arbitrary_name(g)).collect();
+      Self { cid: arbitrary_cid(g), alias: arbitrary_name(g), with: vec }
     }
   }
 

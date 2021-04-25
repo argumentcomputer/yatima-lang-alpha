@@ -123,8 +123,8 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
   if reserved_symbols().contains(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedKeyword(s))))
   }
-  else if s.starts_with('#') | s.starts_with("~\"") {
-    Err(Err::Error(ParseError::new(from, ParseErrorKind::HashExprSyntax(s))))
+  else if s.starts_with('#') {
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::ReservedSyntax(s))))
   }
   else if is_numeric_symbol_string1(&s) | is_numeric_symbol_string2(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::NumericSyntax(s))))

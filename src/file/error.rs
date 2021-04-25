@@ -110,9 +110,9 @@ impl<I: AsBytes> FileError<I> {
     FileError { input, expected: None, errors: vec![error] }
   }
 
-  pub fn from_core_error(from: I, x: parse::error::ParseError<I>) -> Self {
+  pub fn from_core_error(x: parse::error::ParseError<I>) -> Self {
     FileError {
-      input: from,
+      input: x.input,
       expected: None,
       errors: x
         .errors
@@ -218,13 +218,12 @@ where
 }
 
 pub fn convert<I: AsBytes>(
-  from: I,
   x: Err<parse::error::ParseError<I>>,
 ) -> Err<FileError<I>> {
   match x {
     Err::Incomplete(n) => Err::Incomplete(n),
-    Err::Error(e) => Err::Error(FileError::from_core_error(from, e)),
-    Err::Failure(e) => Err::Failure(FileError::from_core_error(from, e)),
+    Err::Error(e) => Err::Error(FileError::from_core_error(e)),
+    Err::Failure(e) => Err::Failure(FileError::from_core_error(e)),
   }
 }
 

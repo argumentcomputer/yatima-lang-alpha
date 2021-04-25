@@ -49,6 +49,18 @@ fn main() -> std::io::Result<()> {
       let (_, p, ds) = file::parse::parse_file(env);
       let cid = file::store::put(p.to_ipld());
       println!("Checking package {} at {}", p.name, cid);
+      for i in &p.imports {
+        println!("Checking import  {} at {}", i.name, i.cid);
+        for n in &i.with {
+          match yatima_core::check::check_def(&ds, n) {
+            Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
+            Err(err) => {
+              println!("✕ {}: {}", n, err);
+            }
+          }
+        }
+      }
+      println!("Checking definitions:");
       for (n, _) in &p.index.0 {
         match yatima_core::check::check_def(&ds, n) {
           Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),

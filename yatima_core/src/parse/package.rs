@@ -66,21 +66,16 @@ pub fn parse_with(i: Span) -> IResult<Span, Vec<String>, ParseError<Span>> {
   Ok((i, ns))
 }
 
-pub fn parse_import(
-  i: Span,
-) -> IResult<Span, (String, Import), ParseError<Span>> {
+pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
   let (i, _) = tag("import")(i)?;
   let (i, _) = parse_space(i)?;
   let (i, name) = parse_name(i)?;
   let (i, _) = parse_space(i)?;
   let (i, alias) = opt(terminated(parse_alias, parse_space))(i)?;
   let alias = alias.unwrap_or(String::from(""));
-  let (i, with) = opt(terminated(parse_with, parse_space))(i)?;
+  let (i, with) = terminated(parse_with, parse_space)(i)?;
   let (i, from) = terminated(parse_link, parse_space)(i)?;
-  match with {
-    Some(ws) => Ok((i, (name, Import::Some { cid: from, alias, with: ws }))),
-    None => Ok((i, (name, Import::All { cid: from, alias }))),
-  }
+  Ok((i, Import { cid: from, name, alias, with }))
 }
 
 pub fn parse_entry(

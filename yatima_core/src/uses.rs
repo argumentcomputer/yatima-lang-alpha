@@ -36,7 +36,7 @@ impl std::ops::Add for Uses {
 impl Uses {
   /// A preorder relation, comparing two multiplicities. We can't use
   /// PartialOrd, because this relation is neither symmetric nor antisymmetric
-  pub fn precedes(self, y: Self) -> bool {
+  pub fn lte(self, y: Self) -> bool {
     match (self, y) {
       (Self::None, Self::Once) => false,
       (Self::None, _) => true,
@@ -50,7 +50,7 @@ impl Uses {
     }
   }
 
-  pub fn covers(self, y: Self) -> bool { y.precedes(self) }
+  pub fn gth(self, y: Self) -> bool { !self.lte(y) }
 
   pub fn to_ipld(self) -> Ipld {
     match self {
