@@ -45,7 +45,10 @@ fn main() -> std::io::Result<()> {
       for i in &p.imports {
         println!("Checking import  {} at {}", i.name, i.cid);
         for n in &i.with {
-          match yatima_core::check::check_def(&ds, n) {
+          match yatima_core::check::check_def(
+            &ds,
+            &yatima_core::package::import_alias(n.to_owned(), &i.alias),
+          ) {
             Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
             Err(err) => {
               println!("✕ {}: {}", n, err);

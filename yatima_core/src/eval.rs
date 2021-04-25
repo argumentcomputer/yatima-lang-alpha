@@ -312,7 +312,7 @@ impl DAG {
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
-          if let Some(def) = defs.0.get(nam) {
+          if let Some(def) = defs.defs.get(exp) {
             let parents = *ref_parents;
             *ref_parents = None;
             node = DAG::from_ref(&def, nam.clone(), *exp, *ast);

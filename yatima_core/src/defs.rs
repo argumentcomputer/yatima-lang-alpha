@@ -1,7 +1,10 @@
 use crate::{
   anon::Anon,
   embed_error::EmbedError,
-  package::Entry,
+  package::{
+    import_alias,
+    Entry,
+  },
   position::Pos,
   term::Term,
 };
@@ -32,7 +35,10 @@ impl PartialEq for Def {
 
 /// A map of content-ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
-pub struct Defs(pub HashMap<String, Def>);
+pub struct Defs {
+  pub defs: HashMap<Cid, Def>,
+  pub names: HashMap<String, Cid>,
+}
 
 impl Def {
   pub fn make(pos: Pos, typ_: Term, term: Term) -> (Self, Entry) {
@@ -85,14 +91,45 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs(HashMap::new()) }
+  pub fn new() -> Self { Defs { defs: HashMap::new(), names: HashMap::new() } }
 
-  pub fn keys(&self) -> Vec<String> {
+  pub fn names(&self) -> Vec<String> {
     let mut res = Vec::new();
-    for (n, _) in &self.0 {
+    for (n, _) in &self.names {
       res.push(n.clone())
     }
     res
+  }
+
+  pub fn insert(&mut self, name: String, def: Def) -> Option<Def> {
+    self.names.insert(name, def.def_cid);
+    self.defs.insert(def.def_cid, def)
+  }
+
+  pub fn get(&self, name: &String) -> Option<&Def> {
+    let def_cid = self.names.get(name)?;
+    self.defs.get(&def_cid)
+  }
+
+  pub fn merge(self, other: Defs, alias: &String) -> Self {
+    if alias == "" {
+      Defs {
+        defs: self.defs.union(other.defs),
+        names: self.names.union(other.names),
+      }
+    }
+    else {
+      Defs {
+        defs: self.defs.union(other.defs),
+        names: self.names.union(
+          other
+            .names
+            .into_iter()
+            .map(|(k, v)| (import_alias(k, alias), v))
+            .collect(),
+        ),
+      }
+    }
   }
 }
 
@@ -107,14 +144,15 @@ impl fmt::Display for Def {
 }
 impl fmt::Display for Defs {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    for (k, v) in &self.0 {
-      writeln!(f, "{}:", v.def_cid)?;
+    for (k, v) in &self.names {
+      let def = self.defs.get(v).unwrap();
+      writeln!(f, "{}:", def.def_cid)?;
       writeln!(
         f,
         "def {} : {} = {}",
         k.clone(),
-        v.typ_.pretty(Some(&k.clone())),
-        v.term.pretty(Some(&k.clone())),
+        def.typ_.pretty(Some(&k.clone())),
+        def.term.pretty(Some(&k.clone())),
       )?;
       writeln!(f)?;
     }

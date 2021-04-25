@@ -209,7 +209,7 @@ pub fn parse_var(
     else if is_rec_name {
       Ok((upto, Term::Rec(pos)))
     }
-    else if let Some(def) = defs.0.get(&nam) {
+    else if let Some(def) = defs.get(&nam) {
       Ok((upto, Term::Ref(pos, nam.clone(), def.def_cid, def.ast_cid)))
     }
     else {

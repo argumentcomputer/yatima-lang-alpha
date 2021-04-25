@@ -93,7 +93,17 @@ impl<'a> fmt::Display for FileErrorKind {
           path
         )
       }
-      _ => write!(f, "internal parser error"),
+      Self::ImportCollision(imp_name, _, def_name) => {
+        writeln!(
+          f,
+          "Cannot import {def} from {imp} because a definition named \
+           \"{def}\" is already imported. Try adding a unique alias like \
+           `import {imp} as {imp}`",
+          def = def_name,
+          imp = imp_name,
+        )
+      }
+      e => write!(f, "internal parser error: {:?}", e),
     }
   }
 }

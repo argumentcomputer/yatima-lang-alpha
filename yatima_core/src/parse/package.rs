@@ -86,7 +86,7 @@ pub fn parse_entry(
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
-    if defs.0.get(&nam).is_some() {
+    if defs.names.get(&nam).is_some() {
       Err(Err::Error(ParseError::new(
         from,
         ParseErrorKind::TopLevelRedefinition(nam),
@@ -127,7 +127,7 @@ pub fn parse_defs(
       else {
         let (i2, (name, def, _)) = parse_entry(input, defs.clone())(i)?;
         ind.push((name.clone(), def.def_cid));
-        defs.0.insert(name, def);
+        defs.insert(name, def);
         i = i2;
       }
     }

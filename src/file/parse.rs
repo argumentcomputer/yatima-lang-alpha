@@ -6,6 +6,7 @@ use yatima_core::{
     Defs,
   },
   package::{
+    import_alias,
     Entry,
     Import,
     Index,
@@ -81,10 +82,12 @@ pub fn parse_file(env: PackageEnv) -> (Cid, Package, Defs) {
     Err(e) => match e {
       Err::Incomplete(_) => panic!("Incomplete"),
       Err::Failure(e) => {
-        panic!("Parse Failure:\n{}", e);
+        println!("Parse Failure:\n{}", e);
+        panic!()
       }
       Err::Error(e) => {
-        panic!("Parse Error:\n{}", e);
+        println!("Parse Error:\n{}", e);
+        panic!()
       }
     },
   }
@@ -113,7 +116,7 @@ pub fn index_to_defs(i: &Index) -> Result<Defs, FileErrorKind> {
     let entry: Entry =
       Entry::from_ipld(&entry_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
     let def = entry_to_def(entry)?;
-    defs.0.insert(n.clone(), def);
+    defs.insert(n.clone(), def);
   }
   Ok(defs)
 }
@@ -148,7 +151,7 @@ pub fn parse_import(
         |e| Err(Err::Error(FileError::new(i, e))),
         |v| Ok((i, v)),
       )?;
-      let with: Vec<String> = with.unwrap_or_else(|| defs.keys());
+      let with: Vec<String> = with.unwrap_or_else(|| defs.names());
       Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
     }
     else {
@@ -165,7 +168,7 @@ pub fn parse_import(
       else {
         let env = PackageEnv { root: env.root.clone(), path, open };
         let (from, _, defs) = parse_file(env);
-        let with = with.unwrap_or_else(|| defs.keys());
+        let with = with.unwrap_or_else(|| defs.names());
         Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
       }
     }
@@ -187,19 +190,26 @@ pub fn parse_imports(
         Ok((i_end, _)) => return Ok((i_end, (imps, defs))),
         _ => {
           let (i2, (from, imp, imp_defs)) = parse_import(env.clone())(i)?;
-          let name = imp.name.clone();
+          let imp_name = imp.name.clone();
+          let imp_alias = imp.alias.clone();
           imps.push(imp);
-          for (n, imp_def) in &imp_defs.0 {
-            if let Some(def) = defs.0.get(n) {
+          for (def_name, _) in &imp_defs.names {
+            let imp_def = imp_defs.get(def_name).unwrap();
+            let def_name = import_alias(def_name.clone(), &imp_alias);
+            if let Some(def) = defs.get(&def_name) {
               if imp_def.def_cid != def.def_cid {
                 return Err(Err::Error(FileError::new(
-                  i2,
-                  FileErrorKind::ImportCollision(name, from, n.clone()),
+                  i,
+                  FileErrorKind::ImportCollision(
+                    imp_name,
+                    from,
+                    def_name.clone(),
+                  ),
                 )));
               }
             }
           }
-          defs = Defs(defs.0.union(imp_defs.0));
+          defs = defs.merge(imp_defs, &imp_alias);
           i = i2;
         }
       }
@@ -231,7 +241,7 @@ pub fn parse_package(
     let (i, _) = parse_space(i).map_err(error::convert)?;
     let (upto, (defs, index)) =
       parse_defs(input, defs)(i).map_err(error::convert)?;
-    for (_, d) in &defs.0 {
+    for (_, d) in &defs.defs {
       let (def, typ, trm) = d.embed();
       store::put(typ.to_ipld());
       store::put(trm.to_ipld());

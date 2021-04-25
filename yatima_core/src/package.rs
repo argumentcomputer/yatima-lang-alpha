@@ -171,6 +171,11 @@ impl Import {
     }
   }
 }
+
+pub fn import_alias(name: String, alias: &String) -> String {
+  if alias == "" { name } else { format!("{}.{}", alias, name) }
+}
+
 impl Package {
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
@@ -236,7 +241,12 @@ pub mod tests {
       let vec: Vec<()> = Arbitrary::arbitrary(g);
       let vec: Vec<String> =
         vec.into_iter().map(|_| arbitrary_name(g)).collect();
-      Self { cid: arbitrary_cid(g), alias: arbitrary_name(g), with: vec }
+      Self {
+        name: "Test".to_string(),
+        cid: arbitrary_cid(g),
+        alias: arbitrary_name(g),
+        with: vec,
+      }
     }
   }
 

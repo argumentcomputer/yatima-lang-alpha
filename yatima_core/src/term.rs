@@ -397,10 +397,7 @@ pub mod tests {
   };
   use rand::Rng;
 
-  use im::{
-    HashMap,
-    Vector,
-  };
+  use im::Vector;
 
   use crate::{
     parse::term::is_valid_symbol_char,
@@ -448,14 +445,17 @@ pub mod tests {
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
-      let mut ref_iter = defs.0.iter().filter(|(n, _)| !ctx.contains(n));
+      let mut ref_iter = defs.names.iter().filter(|(n, _)| !ctx.contains(n));
       let len = ref_iter.by_ref().count();
       if len == 0 {
         return Term::Typ(Pos::None);
       }
       let gen = rng.gen_range(0..len);
       match ref_iter.nth(gen) {
-        Some((n, def)) => Ref(Pos::None, n.clone(), def.def_cid, def.ast_cid),
+        Some((n, _)) => {
+          let def = defs.get(n).unwrap();
+          Ref(Pos::None, n.clone(), def.def_cid, def.ast_cid)
+        }
         None => Term::Typ(Pos::None),
       }
     })

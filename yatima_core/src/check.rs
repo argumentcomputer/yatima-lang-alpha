@@ -50,14 +50,14 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  // println!("a: {}", a);
-  // println!("b: {}", b);
+  println!("a: {}", a);
+  println!("b: {}", b);
   // println!("a debug: {:?}", a);
   // println!("b debug: {:?}", b);
   a.whnf(defs);
   b.whnf(defs);
-  // println!("whnf a: {}", a);
-  // println!("whnf b: {}", b);
+  println!("whnf a: {}", a);
+  println!("whnf b: {}", b);
   // println!("whnf a debug: {:?}", a);
   // println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
@@ -259,7 +259,7 @@ pub fn infer(
     }
     DAGPtr::Ref(mut link) => {
       let Ref { nam, exp: def_link, .. } = unsafe { link.as_mut() };
-      let def = defs.0.get(nam).ok_or_else(|| {
+      let def = defs.defs.get(def_link).ok_or_else(|| {
         CheckError::GenericError(format!(
           "Undefined reference: {}, {}",
           nam, def_link
@@ -421,7 +421,7 @@ pub fn infer_lty(lty: LitType) -> Term {
 // pub fn infer_opr(lit: PrimOp) -> Term {}
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
-  let def = defs.0.get(name).ok_or_else(|| {
+  let def = defs.get(&name.to_string()).ok_or_else(|| {
     CheckError::GenericError("Undefined reference.".to_string())
   })?;
   let mut trm =
