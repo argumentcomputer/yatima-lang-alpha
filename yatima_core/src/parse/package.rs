@@ -72,7 +72,7 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
   let (i, name) = parse_name(i)?;
   let (i, _) = parse_space(i)?;
   let (i, alias) = opt(terminated(parse_alias, parse_space))(i)?;
-  let alias = alias.unwrap_or(String::from(""));
+  let alias = alias.unwrap_or_else(|| String::from(""));
   let (i, with) = terminated(parse_with, parse_space)(i)?;
   let (i, from) = terminated(parse_link, parse_space)(i)?;
   Ok((i, Import { cid: from, name, alias, with }))
@@ -104,7 +104,7 @@ pub fn parse_entry(
       )(i)?;
       let pos = Pos::from_upto(input, from, upto);
       let (def, entry) = Def::make(pos, typ_, term);
-      Ok((upto, (nam.clone(), def, entry)))
+      Ok((upto, (nam, def, entry)))
     }
   }
 }

@@ -93,15 +93,15 @@ pub fn parse_file(env: PackageEnv) -> (Cid, Package, Defs) {
 pub fn entry_to_def(d: Entry) -> Result<Def, FileErrorKind> {
   use FileErrorKind::*;
   let type_ipld: Ipld = store::get(d.type_anon)
-    .map_or_else(|| Err(UnknownLink(d.type_anon)), |v| Ok(v))?;
-  let type_anon: Anon = Anon::from_ipld(&type_ipld)
-    .map_or_else(|e| Err(IpldError(e)), |v| Ok(v))?;
+    .map_or_else(|| Err(UnknownLink(d.type_anon)), Ok)?;
+  let type_anon: Anon =
+    Anon::from_ipld(&type_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
   let term_ipld: Ipld = store::get(d.term_anon)
-    .map_or_else(|| Err(UnknownLink(d.term_anon)), |v| Ok(v))?;
-  let term_anon = Anon::from_ipld(&term_ipld)
-    .map_or_else(|e| Err(IpldError(e)), |v| Ok(v))?;
+    .map_or_else(|| Err(UnknownLink(d.term_anon)), Ok)?;
+  let term_anon =
+    Anon::from_ipld(&term_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
   Def::unembed(d, type_anon, term_anon)
-    .map_or_else(|e| Err(EmbedError(Box::new(e))), |v| Ok(v))
+    .map_or_else(|e| Err(EmbedError(Box::new(e))), Ok)
 }
 
 pub fn index_to_defs(i: &Index) -> Result<Defs, FileErrorKind> {
@@ -109,9 +109,9 @@ pub fn index_to_defs(i: &Index) -> Result<Defs, FileErrorKind> {
   let mut defs = Defs::new();
   for (n, cid) in &i.0 {
     let entry_ipld: Ipld =
-      store::get(*cid).map_or_else(|| Err(UnknownLink(*cid)), |v| Ok(v))?;
-    let entry: Entry = Entry::from_ipld(&entry_ipld)
-      .map_or_else(|e| Err(IpldError(e)), |v| Ok(v))?;
+      store::get(*cid).map_or_else(|| Err(UnknownLink(*cid)), Ok)?;
+    let entry: Entry =
+      Entry::from_ipld(&entry_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
     let def = entry_to_def(entry)?;
     defs.0.insert(n.clone(), def);
   }
@@ -123,16 +123,16 @@ pub fn parse_import(
 ) -> impl Fn(Span) -> IResult<Span, (Cid, Import, Defs), FileError<Span>> {
   move |i: Span| {
     let (i, _) = tag("import")(i)?;
-    let (i, _) = parse_space(i).map_err(|e| error::convert(e))?;
-    let (i, name) = parse_name(i).map_err(|e| error::convert(e))?;
-    let (i, _) = parse_space(i).map_err(|e| error::convert(e))?;
-    let (i, alias) = opt(terminated(parse_alias, parse_space))(i)
-      .map_err(|e| error::convert(e))?;
+    let (i, _) = parse_space(i).map_err(error::convert)?;
+    let (i, name) = parse_name(i).map_err(error::convert)?;
+    let (i, _) = parse_space(i).map_err(error::convert)?;
+    let (i, alias) =
+      opt(terminated(parse_alias, parse_space))(i).map_err(error::convert)?;
     let alias = alias.unwrap_or_else(|| String::from(""));
-    let (i, with) = opt(terminated(parse_with, parse_space))(i)
-      .map_err(|e| error::convert(e))?;
-    let (i, from) = opt(terminated(parse_link, parse_space))(i)
-      .map_err(|e| error::convert(e))?;
+    let (i, with) =
+      opt(terminated(parse_with, parse_space))(i).map_err(error::convert)?;
+    let (i, from) =
+      opt(terminated(parse_link, parse_space))(i).map_err(error::convert)?;
 
     if let Some(from) = from {
       use FileErrorKind::*;
@@ -180,7 +180,7 @@ pub fn parse_imports(
     let mut imps: Vec<Import> = Vec::new();
     let mut i = i;
     loop {
-      let (i2, _) = parse_space(i).map_err(|e| error::convert(e))?;
+      let (i2, _) = parse_space(i).map_err(error::convert)?;
       i = i2;
       let end: IResult<Span, Span, FileError<Span>> = tag("where")(i);
       match end {
@@ -212,26 +212,25 @@ pub fn parse_package(
   env: PackageEnv,
 ) -> impl Fn(Span) -> IResult<Span, (Cid, Package, Defs), FileError<Span>> {
   move |from: Span| {
-    let (i, _) = parse_space(from).map_err(|e| error::convert(e))?;
+    let (i, _) = parse_space(from).map_err(error::convert)?;
     let (i, _) = tag("package")(i)?;
-    let (i, _) = parse_space(i).map_err(|e| error::convert(e))?;
-    let (i, name) = parse_name(i).map_err(|e| error::convert(e))?;
+    let (i, _) = parse_space(i).map_err(error::convert)?;
+    let (i, name) = parse_name(i).map_err(error::convert)?;
     // println!("name {}", name);
-    let file_name = env
-      .path
-      .file_name()
-      .ok_or(Err::Error(FileError::new(i, FileErrorKind::MalformedPath)))?;
-    let name_os: OsString = format!("{}.ya", name.clone()).into();
+    let file_name = env.path.file_name().ok_or_else(|| {
+      Err::Error(FileError::new(i, FileErrorKind::MalformedPath))
+    })?;
+    let name_os: OsString = format!("{}.ya", name).into();
     if name_os != file_name {
       return Err(Err::Error(FileError::new(
         i,
-        FileErrorKind::MisnamedPackage(name.clone()),
+        FileErrorKind::MisnamedPackage(name),
       )));
     }
     let (i, (imports, defs)) = parse_imports(env.clone())(i)?;
-    let (i, _) = parse_space(i).map_err(|e| error::convert(e))?;
+    let (i, _) = parse_space(i).map_err(error::convert)?;
     let (upto, (defs, index)) =
-      parse_defs(input, defs)(i).map_err(|e| error::convert(e))?;
+      parse_defs(input, defs)(i).map_err(error::convert)?;
     for (_, d) in &defs.0 {
       let (def, typ, trm) = d.embed();
       store::put(typ.to_ipld());

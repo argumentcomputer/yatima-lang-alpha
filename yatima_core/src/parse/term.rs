@@ -31,10 +31,7 @@ use multihash::{
 
 use crate::parse::span::Span;
 
-use im::{
-  HashMap,
-  Vector,
-};
+use im::Vector;
 use nom::{
   branch::alt,
   bytes::complete::{

@@ -1,15 +1,8 @@
-use std::{
-  fs,
-  path::{
-    Path,
-    PathBuf,
-  },
-};
+use std::path::PathBuf;
 
 use structopt::StructOpt;
 
 use yatima::file;
-use yatima_core;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]

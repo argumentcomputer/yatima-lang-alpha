@@ -341,15 +341,15 @@ impl Term {
     }
 
     match self {
-      Var(_, nam, ..) => format!("{}", nam),
-      Ref(_, nam, ..) => format!("{}", nam),
+      Var(_, nam, ..) => nam.to_string(),
+      Ref(_, nam, ..) => nam.to_string(),
       Rec(_) => match rec {
-        Some(rec) => format!("{}", rec),
-        _ => format!("{}", "#^"),
+        Some(rec) => rec.to_owned(),
+        _ => "#^".to_string(),
       },
 
       Lam(_, nam, term) => format!("λ {}", lams(rec, nam, term)),
-      App(_, terms) => format!("{}", apps(rec, &terms.0, &terms.1)),
+      App(_, terms) => apps(rec, &terms.0, &terms.1),
       Let(_, letrec, u, n, terms) => {
         format!(
           "let{} {}{}: {} = {}; {}",
@@ -370,7 +370,7 @@ impl Term {
       }
       Dat(_, bod) => format!("data {}", bod.pretty(rec)),
       Cse(_, bod) => format!("case {}", bod.pretty(rec)),
-      Typ(_) => format!("Type"),
+      Typ(_) => "Type".to_string(),
       Lit(_, lit) => format!("{}", lit),
       LTy(_, lty) => format!("{}", lty),
       Opr(_, opr) => format!("{}", opr),

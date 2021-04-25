@@ -96,6 +96,10 @@ impl Defs {
   }
 }
 
+impl Default for Defs {
+  fn default() -> Self { Self::new() }
+}
+
 impl fmt::Display for Def {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.fmt("#*".to_owned(), f)
@@ -112,7 +116,7 @@ impl fmt::Display for Defs {
         v.typ_.pretty(Some(&k.clone())),
         v.term.pretty(Some(&k.clone())),
       )?;
-      writeln!(f, "")?;
+      writeln!(f)?;
     }
     Ok(())
   }
