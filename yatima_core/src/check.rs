@@ -51,15 +51,15 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
   println!("a: {}", a);
+  println!("a debug: {:?}", a);
   println!("b: {}", b);
-  // println!("a debug: {:?}", a);
-  // println!("b debug: {:?}", b);
+  println!("b debug: {:?}", b);
   a.whnf(defs);
   b.whnf(defs);
   println!("whnf a: {}", a);
+  println!("whnf a debug: {:?}", a);
   println!("whnf b: {}", b);
-  // println!("whnf a debug: {:?}", a);
-  // println!("whnf b debug: {:?}", b);
+  println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set: HashSet<(Cid, Cid)> = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
@@ -199,7 +199,7 @@ pub fn check(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              term.clone().head,
+              DAG::from_subdag(term.head, &mut HashMap::new(), None),
             )
           }
           else {
@@ -287,7 +287,7 @@ pub fn infer(
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               #[allow(clippy::redundant_clone)]
-              arg.clone().head,
+              DAG::from_subdag(arg.head, &mut HashMap::new(), None),
             )
           }
           else {
@@ -315,7 +315,7 @@ pub fn infer(
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               #[allow(clippy::redundant_clone)]
-              exp.clone().head,
+              DAG::from_subdag(exp.head, &mut HashMap::new(), None),
             )
           }
           else {
@@ -339,7 +339,8 @@ pub fn infer(
       (*var).dep = ctx.len() as u64;
       ctx.push((var.nam.to_string(), dom));
       let mut img = DAG::new(*img);
-      let use_ctx = check(defs, ctx, Uses::None, &mut img, &mut typ)?;
+      let mut use_ctx = check(defs, ctx, Uses::None, &mut img, &mut typ)?;
+      use_ctx.pop();
       Ok((use_ctx, typ))
     }
     DAGPtr::Slf(mut link) => {
@@ -348,7 +349,8 @@ pub fn infer(
       (*var).dep = ctx.len() as u64;
       ctx.push((var.nam.to_string(), &mut term.head));
       let mut bod = DAG::new(*bod);
-      let use_ctx = check(defs, ctx, Uses::None, &mut bod, &mut typ)?;
+      let mut use_ctx = check(defs, ctx, Uses::None, &mut bod, &mut typ)?;
+      use_ctx.pop();
       Ok((use_ctx, typ))
     }
     DAGPtr::Typ(_) => {
@@ -424,8 +426,9 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&name.to_string()).ok_or_else(|| {
     CheckError::GenericError("Undefined reference.".to_string())
   })?;
+  let root = Some(alloc_val(DLL::singleton(ParentPtr::Root)));
   let mut trm =
-    DAG::new(DAG::from_ref(&def, name.to_string(), def.def_cid, def.ast_cid));
+    DAG::new(DAG::from_ref(&def, name.to_string(), def.def_cid, def.ast_cid, root));
   let mut typ = DAG::from_term(&def.typ_);
   check(&defs, vec![], Uses::Once, &mut trm, &mut typ)?;
   trm.free();

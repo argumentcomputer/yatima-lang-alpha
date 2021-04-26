@@ -315,7 +315,7 @@ impl DAG {
           if let Some(def) = defs.defs.get(exp) {
             let parents = *ref_parents;
             *ref_parents = None;
-            node = DAG::from_ref(&def, nam.clone(), *exp, *ast);
+            node = DAG::from_ref(&def, nam.clone(), *exp, *ast, parents);
             for parent in DLL::iter_option(parents) {
               install_child(parent, node);
             }
