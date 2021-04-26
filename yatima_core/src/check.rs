@@ -50,14 +50,14 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  println!("a: {}", a);
-  println!("b: {}", b);
+  // println!("a: {}", a);
+  // println!("b: {}", b);
   // println!("a debug: {:?}", a);
   // println!("b debug: {:?}", b);
   a.whnf(defs);
   b.whnf(defs);
-  println!("whnf a: {}", a);
-  println!("whnf b: {}", b);
+  // println!("whnf a: {}", a);
+  // println!("whnf b: {}", b);
   // println!("whnf a debug: {:?}", a);
   // println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
