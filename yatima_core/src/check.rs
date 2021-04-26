@@ -50,16 +50,16 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  println!("a: {}", a);
-  println!("a debug: {:?}", a);
-  println!("b: {}", b);
-  println!("b debug: {:?}", b);
+  // println!("a: {}", a);
+  // println!("a debug: {:?}", a);
+  // println!("b: {}", b);
+  // println!("b debug: {:?}", b);
   a.whnf(defs);
   b.whnf(defs);
-  println!("whnf a: {}", a);
-  println!("whnf a debug: {:?}", a);
-  println!("whnf b: {}", b);
-  println!("whnf b debug: {:?}", b);
+  // println!("whnf a: {}", a);
+  // println!("whnf a debug: {:?}", a);
+  // println!("whnf b: {}", b);
+  // println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set: HashSet<(Cid, Cid)> = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
@@ -427,8 +427,13 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
     CheckError::GenericError("Undefined reference.".to_string())
   })?;
   let root = Some(alloc_val(DLL::singleton(ParentPtr::Root)));
-  let mut trm =
-    DAG::new(DAG::from_ref(&def, name.to_string(), def.def_cid, def.ast_cid, root));
+  let mut trm = DAG::new(DAG::from_ref(
+    &def,
+    name.to_string(),
+    def.def_cid,
+    def.ast_cid,
+    root,
+  ));
   let mut typ = DAG::from_term(&def.typ_);
   check(&defs, vec![], Uses::Once, &mut trm, &mut typ)?;
   trm.free();
