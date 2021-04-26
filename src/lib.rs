@@ -13,4 +13,4 @@ extern crate yatima_core;
 
 pub mod file;
 
-// pub mod repl;
+pub mod repl;
