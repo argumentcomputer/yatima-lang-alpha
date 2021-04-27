@@ -50,16 +50,16 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  println!("EQUAL a: {}", a);
+  // println!("EQUAL a: {}", a);
   // println!("a debug: {:?}", a);
-  println!("EQUAL b: {}", b);
+  // println!("EQUAL b: {}", b);
   // println!("b debug: {:?}", b);
-  println!("EQUAL REDUCE a");
+  // println!("EQUAL REDUCE a");
   a.whnf(defs);
-  println!("EQUAL a reduced: {}", a);
-  println!("EQUAL REDUCE b");
+  // println!("EQUAL a reduced: {}", a);
+  // println!("EQUAL REDUCE b");
   b.whnf(defs);
-  println!("EQUAL b reduced: {}", a);
+  // println!("EQUAL b reduced: {}", a);
   // println!("whnf a debug: {:?}", a);
   // println!("whnf b: {}", b);
   // println!("whnf b debug: {:?}", b);
