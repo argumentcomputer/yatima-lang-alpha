@@ -73,7 +73,7 @@ pub enum ParentPtr {
   LetBod(NonNull<Let>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum BinderPtr {
   Free,
   Lam(NonNull<Lam>),
@@ -83,7 +83,7 @@ pub enum BinderPtr {
 }
 
 // The λ-DAG nodes
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub struct Var {
   pub nam: String,
@@ -472,6 +472,7 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
 }
 // Replace one child w/another in the tree.
 pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
+  println!("replace_child({}, {})", oldchild, newchild);
   unsafe {
     let oldpref = get_parents(oldchild);
     if let Some(old_parents) = oldpref {
@@ -838,6 +839,7 @@ impl DAG {
           *val
         }
         None => {
+          println!("None Var: {}", name);
           let var = alloc_val(Var {
             nam: name.clone(),
             rec: false,
@@ -1480,6 +1482,12 @@ impl fmt::Debug for DAG {
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_term())
+  }
+}
+
+impl fmt::Display for DAGPtr {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", DAG::new(self.clone()).to_term())
   }
 }
 
