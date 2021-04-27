@@ -73,7 +73,7 @@ pub enum ParentPtr {
   LetBod(NonNull<Let>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum BinderPtr {
   Free,
   Lam(NonNull<Lam>),
@@ -83,7 +83,8 @@ pub enum BinderPtr {
 }
 
 // The λ-DAG nodes
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+#[repr(C)]
 pub struct Var {
   pub nam: String,
   // The field `rec` is only used to preserve the Term <-> DAG isomorphism for
@@ -96,13 +97,15 @@ pub struct Var {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Lam {
-  pub var: Var,
   pub bod: DAGPtr,
   pub bod_ref: Parents,
+  pub var: Var,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct App {
   pub fun: DAGPtr,
   pub arg: DAGPtr,
@@ -112,36 +115,41 @@ pub struct App {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct All {
-  pub var: Var,
   pub uses: Uses,
   pub dom: DAGPtr,
   pub img: DAGPtr,
   pub dom_ref: Parents,
   pub img_ref: Parents,
+  pub var: Var,
   pub copy: Option<NonNull<All>>,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Slf {
-  pub var: Var,
   pub bod: DAGPtr,
   pub bod_ref: Parents,
+  pub var: Var,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Dat {
   pub bod: DAGPtr,
   pub bod_ref: Parents,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Cse {
   pub bod: DAGPtr,
   pub bod_ref: Parents,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Ann {
   pub typ: DAGPtr,
   pub exp: DAGPtr,
@@ -151,8 +159,8 @@ pub struct Ann {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Let {
-  pub var: Var,
   pub uses: Uses,
   pub typ: DAGPtr,
   pub exp: DAGPtr,
@@ -161,9 +169,11 @@ pub struct Let {
   pub exp_ref: Parents,
   pub bod_ref: Parents,
   pub copy: Option<NonNull<Let>>,
+  pub var: Var,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Ref {
   pub nam: String,
   pub rec: bool,
@@ -172,20 +182,24 @@ pub struct Ref {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Typ {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Lit {
   pub lit: Literal,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct LTy {
   pub lty: LitType,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[repr(C)]
 pub struct Opr {
   pub opr: PrimOp,
   pub parents: Option<NonNull<Parents>>,
@@ -780,13 +794,13 @@ impl DAG {
     name: String,
     def_cid: Cid,
     ast_cid: Cid,
+    parents: Option<NonNull<Parents>>,
   ) -> DAGPtr {
-    let root = alloc_val(DLL::singleton(ParentPtr::Root));
     DAG::from_term_inner(
       &def.term,
       0,
       Vector::new(),
-      Some(root),
+      parents,
       Some((name, def_cid, ast_cid)),
     )
   }
@@ -1217,19 +1231,19 @@ impl fmt::Debug for DAG {
     fn format_uplink(p: ParentPtr) -> String {
       match p {
         ParentPtr::Root => String::from("ROOT"),
-        ParentPtr::LamBod(link) => format!("λB{}", link.as_ptr() as u64),
-        ParentPtr::SlfBod(link) => format!("@B{}", link.as_ptr() as u64),
-        ParentPtr::DatBod(link) => format!("DB{}", link.as_ptr() as u64),
-        ParentPtr::CseBod(link) => format!("CB{}", link.as_ptr() as u64),
-        ParentPtr::AppFun(link) => format!("AF{}", link.as_ptr() as u64),
-        ParentPtr::AppArg(link) => format!("AA{}", link.as_ptr() as u64),
-        ParentPtr::AllDom(link) => format!("∀D{}", link.as_ptr() as u64),
-        ParentPtr::AllImg(link) => format!("∀I{}", link.as_ptr() as u64),
-        ParentPtr::AnnExp(link) => format!(":E{}", link.as_ptr() as u64),
-        ParentPtr::AnnTyp(link) => format!(":T{}", link.as_ptr() as u64),
-        ParentPtr::LetExp(link) => format!("LE{}", link.as_ptr() as u64),
-        ParentPtr::LetTyp(link) => format!("LT{}", link.as_ptr() as u64),
-        ParentPtr::LetBod(link) => format!("LB{}", link.as_ptr() as u64),
+        ParentPtr::LamBod(link) => format!("LamBod<{:?}>", link.as_ptr()),
+        ParentPtr::SlfBod(link) => format!("SlfBod<{:?}>", link.as_ptr()),
+        ParentPtr::DatBod(link) => format!("DatBod<{:?}>", link.as_ptr()),
+        ParentPtr::CseBod(link) => format!("CseBod<{:?}>", link.as_ptr()),
+        ParentPtr::AppFun(link) => format!("AppFun<{:?}>", link.as_ptr()),
+        ParentPtr::AppArg(link) => format!("AppArg<{:?}>", link.as_ptr()),
+        ParentPtr::AllDom(link) => format!("AllDom<{:?}>", link.as_ptr()),
+        ParentPtr::AllImg(link) => format!("AllImg<{:?}>", link.as_ptr()),
+        ParentPtr::AnnExp(link) => format!("AnnExp<{:?}>", link.as_ptr()),
+        ParentPtr::AnnTyp(link) => format!("AnnTyp<{:?}>", link.as_ptr()),
+        ParentPtr::LetExp(link) => format!("LetExp<{:?}>", link.as_ptr()),
+        ParentPtr::LetTyp(link) => format!("LetTyp<{:?}>", link.as_ptr()),
+        ParentPtr::LetBod(link) => format!("LetBod<{:?}>", link.as_ptr()),
       }
     }
     #[inline]
@@ -1248,15 +1262,23 @@ impl fmt::Debug for DAG {
         _ => String::from("[]"),
       }
     }
-    fn go(term: DAGPtr, set: &mut HashSet<u64>) -> String {
+    fn go(term: DAGPtr, set: &mut HashSet<usize>) -> String {
       match term {
         DAGPtr::Var(link) => {
-          let Var { nam, parents, .. } = unsafe { link.as_ref() };
-          if set.get(&(link.as_ptr() as u64)).is_none() {
-            set.insert(link.as_ptr() as u64);
+          let Var { nam, parents, binder, dep, .. } = unsafe { link.as_ref() };
+          let binder = match binder {
+            BinderPtr::Free => format!("Free<{}>", *dep),
+            BinderPtr::Lam(link) => format!("Lam<{:?}>", link.as_ptr()),
+            BinderPtr::All(link) => format!("All<{:?}>", link.as_ptr()),
+            BinderPtr::Slf(link) => format!("Slf<{:?}>", link.as_ptr()),
+            BinderPtr::Let(link) => format!("Let<{:?}>", link.as_ptr()),
+          };
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
             format!(
-              "\nVar<{}> {} parents: {}",
-              link.as_ptr() as u64,
+              "\nVar<{:?}> {} bound at {} parents: {}",
+              link.as_ptr(),
+              binder,
               nam,
               format_parents(*parents)
             )
@@ -1307,10 +1329,10 @@ impl fmt::Debug for DAG {
           )
         }
         DAGPtr::Lam(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
             let Lam { var, parents, bod, .. } = unsafe { link.as_ref() };
             let name = var.nam.clone();
-            set.insert(link.as_ptr() as u64);
+            set.insert(link.as_ptr() as usize);
             format!(
               "\nLam<{:?}> {} parents: {}{}",
               link.as_ptr(),
@@ -1320,14 +1342,14 @@ impl fmt::Debug for DAG {
             )
           }
           else {
-            format!("\nSHARE<{}>", link.as_ptr() as u64)
+            format!("\nSHARE<{:?}>", link.as_ptr())
           }
         }
         DAGPtr::Slf(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
             let Slf { var, parents, bod, .. } = unsafe { link.as_ref() };
             let name = var.nam.clone();
-            set.insert(link.as_ptr() as u64);
+            set.insert(link.as_ptr() as usize);
             format!(
               "\nSlf<{:?}> {} parents: {}{}",
               link.as_ptr(),
@@ -1341,9 +1363,9 @@ impl fmt::Debug for DAG {
           }
         }
         DAGPtr::Dat(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
             let Dat { parents, bod, .. } = unsafe { link.as_ref() };
-            set.insert(link.as_ptr() as u64);
+            set.insert(link.as_ptr() as usize);
             format!(
               "\nDat<{:?}> parents: {}{}",
               link.as_ptr(),
@@ -1356,9 +1378,9 @@ impl fmt::Debug for DAG {
           }
         }
         DAGPtr::Cse(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
             let Cse { parents, bod, .. } = unsafe { link.as_ref() };
-            set.insert(link.as_ptr() as u64);
+            set.insert(link.as_ptr() as usize);
             format!(
               "\nCse<{:?}> parents: {}{}",
               link.as_ptr(),
@@ -1371,10 +1393,10 @@ impl fmt::Debug for DAG {
           }
         }
         DAGPtr::App(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
-            set.insert(link.as_ptr() as u64);
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
             let App { fun, arg, parents, copy, .. } = unsafe { link.as_ref() };
-            let copy = copy.map(|link| link.as_ptr() as u64);
+            let copy = copy.map(|link| link.as_ptr() as usize);
             format!(
               "\nApp<{:?}> parents: {} copy: {:?}{}{}",
               link.as_ptr(),
@@ -1385,14 +1407,14 @@ impl fmt::Debug for DAG {
             )
           }
           else {
-            format!("\nSHARE<{}>", link.as_ptr() as u64)
+            format!("\nSHARE<{}>", link.as_ptr() as usize)
           }
         }
         DAGPtr::Ann(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
-            set.insert(link.as_ptr() as u64);
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
             let Ann { typ, exp, parents, copy, .. } = unsafe { link.as_ref() };
-            let copy = copy.map(|link| link.as_ptr() as u64);
+            let copy = copy.map(|link| link.as_ptr() as usize);
             format!(
               "\nAnn<{:?}> parents: {} copy: {:?}{}{}",
               link.as_ptr(),
@@ -1403,16 +1425,16 @@ impl fmt::Debug for DAG {
             )
           }
           else {
-            format!("\nSHARE<{}>", link.as_ptr() as u64)
+            format!("\nSHARE<{:?}>", link.as_ptr())
           }
         }
         DAGPtr::All(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
-            set.insert(link.as_ptr() as u64);
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
             let All { var, dom, img, parents, copy, .. } =
               unsafe { link.as_ref() };
             let name = var.nam.clone();
-            let copy = copy.map(|link| link.as_ptr() as u64);
+            let copy = copy.map(|link| link.as_ptr() as usize);
             format!(
               "\nAll<{:?}> {} parents: {} copy: {:?}{}{}",
               link.as_ptr(),
@@ -1424,16 +1446,16 @@ impl fmt::Debug for DAG {
             )
           }
           else {
-            format!("\nSHARE<{}>", link.as_ptr() as u64)
+            format!("\nSHARE<{:?}>", link.as_ptr())
           }
         }
         DAGPtr::Let(link) => {
-          if set.get(&(link.as_ptr() as u64)).is_none() {
-            set.insert(link.as_ptr() as u64);
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
             let Let { var, exp, typ, bod, parents, copy, .. } =
               unsafe { link.as_ref() };
             let name = var.nam.clone();
-            let copy = copy.map(|link| link.as_ptr() as u64);
+            let copy = copy.map(|link| link.as_ptr() as usize);
             format!(
               "\nLet<{:?}> {} parents: {} copy: {:?}{}{}{}",
               link.as_ptr(),
@@ -1446,7 +1468,7 @@ impl fmt::Debug for DAG {
             )
           }
           else {
-            format!("\nSHARE<{}>", link.as_ptr() as u64)
+            format!("\nSHARE<{:?}>", link.as_ptr())
           }
         }
       }
@@ -1458,6 +1480,12 @@ impl fmt::Debug for DAG {
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_term())
+  }
+}
+
+impl fmt::Display for DAGPtr {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", DAG::new(self.clone()).to_term())
   }
 }
 
