@@ -50,32 +50,17 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  println!("EQUAL a: {}", a);
-  // println!("a debug: {:?}", a);
-  println!("EQUAL b: {}", b);
-  // println!("b debug: {:?}", b);
-  println!("EQUAL REDUCE a");
   a.whnf(defs);
-  println!("EQUAL a reduced: {}", a);
-  println!("EQUAL REDUCE b");
   b.whnf(defs);
-  println!("EQUAL b reduced: {}", a);
-  // println!("whnf a debug: {:?}", a);
-  // println!("whnf b: {}", b);
-  // println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set: HashSet<(Cid, Cid)> = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
-    //    println!("loop a: {}", a);
-    //    println!("loop b: {}", b);
     a.whnf(defs);
     b.whnf(defs);
     let hash_a = hash(a.head, dep);
     let hash_b = hash(b.head, dep);
-    //    println!("hash a: {}", hash_a);
-    //    println!("hash b: {}", hash_b);
     let eq = hash_a == hash_b
       || set.contains(&(hash_a, hash_b))
       || set.contains(&(hash_b, hash_a));
@@ -227,7 +212,9 @@ pub fn check(
     _ => {
       let depth = ctx.len();
       let (use_ctx, mut infer_typ) = infer(defs, ctx, uses, term)?;
-      let eq = equal(defs, typ, &mut infer_typ, depth as u64);
+      let mut typ_clone = typ.clone();
+      let eq = equal(defs, &mut typ_clone, &mut infer_typ, depth as u64);
+      typ_clone.free();
       infer_typ.free();
       if eq {
         Ok(use_ctx)

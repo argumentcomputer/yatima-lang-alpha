@@ -28,7 +28,6 @@ enum Branch {
 // Substitute a variable
 #[inline]
 pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
-  println!("subst({},{:?},{},{})", bod, var, arg, fix);
   let mut input = bod;
   let mut top_branch = None;
   let mut result = arg;
@@ -247,21 +246,12 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
 #[inline]
 pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
-  println!("reduce_lam({}, {})", arg, DAGPtr::Lam(lam));
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
-    println!("parents singleton");
-    println!("var: {:?}", var);
-    println!("arg: {:?}", DAG::new(arg.clone()));
-    println!("redex: {:?}", DAG::new(DAGPtr::App(redex)));
     replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *arg);
-    println!("bod: {}", bod);
-    println!("redex: {:?}", DAG::new(DAGPtr::App(redex)));
-    // println!("bod: {:?}", DAG::new(bod.clone()));
     *bod
   }
   else if var.parents.is_none() {
-    println!("parents none");
     *bod
   }
   else {
@@ -287,8 +277,6 @@ impl DAG {
     let mut node = self.head;
     let mut trail: Vec<NonNull<App>> = vec![];
     loop {
-      println!("whnf node: {}", DAG::new(node));
-      println!("whnf trail: {:?}", print_trail(&trail));
       match node {
         DAGPtr::App(link) => {
           let App { fun, .. } = unsafe { link.as_ref() };
@@ -334,13 +322,9 @@ impl DAG {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
           if let Some(def) = defs.defs.get(exp) {
-            println!("whnf ref: {} {}", nam, exp);
             let parents = *ref_parents;
             *ref_parents = None;
-            println!("def term: {}", def.term);
             node = DAG::from_ref(&def, nam.clone(), *exp, *ast, parents);
-            println!("node ref: {}", DAG::new(node));
-            // println!("node ref: {:?}", DAG::new(node));
             for parent in DLL::iter_option(parents) {
               install_child(parent, node);
             }

@@ -472,7 +472,6 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
 }
 // Replace one child w/another in the tree.
 pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
-  println!("replace_child({}, {})", oldchild, newchild);
   unsafe {
     let oldpref = get_parents(oldchild);
     if let Some(old_parents) = oldpref {
@@ -839,7 +838,6 @@ impl DAG {
           *val
         }
         None => {
-          println!("None Var: {}", name);
           let var = alloc_val(Var {
             nam: name.clone(),
             rec: false,
