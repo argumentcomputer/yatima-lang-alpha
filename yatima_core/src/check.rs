@@ -50,29 +50,17 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  // println!("a: {}", a);
-  // println!("b: {}", b);
-  // println!("a debug: {:?}", a);
-  // println!("b debug: {:?}", b);
   a.whnf(defs);
   b.whnf(defs);
-  // println!("whnf a: {}", a);
-  // println!("whnf b: {}", b);
-  // println!("whnf a debug: {:?}", a);
-  // println!("whnf b debug: {:?}", b);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set: HashSet<(Cid, Cid)> = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
-    //    println!("loop a: {}", a);
-    //    println!("loop b: {}", b);
     a.whnf(defs);
     b.whnf(defs);
     let hash_a = hash(a.head, dep);
     let hash_b = hash(b.head, dep);
-    //    println!("hash a: {}", hash_a);
-    //    println!("hash b: {}", hash_b);
     let eq = hash_a == hash_b
       || set.contains(&(hash_a, hash_b))
       || set.contains(&(hash_b, hash_a));
@@ -199,7 +187,7 @@ pub fn check(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              term.clone().head,
+              DAG::from_subdag(term.head, &mut HashMap::new(), None),
             )
           }
           else {
@@ -224,7 +212,9 @@ pub fn check(
     _ => {
       let depth = ctx.len();
       let (use_ctx, mut infer_typ) = infer(defs, ctx, uses, term)?;
-      let eq = equal(defs, typ, &mut infer_typ, depth as u64);
+      let mut typ_clone = typ.clone();
+      let eq = equal(defs, &mut typ_clone, &mut infer_typ, depth as u64);
+      typ_clone.free();
       infer_typ.free();
       if eq {
         Ok(use_ctx)
@@ -287,7 +277,7 @@ pub fn infer(
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               #[allow(clippy::redundant_clone)]
-              arg.clone().head,
+              DAG::from_subdag(arg.head, &mut HashMap::new(), None),
             )
           }
           else {
@@ -315,7 +305,7 @@ pub fn infer(
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               #[allow(clippy::redundant_clone)]
-              exp.clone().head,
+              DAG::from_subdag(exp.head, &mut HashMap::new(), None),
             )
           }
           else {
@@ -339,7 +329,8 @@ pub fn infer(
       (*var).dep = ctx.len() as u64;
       ctx.push((var.nam.to_string(), dom));
       let mut img = DAG::new(*img);
-      let use_ctx = check(defs, ctx, Uses::None, &mut img, &mut typ)?;
+      let mut use_ctx = check(defs, ctx, Uses::None, &mut img, &mut typ)?;
+      use_ctx.pop();
       Ok((use_ctx, typ))
     }
     DAGPtr::Slf(mut link) => {
@@ -348,7 +339,8 @@ pub fn infer(
       (*var).dep = ctx.len() as u64;
       ctx.push((var.nam.to_string(), &mut term.head));
       let mut bod = DAG::new(*bod);
-      let use_ctx = check(defs, ctx, Uses::None, &mut bod, &mut typ)?;
+      let mut use_ctx = check(defs, ctx, Uses::None, &mut bod, &mut typ)?;
+      use_ctx.pop();
       Ok((use_ctx, typ))
     }
     DAGPtr::Typ(_) => {
@@ -424,8 +416,14 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&name.to_string()).ok_or_else(|| {
     CheckError::GenericError("Undefined reference.".to_string())
   })?;
-  let mut trm =
-    DAG::new(DAG::from_ref(&def, name.to_string(), def.def_cid, def.ast_cid));
+  let root = Some(alloc_val(DLL::singleton(ParentPtr::Root)));
+  let mut trm = DAG::new(DAG::from_ref(
+    &def,
+    name.to_string(),
+    def.def_cid,
+    def.ast_cid,
+    root,
+  ));
   let mut typ = DAG::from_term(&def.typ_);
   check(&defs, vec![], Uses::Once, &mut trm, &mut typ)?;
   trm.free();

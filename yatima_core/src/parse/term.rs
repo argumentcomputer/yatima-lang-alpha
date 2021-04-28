@@ -81,6 +81,8 @@ pub fn reserved_symbols() -> Vector<String> {
     String::from("="),
     String::from(";"),
     String::from("::"),
+    String::from("let"),
+    String::from("in"),
     String::from("type"),
     String::from("data"),
     String::from("def"),
@@ -539,7 +541,7 @@ pub fn parse_let(
       nam.clone(),
       letrec,
     )(i)?;
-    let (i, _) = tag(";")(i)?;
+    let (i, _) = alt((tag(";"), tag("in")))(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     ctx2.push_front(nam.clone());
