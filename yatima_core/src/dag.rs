@@ -1490,7 +1490,7 @@ impl fmt::Display for DAGPtr {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
   use super::*;
   // use crate::parse::term::parse;
 

@@ -452,7 +452,7 @@ impl DAG {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
   use super::DAG;
   use crate::{
     defs::Defs,
@@ -598,24 +598,5 @@ mod test {
     println!("{:?}", DAG::to_term(&trm));
     // assert_eq!(true, false);
     norm_assert(trm_str, id);
-    let (_, eq_term) = parse(
-      "λ A a_E b_E => @self ∀ (0 P: ∀ (b: A) (_: (#^) A a_E b) -> Type) (& \
-       refl: P a_E (data λ P refl => refl)) -> P b_E self",
-    )
-    .unwrap();
-
-    let (_, eq_defs) = parse_defs(
-      "def Equal (A: Type) (a_E: A) (b_E: A) : Type =
-  @self ∀
-  (0 P    : ∀ (b: A) (Equal A a_E b) -> Type)
-  (& refl : P a_E (data λ P refl => refl))
-  -> P b_E self",
-    )
-    .unwrap();
-
-    assert_eq!(
-      eq_term,
-      DAG::from_def(eq_defs.get(&"Equal".to_owned()).unwrap())
-    )
   }
 }
