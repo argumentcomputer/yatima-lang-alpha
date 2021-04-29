@@ -262,11 +262,20 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   top_node
 }
 
+pub fn print_trail(trail: &Vec<NonNull<App>>) -> Vec<String> {
+  let mut res: Vec<String> = vec![];
+  for link in trail {
+    let App { arg, .. } = unsafe { link.as_ref() };
+    res.push(format!("{}", arg));
+  }
+  res
+}
+
 impl DAG {
   // Reduce term to its weak head normal form
   pub fn whnf(&mut self, defs: &Defs) {
     let mut node = self.head;
-    let mut trail = vec![];
+    let mut trail: Vec<NonNull<App>> = vec![];
     loop {
       match node {
         DAGPtr::App(link) => {
@@ -315,7 +324,7 @@ impl DAG {
           if let Some(def) = defs.defs.get(exp) {
             let parents = *ref_parents;
             *ref_parents = None;
-            node = DAG::from_ref(&def, nam.clone(), *exp, *ast);
+            node = DAG::from_ref(&def, nam.clone(), *exp, *ast, parents);
             for parent in DLL::iter_option(parents) {
               install_child(parent, node);
             }
@@ -442,130 +451,152 @@ impl DAG {
   }
 }
 
-//#[cfg(test)]
-// mod test {
-//  use super::DAG;
-//  use hashexpr::span::Span;
-//  use im::HashMap;
-//
-//  pub fn parse(
-//    i: &str,
-//  ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
-//    let (i, tree) = crate::parse::term::parse(i)?;
-//    let (i, _) = nom::character::complete::multispace0(i)?;
-//    let (i, _) = nom::combinator::eof(i)?;
-//    let dag = DAG::from_term(&tree);
-//    Ok((i, dag))
-//  }
-//
-//  #[test]
-//  pub fn parse_test() {
-//    fn parse_assert(input: &str) {
-//      match parse(&input) {
-//        Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
-//        Err(_) => panic!("Did not parse."),
-//      }
-//    }
-//    parse_assert("λ x => x");
-//    parse_assert("λ x y => x y");
-//    parse_assert("λ y => (λ x => x) y");
-//    parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
-//  }
-//
-//  fn norm_assert(input: &str, result: &str) {
-//    match parse(&input) {
-//      Ok((_, mut dag)) => {
-//        dag.norm(&HashMap::new());
-//        assert_eq!(format!("{}", dag), result)
-//      }
-//      Err(_) => panic!("Did not parse."),
-//    }
-//  }
-//
-//  #[test]
-//  pub fn reduce_test_ann() {
-//    norm_assert("(Type :: Type)", "Type");
-//    norm_assert("((λ x => x) #Natural :: Type)", "#Natural");
-//    norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
-//    norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
-//    norm_assert(
-//      "(∀ (A: Type) (x: A) -> Type :: Type)",
-//      "∀ (A: Type) (x: A) -> Type",
-//    );
-//    norm_assert("Type :: ∀ (A: Type) (x: A) -> Type", "Type");
-//  }
-//
-//  #[test]
-//  pub fn reduce_test_app() {
-//    norm_assert(
-//      "Type (∀ (A: Type) (x: A) -> Type)",
-//      "Type (∀ (A: Type) (x: A) -> Type)",
-//    );
-//    norm_assert(
-//      "(∀ (A: Type) (x: A) -> Type) Type",
-//      "(∀ (A: Type) (x: A) -> Type) Type",
-//    )
-//  }
-//
-//  #[test]
-//  pub fn reduce_test_all() {
-//    norm_assert(
-//      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-//      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-//    );
-//    norm_assert(
-//      "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
-//      "∀ (f: Type) (A: Type) (x: A) -> Type",
-//    );
-//  }
-//
-//  #[test]
-//  pub fn reduce_test_let() {
-//    norm_assert("let f: Type = Type; f", "Type");
-//    norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x =>
-// x");    norm_assert(
-//      "let f: Type = ∀ (A: Type) (x: A) -> A; f",
-//      "∀ (A: Type) (x: A) -> A",
-//    );
-//    norm_assert(
-//      "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
-//      "∀ (A: Type) (x: A) -> A",
-//    );
-//  }
-//
-//  #[test]
-//  pub fn reduce_test() {
-//    // Already normalized
-//    norm_assert("λ x => x", "λ x => x");
-//    norm_assert("λ x y => x y", "λ x y => x y");
-//    // Not normalized cases
-//    norm_assert("λ y => (λ x => x) y", "λ y => y");
-//    norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
-//    // // Church arithmetic
-//    let zero = "λ s z => z";
-//    let one = "λ s z => (s z)";
-//    let two = "λ s z => s (s z)";
-//    let three = "λ s z => s (s (s z))";
-//    let four = "λ s z => s (s (s (s z)))";
-//    let seven = "λ s z => s (s (s (s (s (s (s z))))))";
-//    let add = "λ m n s z => m s (n s z)";
-//    let is_three = format!("(({}) ({}) {})", add, zero, three);
-//    let is_three2 = format!("(({}) ({}) {})", add, one, two);
-//    let is_seven = format!("(({}) ({}) {})", add, four, three);
-//    norm_assert(&is_three, three);
-//    norm_assert(&is_three2, three);
-//    norm_assert(&is_seven, seven);
-//    let id = "λ x => x";
-//    norm_assert(
-//      &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
-//      id,
-//    );
-//    let trm_str =
-//      &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id,);
-//    println!("{}", trm_str);
-//    let (_, trm) = parse(trm_str).unwrap();
-//    println!("{:?}", DAG::to_term(&trm));
-//    // assert_eq!(true, false);
-//    norm_assert(trm_str, id)
-//  }
-//}
+#[cfg(test)]
+pub mod test {
+  use super::DAG;
+  use crate::{
+    defs::Defs,
+    parse::{
+      package,
+      span::Span,
+      term::input_cid,
+    },
+  };
+
+  pub fn parse(
+    i: &str,
+  ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
+    let (i, tree) = crate::parse::term::parse(i)?;
+    let (i, _) = nom::character::complete::multispace0(i)?;
+    let (i, _) = nom::combinator::eof(i)?;
+    let dag = DAG::from_term(&tree);
+    Ok((i, dag))
+  }
+  pub fn parse_defs(
+    i: &str,
+  ) -> nom::IResult<Span, Defs, crate::parse::error::ParseError<Span>> {
+    let (i, (defs, _)) =
+      package::parse_defs(input_cid(i), Defs::new())(Span::new(i))?;
+    Ok((i, defs))
+  }
+
+  #[test]
+  pub fn parse_test() {
+    fn parse_assert(input: &str) {
+      match parse(&input) {
+        Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
+        Err(_) => panic!("Did not parse."),
+      }
+    }
+    parse_assert("λ x => x");
+    parse_assert("λ x y => x y");
+    parse_assert("λ y => (λ x => x) y");
+    parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
+  }
+
+  fn norm_assert(input: &str, result: &str) {
+    match parse(&input) {
+      Ok((_, mut dag)) => {
+        dag.norm(&Defs::new());
+        assert_eq!(format!("{}", dag), result)
+      }
+      Err(_) => panic!("Did not parse."),
+    }
+  }
+  fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
+    match parse(&input) {
+      Ok((_, mut dag)) => {
+        dag.norm(&defs);
+        assert_eq!(format!("{}", dag), result)
+      }
+      Err(_) => panic!("Did not parse."),
+    }
+  }
+
+  #[test]
+  pub fn reduce_test_ann() {
+    norm_assert("(Type :: Type)", "Type");
+    norm_assert("((λ x => x) #Nat :: Type)", "#Nat");
+    norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
+    norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
+    norm_assert(
+      "(∀ (A: Type) (x: A) -> Type :: Type)",
+      "∀ (A: Type) (x: A) -> Type",
+    );
+    norm_assert("Type :: ∀ (A: Type) (x: A) -> Type", "Type");
+  }
+
+  #[test]
+  pub fn reduce_test_app() {
+    norm_assert(
+      "Type (∀ (A: Type) (x: A) -> Type)",
+      "Type (∀ (A: Type) (x: A) -> Type)",
+    );
+    norm_assert(
+      "(∀ (A: Type) (x: A) -> Type) Type",
+      "(∀ (A: Type) (x: A) -> Type) Type",
+    )
+  }
+
+  #[test]
+  pub fn reduce_test_all() {
+    norm_assert(
+      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+    );
+    norm_assert(
+      "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
+      "∀ (f: Type) (A: Type) (x: A) -> Type",
+    );
+  }
+
+  #[test]
+  pub fn reduce_test_let() {
+    norm_assert("let f: Type = Type; f", "Type");
+    norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x => x");
+    norm_assert(
+      "let f: Type = ∀ (A: Type) (x: A) -> A; f",
+      "∀ (A: Type) (x: A) -> A",
+    );
+    norm_assert(
+      "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
+      "∀ (A: Type) (x: A) -> A",
+    );
+  }
+
+  #[test]
+  pub fn reduce_test() {
+    // Already normalized
+    norm_assert("λ x => x", "λ x => x");
+    norm_assert("λ x y => x y", "λ x y => x y");
+    // Not normalized cases
+    norm_assert("λ y => (λ x => x) y", "λ y => y");
+    norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
+    // // Church arithmetic
+    let zero = "λ s z => z";
+    let one = "λ s z => (s z)";
+    let two = "λ s z => s (s z)";
+    let three = "λ s z => s (s (s z))";
+    let four = "λ s z => s (s (s (s z)))";
+    let seven = "λ s z => s (s (s (s (s (s (s z))))))";
+    let add = "λ m n s z => m s (n s z)";
+    let is_three = format!("(({}) ({}) {})", add, zero, three);
+    let is_three2 = format!("(({}) ({}) {})", add, one, two);
+    let is_seven = format!("(({}) ({}) {})", add, four, three);
+    norm_assert(&is_three, three);
+    norm_assert(&is_three2, three);
+    norm_assert(&is_seven, seven);
+    let id = "λ x => x";
+    norm_assert(
+      &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
+      id,
+    );
+    let trm_str =
+      &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id,);
+    println!("{}", trm_str);
+    let (_, trm) = parse(trm_str).unwrap();
+    println!("{:?}", DAG::to_term(&trm));
+    // assert_eq!(true, false);
+    norm_assert(trm_str, id);
+  }
+}
