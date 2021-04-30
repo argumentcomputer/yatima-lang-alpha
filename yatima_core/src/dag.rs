@@ -77,7 +77,6 @@ pub enum ParentPtr {
 pub enum BinderPtr {
   Free,
   Lam(NonNull<Lam>),
-  All(NonNull<All>),
   Slf(NonNull<Slf>),
   Let(NonNull<Let>),
 }
@@ -119,10 +118,9 @@ pub struct App {
 pub struct All {
   pub uses: Uses,
   pub dom: DAGPtr,
-  pub img: DAGPtr,
+  pub img: NonNull<Lam>,
   pub dom_ref: Parents,
   pub img_ref: Parents,
-  pub var: Var,
   pub copy: Option<NonNull<All>>,
   pub parents: Option<NonNull<Parents>>,
 }
@@ -291,23 +289,13 @@ pub fn alloc_cse(
 
 #[inline]
 pub fn alloc_all(
-  var_nam: String,
-  var_dep: u64,
-  var_parents: Option<NonNull<Parents>>,
   uses: Uses,
   dom: DAGPtr,
-  img: DAGPtr,
+  img: NonNull<Lam>,
   parents: Option<NonNull<Parents>>,
 ) -> NonNull<All> {
   unsafe {
     let all = alloc_val(All {
-      var: Var {
-        nam: var_nam,
-        rec: false,
-        dep: var_dep,
-        binder: mem::zeroed(),
-        parents: var_parents,
-      },
       uses,
       dom,
       img,
@@ -316,7 +304,6 @@ pub fn alloc_all(
       img_ref: mem::zeroed(),
       parents,
     });
-    (*all.as_ptr()).var.binder = BinderPtr::All(all);
     (*all.as_ptr()).dom_ref = DLL::singleton(ParentPtr::AllDom(all));
     (*all.as_ptr()).img_ref = DLL::singleton(ParentPtr::AllImg(all));
     all
@@ -460,7 +447,12 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
       ParentPtr::AppFun(parent) => (*parent.as_ptr()).fun = newchild,
       ParentPtr::AppArg(parent) => (*parent.as_ptr()).arg = newchild,
       ParentPtr::AllDom(parent) => (*parent.as_ptr()).dom = newchild,
-      ParentPtr::AllImg(parent) => (*parent.as_ptr()).img = newchild,
+      ParentPtr::AllImg(parent) => {
+        match newchild {
+          DAGPtr::Lam(link) => (*parent.as_ptr()).img = link,
+          _ => panic!("Cannot install a non-lambda node as image"),
+        }
+      },
       ParentPtr::AnnExp(parent) => (*parent.as_ptr()).exp = newchild,
       ParentPtr::AnnTyp(parent) => (*parent.as_ptr()).typ = newchild,
       ParentPtr::LetExp(parent) => (*parent.as_ptr()).exp = newchild,
@@ -544,15 +536,16 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::All(link) => {
         let All { dom, img, dom_ref, img_ref, .. } = link.as_ref();
+        let img = DAGPtr::Lam(*img);
         let new_dom_parents = dom_ref.unlink_node();
         set_parents(*dom, new_dom_parents);
         if new_dom_parents.is_none() {
           free_dead_node(*dom)
         }
         let new_img_parents = img_ref.unlink_node();
-        set_parents(*img, new_img_parents);
+        set_parents(img, new_img_parents);
         if new_img_parents.is_none() {
-          free_dead_node(*img)
+          free_dead_node(img)
         }
         Box::from_raw(link.as_ptr());
       }
@@ -729,7 +722,8 @@ impl DAG {
         )
       }
       DAGPtr::All(link) => {
-        let All { var, uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
+        let All { uses, dom, img: lam_link, .. } = unsafe { &mut *link.as_ptr() };
+        let Lam { var, bod: img, .. } = unsafe { &mut *lam_link.as_ptr() };
         let nam = var.nam.clone();
         let dom_map = &mut map.clone();
         map.insert(var, depth);
@@ -917,16 +911,10 @@ impl DAG {
       },
       Term::All(_, uses, nam, dom_img) => unsafe {
         let (dom, img) = (**dom_img).clone();
-        let all = alloc_all(
-          nam.clone(),
-          0,
-          None,
-          *uses,
-          mem::zeroed(),
-          mem::zeroed(),
-          parents,
-        );
-        let All { var, dom_ref, img_ref, .. } = &mut *all.as_ptr();
+        let all = alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents,);
+        let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
+        let lam = alloc_lam(nam.clone(), 0, None, mem::zeroed(), NonNull::new(img_ref));
+        let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         let mut img_ctx = ctx.clone();
         let dom = DAG::from_term_inner(
           &dom,
@@ -940,11 +928,12 @@ impl DAG {
           &img,
           depth + 1,
           img_ctx,
-          NonNull::new(img_ref),
+          NonNull::new(bod_ref),
           rec_ref.clone(),
         );
         (*all.as_ptr()).dom = dom;
-        (*all.as_ptr()).img = img;
+        (*all.as_ptr()).img = lam;
+        (*lam.as_ptr()).bod = img;
         DAGPtr::All(all)
       },
       Term::App(_, fun_arg) => unsafe {
@@ -1125,30 +1114,25 @@ impl DAG {
         DAGPtr::App(app)
       },
       DAGPtr::All(link) => unsafe {
-        let All { var, uses, dom, img, .. } = &mut *link.as_ptr();
+        let All { uses, dom, img, .. } = &mut *link.as_ptr();
         let all = alloc_all(
-          var.nam.clone(),
-          var.dep,
-          None,
           *uses,
           mem::zeroed(),
-          mem::zeroed(),
+          NonNull::dangling(),
           parents,
         );
         let All {
-          var: new_var,
           dom: new_dom,
           dom_ref,
           img: new_img,
           img_ref,
           ..
         } = &mut *all.as_ptr();
-        map.insert(
-          DAGPtr::Var(NonNull::new(var).unwrap()),
-          DAGPtr::Var(NonNull::new(new_var).unwrap()),
-        );
         *new_dom = DAG::from_subdag(*dom, map, NonNull::new(dom_ref));
-        *new_img = DAG::from_subdag(*img, map, NonNull::new(img_ref));
+        *new_img = match DAG::from_subdag(DAGPtr::Lam(*img), map, NonNull::new(img_ref)) {
+          DAGPtr::Lam(link) => link,
+          _ => panic!("Clone implementation incorrect"),
+        };
         DAGPtr::All(all)
       },
       DAGPtr::Let(link) => unsafe {
@@ -1269,7 +1253,6 @@ impl fmt::Debug for DAG {
           let binder = match binder {
             BinderPtr::Free => format!("Free<{}>", *dep),
             BinderPtr::Lam(link) => format!("Lam<{:?}>", link.as_ptr()),
-            BinderPtr::All(link) => format!("All<{:?}>", link.as_ptr()),
             BinderPtr::Slf(link) => format!("Slf<{:?}>", link.as_ptr()),
             BinderPtr::Let(link) => format!("Let<{:?}>", link.as_ptr()),
           };
@@ -1431,18 +1414,16 @@ impl fmt::Debug for DAG {
         DAGPtr::All(link) => {
           if set.get(&(link.as_ptr() as usize)).is_none() {
             set.insert(link.as_ptr() as usize);
-            let All { var, dom, img, parents, copy, .. } =
+            let All { dom, img, parents, copy, .. } =
               unsafe { link.as_ref() };
-            let name = var.nam.clone();
             let copy = copy.map(|link| link.as_ptr() as usize);
             format!(
-              "\nAll<{:?}> {} parents: {} copy: {:?}{}{}",
+              "\nAll<{:?}> parents: {} copy: {:?}{}{}",
               link.as_ptr(),
-              name,
               format_parents(*parents),
               copy,
               go(*dom, set),
-              go(*img, set),
+              go(DAGPtr::Lam(*img), set),
             )
           }
           else {

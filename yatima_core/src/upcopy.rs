@@ -64,14 +64,11 @@ pub fn clean_up(cc: &ParentPtr) {
     ParentPtr::AllDom(mut link) | ParentPtr::AllImg(mut link) => unsafe {
       let all = link.as_mut();
       if let Some(all_copy) = all.copy {
-        let All { var, dom, img, dom_ref, img_ref, .. } =
+        let All { dom, img, dom_ref, img_ref, .. } =
           &mut *all_copy.as_ptr();
         all.copy = None;
         add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
-        add_to_parents(*img, NonNull::new(img_ref).unwrap());
-        for parent in DLL::iter_option(var.parents) {
-          clean_up(parent);
-        }
+        add_to_parents(DAGPtr::Lam(*img), NonNull::new(img_ref).unwrap());
         for parent in DLL::iter_option(all.parents) {
           clean_up(parent);
         }
@@ -211,19 +208,14 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
       }
       ParentPtr::AllDom(link) => {
-        let All { copy, uses, var, img, parents, .. } = link.as_ref();
+        let All { copy, uses, img, parents, .. } = link.as_ref();
         match copy {
           Some(cache) => {
             (*cache.as_ptr()).dom = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents, .. } = var;
             let new_all =
-              alloc_all(nam.clone(), *dep, None, *uses, new_child, *img, None);
-            let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
-            for parent in DLL::iter_option(*var_parents) {
-              upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-            }
+              alloc_all(*uses, new_child, *img, None);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::All(new_all), *parent)
             }
@@ -231,19 +223,18 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
       }
       ParentPtr::AllImg(link) => {
-        let All { copy, uses, var, dom, parents, .. } = link.as_ref();
+        let All { copy, uses, dom, parents, .. } = link.as_ref();
+        let new_child = match new_child {
+          DAGPtr::Lam(link) => link,
+          _ => panic!("Cannot install a non-lambda node as image"),
+        };
         match copy {
           Some(cache) => {
             (*cache.as_ptr()).img = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents, .. } = var;
             let new_all =
-              alloc_all(nam.clone(), *dep, None, *uses, *dom, new_child, None);
-            let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
-            for parent in DLL::iter_option(*var_parents) {
-              upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-            }
+              alloc_all(*uses, *dom, new_child, None);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::All(new_all), *parent)
             }

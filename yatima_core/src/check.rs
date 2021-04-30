@@ -109,6 +109,8 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
             *a_link.as_ptr();
           let All { uses: b_uses, dom: b_dom, img: b_img, .. } =
             *b_link.as_ptr();
+          let a_img = DAGPtr::Lam(a_img);
+          let b_img = DAGPtr::Lam(b_img);
           if a_uses != b_uses {
             return false;
           }
@@ -215,7 +217,8 @@ pub fn validate_downlinks(node: DAGPtr) -> Result<(), CheckError> {
         go(*arg, Some(arg_link), map)
       },
       DAGPtr::All(link) => {
-        let All { var, dom, dom_ref, img, img_ref, .. } = unsafe { link.as_ref() };
+        let All { dom, dom_ref, img, img_ref, .. } = unsafe { link.as_ref() };
+        let img = &DAGPtr::Lam(*img);
         let dom_link = match dom_ref.elem {
           ParentPtr::AllDom(link) => link.as_ptr() as usize,
           uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
@@ -225,13 +228,7 @@ pub fn validate_downlinks(node: DAGPtr) -> Result<(), CheckError> {
           uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
         };
         let _ = go(*dom, Some(dom_link), map)?;
-        let _ = go(*img, Some(img_link), map)?;
-        if var.parents.is_none() || map.contains(&(var as *const Var as usize)) {
-          Ok(())
-        }
-        else {
-          Err(CheckError::GenericError(format!("Cannot find variable {:?}", var)))
-        }
+        go(*img, Some(img_link), map)
       },
       DAGPtr::Slf(link) => {
         let Slf { var, bod, bod_ref, .. } = unsafe { link.as_ref() };
@@ -327,8 +324,10 @@ pub fn check(
         DAGPtr::All(all_link) => {
           let Lam { bod: lam_bod, var: lam_var, .. } =
             unsafe { &mut *lam_link.as_ptr() };
-          let All { uses: lam_uses, var: all_var, dom, img, .. } =
+          let All { uses: lam_uses, dom, img, .. } =
             unsafe { &mut *all_link.as_ptr() };
+          let Lam { var: all_var, bod: img, .. } =
+            unsafe { &mut *img.as_ptr() };
           // Annotate the depth of the node that binds each variable
           (*all_var).dep = ctx.len() as u64;
           (*lam_var).dep = ctx.len() as u64;
@@ -443,8 +442,10 @@ pub fn infer(
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(link) => {
-          let All { var, uses: lam_uses, dom, img, .. } =
+          let All { uses: lam_uses, dom, img, .. } =
             unsafe { &mut *link.as_ptr() };
+          let Lam { var, bod: img, .. } =
+            unsafe { &mut *img.as_ptr() };
           let arg_use_ctx =
             check(defs, ctx, *lam_uses * uses, &mut arg, &mut DAG::new(*dom))?;
           add_use_ctx(&mut fun_use_ctx, arg_use_ctx);
@@ -497,7 +498,9 @@ pub fn infer(
       }
     }
     DAGPtr::All(link) => {
-      let All { var, dom, img, .. } = unsafe { &mut *link.as_ptr() };
+      let All { dom, img, .. } = unsafe { &mut *link.as_ptr() };
+      let Lam { var, bod: img, .. } =
+        unsafe { &mut *img.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(Pos::None));
       let _ =
         check(defs, ctx.clone(), Uses::None, &mut DAG::new(*dom), &mut typ)?;
