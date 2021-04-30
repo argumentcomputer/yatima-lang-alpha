@@ -55,7 +55,7 @@ pub type Parents = DLL<ParentPtr>;
 
 // A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
 // the child and the parent.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ParentPtr {
   Root,
   LamBod(NonNull<Lam>),

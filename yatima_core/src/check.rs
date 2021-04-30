@@ -50,15 +50,32 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
 }
 
 pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
+  fn validate(msg: &str, node: DAGPtr) {
+    match validate_downlinks(node) {
+      Ok(_) => (),
+      Err(CheckError::GenericError(e)) => {
+        println!("{}: {}", msg, e);
+        panic!("");
+      },
+    }
+  }
+  validate("a outside the loop, before whnf", a.head);
+  validate("b outside the loop, before whnf", b.head);
   a.whnf(defs);
   b.whnf(defs);
+  validate("a outside the loop, after whnf", a.head);
+  validate("b outside the loop, after whnf", b.head);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set: HashSet<(Cid, Cid)> = HashSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
+    validate("a inside the loop, before whnf", a.head);
+    validate("b inside the loop, before whnf", b.head);
     a.whnf(defs);
     b.whnf(defs);
+    validate("a inside the loop, after whnf", a.head);
+    validate("b inside the loop, after whnf", b.head);
     let hash_a = hash(a.head, dep);
     let hash_b = hash(b.head, dep);
     let eq = hash_a == hash_b
@@ -137,6 +154,164 @@ pub fn mul_use_ctx(uses: Uses, use_ctx: &mut UseCtx) {
     use_ctx[i] = use_ctx[i] * uses
   }
 }
+
+pub fn validate_downlinks(node: DAGPtr) -> Result<(), CheckError> {
+  fn go(node: DAGPtr, parent_link: Option<usize>, map: &mut HashSet<usize>) -> Result<(), CheckError> {
+    if let Some(parent_link) = parent_link {
+      let mut valid = false;
+      for parent in DLL::iter_option(get_parents(node)) {
+        let found = match parent {
+          ParentPtr::Root => false,
+          ParentPtr::LamBod(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::SlfBod(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::DatBod(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::CseBod(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::AppFun(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::AppArg(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::AllDom(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::AllImg(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::AnnTyp(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::AnnExp(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::LetTyp(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::LetExp(link) => parent_link == link.as_ptr() as usize,
+          ParentPtr::LetBod(link) => parent_link == link.as_ptr() as usize,
+        };
+        if found {
+          valid = true;
+          break
+        }
+      }
+      if !valid {
+        println!("{node}{node:?}", node=DAG::new(node));
+        return Err(CheckError::GenericError(format!("Cannot find uplink")))
+      }
+    }
+    match node {
+      DAGPtr::Lam(link) => {
+        let Lam { var, bod, bod_ref, .. } = unsafe { link.as_ref() };
+        let parent_link = match bod_ref.elem {
+          ParentPtr::LamBod(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let _ = go(*bod, Some(parent_link), map)?;
+        if var.parents.is_none() || map.contains(&(var as *const Var as usize)) {
+          Ok(())
+        }
+        else {
+          Err(CheckError::GenericError(format!("Cannot find variable {:?}", var)))
+        }
+      },
+      DAGPtr::App(link) => {
+        let App { fun, fun_ref, arg, arg_ref, .. } = unsafe { link.as_ref() };
+        let fun_link = match fun_ref.elem {
+          ParentPtr::AppFun(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let arg_link = match arg_ref.elem {
+          ParentPtr::AppArg(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let _ = go(*fun, Some(fun_link), map)?;
+        go(*arg, Some(arg_link), map)
+      },
+      DAGPtr::All(link) => {
+        let All { var, dom, dom_ref, img, img_ref, .. } = unsafe { link.as_ref() };
+        let dom_link = match dom_ref.elem {
+          ParentPtr::AllDom(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let img_link = match img_ref.elem {
+          ParentPtr::AllImg(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let _ = go(*dom, Some(dom_link), map)?;
+        let _ = go(*img, Some(img_link), map)?;
+        if var.parents.is_none() || map.contains(&(var as *const Var as usize)) {
+          Ok(())
+        }
+        else {
+          Err(CheckError::GenericError(format!("Cannot find variable {:?}", var)))
+        }
+      },
+      DAGPtr::Slf(link) => {
+        let Slf { var, bod, bod_ref, .. } = unsafe { link.as_ref() };
+        let parent_link = match bod_ref.elem {
+          ParentPtr::SlfBod(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let _ = go(*bod, Some(parent_link), map)?;
+        if var.parents.is_none() || map.contains(&(var as *const Var as usize)) {
+          Ok(())
+        }
+        else {
+          Err(CheckError::GenericError(format!("Cannot find variable {:?}", var)))
+        }
+      },
+      DAGPtr::Dat(link) => {
+        let Dat { bod, bod_ref, .. } = unsafe { link.as_ref() };
+        let parent_link = match bod_ref.elem {
+          ParentPtr::DatBod(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        go(*bod, Some(parent_link), map)
+      },
+      DAGPtr::Cse(link) => {
+        let Cse { bod, bod_ref, .. } = unsafe { link.as_ref() };
+        let parent_link = match bod_ref.elem {
+          ParentPtr::CseBod(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        go(*bod, Some(parent_link), map)
+      },
+      DAGPtr::Let(link) => {
+        let Let { var, typ, typ_ref, exp, exp_ref, bod, bod_ref,  .. } = unsafe { link.as_ref() };
+        let typ_link = match typ_ref.elem {
+          ParentPtr::LetTyp(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let exp_link = match exp_ref.elem {
+          ParentPtr::LetExp(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let bod_link = match bod_ref.elem {
+          ParentPtr::LetBod(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let _ = go(*typ, Some(typ_link), map)?;
+        let _ = go(*exp, Some(exp_link), map)?;
+        let _ = go(*bod, Some(bod_link), map)?;
+        if var.parents.is_none() || map.contains(&(var as *const Var as usize)) {
+          Ok(())
+        }
+        else {
+          Err(CheckError::GenericError(format!("Cannot find variable {:?}", var)))
+        }
+      },
+      DAGPtr::Ann(link) => {
+        let Ann { typ, typ_ref, exp, exp_ref, .. } = unsafe { link.as_ref() };
+        let typ_link = match typ_ref.elem {
+          ParentPtr::AnnTyp(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let exp_link = match exp_ref.elem {
+          ParentPtr::AnnExp(link) => link.as_ptr() as usize,
+          uplink => return Err(CheckError::GenericError(format!("Wrong uplink {:?}", uplink)))
+        };
+        let _ = go(*typ, Some(typ_link), map)?;
+        go(*exp, Some(exp_link), map)
+      },
+      DAGPtr::Var(link) => {
+        map.insert(link.as_ptr() as usize);
+        Ok(())
+      }
+      _ => {
+        Ok(())
+      }
+    }
+  }
+  go(node, None, &mut HashSet::new())
+}
+
 
 pub fn check(
   defs: &Defs,
