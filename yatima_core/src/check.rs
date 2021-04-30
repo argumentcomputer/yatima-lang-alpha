@@ -7,6 +7,7 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
+  graph,
   literal::{
     LitType,
     Literal,
@@ -214,7 +215,7 @@ pub fn check(
       let (use_ctx, mut infer_typ) = infer(defs, ctx, uses, term)?;
       let mut typ_clone = typ.clone();
       let eq = equal(defs, &mut typ_clone, &mut infer_typ, depth as u64);
-      typ_clone.free();
+      // typ_clone.free();
       infer_typ.free();
       if eq {
         Ok(use_ctx)

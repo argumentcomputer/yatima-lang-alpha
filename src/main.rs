@@ -53,7 +53,7 @@ fn main() -> std::io::Result<()> {
         for n in &i.with {
           match yatima_core::check::check_def(
             &ds,
-            &yatima_core::package::import_alias(n.to_owned(), &i.alias),
+            &yatima_core::package::import_alias(n.to_owned(), &i),
           ) {
             Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
             Err(err) => {

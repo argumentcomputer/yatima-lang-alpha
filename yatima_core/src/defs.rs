@@ -4,6 +4,7 @@ use crate::{
   package::{
     import_alias,
     Entry,
+    Import,
   },
   position::Pos,
   term::Term,
@@ -111,24 +112,16 @@ impl Defs {
     self.defs.get(&def_cid)
   }
 
-  pub fn merge(self, other: Defs, alias: &String) -> Self {
-    if alias == "" {
-      Defs {
-        defs: self.defs.union(other.defs),
-        names: self.names.union(other.names),
-      }
-    }
-    else {
-      Defs {
-        defs: self.defs.union(other.defs),
-        names: self.names.union(
-          other
-            .names
-            .into_iter()
-            .map(|(k, v)| (import_alias(k, alias), v))
-            .collect(),
-        ),
-      }
+  pub fn merge(self, other: Defs, import: &Import) -> Self {
+    Defs {
+      defs: self.defs.union(other.defs),
+      names: self.names.union(
+        other
+          .names
+          .into_iter()
+          .map(|(k, v)| (import_alias(k, import), v))
+          .collect(),
+      ),
     }
   }
 }

@@ -172,8 +172,13 @@ impl Import {
   }
 }
 
-pub fn import_alias(name: String, alias: &String) -> String {
-  if alias == "" { name } else { format!("{}.{}", alias, name) }
+pub fn import_alias(name: String, import: &Import) -> String {
+  if import.with.iter().any(|x| *x == name) {
+    if import.alias == "" { name } else { format!("{}.{}", import.alias, name) }
+  }
+  else {
+    format!("{}.{}", import.name, name)
+  }
 }
 
 impl Package {
