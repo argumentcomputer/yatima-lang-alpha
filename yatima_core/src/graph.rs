@@ -248,7 +248,7 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let bod_ix = from_dag_ptr(bod, map, graph);
-        // graph.add_edge(ix, bod_ix, Edge::Downlink);
+        graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }
     }
@@ -262,7 +262,7 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let bod_ix = from_dag_ptr(bod, map, graph);
-        // graph.add_edge(ix, bod_ix, Edge::Downlink);
+        graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }
     }
@@ -276,7 +276,7 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let bod_ix = from_dag_ptr(bod, map, graph);
-        // graph.add_edge(ix, bod_ix, Edge::Downlink);
+        graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }
     }
@@ -290,7 +290,7 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let bod_ix = from_dag_ptr(bod, map, graph);
-        // graph.add_edge(ix, bod_ix, Edge::Downlink);
+        graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }
     }
@@ -304,9 +304,9 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let fun_ix = from_dag_ptr(fun, map, graph);
-        // graph.add_edge(ix, fun_ix, Edge::Downlink);
+        graph.add_edge(ix, fun_ix, Edge::Downlink);
         let arg_ix = from_dag_ptr(arg, map, graph);
-        // graph.add_edge(ix, arg_ix, Edge::Downlink);
+        graph.add_edge(ix, arg_ix, Edge::Downlink);
         ix
       }
     }
@@ -320,9 +320,9 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let typ_ix = from_dag_ptr(typ, map, graph);
-        // graph.add_edge(ix, typ_ix, Edge::Downlink);
+        graph.add_edge(ix, typ_ix, Edge::Downlink);
         let exp_ix = from_dag_ptr(exp, map, graph);
-        // graph.add_edge(ix, exp_ix, Edge::Downlink);
+        graph.add_edge(ix, exp_ix, Edge::Downlink);
         ix
       }
     }
@@ -338,9 +338,9 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let dom_ix = from_dag_ptr(dom, map, graph);
-        // graph.add_edge(ix, dom_ix, Edge::Downlink);
+        graph.add_edge(ix, dom_ix, Edge::Downlink);
         let img_ix = from_dag_ptr(img, map, graph);
-        // graph.add_edge(ix, img_ix, Edge::Downlink);
+        graph.add_edge(ix, img_ix, Edge::Downlink);
         ix
       }
     }
@@ -356,11 +356,11 @@ pub fn from_dag_ptr(
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let typ_ix = from_dag_ptr(typ, map, graph);
-        // graph.add_edge(ix, typ_ix, Edge::Downlink);
+        graph.add_edge(ix, typ_ix, Edge::Downlink);
         let exp_ix = from_dag_ptr(exp, map, graph);
-        // graph.add_edge(ix, exp_ix, Edge::Downlink);
+        graph.add_edge(ix, exp_ix, Edge::Downlink);
         let bod_ix = from_dag_ptr(bod, map, graph);
-        // graph.add_edge(ix, bod_ix, Edge::Downlink);
+        graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }
     }
@@ -461,9 +461,9 @@ pub fn to_dot<'a>(graph: &'a Graph) -> Dot<'a, &'a Graph> {
       | Edge::LetBod => format!(", weight = 1"),
     },
     &|_, n| match n.1 {
-      // Node::Var { .. } | Node::Ref { .. } => {
-      //  format!("] {{rank = max; {}}} [", n.0.index())
-      //}
+      Node::Var { .. } | Node::Ref { .. } => {
+        format!("] {{rank = max; {}}} [", n.0.index())
+      }
       _ => "".to_string(),
     },
   )
