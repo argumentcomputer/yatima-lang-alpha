@@ -14,7 +14,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 yatima_core = { path = "yatima_core"}
-cid = "0.6.1"
+cid = ">= 0.6.0"
 multihash = "0.13.2"
 multibase = "0.9.1"
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
