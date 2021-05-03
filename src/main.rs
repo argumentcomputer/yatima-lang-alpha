@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use yatima::file;
+use yatima::{file, ipfs};
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]
@@ -22,8 +22,8 @@ enum Cli {
 //  },
 //  Repl,
 //   Test,
-
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
   let command = Cli::from_args();
   match command {
     // Cli::Repl => repl::main().unwrap(),
@@ -32,6 +32,7 @@ fn main() -> std::io::Result<()> {
       let env = file::parse::PackageEnv::new(root, path);
       let (cid, p, d) = file::parse::parse_file(env);
       file::store::put(p.to_ipld());
+      ipfs::dag_put(p.to_ipld()).await;
       println!("Package parsed:\n{}", cid);
       println!("{}", d);
       Ok(())
