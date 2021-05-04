@@ -216,6 +216,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
           None => {
             let new_all =
               alloc_all(*uses, new_child, *img, None);
+            (*link.as_ptr()).copy = Some(new_all);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::All(new_all), *parent)
             }
@@ -235,6 +236,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
           None => {
             let new_all =
               alloc_all(*uses, *dom, new_child, None);
+            (*link.as_ptr()).copy = Some(new_all);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::All(new_all), *parent)
             }

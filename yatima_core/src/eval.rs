@@ -308,7 +308,6 @@ impl DAG {
           replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *exp);
           free_dead_node(node);
           node = *bod;
-          break;
         }
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
@@ -316,7 +315,9 @@ impl DAG {
           if let Some(def) = defs.defs.get(exp) {
             let parents = *ref_parents;
             *ref_parents = None;
+            let ref_node = node;
             node = DAG::from_ref(&def, nam.clone(), *exp, *ast, parents);
+            free_dead_node(ref_node);
             for parent in DLL::iter_option(parents) {
               install_child(parent, node);
             }
