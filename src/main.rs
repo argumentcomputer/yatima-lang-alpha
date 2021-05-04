@@ -32,8 +32,8 @@ async fn main() -> std::io::Result<()> {
       let env = file::parse::PackageEnv::new(root, path);
       let (cid, p, d) = file::parse::parse_file(env);
       file::store::put(p.to_ipld());
-      ipfs::dag_put(p.to_ipld()).await;
-      println!("Package parsed:\n{}", cid);
+      let ipld_cid = ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
+      println!("Package parsed:\n{} {}", cid, ipld_cid);
       println!("{}", d);
       Ok(())
     }
