@@ -93,6 +93,8 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
             *a_link.as_ptr();
           let All { uses: b_uses, dom: b_dom, img: b_img, .. } =
             *b_link.as_ptr();
+          let a_img = DAGPtr::Lam(a_img);
+          let b_img = DAGPtr::Lam(b_img);
           if a_uses != b_uses {
             return false;
           }
@@ -153,8 +155,10 @@ pub fn check(
         DAGPtr::All(all_link) => {
           let Lam { bod: lam_bod, var: lam_var, .. } =
             unsafe { &mut *lam_link.as_ptr() };
-          let All { uses: lam_uses, var: all_var, dom, img, .. } =
+          let All { uses: lam_uses, dom, img, .. } =
             unsafe { &mut *all_link.as_ptr() };
+          let Lam { var: all_var, bod: img, .. } =
+            unsafe { &mut *img.as_ptr() };
           // Annotate the depth of the node that binds each variable
           (*all_var).dep = ctx.len() as u64;
           (*lam_var).dep = ctx.len() as u64;
@@ -213,9 +217,7 @@ pub fn check(
     _ => {
       let depth = ctx.len();
       let (use_ctx, mut infer_typ) = infer(defs, ctx, uses, term)?;
-      let mut typ_clone = typ.clone();
-      let eq = equal(defs, &mut typ_clone, &mut infer_typ, depth as u64);
-      // typ_clone.free();
+      let eq = equal(defs, typ, &mut infer_typ, depth as u64);
       infer_typ.free();
       if eq {
         Ok(use_ctx)
@@ -269,8 +271,9 @@ pub fn infer(
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(link) => {
-          let All { var, uses: lam_uses, dom, img, .. } =
+          let All { uses: lam_uses, dom, img, .. } =
             unsafe { &mut *link.as_ptr() };
+          let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
           let arg_use_ctx =
             check(defs, ctx, *lam_uses * uses, &mut arg, &mut DAG::new(*dom))?;
           add_use_ctx(&mut fun_use_ctx, arg_use_ctx);
@@ -323,7 +326,8 @@ pub fn infer(
       }
     }
     DAGPtr::All(link) => {
-      let All { var, dom, img, .. } = unsafe { &mut *link.as_ptr() };
+      let All { dom, img, .. } = unsafe { &mut *link.as_ptr() };
+      let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(Pos::None));
       let _ =
         check(defs, ctx.clone(), Uses::None, &mut DAG::new(*dom), &mut typ)?;

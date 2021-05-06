@@ -68,16 +68,11 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         break;
       }
       DAGPtr::All(link) => {
-        let All { var: old_var, uses, dom, img, .. } = unsafe { link.as_ref() };
-        let Var { nam, dep, .. } = old_var;
+        let All { uses, dom, img, .. } = unsafe { link.as_ref() };
         let new_all =
-          alloc_all(nam.clone(), *dep, None, *uses, *dom, *img, None);
+          alloc_all(*uses, *dom, *img, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_all);
-          let ptr: *mut Var = &mut (*new_all.as_ptr()).var;
-          for parent in DLL::iter_option(old_var.parents) {
-            upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-          }
         }
         top_branch = Some(Branch::All(link));
         for parent in DLL::iter_option(var.parents) {
@@ -180,12 +175,9 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let top_all = &mut *link.as_ptr();
         let link = top_all.copy.unwrap();
         top_all.copy = None;
-        let All { var, dom, dom_ref, img, img_ref, .. } = &mut *link.as_ptr();
+        let All { dom, dom_ref, img, img_ref, .. } = &mut *link.as_ptr();
         add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
-        add_to_parents(*img, NonNull::new(img_ref).unwrap());
-        for var_parent in DLL::iter_option(var.parents) {
-          clean_up(var_parent);
-        }
+        add_to_parents(DAGPtr::Lam(*img), NonNull::new(img_ref).unwrap());
       },
       Branch::Ann(link) => unsafe {
         let top_ann = &mut *link.as_ptr();
@@ -316,7 +308,6 @@ impl DAG {
           replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *exp);
           free_dead_node(node);
           node = *bod;
-          break;
         }
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
@@ -417,7 +408,7 @@ impl DAG {
         DAGPtr::All(link) => unsafe {
           let all = link.as_ptr();
           let mut dom = DAG::new((*all).dom);
-          let mut img = DAG::new((*all).img);
+          let mut img = DAG::new(DAGPtr::Lam((*all).img));
           dom.whnf(defs);
           img.whnf(defs);
           trail.push(dom.head);

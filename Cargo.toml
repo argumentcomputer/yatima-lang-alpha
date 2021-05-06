@@ -14,7 +14,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 yatima_core = { path = "yatima_core"}
-cid = "0.6.1"
+cid = ">= 0.6.0"
 multihash = "0.13.2"
 multibase = "0.9.1"
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
@@ -27,6 +27,10 @@ base-x = "0.2.8"
 futures = "0.3.13"
 rustyline = "7.1.0"
 directories-next = "2.0.0"
+reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+tokio = { version = "1.5", features = ["rt", "macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

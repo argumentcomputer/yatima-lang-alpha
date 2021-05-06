@@ -4,6 +4,7 @@ use structopt::StructOpt;
 
 use yatima::{
   file,
+  ipfs,
   repl,
 };
 
@@ -25,8 +26,8 @@ enum Cli {
   Repl,
 }
 //   Test,
-
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
   let command = Cli::from_args();
   match command {
     Cli::Repl => {
@@ -38,7 +39,9 @@ fn main() -> std::io::Result<()> {
       let env = file::parse::PackageEnv::new(root, path);
       let (cid, p, d) = file::parse::parse_file(env);
       file::store::put(p.to_ipld());
-      println!("Package parsed:\n{}", cid);
+      let ipld_cid =
+        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
+      println!("Package parsed:\n{} {}", cid, ipld_cid);
       println!("{}", d);
       Ok(())
     }
