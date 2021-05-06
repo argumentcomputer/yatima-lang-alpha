@@ -7,6 +7,7 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
+  graph,
   literal::{
     LitType,
     Literal,
@@ -272,8 +273,7 @@ pub fn infer(
         DAGPtr::All(link) => {
           let All { uses: lam_uses, dom, img, .. } =
             unsafe { &mut *link.as_ptr() };
-          let Lam { var, bod: img, .. } =
-            unsafe { &mut *img.as_ptr() };
+          let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
           let arg_use_ctx =
             check(defs, ctx, *lam_uses * uses, &mut arg, &mut DAG::new(*dom))?;
           add_use_ctx(&mut fun_use_ctx, arg_use_ctx);
@@ -327,8 +327,7 @@ pub fn infer(
     }
     DAGPtr::All(link) => {
       let All { dom, img, .. } = unsafe { &mut *link.as_ptr() };
-      let Lam { var, bod: img, .. } =
-        unsafe { &mut *img.as_ptr() };
+      let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
       let mut typ = DAG::from_term(&Term::Typ(Pos::None));
       let _ =
         check(defs, ctx.clone(), Uses::None, &mut DAG::new(*dom), &mut typ)?;
@@ -417,6 +416,15 @@ pub fn infer_lty(lty: LitType) -> Term {
 }
 
 // pub fn infer_opr(lit: PrimOp) -> Term {}
+//
+pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
+  let mut dag = DAG::from_term(&term);
+  let (_, typ_dag) = infer(&defs, vec![], Uses::Once, &mut dag)?;
+  let typ = DAG::to_term(&typ_dag);
+  typ_dag.free();
+  dag.free();
+  Ok(typ)
+}
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&name.to_string()).ok_or_else(|| {

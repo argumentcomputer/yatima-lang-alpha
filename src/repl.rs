@@ -1,5 +1,4 @@
 // use directories_next::ProjectDirs;
-#[cfg(not(target_arch = "wasm32"))]
 use rustyline::{
   error::ReadlineError,
   Cmd,
@@ -9,33 +8,31 @@ use rustyline::{
   KeyEvent,
 };
 
-#[cfg(not(target_arch = "wasm32"))]
 use im::HashMap;
 
-#[cfg(not(target_arch = "wasm32"))]
 use nom::Err;
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::{
-  core::{
-    dag::DAG,
+pub mod command;
+
+use command::Command;
+
+use yatima_core::{
+  check::{
+    check_def,
+    infer_term,
   },
-  package::Declaration,
-  parse::term::parse,
+  dag::DAG,
+  defs::Defs,
+  parse::{
+    span::Span,
+    term::input_cid,
+  },
 };
 
-#[cfg(target_arch = "wasm32")]
-pub fn main() -> Result<(),()> {
-  println!("REPL not supported yet");
-  Ok(())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
   let mut rl = Editor::<()>::with_config(config);
-  let defs = HashMap::new();
-  let mut _decls: Vec<Declaration> = Vec::new();
+  let mut defs = Defs::new();
   rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
   rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
   if rl.load_history("history.txt").is_err() {
@@ -46,15 +43,49 @@ pub fn main() -> rustyline::Result<()> {
     match readline {
       Ok(line) => {
         rl.add_history_entry(line.as_str());
-        let res = parse(&line);
+        let res = command::parse_command(
+          input_cid(line.as_str()),
+          defs.clone(),
+        )(Span::new(&line));
         match res {
-          Ok((_, term)) => {
-            let mut dag = DAG::from_term(&term);
-            dag.norm(&defs);
-            println!("{}", dag);
-          }
+          Ok((_, command)) => match command {
+            Command::Eval(term) => {
+              let mut dag = DAG::from_term(&term);
+              dag.norm(&defs);
+              println!("{}", dag);
+            }
+            Command::Type(term) => {
+              let res = infer_term(&defs, *term);
+              match res {
+                Ok(term) => println!("{}", term),
+                Err(e) => println!("Error: {}", e),
+              }
+            }
+            Command::Define(boxed) => {
+              let (n, def, _) = *boxed;
+              let mut tmp_defs = defs.clone();
+              tmp_defs.insert(n.clone(), def);
+              let res = check_def(&tmp_defs, &n);
+              match res {
+                Ok(res) => {
+                  defs = tmp_defs;
+                  println!("{} : {}", n, res.pretty(Some(&n)))
+                }
+                Err(e) => println!("Error: {}", e),
+              }
+            }
+            Command::Browse => {
+              for (n, d) in defs.named_defs() {
+                println!("{}", d.pretty(n))
+              }
+            }
+            Command::Quit => {
+              println!("Goodbye.");
+              break;
+            }
+          },
           Err(e) => match e {
-            Err::Incomplete(_) => println!("Incomplete"),
+            Err::Incomplete(_) => println!("Incomplete Input"),
             Err::Failure(e) => {
               println!("Parse Failure:\n");
               println!("{}", e);

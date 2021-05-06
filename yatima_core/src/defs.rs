@@ -4,6 +4,7 @@ use crate::{
   package::{
     import_alias,
     Entry,
+    Import,
   },
   position::Pos,
   term::Term,
@@ -85,8 +86,13 @@ impl Def {
     })
   }
 
-  pub fn fmt(&self, name: String, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "def {} : {} = {}", name, self.typ_, self.term)
+  pub fn pretty(&self, name: String) -> String {
+    format!(
+      "def {} : {} = {}",
+      name,
+      self.typ_.pretty(Some(&name)),
+      self.term.pretty(Some(&name))
+    )
   }
 }
 
@@ -101,6 +107,14 @@ impl Defs {
     res
   }
 
+  pub fn named_defs(&self) -> Vec<(String, Def)> {
+    let mut res = Vec::new();
+    for (n, cid) in &self.names {
+      res.push((n.clone(), self.defs.get(cid).unwrap().clone()))
+    }
+    res
+  }
+
   pub fn insert(&mut self, name: String, def: Def) -> Option<Def> {
     self.names.insert(name, def.def_cid);
     self.defs.insert(def.def_cid, def)
@@ -111,24 +125,16 @@ impl Defs {
     self.defs.get(&def_cid)
   }
 
-  pub fn merge(self, other: Defs, alias: &String) -> Self {
-    if alias == "" {
-      Defs {
-        defs: self.defs.union(other.defs),
-        names: self.names.union(other.names),
-      }
-    }
-    else {
-      Defs {
-        defs: self.defs.union(other.defs),
-        names: self.names.union(
-          other
-            .names
-            .into_iter()
-            .map(|(k, v)| (import_alias(k, alias), v))
-            .collect(),
-        ),
-      }
+  pub fn merge(self, other: Defs, import: &Import) -> Self {
+    Defs {
+      defs: self.defs.union(other.defs),
+      names: self.names.union(
+        other
+          .names
+          .into_iter()
+          .map(|(k, v)| (import_alias(k, import), v))
+          .collect(),
+      ),
     }
   }
 }
@@ -139,7 +145,7 @@ impl Default for Defs {
 
 impl fmt::Display for Def {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    self.fmt("#*".to_owned(), f)
+    write!(f, "{}", self.pretty("#^".to_string()))
   }
 }
 impl fmt::Display for Defs {

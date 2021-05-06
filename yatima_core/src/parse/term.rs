@@ -778,8 +778,8 @@ pub fn input_cid(i: &str) -> Cid {
   )
 }
 
-pub fn parse(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), Defs::new(), None, Vector::new())(Span::new(i))
+pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
+  parse_expression(input_cid(i), defs, None, Vector::new())(Span::new(i))
 }
 
 #[cfg(test)]

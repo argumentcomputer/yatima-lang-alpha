@@ -46,7 +46,10 @@ use std::{
 use cid::Cid;
 use libipld::ipld::Ipld;
 
-use im::HashSet;
+use im::{
+  HashMap,
+  HashSet,
+};
 
 use nom::{
   bytes::complete::tag,
@@ -56,37 +59,58 @@ use nom::{
   IResult,
 };
 
+use std::{
+  cell::RefCell,
+  rc::Rc,
+};
+
 #[derive(Debug, Clone)]
 pub struct PackageEnv {
   root: PathBuf,
   path: PathBuf,
   open: HashSet<PathBuf>,
-  /* TODO: Cache of completed files so we don't reparse files we've
-   * already parsed
-   * done: Rc<HashMap<PathBuf, Link>>, */
+  /* sources: Rc<RefCell<HashMap<Cid, PathBuf>>>,
+   * done: Rc<RefCell<HashMap<PathBuf, Cid>>>, */
 }
 
 impl PackageEnv {
   #[must_use]
   pub fn new(root: PathBuf, path: PathBuf) -> Self {
-    Self { root, path, open: HashSet::new() }
+    Self {
+      root,
+      path,
+      open: HashSet::new(),
+      /*    sources: Rc::new(RefCell::new(HashMap::new())),
+       *    done: Rc::new(RefCell::new(HashMap::new())), */
+    }
   }
+
+  // pub fn insert_source(&self, cid: Cid, path: PathBuf) {
+  //  let mut sources = self.sources.borrow_mut();
+  //  sources.insert(cid, path);
+  //}
+
+  // pub fn insert_done(&self, path: PathBuf, cid: Cid) {
+  //  let mut done = self.done.borrow_mut();
+  //  done.insert(path, cid);
+  //}
 }
 
 pub fn parse_file(env: PackageEnv) -> (Cid, Package, Defs) {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).expect("file not found");
   let input_cid = store::put(Ipld::String(txt.clone()));
+  // env.insert_source(input_cid, path.clone());
   match parse_package(input_cid, env)(Span::new(&txt)) {
     Ok((_, p)) => p,
     Err(e) => match e {
       Err::Incomplete(_) => panic!("Incomplete"),
       Err::Failure(e) => {
-        println!("Parse Failure:\n{}", e);
+        println!("Parse Failure in {}:\n{}", path.to_string_lossy(), e);
         panic!()
       }
       Err::Error(e) => {
-        println!("Parse Error:\n{}", e);
+        println!("Parse Error in {}:\n{}", path.to_string_lossy(), e);
         panic!()
       }
     },
@@ -166,7 +190,13 @@ pub fn parse_import(
         Err(Err::Error(FileError::new(i, FileErrorKind::ImportCycle(path))))
       }
       else {
-        let env = PackageEnv { root: env.root.clone(), path, open };
+        let env = PackageEnv {
+          root: env.root.clone(),
+          path,
+          open,
+          /* sources: env.sources.clone(),
+           * done: env.done.clone(), */
+        };
         let (from, _, defs) = parse_file(env);
         let with = with.unwrap_or_else(|| defs.names());
         Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
@@ -190,18 +220,15 @@ pub fn parse_imports(
         Ok((i_end, _)) => return Ok((i_end, (imps, defs))),
         _ => {
           let (i2, (from, imp, imp_defs)) = parse_import(env.clone())(i)?;
-          let imp_name = imp.name.clone();
-          let imp_alias = imp.alias.clone();
-          imps.push(imp);
           for (def_name, _) in &imp_defs.names {
             let imp_def = imp_defs.get(def_name).unwrap();
-            let def_name = import_alias(def_name.clone(), &imp_alias);
+            let def_name = import_alias(def_name.clone(), &imp);
             if let Some(def) = defs.get(&def_name) {
               if imp_def.def_cid != def.def_cid {
                 return Err(Err::Error(FileError::new(
                   i,
                   FileErrorKind::ImportCollision(
-                    imp_name,
+                    imp.name.clone(),
                     from,
                     def_name.clone(),
                   ),
@@ -209,7 +236,8 @@ pub fn parse_imports(
               }
             }
           }
-          defs = defs.merge(imp_defs, &imp_alias);
+          defs = defs.merge(imp_defs, &imp);
+          imps.push(imp);
           i = i2;
         }
       }
