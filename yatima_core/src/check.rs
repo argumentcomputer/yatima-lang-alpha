@@ -416,6 +416,15 @@ pub fn infer_lty(lty: LitType) -> Term {
 }
 
 // pub fn infer_opr(lit: PrimOp) -> Term {}
+//
+pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
+  let mut dag = DAG::from_term(&term);
+  let (_, typ_dag) = infer(&defs, vec![], Uses::Once, &mut dag)?;
+  let typ = DAG::to_term(&typ_dag);
+  typ_dag.free();
+  dag.free();
+  Ok(typ)
+}
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&name.to_string()).ok_or_else(|| {
