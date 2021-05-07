@@ -7,10 +7,7 @@ use yatima_core::{
   parse::{
     package::parse_entry,
     span::Span,
-    term::{
-      input_cid,
-      parse_expression,
-    },
+    term::parse_expression,
   },
   term::Term,
 };
@@ -27,26 +24,6 @@ use nom::{
   self,
   branch::alt,
   bytes::complete::tag,
-  combinator::{
-    eof,
-    map,
-    opt,
-    peek,
-    success,
-    value,
-  },
-  error::context,
-  multi::{
-    many0,
-    many1,
-    separated_list1,
-  },
-  sequence::{
-    delimited,
-    preceded,
-    terminated,
-  },
-  Err,
   IResult,
 };
 
@@ -67,9 +44,14 @@ pub fn parse_eval(
   defs: Defs,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
-    let (i, trm) =
-      parse_expression(input, defs.clone(), None, Vector::new())(i)
-        .map_err(error::convert)?;
+    let (i, trm) = parse_expression(
+      input,
+      defs.clone(),
+      None,
+      Vector::new(),
+      Vector::new(),
+    )(i)
+    .map_err(error::convert)?;
     Ok((i, Command::Eval(Box::new(trm))))
   }
 }
@@ -80,9 +62,14 @@ pub fn parse_type(
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, _) = alt((tag(":t"), tag(":type")))(i)?;
-    let (i, trm) =
-      parse_expression(input, defs.clone(), None, Vector::new())(i)
-        .map_err(error::convert)?;
+    let (i, trm) = parse_expression(
+      input,
+      defs.clone(),
+      None,
+      Vector::new(),
+      Vector::new(),
+    )(i)
+    .map_err(error::convert)?;
     Ok((i, Command::Type(Box::new(trm))))
   }
 }

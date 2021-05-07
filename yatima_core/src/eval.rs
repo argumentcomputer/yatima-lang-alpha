@@ -69,8 +69,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
       }
       DAGPtr::All(link) => {
         let All { uses, dom, img, .. } = unsafe { link.as_ref() };
-        let new_all =
-          alloc_all(*uses, *dom, *img, None);
+        let new_all = alloc_all(*uses, *dom, *img, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_all);
         }
@@ -459,7 +458,7 @@ pub mod test {
   pub fn parse(
     i: &str,
   ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
-    let (i, tree) = crate::parse::term::parse(i)?;
+    let (i, tree) = crate::parse::term::parse(i, Defs::new())?;
     let (i, _) = nom::character::complete::multispace0(i)?;
     let (i, _) = nom::combinator::eof(i)?;
     let dag = DAG::from_term(&tree);

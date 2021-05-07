@@ -18,6 +18,7 @@ pub mod ipld_error;
 pub mod literal;
 pub mod meta;
 pub mod package;
+#[macro_use]
 pub mod parse;
 pub mod position;
 pub mod primop;

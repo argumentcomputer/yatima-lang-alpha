@@ -1,7 +1,11 @@
 use crate::{
   ipld_error::IpldError,
   parse::base,
+  position::Pos,
+  term::Term,
+  yatima,
 };
+
 use libipld::ipld::Ipld;
 
 use num_bigint::{
@@ -87,6 +91,21 @@ impl fmt::Display for Literal {
 }
 
 impl Literal {
+  pub fn expand(self) -> Term {
+    match self {
+      Self::Nat(n) if n == BigUint::from(0u64) => {
+        yatima!("λ P z s => z")
+      }
+      Self::Nat(n) => {
+        yatima!(
+          "λ P z s => s #$0",
+          Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
+        )
+      }
+      _ => todo!(),
+    }
+  }
+
   pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Nat(x) => {
@@ -262,6 +281,22 @@ impl Literal {
 }
 
 impl LitType {
+  pub fn induction(self, val: Term) -> Term {
+    match self {
+      Self::Nat => {
+        yatima!(
+          "∀ (0 P: ∀ #Nat -> Type)
+             (& zero: P 0)
+             (& succ: ∀ (pred: #Nat) -> (#Nat.suc pred))
+           -> P #$0
+          ",
+          val
+        )
+      }
+      _ => todo!(),
+    }
+  }
+
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Nat => Ipld::List(vec![Ipld::Integer(0)]),
@@ -498,5 +533,13 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[test]
+  fn test_expand() {
+    assert_eq!(
+      Literal::Nat(BigUint::from(1u64)).expand(),
+      yatima!("λ P z s => s 0")
+    )
   }
 }

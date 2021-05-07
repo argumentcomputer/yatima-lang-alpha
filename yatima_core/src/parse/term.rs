@@ -40,6 +40,7 @@ use nom::{
     take_till1,
   },
   character::complete::{
+    digit1,
     multispace0,
     multispace1,
   },
@@ -189,6 +190,32 @@ pub fn is_valid_symbol_string(s: &str) -> bool {
   !s.is_empty() && !invalid_chars
 }
 
+pub fn parse_antiquote(
+  ctx: Vector<String>,
+  quasi: Vector<Term>,
+) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
+  move |from: Span| {
+    let (upto, nam) =
+      context("quasiquoted value", preceded(tag("#$"), digit1))(from)?;
+    if let Some((_, trm)) = quasi
+      .iter()
+      .enumerate()
+      .find(|(i, _)| format!("{}", i) == nam.to_string())
+    {
+      Ok((upto, trm.clone()))
+    }
+    else {
+      Err(Err::Error(ParseError::new(
+        upto,
+        ParseErrorKind::UndefinedReference(
+          format!("#${}", nam.to_string()),
+          ctx.to_owned(),
+        ),
+      )))
+    }
+  }
+}
+
 pub fn parse_var(
   input: Cid,
   defs: Defs,
@@ -228,6 +255,7 @@ pub fn parse_lam(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
@@ -240,8 +268,13 @@ pub fn parse_lam(
     for n in ns.clone().into_iter() {
       ctx2.push_front(n);
     }
-    let (upto, bod) =
-      parse_expression(input, defs.clone(), rec.clone(), ctx2)(i)?;
+    let (upto, bod) = parse_expression(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx2,
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = ns
       .iter()
@@ -265,6 +298,7 @@ pub fn parse_binder_full(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
@@ -274,8 +308,13 @@ pub fn parse_binder_full(
     let (i, ns) = many1(terminated(parse_name, parse_space))(i)?;
     let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, typ) =
-      parse_expression(input, defs.to_owned(), rec.clone(), ctx.to_owned())(i)?;
+    let (i, typ) = parse_expression(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.to_owned(),
+      quasi.to_owned(),
+    )(i)?;
     let (i, _) = tag(")")(i)?;
     let mut res = Vec::new();
     for (i, n) in ns.iter().enumerate() {
@@ -290,12 +329,20 @@ pub fn parse_binder_short(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
-    map(parse_term(input, defs.to_owned(), rec.clone(), ctx.to_owned()), |t| {
-      vec![(Uses::Many, String::from(""), t)]
-    })(i)
+    map(
+      parse_term(
+        input,
+        defs.to_owned(),
+        rec.clone(),
+        ctx.to_owned(),
+        quasi.to_owned(),
+      ),
+      |t| vec![(Uses::Many, String::from(""), t)],
+    )(i)
   }
 }
 
@@ -304,18 +351,37 @@ pub fn parse_binder(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
   nam_opt: bool,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
     if nam_opt {
       alt((
-        parse_binder_full(input, defs.clone(), rec.clone(), ctx.clone()),
-        parse_binder_short(input, defs.to_owned(), rec.clone(), ctx.to_owned()),
+        parse_binder_full(
+          input,
+          defs.clone(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.clone(),
+        ),
+        parse_binder_short(
+          input,
+          defs.to_owned(),
+          rec.clone(),
+          ctx.to_owned(),
+          quasi.to_owned(),
+        ),
       ))(i)
     }
     else {
-      parse_binder_full(input, defs.to_owned(), rec.clone(), ctx.to_owned())(i)
+      parse_binder_full(
+        input,
+        defs.to_owned(),
+        rec.clone(),
+        ctx.to_owned(),
+        quasi.to_owned(),
+      )(i)
     }
   }
 }
@@ -325,6 +391,7 @@ pub fn parse_binders(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
   nam_opt: bool,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
@@ -337,6 +404,7 @@ pub fn parse_binders(
       defs.to_owned(),
       rec.clone(),
       ctx.to_owned(),
+      quasi.to_owned(),
       nam_opt,
     )(i.to_owned())
     {
@@ -358,6 +426,7 @@ pub fn parse_binders(
           defs.to_owned(),
           rec.clone(),
           ctx.to_owned(),
+          quasi.to_owned(),
           nam_opt,
         ),
       )(i)
@@ -381,12 +450,19 @@ pub fn parse_all(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, bs) =
-      parse_binders(input, defs.clone(), rec.clone(), ctx.clone(), true)(i)?;
+    let (i, bs) = parse_binders(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.clone(),
+      true,
+    )(i)?;
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("->")(i)?;
     let (i, _) = parse_space(i)?;
@@ -394,8 +470,13 @@ pub fn parse_all(
     for (_, n, _) in bs.iter() {
       ctx2.push_front(n.clone());
     }
-    let (upto, bod) =
-      parse_expression(input, defs.to_owned(), rec.clone(), ctx2)(i)?;
+    let (upto, bod) = parse_expression(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx2,
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = bs
       .into_iter()
@@ -420,6 +501,7 @@ pub fn parse_self(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = nom::character::complete::char('@')(from)?;
@@ -427,8 +509,13 @@ pub fn parse_self(
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     ctx2.push_front(n.clone());
-    let (upto, bod) =
-      parse_expression(input, defs.to_owned(), rec.clone(), ctx2)(i)?;
+    let (upto, bod) = parse_expression(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx2,
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Slf(pos, n, Box::new(bod))))
   }
@@ -439,12 +526,18 @@ pub fn parse_case(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("case")(from)?;
     let (i, _) = parse_space(i)?;
-    let (upto, bod) =
-      parse_expression(input, defs.to_owned(), rec.clone(), ctx.clone())(i)?;
+    let (upto, bod) = parse_expression(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.to_owned(),
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Cse(pos, Box::new(bod))))
   }
@@ -455,12 +548,18 @@ pub fn parse_data(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("data")(from)?;
     let (i, _) = parse_space(i)?;
-    let (upto, bod) =
-      parse_expression(input, defs.to_owned(), rec.clone(), ctx.clone())(i)?;
+    let (upto, bod) = parse_expression(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Dat(pos, Box::new(bod))))
   }
@@ -475,13 +574,21 @@ pub fn parse_bound_expression(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
   nam: String,
   letrec: bool,
 ) -> impl Fn(Span) -> IResult<Span, (Term, Term), ParseError<Span>> {
   move |from: Span| {
     let (i, bs) = alt((
       terminated(
-        parse_binders(input, defs.clone(), rec.clone(), ctx.clone(), false),
+        parse_binders(
+          input,
+          defs.clone(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.clone(),
+          false,
+        ),
         parse_space,
       ),
       success(Vec::new()),
@@ -492,8 +599,13 @@ pub fn parse_bound_expression(
     for (_, n, _) in bs.iter() {
       type_ctx.push_front(n.clone());
     }
-    let (i, typ) =
-      parse_expression(input, defs.clone(), rec.clone(), type_ctx)(i)?;
+    let (i, typ) = parse_expression(
+      input,
+      defs.clone(),
+      rec.clone(),
+      type_ctx,
+      quasi.clone(),
+    )(i)?;
     let mut term_ctx = ctx.to_owned();
     if letrec {
       term_ctx.push_front(nam.clone());
@@ -504,8 +616,13 @@ pub fn parse_bound_expression(
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=")(i)?;
     let (i, _) = parse_space(i)?;
-    let (upto, trm) =
-      parse_expression(input, defs.clone(), rec.clone(), term_ctx)(i)?;
+    let (upto, trm) = parse_expression(
+      input,
+      defs.clone(),
+      rec.clone(),
+      term_ctx,
+      quasi.clone(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = bs
       .iter()
@@ -524,6 +641,7 @@ pub fn parse_let(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, letrec) =
@@ -538,6 +656,7 @@ pub fn parse_let(
       defs.clone(),
       rec.clone(),
       ctx.clone(),
+      quasi.clone(),
       nam.clone(),
       letrec,
     )(i)?;
@@ -545,8 +664,13 @@ pub fn parse_let(
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     ctx2.push_front(nam.clone());
-    let (upto, bod) =
-      parse_expression(input, defs.to_owned(), rec.clone(), ctx2)(i)?;
+    let (upto, bod) = parse_expression(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx2,
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Let(pos, letrec, uses, nam, Box::new((typ, exp, bod)))))
   }
@@ -668,15 +792,24 @@ pub fn parse_expression(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, trm) =
-      parse_apps(input, defs.clone(), rec.clone(), ctx.clone())(from)?;
+      parse_apps(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
+        from,
+      )?;
     let (i, has_ann) = opt(tag("::"))(i)?;
     if has_ann.is_some() {
       let (i, typ) = context(
         "type annotation",
-        parse_apps(input, defs.clone(), rec.clone(), ctx.clone()),
+        parse_apps(
+          input,
+          defs.clone(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.clone(),
+        ),
       )(i)?;
       let pos = Pos::from_upto(input, from, i);
       Ok((i, Term::Ann(pos, Box::new((typ, trm)))))
@@ -706,11 +839,14 @@ pub fn parse_apps(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i2, _) = parse_space(from)?;
     let (i2, fun) =
-      parse_term(input, defs.clone(), rec.clone(), ctx.clone())(i2)?;
+      parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
+        i2,
+      )?;
     let mut i = i2;
     let mut args = Vec::new();
     loop {
@@ -724,8 +860,13 @@ pub fn parse_apps(
           return Ok((i2, trm));
         }
         _ => {
-          let (i2, arg) =
-            parse_term(input, defs.clone(), rec.clone(), ctx.clone())(i2)?;
+          let (i2, arg) = parse_term(
+            input,
+            defs.clone(),
+            rec.clone(),
+            ctx.clone(),
+            quasi.clone(),
+          )(i2)?;
           args.push(arg);
           i = i2
         }
@@ -739,6 +880,7 @@ pub fn parse_term(
   defs: Defs,
   rec: Option<Rc<String>>,
   ctx: Vector<String>,
+  quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |i: Span| {
     context(
@@ -748,23 +890,48 @@ pub fn parse_term(
           preceded(tag("("), parse_space),
           context(
             "expression",
-            parse_expression(input, defs.clone(), rec.clone(), ctx.clone()),
+            parse_expression(
+              input,
+              defs.clone(),
+              rec.clone(),
+              ctx.clone(),
+              quasi.clone(),
+            ),
           ),
           context(
             "close parenthesis ')' of an expression",
             preceded(parse_space, tag(")")),
           ),
         ),
-        parse_self(input, defs.clone(), rec.clone(), ctx.clone()),
-        parse_data(input, defs.clone(), rec.clone(), ctx.clone()),
-        parse_case(input, defs.clone(), rec.clone(), ctx.clone()),
-        parse_all(input, defs.clone(), rec.clone(), ctx.clone()),
-        parse_lam(input, defs.clone(), rec.clone(), ctx.clone()),
-        parse_let(input, defs.clone(), rec.clone(), ctx.clone()),
+        parse_self(
+          input,
+          defs.clone(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.clone(),
+        ),
+        parse_data(
+          input,
+          defs.clone(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.clone(),
+        ),
+        parse_case(
+          input,
+          defs.clone(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.clone(),
+        ),
+        parse_all(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
+        parse_lam(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
+        parse_let(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
         parse_type(input),
         parse_lty(input),
         parse_opr(input),
         parse_lit(input),
+        parse_antiquote(ctx.clone(), quasi.clone()),
         parse_var(input, defs.to_owned(), rec.clone(), ctx.to_owned()),
       )),
     )(i)
@@ -779,7 +946,28 @@ pub fn input_cid(i: &str) -> Cid {
 }
 
 pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), defs, None, Vector::new())(Span::new(i))
+  parse_expression(input_cid(i), defs, None, Vector::new(), Vector::new())(
+    Span::new(i),
+  )
+}
+pub fn parse_quasi(
+  i: &str,
+  defs: Defs,
+  quasi: Vector<Term>,
+) -> IResult<Span, Term, ParseError<Span>> {
+  parse_expression(input_cid(i), defs, None, Vector::new(), quasi)(Span::new(i))
+}
+
+#[macro_export]
+macro_rules! yatima {
+  ($i:literal) => {
+    crate::parse::term::parse($i, crate::defs::Defs::new()).unwrap().1
+  };
+  ($i:literal, $($q: expr),*) => {{
+    let mut quasi = Vec::new();
+    $(quasi.push($q);)*
+    crate::parse::term::parse_quasi($i, crate::defs::Defs::new(), im::Vector::from(quasi)).unwrap().1
+  }}
 }
 
 #[cfg(test)]
@@ -790,7 +978,9 @@ pub mod tests {
   #[test]
   fn test_parse_apps() {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-      parse_apps(input_cid(i), Defs::new(), None, Vector::new())(Span::new(i))
+      parse_apps(input_cid(i), Defs::new(), None, Vector::new(), Vector::new())(
+        Span::new(i),
+      )
     }
     let res = test("0d1");
     assert!(res.is_ok());
@@ -803,9 +993,13 @@ pub mod tests {
   #[test]
   fn test_parse_expression() {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-      parse_expression(input_cid(i), Defs::new(), None, Vector::new())(
-        Span::new(i),
-      )
+      parse_expression(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Vector::new(),
+        Vector::new(),
+      )(Span::new(i))
     }
     let res = test("(Type :: Type)");
     assert!(res.is_ok());
@@ -829,16 +1023,25 @@ pub mod tests {
       nam_opt: bool,
       i: &str,
     ) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>> {
-      parse_binders(input_cid(i), Defs::new(), None, Vector::new(), nam_opt)(
-        Span::new(i),
-      )
+      parse_binders(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Vector::new(),
+        Vector::new(),
+        nam_opt,
+      )(Span::new(i))
     }
     fn test_full(
       i: &str,
     ) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>> {
-      parse_binder_full(input_cid(i), Defs::new(), None, Vector::new())(
-        Span::new(i),
-      )
+      parse_binder_full(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Vector::new(),
+        Vector::new(),
+      )(Span::new(i))
     }
     let res = test_full("(a b c: Type)");
     assert!(res.is_ok());
@@ -867,9 +1070,14 @@ pub mod tests {
   #[quickcheck]
   fn term_parse_print(x: Term) -> bool {
     let i = format!("{}", x);
-    match parse_expression(input_cid(&i), test_defs(), None, Vector::new())(
-      Span::new(&i),
-    ) {
+    match parse_expression(
+      input_cid(&i),
+      test_defs(),
+      None,
+      Vector::new(),
+      Vector::new(),
+    )(Span::new(&i))
+    {
       Ok((_, y)) => x == y,
       Err(e) => {
         println!("{}", x);
