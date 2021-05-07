@@ -6,6 +6,7 @@
       url = "github:mozilla/nixpkgs-mozilla";
       flake = false;
     };
+    grin.url = "github:yatima-inc/grin";
     naersk.url = "github:nmattia/naersk";
   };
 
@@ -15,6 +16,7 @@
     , utils
     , nixpkgs-mozilla-src
     , naersk
+    , grin
     }:
     utils.lib.eachDefaultSystem (system:
     let
@@ -57,6 +59,7 @@
           rust-analyzer
           clippy
           rustfmt
+          grin
         ];
       };
     });
