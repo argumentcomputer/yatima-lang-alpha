@@ -5,8 +5,11 @@
 }:
 with builtins;
 let
+  nixpkgs-mozilla = import sources.nixpkgs { overlays = [ (import sources.nixpkgs-mozilla) ]; };
   # import rust compiler
-  rust = import ./nix/rust.nix { inherit sources; };
+  rust = import ./nix/rust.nix {
+    inherit nixpkgs-mozilla;
+  };
 
   # configure naersk to use our pinned rust compiler
   naersk = pkgs.callPackage sources.naersk {
