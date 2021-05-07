@@ -4,14 +4,12 @@ use libipld::{
   codec::Codec,
   ipld::Ipld,
 };
-// use cid::Cid;
-// use crate::file::store::{cid};
+use crate::file::store::{cid};
 use serde_json;
 
 
 pub async fn dag_put(dag: Ipld) -> Result<String, reqwest::Error> {
     let host = "http://127.0.0.1:5001";
-    // let link = cid(&dag);
     let url = format!("{}{}?{}", host, "/api/v0/dag/put", "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256");
     let cbor = DagCborCodec.encode(&dag).unwrap();
     let client = reqwest::Client::new();
@@ -24,10 +22,15 @@ pub async fn dag_put(dag: Ipld) -> Result<String, reqwest::Error> {
         .await?
         .json()
         .await?;
-    println!("{:#?}", response);
-    let cid: String = response["Cid"]["/"].to_string();
 
-    Ok(cid)
+    let ipfs_cid: String = response["Cid"]["/"].as_str().unwrap().to_string();
+    let local_cid: String = cid(&dag).to_string();
+
+    if ipfs_cid == local_cid {
+      Ok(ipfs_cid)
+    } else {
+      panic!("CIDs are different {} != {}", ipfs_cid, local_cid);
+    }
 }
 
 pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {

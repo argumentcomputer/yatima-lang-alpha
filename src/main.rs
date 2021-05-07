@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
       file::store::put(p.to_ipld());
       let ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      println!("Package parsed:\n{} {}", cid, ipld_cid);
+      println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
       println!("{}", d);
       Ok(())
     }
@@ -50,6 +50,8 @@ async fn main() -> std::io::Result<()> {
       let env = file::parse::PackageEnv::new(root, path);
       let (_, p, ds) = file::parse::parse_file(env);
       let cid = file::store::put(p.to_ipld());
+      let _ipld_cid =
+        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
       println!("Checking package {} at {}", p.name, cid);
       for i in &p.imports {
         println!("Checking import  {} at {}", i.name, i.cid);
@@ -80,7 +82,9 @@ async fn main() -> std::io::Result<()> {
       let root = std::env::current_dir()?;
       let env = file::parse::PackageEnv::new(root, path.clone());
       let (_, p, defs) = file::parse::parse_file(env);
-      let cid = file::store::put(p.to_ipld());
+      let _cid = file::store::put(p.to_ipld());
+      let _ipld_cid =
+        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
       let def = defs.get(&"main".to_string()).expect(&format!(
         "No `main` expression in package {} from file {:?}",
         p.name, path
