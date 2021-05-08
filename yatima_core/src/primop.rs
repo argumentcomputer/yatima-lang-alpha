@@ -3,9 +3,12 @@
 
 use libipld::ipld::Ipld;
 
-use crate::ipld_error::IpldError;
-
-use crate::literal::Literal;
+use crate::{
+  ipld_error::IpldError,
+  literal::Literal,
+  term::Term,
+  yatima,
+};
 use num_bigint::{
   BigInt,
   BigUint,
@@ -41,6 +44,7 @@ pub enum PrimOp {
   IntMul,
   IntDiv,
   IntMod,
+  TextCons,
 }
 
 impl PrimOp {
@@ -71,6 +75,7 @@ impl PrimOp {
       Self::IntMul => "#Int.mul".to_owned(),
       Self::IntDiv => "#Int.div".to_owned(),
       Self::IntMod => "#Int.mod".to_owned(),
+      Self::TextCons => "#Text.cons".to_owned(),
     }
   }
 
@@ -101,7 +106,40 @@ impl PrimOp {
       "#Int.mul" => Some(Self::IntMul),
       "#Int.div" => Some(Self::IntDiv),
       "#Int.mod" => Some(Self::IntMod),
+      "#Text.cons" => Some(Self::TextCons),
       _ => None,
+    }
+  }
+
+  pub fn type_of(self) -> Term {
+    match self {
+      Self::NatSuc => yatima!("∀ #Nat -> #Nat"),
+      Self::NatPre => yatima!("∀ #Nat -> #Nat"),
+      Self::NatEql => yatima!("∀ #Nat #Nat -> #Bool"),
+      Self::NatLth => yatima!("∀ #Nat #Nat -> #Bool"),
+      Self::NatLte => yatima!("∀ #Nat #Nat -> #Bool"),
+      Self::NatGth => yatima!("∀ #Nat #Nat -> #Bool"),
+      Self::NatGte => yatima!("∀ #Nat #Nat -> #Bool"),
+      Self::NatAdd => yatima!("∀ #Nat #Nat -> #Nat"),
+      Self::NatSub => yatima!("∀ #Nat #Nat -> #Nat"),
+      Self::NatMul => yatima!("∀ #Nat #Nat -> #Nat"),
+      Self::NatDiv => yatima!("∀ #Nat #Nat -> #Nat"),
+      Self::NatMod => yatima!("∀ #Nat #Nat -> #Nat"),
+      // Self::IntNew => "#Int.new".to_owned(),
+      // Self::IntSgn => "#Int.sgn".to_owned(),
+      // Self::IntAbs => "#Int.abs".to_owned(),
+      // Self::IntEql => "#Int.eql".to_owned(),
+      // Self::IntLth => "#Int.lth".to_owned(),
+      // Self::IntLte => "#Int.lte".to_owned(),
+      // Self::IntGth => "#Int.gth".to_owned(),
+      // Self::IntGte => "#Int.gte".to_owned(),
+      // Self::IntAdd => "#Int.add".to_owned(),
+      // Self::IntSub => "#Int.sub".to_owned(),
+      // Self::IntMul => "#Int.mul".to_owned(),
+      // Self::IntDiv => "#Int.div".to_owned(),
+      // Self::IntMod => "#Int.mod".to_owned(),
+      Self::TextCons => yatima!("∀ #Char #Text -> #Text"),
+      _ => todo!(),
     }
   }
 
@@ -132,6 +170,7 @@ impl PrimOp {
       Self::IntMul => Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(10)]),
       Self::IntDiv => Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(11)]),
       Self::IntMod => Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(12)]),
+      Self::TextCons => Ipld::List(vec![Ipld::Integer(3), Ipld::Integer(0)]),
     }
   }
 
@@ -163,6 +202,7 @@ impl PrimOp {
         [Ipld::Integer(1), Ipld::Integer(10)] => Ok(Self::IntMul),
         [Ipld::Integer(1), Ipld::Integer(11)] => Ok(Self::IntDiv),
         [Ipld::Integer(1), Ipld::Integer(12)] => Ok(Self::IntMod),
+        [Ipld::Integer(3), Ipld::Integer(0)] => Ok(Self::TextCons),
         xs => Err(IpldError::PrimOp(Ipld::List(xs.to_owned()))),
       },
       xs => Err(IpldError::PrimOp(xs.to_owned())),
@@ -196,6 +236,7 @@ impl PrimOp {
       Self::IntMul => 2,
       Self::IntDiv => 2,
       Self::IntMod => 2,
+      Self::TextCons => 2,
     }
   }
 }
@@ -255,6 +296,11 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (IntDiv, Int(x), Int(y)) if y != 0.into() => Some(Int(x / y)),
     (NatMod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
     (IntMod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
+    (TextCons, Char(c), Text(cs)) => {
+      let mut txt: String = c.into();
+      txt.push_str(&cs);
+      Some(Text(txt))
+    }
     _ => None,
   }
 }

@@ -774,6 +774,7 @@ pub fn parse_opr(
         value(PrimOp::IntMul, tag("#Int.mul")),
         value(PrimOp::IntDiv, tag("#Int.div")),
         value(PrimOp::IntMod, tag("#Int.mod")),
+        value(PrimOp::TextCons, tag("#Text.cons")),
       )),
     ))(from)?;
     let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {

@@ -17,7 +17,10 @@ use crate::{
   uses::*,
 };
 
-use im::HashMap;
+use im::{
+  HashMap,
+  Vector,
+};
 
 use libipld::Cid;
 
@@ -320,8 +323,22 @@ pub fn infer(
           exp_typ.free();
           Ok((exp_use_ctx, DAG::new(new_bod)))
         }
+        DAGPtr::LTy(link) => {
+          let LTy { lty, .. } = unsafe { &mut *link.as_ptr() };
+          let root = alloc_val(DLL::singleton(ParentPtr::Root));
+          let induction = DAG::from_term_inner(
+            &lty.induction(exp.to_term()),
+            0,
+            Vector::new(),
+            Some(root),
+            None,
+          );
+          Ok((exp_use_ctx, DAG::new(induction)))
+        }
         _ => Err(CheckError::GenericError(
-          "Tried to case on something that isn't a datatype.".to_string(),
+          "Tried to case on something that isn't an inductive datatype or \
+           literal."
+            .to_string(),
         )),
       }
     }
@@ -374,11 +391,10 @@ pub fn infer(
       let use_ctx = vec![Uses::None; ctx.len()];
       Ok((use_ctx, DAG::from_term(&infer_lty(*lty))))
     }
-    DAGPtr::Opr(_link) => {
-      Err(CheckError::GenericError("TODO".to_string()))
-      // let Opr { opr, .. } = unsafe { &*link.as_ptr() };
-      // let use_ctx = vec![Uses::None; ctx.len()];
-      // Ok((use_ctx, DAG::from_term(&infer_opr(*opr))))
+    DAGPtr::Opr(mut link) => {
+      let Opr { opr, .. } = unsafe { link.as_mut() };
+      let use_ctx = vec![Uses::None; ctx.len()];
+      Ok((use_ctx, DAG::from_term(&opr.type_of())))
     }
     DAGPtr::Lam(_) => {
       Err(CheckError::GenericError("Untyped lambda.".to_string()))

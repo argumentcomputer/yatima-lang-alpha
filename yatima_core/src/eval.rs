@@ -11,6 +11,8 @@ use crate::{
   upcopy::*,
 };
 
+use im::Vector;
+
 enum Single {
   Lam(Var),
   Slf(Var),
@@ -297,6 +299,18 @@ impl DAG {
               replace_child(node, *single_body);
               free_dead_node(node);
               node = *single_body;
+            }
+            DAGPtr::Lit(link) => {
+              let Lit { lit, parents } = unsafe { link.as_ref() };
+              let expand = DAG::from_term_inner(
+                &lit.clone().expand(),
+                0,
+                Vector::new(),
+                *parents,
+                None,
+              );
+              free_dead_node(node);
+              node = expand;
             }
             _ => break,
           }

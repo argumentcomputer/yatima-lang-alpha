@@ -102,6 +102,19 @@ impl Literal {
           Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
         )
       }
+      Self::Text(n) if n == String::from("") => {
+        yatima!("λ P n c => n")
+      }
+      Self::Text(t) => {
+        let mut txt = t;
+        let rest = txt.split_off(1);
+        let c: char = txt.chars().next().unwrap();
+        yatima!(
+          "λ P n c => c #$0 #$1",
+          Term::Lit(Pos::None, Literal::Char(c)),
+          Term::Lit(Pos::None, Literal::Text(rest))
+        )
+      }
       _ => todo!(),
     }
   }
@@ -288,6 +301,16 @@ impl LitType {
           "∀ (0 P: ∀ #Nat -> Type)
              (& zero: P 0)
              (& succ: ∀ (pred: #Nat) -> (#Nat.suc pred))
+           -> P #$0
+          ",
+          val
+        )
+      }
+      Self::Text => {
+        yatima!(
+          "∀ (0 P: ∀ #Text -> Type)
+             (& nil: P \"\")
+             (& cons: ∀ (x: #Char) (xs: #Text) -> (#Text.cons x xs))
            -> P #$0
           ",
           val
