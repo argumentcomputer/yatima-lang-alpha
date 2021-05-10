@@ -11,6 +11,18 @@
         "url": "https://github.com/hercules-ci/gitignore.nix/archive/211907489e9f198594c0eb0ca9256a1949c9d412.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
+    "grin": {
+        "branch": "master",
+        "description": "GRIN is a compiler back-end for lazy and strict functional languages with whole program optimization support.",
+        "homepage": "https://grin-compiler.github.io/",
+        "owner": "yatima-inc",
+        "repo": "grin",
+        "rev": "cc616f33e73bc11757c6c406ca94bc559d0c791c",
+        "sha256": "0lq8xf7vawxypsw6bh0zjl6prycl7rrmk0njgk6ppbnjniify6vj",
+        "type": "tarball",
+        "url": "https://github.com/yatima-inc/grin/archive/cc616f33e73bc11757c6c406ca94bc559d0c791c.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
     "naersk": {
         "branch": "master",
         "description": "Build rust crates in Nix. No configuration, no code generation, no IFD. Sandbox friendly.",

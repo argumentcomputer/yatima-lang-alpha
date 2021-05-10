@@ -11,6 +11,8 @@ let
 
   rust = (import ./rust.nix { inherit sources; });
 
+  grin = import sources.grin { };
+
   src = gitignoreSource ./..;
 in
 {
@@ -21,6 +23,7 @@ in
     inherit (pkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
     inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter rustfmt clippy;
     inherit rust;
+    inherit grin;
   };
 
   # to be built by github actions
