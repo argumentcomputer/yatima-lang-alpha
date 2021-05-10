@@ -296,10 +296,9 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (IntDiv, Int(x), Int(y)) if y != 0.into() => Some(Int(x / y)),
     (NatMod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
     (IntMod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
-    (TextCons, Char(c), Text(cs)) => {
-      let mut txt: String = c.into();
-      txt.push_str(&cs);
-      Some(Text(txt))
+    (TextCons, Char(c), Text(mut cs)) => {
+      cs.push_front(c);
+      Some(Text(cs))
     }
     _ => None,
   }

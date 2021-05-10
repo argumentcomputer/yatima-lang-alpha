@@ -3,6 +3,10 @@ use crate::{
   parse::base,
   position::Pos,
   term::Term,
+  text::{
+    self,
+    Text,
+  },
   yatima,
 };
 
@@ -24,7 +28,7 @@ pub enum Literal {
   Nat(BigUint),
   Int(BigInt),
   Bytes(Vec<u8>),
-  Text(String),
+  Text(Text),
   Char(char),
   Bool(bool),
   U8(u8),
@@ -72,7 +76,9 @@ impl fmt::Display for Literal {
         let x: &[u8] = x.as_ref();
         write!(f, "x\"{}\"", base::LitBase::Hex.encode(x))
       }
-      Text(x) => write!(f, "\"{}\"", x.escape_default()),
+      Text(x) => {
+        write!(f, "\"{}\"", text::to_string(x.clone()).escape_default())
+      }
       Char(x) => write!(f, "'{}'", x.escape_default()),
       Bool(true) => write!(f, "true"),
       Bool(false) => write!(f, "false"),
@@ -102,18 +108,18 @@ impl Literal {
           Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
         )
       }
-      Self::Text(n) if n == String::from("") => {
-        yatima!("λ P n c => n")
-      }
-      Self::Text(t) => {
-        let mut txt = t;
-        let rest = txt.split_off(1);
-        let c: char = txt.chars().next().unwrap();
-        yatima!(
-          "λ P n c => c #$0 #$1",
-          Term::Lit(Pos::None, Literal::Char(c)),
-          Term::Lit(Pos::None, Literal::Text(rest))
-        )
+      Self::Text(mut t) => {
+        let c = t.pop_front();
+        match c {
+          None => yatima!("λ P n c => n"),
+          Some(c) => {
+            yatima!(
+              "λ P n c => c #$0 #$1",
+              Term::Lit(Pos::None, Literal::Char(c)),
+              Term::Lit(Pos::None, Literal::Text(t))
+            )
+          }
+        }
       }
       _ => todo!(),
     }
@@ -132,7 +138,7 @@ impl Literal {
       }
       Self::Text(x) => Ipld::List(vec![
         Ipld::Integer(3),
-        Ipld::Bytes(x.to_owned().into_bytes()),
+        Ipld::Bytes(text::to_string(x.clone()).into_bytes()),
       ]),
       Self::Char(x) => Ipld::List(vec![
         Ipld::Integer(4),
@@ -198,7 +204,7 @@ impl Literal {
         [Ipld::Integer(3), Ipld::Bytes(x)] => String::from_utf8(x.to_owned())
           .map_or_else(
             |e| Err(IpldError::Utf8(x.clone(), e)),
-            |x| Ok(Self::Text(x)),
+            |x| Ok(Self::Text(text::from_string(x))),
           ),
         [Ipld::Integer(4), Ipld::Bytes(x)] => {
           let x: [u8; 4] = x
@@ -425,7 +431,7 @@ pub mod tests {
   pub fn arbitrary_text() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let x: String = Arbitrary::arbitrary(g);
-      Literal::Text(x)
+      Literal::Text(text::from_string(x))
     })
   }
 

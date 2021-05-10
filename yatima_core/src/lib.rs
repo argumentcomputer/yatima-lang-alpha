@@ -23,6 +23,7 @@ pub mod parse;
 pub mod position;
 pub mod primop;
 pub mod term;
+pub mod text;
 pub mod upcopy;
 pub mod uses;
 
