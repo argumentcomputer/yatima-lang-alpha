@@ -23,11 +23,16 @@ use std::{
   fmt,
 };
 
+pub type Bytes = im::Vector<u8>;
+
+pub fn bytes_to_vec(x: Bytes) -> Vec<u8> { x.into_iter().collect() }
+pub fn vec_to_bytes(x: Vec<u8>) -> Bytes { x.into() }
+
 #[derive(PartialEq, Clone, Debug)]
 pub enum Literal {
   Nat(BigUint),
   Int(BigInt),
-  Bytes(Vec<u8>),
+  Bytes(Bytes),
   Text(Text),
   Char(char),
   Bool(bool),
@@ -73,6 +78,7 @@ impl fmt::Display for Literal {
         _ => write!(f, "+{}", x.to_str_radix(10)),
       },
       Bytes(x) => {
+        let x: Vec<u8> = bytes_to_vec(x.clone());
         let x: &[u8] = x.as_ref();
         write!(f, "x\"{}\"", base::LitBase::Hex.encode(x))
       }
@@ -99,14 +105,30 @@ impl fmt::Display for Literal {
 impl Literal {
   pub fn expand(self) -> Term {
     match self {
-      Self::Nat(n) if n == BigUint::from(0u64) => {
-        yatima!("λ P z s => z")
-      }
       Self::Nat(n) => {
-        yatima!(
-          "λ P z s => s #$0",
-          Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
-        )
+        if n == BigUint::from(0u64) {
+          yatima!("λ P z s => z")
+        }
+        else {
+          yatima!(
+            "λ P z s => s #$0",
+            Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
+          )
+        }
+      }
+      Self::Int(_) => yatima!("λ P i => i"),
+      Self::Bytes(mut t) => {
+        let c = t.pop_front();
+        match c {
+          None => yatima!("λ P n c => n"),
+          Some(c) => {
+            yatima!(
+              "λ P n c => c #$0 #$1",
+              Term::Lit(Pos::None, Literal::U8(c)),
+              Term::Lit(Pos::None, Literal::Bytes(t))
+            )
+          }
+        }
       }
       Self::Text(mut t) => {
         let c = t.pop_front();
@@ -133,9 +155,10 @@ impl Literal {
       Self::Int(x) => {
         Ipld::List(vec![Ipld::Integer(1), Ipld::Bytes(x.to_signed_bytes_be())])
       }
-      Self::Bytes(x) => {
-        Ipld::List(vec![Ipld::Integer(2), Ipld::Bytes(x.clone())])
-      }
+      Self::Bytes(x) => Ipld::List(vec![
+        Ipld::Integer(2),
+        Ipld::Bytes(bytes_to_vec(x.to_owned())),
+      ]),
       Self::Text(x) => Ipld::List(vec![
         Ipld::Integer(3),
         Ipld::Bytes(text::to_string(x.clone()).into_bytes()),
@@ -200,7 +223,9 @@ impl Literal {
         [Ipld::Integer(1), Ipld::Bytes(x)] => {
           Ok(Self::Int(BigInt::from_signed_bytes_be(x)))
         }
-        [Ipld::Integer(2), Ipld::Bytes(x)] => Ok(Self::Bytes(x.to_owned())),
+        [Ipld::Integer(2), Ipld::Bytes(x)] => {
+          Ok(Self::Bytes(x.to_owned().into()))
+        }
         [Ipld::Integer(3), Ipld::Bytes(x)] => String::from_utf8(x.to_owned())
           .map_or_else(
             |e| Err(IpldError::Utf8(x.clone(), e)),
@@ -307,6 +332,25 @@ impl LitType {
           "∀ (0 P: ∀ #Nat -> Type)
              (& zero: P 0)
              (& succ: ∀ (pred: #Nat) -> (#Nat.suc pred))
+           -> P #$0
+          ",
+          val
+        )
+      }
+      Self::Int => {
+        yatima!(
+          "∀ (0 P: ∀ #Int -> Type)
+             (& int: ∀ (sign: #Bool) (abs: #Nat) -> P (#Int.new sign abs))
+           -> P #$0
+          ",
+          val
+        )
+      }
+      Self::Bytes => {
+        yatima!(
+          "∀ (0 P: ∀ #Bytes -> Type)
+             (& nil: P \"\")
+             (& cons: ∀ (x: #U8) (xs: #Bytes) -> (#Bytes.cons x xs))
            -> P #$0
           ",
           val
@@ -424,7 +468,7 @@ pub mod tests {
   pub fn arbitrary_bytes() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let x: Vec<u8> = Arbitrary::arbitrary(g);
-      Literal::Bytes(x)
+      Literal::Bytes(x.into())
     })
   }
 
