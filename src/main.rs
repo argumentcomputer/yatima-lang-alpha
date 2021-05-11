@@ -50,8 +50,8 @@ async fn main() -> std::io::Result<()> {
       let env = file::parse::PackageEnv::new(root, path);
       let (_, p, ds) = file::parse::parse_file(env);
       let cid = file::store::put(p.to_ipld());
-      let _ipld_cid =
-        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
+      // let _ipld_cid =
+      //  ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
       println!("Checking package {} at {}", p.name, cid);
       for i in &p.imports {
         println!("Checking import  {} at {}", i.name, i.cid);

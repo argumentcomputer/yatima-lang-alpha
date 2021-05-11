@@ -29,13 +29,27 @@ use std::collections::HashSet;
 
 #[derive(Debug)]
 pub enum CheckError {
-  GenericError(String),
+  GenericError(Pos, String),
+}
+
+pub fn fmt_pos(f: &mut fmt::Formatter, pos: Pos) -> fmt::Result {
+  if let Pos::Some(pos) = pos {
+    write!(
+      f,
+      "from {}:{} to {}:{} in {}",
+      pos.from_line, pos.from_column, pos.upto_line, pos.upto_column, pos.input
+    )?;
+  }
+  Ok(())
 }
 
 impl fmt::Display for CheckError {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
-      CheckError::GenericError(msg) => write!(f, "{}", msg),
+      CheckError::GenericError(pos, msg) => {
+        write!(f, "{} ", msg)?;
+        fmt_pos(f, *pos)
+      }
     }
   }
 }
@@ -43,7 +57,7 @@ impl fmt::Display for CheckError {
 impl Error for CheckError {
   fn description(&self) -> &str {
     match self {
-      CheckError::GenericError(msg) => &msg,
+      CheckError::GenericError(_, msg) => &msg,
     }
   }
 }
@@ -154,11 +168,11 @@ pub fn check(
   match term.head {
     DAGPtr::Lam(lam_link) => {
       typ.whnf(defs);
+      let Lam { bod: lam_bod, var: lam_var, pos: lam_pos, .. } =
+        unsafe { &mut *lam_link.as_ptr() };
       match typ.head {
         DAGPtr::All(all_link) => {
-          let Lam { bod: lam_bod, var: lam_var, .. } =
-            unsafe { &mut *lam_link.as_ptr() };
-          let All { uses: lam_uses, dom, img, .. } =
+          let All { uses: lam_uses, dom, img, pos: all_pos, .. } =
             unsafe { &mut *all_link.as_ptr() };
           let Lam { var: all_var, bod: img, .. } =
             unsafe { &mut *img.as_ptr() };
@@ -173,7 +187,10 @@ pub fn check(
             check(defs, ctx, Uses::Once, &mut lam_bod, &mut img)?;
           let infer_uses = use_ctx.pop().unwrap();
           if Uses::gth(infer_uses, *lam_uses) {
-            Err(CheckError::GenericError("Quantity mismatch.".to_string()))
+            Err(CheckError::GenericError(
+              *lam_pos,
+              "Quantity mismatch.".to_string(),
+            ))
           }
           else {
             mul_use_ctx(uses, &mut use_ctx);
@@ -181,15 +198,17 @@ pub fn check(
           }
         }
         _ => Err(CheckError::GenericError(
+          *lam_pos,
           "The type of a lambda must be a forall.".to_string(),
         )),
       }
     }
     DAGPtr::Dat(dat_link) => {
       typ.whnf(defs);
+      let Dat { bod: dat_bod, pos: dat_pos, .. } =
+        unsafe { &mut *dat_link.as_ptr() };
       match typ.head {
         DAGPtr::Slf(slf_link) => {
-          let Dat { bod: dat_bod, .. } = unsafe { &mut *dat_link.as_ptr() };
           let Slf { var, bod: slf_bod, .. } =
             unsafe { &mut *slf_link.as_ptr() };
           let mut map = if var.parents.is_some() {
@@ -210,14 +229,16 @@ pub fn check(
           Ok(use_ctx)
         }
         _ => Err(CheckError::GenericError(
-          "The type of data must be a self.".to_string(),
+          *dat_pos,
+          "The type of data must be a self".to_string(),
         )),
       }
     }
-    DAGPtr::Let(_) => {
-      Err(CheckError::GenericError("TODO: Let typecheck".to_string()))
+    DAGPtr::Let(let_link) => {
+      let Let { pos: let_pos, .. } = unsafe { &mut *let_link.as_ptr() };
+      Err(CheckError::GenericError(*let_pos, "TODO: Let typecheck".to_string()))
     }
-    _ => {
+    node => {
       let depth = ctx.len();
       let (use_ctx, mut infer_typ) = infer(defs, ctx, uses, term)?;
       let eq = equal(defs, typ, &mut infer_typ, depth as u64);
@@ -226,7 +247,10 @@ pub fn check(
         Ok(use_ctx)
       }
       else {
-        Err(CheckError::GenericError("Type mismatch.".to_string()))
+        Err(CheckError::GenericError(
+          DAG::pos(&node),
+          "Type mismatch".to_string(),
+        ))
       }
     }
   }
@@ -240,11 +264,11 @@ pub fn infer(
 ) -> Result<(UseCtx, DAG), CheckError> {
   match term.head {
     DAGPtr::Var(mut link) => {
-      let Var { dep, .. } = unsafe { link.as_mut() };
+      let Var { dep, pos, .. } = unsafe { link.as_mut() };
       let mut use_ctx = vec![Uses::None; ctx.len()];
       use_ctx[*dep as usize] = uses;
       let bind = ctx.get(*dep as usize).ok_or_else(|| {
-        CheckError::GenericError("Unbound variable.".to_string())
+        CheckError::GenericError(*pos, "Unbound variable.".to_string())
       })?;
       let typ = unsafe {
         let dag = DAG::new(*bind.1);
@@ -254,12 +278,12 @@ pub fn infer(
       Ok((use_ctx, typ))
     }
     DAGPtr::Ref(mut link) => {
-      let Ref { nam, exp: def_link, .. } = unsafe { link.as_mut() };
+      let Ref { nam, exp: def_link, pos, .. } = unsafe { link.as_mut() };
       let def = defs.defs.get(def_link).ok_or_else(|| {
-        CheckError::GenericError(format!(
-          "Undefined reference: {}, {}",
-          nam, def_link
-        ))
+        CheckError::GenericError(
+          *pos,
+          format!("Undefined reference: {}, {}", nam, def_link),
+        )
       })?;
       let use_ctx = vec![Uses::None; ctx.len()];
       let typ = DAG::from_term(&def.typ_);
@@ -295,7 +319,8 @@ pub fn infer(
           fun_typ.free();
           Ok((fun_use_ctx, DAG::new(new_img)))
         }
-        _ => Err(CheckError::GenericError(
+        node => Err(CheckError::GenericError(
+          DAG::pos(&node),
           "Tried to apply something that isn't a lambda.".to_string(),
         )),
       }
@@ -335,7 +360,8 @@ pub fn infer(
           );
           Ok((exp_use_ctx, DAG::new(induction)))
         }
-        _ => Err(CheckError::GenericError(
+        node => Err(CheckError::GenericError(
+          DAG::pos(&node),
           "Tried to case on something that isn't an inductive datatype or \
            literal."
             .to_string(),
@@ -396,10 +422,11 @@ pub fn infer(
       let use_ctx = vec![Uses::None; ctx.len()];
       Ok((use_ctx, DAG::from_term(&opr.type_of())))
     }
-    DAGPtr::Lam(_) => {
-      Err(CheckError::GenericError("Untyped lambda.".to_string()))
-    }
-    _ => Err(CheckError::GenericError("TODO".to_string())),
+    DAGPtr::Lam(_) => Err(CheckError::GenericError(
+      DAG::pos(&term.head),
+      "Untyped lambda.".to_string(),
+    )),
+    node => Err(CheckError::GenericError(DAG::pos(&node), "TODO".to_string())),
   }
 }
 
@@ -444,7 +471,7 @@ pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&name.to_string()).ok_or_else(|| {
-    CheckError::GenericError("Undefined reference.".to_string())
+    CheckError::GenericError(Pos::None, "Undefined reference.".to_string())
   })?;
   let root = Some(alloc_val(DLL::singleton(ParentPtr::Root)));
   let mut trm = DAG::new(DAG::from_ref(
