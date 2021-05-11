@@ -16,6 +16,7 @@ pub mod eval;
 pub mod graph;
 pub mod ipld_error;
 pub mod literal;
+pub mod machine;
 pub mod meta;
 pub mod package;
 pub mod parse;
