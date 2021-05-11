@@ -309,6 +309,7 @@ impl DAG {
                 *parents,
                 None,
               );
+              replace_child(node, expand);
               free_dead_node(node);
               node = expand;
             }
