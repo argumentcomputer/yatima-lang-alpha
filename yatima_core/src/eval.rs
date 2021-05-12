@@ -618,7 +618,7 @@ pub mod test {
       &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id,);
     println!("{}", trm_str);
     let (_, trm) = parse(trm_str).unwrap();
-    println!("{:?}", DAG::to_term(&trm));
+    println!("{:?}", DAG::to_term(&trm, true));
     // assert_eq!(true, false);
     norm_assert(trm_str, id);
   }

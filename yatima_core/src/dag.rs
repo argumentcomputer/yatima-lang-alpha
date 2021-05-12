@@ -240,7 +240,7 @@ pub fn alloc_lam(
         dep: var_dep,
         binder: mem::zeroed(),
         parents: var_parents,
-        pos: Pos::None,
+        pos,
       },
       bod,
       bod_ref: mem::zeroed(),
@@ -270,7 +270,7 @@ pub fn alloc_slf(
         dep: var_dep,
         binder: mem::zeroed(),
         parents: var_parents,
-        pos: Pos::None,
+        pos,
       },
       bod,
       bod_ref: mem::zeroed(),
@@ -401,7 +401,7 @@ pub fn alloc_let(
         dep: var_dep,
         binder: mem::zeroed(),
         parents: var_parents,
-        pos: Pos::None,
+        pos,
       },
       uses,
       typ,
@@ -733,37 +733,42 @@ impl DAG {
     node: &DAGPtr,
     map: &mut HashMap<*mut Var, u64>,
     depth: u64,
+    re_rec: bool,
   ) -> Term {
     match node {
       DAGPtr::Var(link) => {
-        let Var { nam, dep: var_depth, rec, .. } = unsafe { link.as_ref() };
-        if *rec {
-          Term::Rec(Pos::None)
+        let Var { nam, dep: var_depth, rec, pos, .. } =
+          unsafe { link.as_ref() };
+        if *rec && re_rec {
+          Term::Rec(*pos)
         }
         else if let Some(level) = map.get(&link.as_ptr()) {
-          Term::Var(Pos::None, nam.clone(), depth - level - 1)
+          Term::Var(*pos, nam.clone(), depth - level - 1)
         }
         else {
-          Term::Var(Pos::None, nam.clone(), *var_depth)
+          Term::Var(*pos, nam.clone(), *var_depth)
         }
       }
-      DAGPtr::Typ(_) => Term::Typ(Pos::None),
+      DAGPtr::Typ(link) => {
+        let Typ { pos, .. } = unsafe { link.as_ref() };
+        Term::Typ(*pos)
+      }
       DAGPtr::LTy(link) => {
-        let LTy { lty, .. } = unsafe { link.as_ref() };
-        Term::LTy(Pos::None, *lty)
+        let LTy { lty, pos, .. } = unsafe { link.as_ref() };
+        Term::LTy(*pos, *lty)
       }
       DAGPtr::Lit(link) => {
-        let Lit { lit, .. } = unsafe { link.as_ref() };
-        Term::Lit(Pos::None, lit.clone())
+        let Lit { lit, pos, .. } = unsafe { link.as_ref() };
+        Term::Lit(*pos, lit.clone())
       }
       DAGPtr::Opr(link) => {
-        let Opr { opr, .. } = unsafe { link.as_ref() };
-        Term::Opr(Pos::None, *opr)
+        let Opr { opr, pos, .. } = unsafe { link.as_ref() };
+        Term::Opr(*pos, *opr)
       }
       DAGPtr::Ref(link) => {
-        let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
+        let Ref { nam, exp, ast, rec, pos, .. } = unsafe { link.as_ref() };
         if *rec {
-          Term::Rec(Pos::None)
+          Term::Rec(*pos)
         }
         else {
           Term::Ref(Pos::None, nam.clone(), *exp, *ast)
@@ -773,23 +778,29 @@ impl DAG {
         let Lam { var, bod, .. } = unsafe { &mut *link.as_ptr() };
         let nam = var.nam.clone();
         map.insert(var, depth);
-        let body = DAG::dag_ptr_to_term(bod, map, depth + 1);
+        let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
         Term::Lam(Pos::None, nam, Box::new(body))
       }
       DAGPtr::Slf(link) => {
         let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
         let nam = var.nam.clone();
         map.insert(var, depth);
-        let body = DAG::dag_ptr_to_term(bod, map, depth + 1);
+        let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
         Term::Slf(Pos::None, nam, Box::new(body))
       }
       DAGPtr::Cse(link) => {
         let Cse { bod, .. } = unsafe { link.as_ref() };
-        Term::Cse(Pos::None, Box::new(DAG::dag_ptr_to_term(bod, map, depth)))
+        Term::Cse(
+          Pos::None,
+          Box::new(DAG::dag_ptr_to_term(bod, map, depth, re_rec)),
+        )
       }
       DAGPtr::Dat(link) => {
         let Dat { bod, .. } = unsafe { link.as_ref() };
-        Term::Dat(Pos::None, Box::new(DAG::dag_ptr_to_term(bod, map, depth)))
+        Term::Dat(
+          Pos::None,
+          Box::new(DAG::dag_ptr_to_term(bod, map, depth, re_rec)),
+        )
       }
       DAGPtr::App(link) => {
         let App { fun, arg, .. } = unsafe { link.as_ref() };
@@ -797,8 +808,8 @@ impl DAG {
         Term::App(
           Pos::None,
           Box::new((
-            DAG::dag_ptr_to_term(fun, fun_map, depth),
-            DAG::dag_ptr_to_term(arg, map, depth),
+            DAG::dag_ptr_to_term(fun, fun_map, depth, re_rec),
+            DAG::dag_ptr_to_term(arg, map, depth, re_rec),
           )),
         )
       }
@@ -808,8 +819,8 @@ impl DAG {
         Term::Ann(
           Pos::None,
           Box::new((
-            DAG::dag_ptr_to_term(typ, typ_map, depth),
-            DAG::dag_ptr_to_term(exp, map, depth),
+            DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
+            DAG::dag_ptr_to_term(exp, map, depth, re_rec),
           )),
         )
       }
@@ -825,8 +836,8 @@ impl DAG {
           *uses,
           nam,
           Box::new((
-            DAG::dag_ptr_to_term(dom, dom_map, depth),
-            DAG::dag_ptr_to_term(img, map, depth + 1),
+            DAG::dag_ptr_to_term(dom, dom_map, depth, re_rec),
+            DAG::dag_ptr_to_term(img, map, depth + 1, re_rec),
           )),
         )
       }
@@ -843,18 +854,18 @@ impl DAG {
           *uses,
           nam,
           Box::new((
-            DAG::dag_ptr_to_term(typ, typ_map, depth),
-            DAG::dag_ptr_to_term(exp, exp_map, depth),
-            DAG::dag_ptr_to_term(bod, map, depth + 1),
+            DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
+            DAG::dag_ptr_to_term(exp, exp_map, depth, re_rec),
+            DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec),
           )),
         )
       }
     }
   }
 
-  pub fn to_term(&self) -> Term {
+  pub fn to_term(&self, re_rec: bool) -> Term {
     let mut map = HashMap::new();
-    DAG::dag_ptr_to_term(&self.head, &mut map, 0)
+    DAG::dag_ptr_to_term(&self.head, &mut map, 0, re_rec)
   }
 
   pub fn from_term(tree: &Term) -> Self {
@@ -1578,13 +1589,13 @@ impl fmt::Debug for DAG {
 
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_term())
+    write!(f, "{}", self.to_term(false))
   }
 }
 
 impl fmt::Display for DAGPtr {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", DAG::new(self.clone()).to_term())
+    write!(f, "{}", DAG::new(self.clone()).to_term(false))
   }
 }
 
@@ -1608,7 +1619,7 @@ pub mod test {
   fn dag_term_iso(x: Term) -> bool {
     // println!("x: {}", x);
     // println!("x: {:?}", x);
-    let y = DAG::to_term(&DAG::from_term(&x));
+    let y = DAG::to_term(&DAG::from_term(&x), true);
     // println!("y: {}", y);
     // println!("y: {:?}", y);
     x == y
@@ -1616,7 +1627,7 @@ pub mod test {
 
   #[quickcheck]
   fn dag_def_iso(x: Def) -> bool {
-    let y = DAG::to_term(&DAG::from_def(&x, "test".to_owned()));
+    let y = DAG::to_term(&DAG::from_def(&x, "test".to_owned()), true);
     x.term == y
   }
 }
