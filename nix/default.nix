@@ -9,9 +9,11 @@ let
 
   pre-commit-hooks = (import sources."pre-commit-hooks.nix");
 
-  rust = (import ./rust.nix { inherit sources; });
+  nixpkgs-mozilla = pkgs.callPackage (sources.nixpkgs-mozilla + "/package-set.nix") { };
+  rust = import ./rust.nix { inherit nixpkgs-mozilla; };
 
-  grin = import sources.grin { };
+  # grinProject = import sources.grin { };
+  # grin = grinProject.grin.components.exes.grin;
 
   src = gitignoreSource ./..;
 in
@@ -23,7 +25,7 @@ in
     inherit (pkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
     inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter rustfmt clippy;
     inherit rust;
-    inherit grin;
+    # inherit grin;
   };
 
   # to be built by github actions
