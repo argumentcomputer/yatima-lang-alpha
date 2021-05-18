@@ -7,6 +7,12 @@ use yatima::{
   ipfs,
   repl,
 };
+use yatima_core::{
+  check::error::CheckError,
+  position::Pos,
+};
+
+use libipld::Ipld;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]
@@ -61,8 +67,18 @@ async fn main() -> std::io::Result<()> {
             &yatima_core::package::import_alias(n.to_owned(), &i),
           ) {
             Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
+            Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
+              println!("✕ {}: {}", n, e);
+            }
             Err(err) => {
-              println!("✕ {}: {}", n, err);
+              let def = ds.get(n).unwrap();
+              println!("✕ {}: {}", n, def.typ_.pretty(Some(n)));
+              if let Pos::Some(pos) = err.pos() {
+                if let Some(Ipld::String(input)) = file::store::get(pos.input) {
+                  println!("{}", pos.range(input))
+                }
+              }
+              print!("Error: {}", err);
             }
           }
         }
@@ -71,8 +87,18 @@ async fn main() -> std::io::Result<()> {
       for (n, _) in &p.index.0 {
         match yatima_core::check::check_def(&ds, n) {
           Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
+          Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
+            println!("✕ {}: {}", n, e);
+          }
           Err(err) => {
-            println!("✕ {}: {}", n, err);
+            let def = ds.get(n).unwrap();
+            println!("✕ {}: {}", n, def.typ_.pretty(Some(n)));
+            if let Pos::Some(pos) = err.pos() {
+              if let Some(Ipld::String(input)) = file::store::get(pos.input) {
+                println!("{}", pos.range(input))
+              }
+            }
+            print!("Error: {}", err);
           }
         }
       }

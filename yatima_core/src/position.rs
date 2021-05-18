@@ -27,6 +27,29 @@ pub enum Pos {
 }
 
 impl Position {
+  pub fn range(self, input: String) -> String {
+    let mut res = String::new();
+    let gutter = format!("{}", self.upto_line).len();
+    let pad = format!("{: >gutter$}", self.from_line, gutter = gutter)
+       .len() + 3 + self.from_column as usize;
+    res.push_str(&format!("{}▼\n", " ".to_owned().repeat(pad)));
+    for (line_number, line) in input.lines().enumerate() {
+      if ((line_number as u64 + 1) >= self.from_line) &&
+         ((line_number as u64 + 1) <= self.upto_line) {
+        res.push_str(
+          &format!("{: >gutter$} | {}\n",
+          line_number + 1,
+          line,
+          gutter = gutter)
+        );
+      }
+    }
+    let pad = format!("{: >gutter$}", self.upto_line, gutter = gutter)
+      .len() + 3 + self.upto_column as usize;
+    res.push_str(&format!("{}▲", " ".to_owned().repeat(pad)));
+    res
+  }
+
   pub fn to_ipld(self) -> Ipld {
     Ipld::List(vec![
       Ipld::Link(self.input),
