@@ -7,8 +7,12 @@ use crate::{
   ipld_error::IpldError,
   literal::Literal,
   term::Term,
+  text,
   yatima,
 };
+
+use ropey;
+
 use num_bigint::{
   BigInt,
   BigUint,
@@ -528,7 +532,7 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (NatMod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
     (IntMod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
     (TextCons, Char(c), Text(mut cs)) => {
-      cs.push_front(c);
+      cs.insert_char(0, c);
       Some(Text(cs))
     }
     (BytesCons, U8(c), Bytes(mut cs)) => {
@@ -593,5 +597,17 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[test]
+  fn test_apply_bin_op() {
+    assert_eq!(
+      Some(Literal::Text(ropey::Rope::from_str("foo"))),
+      apply_bin_op(
+        PrimOp::TextCons,
+        Literal::Char('f'),
+        Literal::Text(ropey::Rope::from_str("oo"))
+      )
+    )
   }
 }

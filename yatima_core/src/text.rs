@@ -1,19 +1,23 @@
-use im::Vector;
+use ropey::Rope;
 
-pub type Text = Vector<char>;
-
-pub fn from_string(x: String) -> Text {
-  let mut res = Vector::new();
-  for c in x.chars() {
-    res.push_back(c);
+pub fn safe_head(mut x: Rope) -> Option<(char, Rope)> {
+  if x.len_chars() == 0 {
+    None
   }
-  res
+  else {
+    let tail = x.split_off(1);
+    Some((x.char(0), tail))
+  }
 }
 
-pub fn to_string(x: Text) -> String {
-  let mut res = String::new();
-  for c in x.iter() {
-    res.push(*c);
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+
+  #[test]
+  fn test_safe_head() {
+    let rope: Rope = Rope::from_str("foo");
+    let res = safe_head(rope);
+    assert_eq!(res, Some(('f', Rope::from_str("oo"))));
   }
-  res
 }
