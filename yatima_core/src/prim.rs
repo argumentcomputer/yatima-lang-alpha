@@ -1,6 +1,10 @@
 pub mod bool;
 pub mod bytes;
 pub mod char;
+pub mod i128;
+pub mod i16;
+pub mod i32;
+pub mod i64;
 pub mod i8;
 pub mod int;
 pub mod nat;
@@ -25,6 +29,10 @@ use crate::prim::{
   bool::BoolOp,
   bytes::BytesOp,
   char::CharOp,
+  i128::I128Op,
+  i16::I16Op,
+  i32::I32Op,
+  i64::I64Op,
   i8::I8Op,
   int::IntOp,
   nat::NatOp,
@@ -50,6 +58,10 @@ pub enum Op {
   U64(U64Op),
   U128(U128Op),
   I8(I8Op),
+  I16(I16Op),
+  I32(I32Op),
+  I64(I64Op),
+  I128(I128Op),
 }
 
 impl Op {
@@ -67,6 +79,10 @@ impl Op {
       Self::U64(op) => format!("#U64.{}", op.symbol()),
       Self::U128(op) => format!("#U128.{}", op.symbol()),
       Self::I8(op) => format!("#I8.{}", op.symbol()),
+      Self::I16(op) => format!("#I16.{}", op.symbol()),
+      Self::I32(op) => format!("#I32.{}", op.symbol()),
+      Self::I64(op) => format!("#I64.{}", op.symbol()),
+      Self::I128(op) => format!("#I128.{}", op.symbol()),
     }
   }
 
@@ -84,6 +100,10 @@ impl Op {
       Self::U64(op) => Ipld::List(vec![Ipld::Integer(9), op.to_ipld()]),
       Self::U128(op) => Ipld::List(vec![Ipld::Integer(10), op.to_ipld()]),
       Self::I8(op) => Ipld::List(vec![Ipld::Integer(11), op.to_ipld()]),
+      Self::I16(op) => Ipld::List(vec![Ipld::Integer(12), op.to_ipld()]),
+      Self::I32(op) => Ipld::List(vec![Ipld::Integer(13), op.to_ipld()]),
+      Self::I64(op) => Ipld::List(vec![Ipld::Integer(14), op.to_ipld()]),
+      Self::I128(op) => Ipld::List(vec![Ipld::Integer(15), op.to_ipld()]),
     }
   }
 
@@ -102,6 +122,10 @@ impl Op {
         [Ipld::Integer(9), ys] => U64Op::from_ipld(ys).map(Self::U64),
         [Ipld::Integer(10), ys] => U128Op::from_ipld(ys).map(Self::U128),
         [Ipld::Integer(11), ys] => I8Op::from_ipld(ys).map(Self::I8),
+        [Ipld::Integer(12), ys] => I16Op::from_ipld(ys).map(Self::I16),
+        [Ipld::Integer(13), ys] => I32Op::from_ipld(ys).map(Self::I32),
+        [Ipld::Integer(14), ys] => I64Op::from_ipld(ys).map(Self::I64),
+        [Ipld::Integer(15), ys] => I128Op::from_ipld(ys).map(Self::I128),
         xs => Err(IpldError::PrimOp(Ipld::List(xs.to_owned()))),
       },
       xs => Err(IpldError::PrimOp(xs.to_owned())),
@@ -122,6 +146,10 @@ impl Op {
       Self::U64(op) => op.arity(),
       Self::U128(op) => op.arity(),
       Self::I8(op) => op.arity(),
+      Self::I16(op) => op.arity(),
+      Self::I32(op) => op.arity(),
+      Self::I64(op) => op.arity(),
+      Self::I128(op) => op.arity(),
     }
   }
 
@@ -133,10 +161,10 @@ impl Op {
       Self::U64(op) => op.apply0(),
       Self::U128(op) => op.apply0(),
       Self::I8(op) => op.apply0(),
-      // Self::I16(op) => op.apply0(),
-      // Self::I32(op) => op.apply0(),
-      // Self::I64(op) => op.apply0(),
-      // Self::I128(op) => op.apply0(),
+      Self::I16(op) => op.apply0(),
+      Self::I32(op) => op.apply0(),
+      Self::I64(op) => op.apply0(),
+      Self::I128(op) => op.apply0(),
       _ => None,
     }
   }
@@ -155,6 +183,10 @@ impl Op {
       Self::U64(op) => op.apply1(x),
       Self::U128(op) => op.apply1(x),
       Self::I8(op) => op.apply1(x),
+      Self::I16(op) => op.apply1(x),
+      Self::I32(op) => op.apply1(x),
+      Self::I64(op) => op.apply1(x),
+      Self::I128(op) => op.apply1(x),
     }
   }
 
@@ -172,6 +204,10 @@ impl Op {
       Self::U64(op) => op.apply2(x, y),
       Self::U128(op) => op.apply2(x, y),
       Self::I8(op) => op.apply2(x, y),
+      Self::I16(op) => op.apply2(x, y),
+      Self::I32(op) => op.apply2(x, y),
+      Self::I64(op) => op.apply2(x, y),
+      Self::I128(op) => op.apply2(x, y),
     }
   }
 
@@ -197,6 +233,10 @@ impl Op {
       Self::U64(op) => op.type_of(),
       Self::U128(op) => op.type_of(),
       Self::I8(op) => op.type_of(),
+      Self::I16(op) => op.type_of(),
+      Self::I32(op) => op.type_of(),
+      Self::I64(op) => op.type_of(),
+      Self::I128(op) => op.type_of(),
     }
   }
 }
@@ -231,7 +271,11 @@ pub mod tests {
         8 => Self::U32(U32Op::arbitrary(g)),
         9 => Self::U64(U64Op::arbitrary(g)),
         10 => Self::U128(U128Op::arbitrary(g)),
-        _ => Self::I8(I8Op::arbitrary(g)),
+        11 => Self::I8(I8Op::arbitrary(g)),
+        12 => Self::I16(I16Op::arbitrary(g)),
+        13 => Self::I32(I32Op::arbitrary(g)),
+        14 => Self::I64(I64Op::arbitrary(g)),
+        _ => Self::I128(I128Op::arbitrary(g)),
       }
     }
   }
