@@ -60,8 +60,8 @@ impl std::ops::Div for Uses {
     match (self, rhs) {
       (Self::Many, _) => Self::Many,
       (_, Self::Many) => Self::None,
-      (Self::None, _) => Self::None,
       (_, Self::None) => Self::Many,
+      (Self::None, _) => Self::None,
       (x, Self::Once) => x,
       (Self::Affi, Self::Affi) => Self::Once,
       (Self::Once, Self::Affi) => Self::None,
@@ -76,8 +76,8 @@ impl std::ops::Rem for Uses {
     match (self, rhs) {
       (Self::Many, _) => Self::Many,
       (x, Self::Many) => x,
-      (Self::None, _) => Self::None,
       (x, Self::None) => x,
+      (Self::None, _) => Self::None,
       (_, Self::Once) => Self::None,
       (Self::Affi, Self::Affi) => Self::None,
       (Self::Once, Self::Affi) => Self::Once,
