@@ -15,7 +15,8 @@ pub enum CheckError {
   UndefinedReference(Pos, String),
   UnboundVariable(Pos, ErrCtx, String, u64),
   UntypedLambda(Pos, ErrCtx),
-  QuantityMismatch(Pos, ErrCtx, Uses, Uses),
+  QuantityTooLittle(Pos, ErrCtx, Uses, Uses),
+  QuantityTooMuch(Pos, ErrCtx, Uses, Uses),
   TypeMismatch(Pos, ErrCtx, Term, Term),
   LamAllMismatch(Pos, ErrCtx, Term, Term),
   DatSlfMismatch(Pos, ErrCtx, Term, Term),
@@ -143,8 +144,20 @@ impl fmt::Display for CheckError {
         writeln!(f, "• Against: {}", typ)?;
         Ok(())
       }
-      CheckError::QuantityMismatch(pos, ctx, exp, det) => {
-        writeln!(f, "Quantity Mismatch {}", pretty_pos(*pos))?;
+      CheckError::QuantityTooLittle(pos, ctx, exp, det) => {
+        writeln!(f, "Quantity not used enough {}", pretty_pos(*pos))?;
+        if !ctx.is_empty() {
+          writeln!(f, "• Context:")?;
+          for (n, typ) in ctx {
+            writeln!(f, "  - {}: {}", n, typ)?;
+          }
+        }
+        writeln!(f, "• Expected: {}", exp)?;
+        writeln!(f, "• Detected: {}", det)?;
+        Ok(())
+      }
+      CheckError::QuantityTooMuch(pos, ctx, exp, det) => {
+        writeln!(f, "Quantity used too much {}", pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
           for (n, typ) in ctx {

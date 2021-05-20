@@ -16,23 +16,39 @@ use im::{
 // This double pointer is actually a pointer to the parent's field that
 // references the node. It does not ever change since it is already in whnf by
 // the time we add the child node to the context.
-pub type Ctx = Vector<(String, *mut DAGPtr)>;
+pub type Ctx = Vec<(String, Uses, *mut DAGPtr)>;
 
-pub type UseCtx = Vector<Uses>;
+// pub type UseCtx = Vec<Uses>;
 
 #[inline]
-pub fn add_use_ctx(use_ctx: &mut UseCtx, use_ctx2: UseCtx) {
+pub fn add_use_ctx(use_ctx: &mut Ctx, use_ctx2: Ctx) {
   #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
-    use_ctx[i] = use_ctx[i] + use_ctx2[i]
+    use_ctx[i].1 = use_ctx[i].1 + use_ctx2[i].1
   }
 }
 
 #[inline]
-pub fn mul_use_ctx(uses: Uses, use_ctx: &mut UseCtx) {
+pub fn mul_use_ctx(uses: Uses, use_ctx: &mut Ctx) {
   #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
-    use_ctx[i] = use_ctx[i] * uses
+    use_ctx[i].1 = use_ctx[i].1 * uses
+  }
+}
+
+#[inline]
+pub fn div_use_ctx(uses: Uses, use_ctx: &mut Ctx) {
+  #[allow(clippy::needless_range_loop)]
+  for i in 0..use_ctx.len() {
+    use_ctx[i].1 = use_ctx[i].1 / uses
+  }
+}
+
+#[inline]
+pub fn lam_rule(uses: Uses, use_ctx: &mut Ctx, use_ctx2: &Ctx) {
+  #[allow(clippy::needless_range_loop)]
+  for i in 0..use_ctx.len() {
+    use_ctx[i].1 = (use_ctx[i].1 % uses) + (use_ctx2[i].1 * uses)
   }
 }
 
@@ -40,7 +56,7 @@ pub type ErrCtx = Vector<(String, Term)>;
 
 pub fn error_context(ctx: &Ctx) -> ErrCtx {
   let mut res: ErrCtx = Vector::new();
-  for (n, ptr) in ctx {
+  for (n, _, ptr) in ctx {
     let dagptr = unsafe { **ptr };
     let mut map = HashMap::new();
     res.push_back((
