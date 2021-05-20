@@ -93,7 +93,7 @@ impl<'a> fmt::Display for FileErrorKind {
           path
         )
       }
-      Self::ImportCollision(imp_name, cid, def_name) => {
+      Self::ImportCollision(imp_name, _cid, def_name) => {
         writeln!(
           f,
           "Cannot import {def} from {imp} because a definition named \

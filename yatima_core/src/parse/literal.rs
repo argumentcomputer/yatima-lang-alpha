@@ -91,6 +91,14 @@ pub fn parse_bytes(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
     None => Ok((upto, Literal::Bytes(vec![].into()))),
   }
 }
+
+pub fn parse_bool(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
+  alt((
+    value(Literal::Bool(true), tag("#Bool.true")),
+    value(Literal::Bool(false), tag("#Bool.false")),
+  ))(from)
+}
+
 #[cfg(test)]
 pub mod tests {
   use super::*;

@@ -21,7 +21,7 @@ pub mod package;
 #[macro_use]
 pub mod parse;
 pub mod position;
-pub mod primop;
+pub mod prim;
 pub mod term;
 pub mod text;
 pub mod upcopy;

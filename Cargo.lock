@@ -1375,6 +1375,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ropey"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0f3ef16589fdbb3e8fbce3dca944c08e61f39c7f16064b21a257d68ea911a83"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "rustyline"
 version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2018,6 +2027,7 @@ version = "0.1.0"
 dependencies = [
  "base-x",
  "bit-vec",
+ "bytes",
  "cid",
  "im",
  "libipld",
@@ -2030,4 +2040,5 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
+ "ropey",
 ]

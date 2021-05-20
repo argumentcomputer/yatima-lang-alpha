@@ -22,16 +22,11 @@ use std::{
   fmt,
 };
 
-pub type Bytes = im::Vector<u8>;
-
-pub fn bytes_to_vec(x: Bytes) -> Vec<u8> { x.into_iter().collect() }
-pub fn vec_to_bytes(x: Vec<u8>) -> Bytes { x.into() }
-
 #[derive(PartialEq, Clone, Debug)]
 pub enum Literal {
   Nat(BigUint),
   Int(BigInt),
-  Bytes(Bytes),
+  Bytes(Vec<u8>),
   Text(Rope),
   Char(char),
   Bool(bool),
@@ -77,7 +72,6 @@ impl fmt::Display for Literal {
         _ => write!(f, "+{}", x.to_str_radix(10)),
       },
       Bytes(x) => {
-        let x: Vec<u8> = bytes_to_vec(x.clone());
         let x: &[u8] = x.as_ref();
         write!(f, "x\"{}\"", base::LitBase::Hex.encode(x))
       }
@@ -116,19 +110,19 @@ impl Literal {
         }
       }
       Self::Int(_) => yatima!("λ P i => i"),
-      Self::Bytes(mut t) => {
-        let c = t.pop_front();
-        match c {
-          None => yatima!("λ P n c => n"),
-          Some(c) => {
-            yatima!(
-              "λ P n c => c #$0 #$1",
-              Term::Lit(Pos::None, Literal::U8(c)),
-              Term::Lit(Pos::None, Literal::Bytes(t))
-            )
-          }
-        }
-      }
+      // Self::Bytes(mut t) => {
+      //  let c = t.pop_front();
+      //  match c {
+      //    None => yatima!("λ P n c => n"),
+      //    Some(c) => {
+      //      yatima!(
+      //        "λ P n c => c #$0 #$1",
+      //        Term::Lit(Pos::None, Literal::U8(c)),
+      //        Term::Lit(Pos::None, Literal::Bytes(t))
+      //      )
+      //    }
+      //  }
+      //}
       Self::Text(t) => match text::safe_head(t) {
         None => yatima!("λ P n c => n"),
         Some((c, t)) => {
@@ -151,10 +145,9 @@ impl Literal {
       Self::Int(x) => {
         Ipld::List(vec![Ipld::Integer(1), Ipld::Bytes(x.to_signed_bytes_be())])
       }
-      Self::Bytes(x) => Ipld::List(vec![
-        Ipld::Integer(2),
-        Ipld::Bytes(bytes_to_vec(x.to_owned())),
-      ]),
+      Self::Bytes(x) => {
+        Ipld::List(vec![Ipld::Integer(2), Ipld::Bytes(x.to_owned())])
+      }
       Self::Text(x) => Ipld::List(vec![
         Ipld::Integer(3),
         Ipld::Bytes(x.to_string().into_bytes()),

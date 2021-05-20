@@ -5,10 +5,7 @@ use crate::{
   defs::Defs,
   dll::*,
   position::Pos,
-  primop::{
-    apply_bin_op,
-    apply_una_op,
-  },
+  prim::Op,
   upcopy::*,
 };
 
@@ -359,7 +356,7 @@ impl DAG {
             match arg.head {
               DAGPtr::Lit(link) => {
                 let x = unsafe { (*link.as_ptr()).lit.clone() };
-                let res = apply_una_op(opr, x);
+                let res = opr.apply1(x);
                 if let Some(res) = res {
                   trail.pop();
                   node = DAGPtr::Lit(alloc_val(Lit {
@@ -386,8 +383,44 @@ impl DAG {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
                 let x = unsafe { (*x_link.as_ptr()).lit.clone() };
                 let y = unsafe { (*y_link.as_ptr()).lit.clone() };
-                let res = apply_bin_op(opr, y, x);
+                let res = opr.apply2(y, x);
                 if let Some(res) = res {
+                  trail.pop();
+                  trail.pop();
+                  node = DAGPtr::Lit(alloc_val(Lit {
+                    lit: res,
+                    parents: None,
+                    pos: Pos::None,
+                  }));
+                  replace_child(arg1.head, node);
+                  free_dead_node(arg1.head);
+                }
+                else {
+                  break;
+                }
+              }
+              _ => break,
+            }
+          }
+          else if len >= 3 && opr.arity() == 3 {
+            let mut arg1 = unsafe { DAG::new((*trail[len - 3].as_ptr()).arg) };
+            let mut arg2 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
+            let mut arg3 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            arg1.whnf(defs);
+            arg2.whnf(defs);
+            arg3.whnf(defs);
+            match (arg1.head, arg2.head, arg3.head) {
+              (
+                DAGPtr::Lit(x_link),
+                DAGPtr::Lit(y_link),
+                DAGPtr::Lit(z_link),
+              ) => {
+                let x = unsafe { (*x_link.as_ptr()).lit.clone() };
+                let y = unsafe { (*y_link.as_ptr()).lit.clone() };
+                let z = unsafe { (*z_link.as_ptr()).lit.clone() };
+                let res = opr.apply3(z, y, x);
+                if let Some(res) = res {
+                  trail.pop();
                   trail.pop();
                   trail.pop();
                   node = DAGPtr::Lit(alloc_val(Lit {

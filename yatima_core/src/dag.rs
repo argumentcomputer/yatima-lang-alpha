@@ -9,7 +9,7 @@ use crate::{
     Literal,
   },
   position::Pos,
-  primop::PrimOp,
+  prim::Op,
   term::Term,
   uses::Uses,
 };
@@ -212,7 +212,7 @@ pub struct LTy {
 
 #[repr(C)]
 pub struct Opr {
-  pub opr: PrimOp,
+  pub opr: Op,
   pub parents: Option<NonNull<Parents>>,
   pub pos: Pos,
 }

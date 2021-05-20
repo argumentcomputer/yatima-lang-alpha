@@ -7,11 +7,11 @@ use crate::{
       ParseErrorKind,
     },
     literal::*,
+    op::parse_opr,
   },
   position::Pos,
   term::{
     LitType,
-    PrimOp,
     Term,
     Uses,
   },
@@ -738,54 +738,6 @@ pub fn parse_lit(
     })?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Lit(pos, lit)))
-  }
-}
-
-pub fn parse_opr(
-  input: Cid,
-) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
-  move |from: Span| {
-    let (i, op) = alt((
-      alt((
-        value(PrimOp::NatEql, tag("#Nat.eql")),
-        value(PrimOp::NatLth, tag("#Nat.lth")),
-        value(PrimOp::NatLte, tag("#Nat.lte")),
-        value(PrimOp::NatGth, tag("#Nat.gth")),
-        value(PrimOp::NatGte, tag("#Nat.gte")),
-        value(PrimOp::NatSuc, tag("#Nat.suc")),
-        value(PrimOp::NatPre, tag("#Nat.pre")),
-        value(PrimOp::NatAdd, tag("#Nat.add")),
-        value(PrimOp::NatSub, tag("#Nat.sub")),
-        value(PrimOp::NatMul, tag("#Nat.mul")),
-        value(PrimOp::NatDiv, tag("#Nat.div")),
-        value(PrimOp::NatMod, tag("#Nat.mod")),
-      )),
-      alt((
-        value(PrimOp::IntNew, tag("#Int.new")),
-        value(PrimOp::IntSgn, tag("#Int.sgn")),
-        value(PrimOp::IntAbs, tag("#Int.abs")),
-        value(PrimOp::IntEql, tag("#Int.eql")),
-        value(PrimOp::IntLth, tag("#Int.lth")),
-        value(PrimOp::IntLte, tag("#Int.lte")),
-        value(PrimOp::IntGth, tag("#Int.gth")),
-        value(PrimOp::IntGte, tag("#Int.gte")),
-        value(PrimOp::IntAdd, tag("#Int.add")),
-        value(PrimOp::IntSub, tag("#Int.sub")),
-        value(PrimOp::IntMul, tag("#Int.mul")),
-        value(PrimOp::IntDiv, tag("#Int.div")),
-        value(PrimOp::IntMod, tag("#Int.mod")),
-        value(PrimOp::TextCons, tag("#Text.cons")),
-        value(PrimOp::BytesCons, tag("#Bytes.cons")),
-      )),
-    ))(from)?;
-    let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
-      ParseError::new(
-        i,
-        ParseErrorKind::PrimOpLacksWhitespaceTermination(op.to_owned()),
-      )
-    })?;
-    let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Opr(pos, op)))
   }
 }
 

@@ -20,6 +20,7 @@ nom_locate = "3.0.0"
 base-x = "0.2.8"
 petgraph = "0.5.1"
 ropey = "1.2.0"
+bytes = "1.0.1"
 
 [dev-dependencies]
 quickcheck = "1.0.3"
