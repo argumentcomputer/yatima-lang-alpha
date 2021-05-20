@@ -15,8 +15,8 @@ pub enum CheckError {
   UndefinedReference(Pos, String),
   UnboundVariable(Pos, ErrCtx, String, u64),
   UntypedLambda(Pos, ErrCtx),
-  QuantityTooLittle(Pos, ErrCtx, Uses, Uses),
-  QuantityTooMuch(Pos, ErrCtx, Uses, Uses),
+  QuantityTooLittle(Pos, ErrCtx, String, Uses, Uses),
+  QuantityTooMuch(Pos, ErrCtx, String, Uses, Uses),
   TypeMismatch(Pos, ErrCtx, Term, Term),
   LamAllMismatch(Pos, ErrCtx, Term, Term),
   DatSlfMismatch(Pos, ErrCtx, Term, Term),
@@ -144,8 +144,8 @@ impl fmt::Display for CheckError {
         writeln!(f, "• Against: {}", typ)?;
         Ok(())
       }
-      CheckError::QuantityTooLittle(pos, ctx, exp, det) => {
-        writeln!(f, "Quantity not used enough {}", pretty_pos(*pos))?;
+      CheckError::QuantityTooLittle(pos, ctx, nam, exp, det) => {
+        writeln!(f, "Variable `{}` not used enough {}", nam, pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
           for (n, typ) in ctx {
@@ -156,8 +156,8 @@ impl fmt::Display for CheckError {
         writeln!(f, "• Detected: {}", det)?;
         Ok(())
       }
-      CheckError::QuantityTooMuch(pos, ctx, exp, det) => {
-        writeln!(f, "Quantity used too much {}", pretty_pos(*pos))?;
+      CheckError::QuantityTooMuch(pos, ctx, nam, exp, det) => {
+        writeln!(f, "Variable `{}` used too much {}", nam, pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
           for (n, typ) in ctx {

@@ -131,6 +131,7 @@ pub fn check(
             Err(CheckError::QuantityTooLittle(
               *lam_pos,
               error_context(&ctx),
+              all_var.nam.clone(),
               *lam_uses,
               rest,
             ))
@@ -242,6 +243,7 @@ pub fn infer(
         CheckError::QuantityTooMuch(
           *pos,
           error_context(&ctx),
+          nam.clone(),
           bind.1,
           uses,
         )})?;
