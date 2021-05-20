@@ -61,6 +61,15 @@ impl LitBase {
     }
   }
 
+  pub fn radix(&self) -> u32 {
+    match self {
+      Self::Bin => 2,
+      Self::Oct => 8,
+      Self::Dec => 10,
+      Self::Hex => 16,
+    }
+  }
+
   pub fn is_digit(&self, x: char) -> bool {
     self.base_digits().chars().any(|y| x == y)
   }

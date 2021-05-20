@@ -2,8 +2,8 @@ use crate::{
   ipld_error::IpldError,
   parse::base,
   position::Pos,
+  prim::text,
   term::Term,
-  text,
   yatima,
 };
 
@@ -73,24 +73,59 @@ impl fmt::Display for Literal {
       },
       Bytes(x) => {
         let x: &[u8] = x.as_ref();
-        write!(f, "x\"{}\"", base::LitBase::Hex.encode(x))
+        write!(f, "x\'{}\'", base::LitBase::Hex.encode(x))
       }
       Text(x) => {
         write!(f, "\"{}\"", Rope::to_string(x).escape_default())
       }
       Char(x) => write!(f, "'{}'", x.escape_default()),
-      Bool(true) => write!(f, "true"),
-      Bool(false) => write!(f, "false"),
-      U8(x) => write!(f, "{}", x),
-      U16(x) => write!(f, "{}", x),
-      U32(x) => write!(f, "{}", x),
-      U64(x) => write!(f, "{}", x),
-      U128(x) => write!(f, "{}", x),
-      I8(x) => write!(f, "{}", x),
-      I16(x) => write!(f, "{}", x),
-      I32(x) => write!(f, "{}", x),
-      I64(x) => write!(f, "{}", x),
-      I128(x) => write!(f, "{}", x),
+      Bool(true) => write!(f, "#Bool.true"),
+      Bool(false) => write!(f, "#Bool.false"),
+      U8(x) => write!(f, "{}u8", x),
+      U16(x) => write!(f, "{}u16", x),
+      U32(x) => write!(f, "{}u32", x),
+      U64(x) => write!(f, "{}u64", x),
+      U128(x) => write!(f, "{}u128", x),
+      I8(x) => {
+        if x.is_negative() {
+          write!(f, "{}i8", x)
+        }
+        else {
+          write!(f, "+{}i8", x)
+        }
+      }
+      I16(x) => {
+        if x.is_negative() {
+          write!(f, "{}i16", x)
+        }
+        else {
+          write!(f, "+{}i16", x)
+        }
+      }
+      I32(x) => {
+        if x.is_negative() {
+          write!(f, "{}i32", x)
+        }
+        else {
+          write!(f, "+{}i32", x)
+        }
+      }
+      I64(x) => {
+        if x.is_negative() {
+          write!(f, "{}i64", x)
+        }
+        else {
+          write!(f, "+{}i64", x)
+        }
+      }
+      I128(x) => {
+        if x.is_negative() {
+          write!(f, "{}i128", x)
+        }
+        else {
+          write!(f, "+{}i128", x)
+        }
+      }
     }
   }
 }
@@ -553,12 +588,12 @@ pub mod tests {
         (1, arbitrary_text()),
         (1, arbitrary_char()),
         //(1, arbitrary_bool()),
-        //(1, arbitrary_u8()),
-        //(1, arbitrary_u16()),
-        //(1, arbitrary_u32()),
-        //(1, arbitrary_u64()),
-        //(1, arbitrary_u128()),
-        //(1, arbitrary_i8()),
+        (1, arbitrary_u8()),
+        (1, arbitrary_u16()),
+        (1, arbitrary_u32()),
+        (1, arbitrary_u64()),
+        (1, arbitrary_u128()),
+        (1, arbitrary_i8()),
         //(1, arbitrary_i16()),
         //(1, arbitrary_i32()),
         //(1, arbitrary_i64()),

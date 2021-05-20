@@ -350,7 +350,20 @@ impl DAG {
         DAGPtr::Opr(link) => {
           let opr = unsafe { (*link.as_ptr()).opr };
           let len = trail.len();
-          if len >= 1 && opr.arity() == 1 {
+          if len == 0 && opr.arity() == 0 {
+            let res = opr.apply0();
+            if let Some(res) = res {
+              node = DAGPtr::Lit(alloc_val(Lit {
+                lit: res,
+                parents: None,
+                pos: Pos::None,
+              }));
+            }
+            else {
+              break;
+            }
+          }
+          else if len >= 1 && opr.arity() == 1 {
             let mut arg = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
             arg.whnf(defs);
             match arg.head {

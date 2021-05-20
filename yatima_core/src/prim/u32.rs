@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum U8Op {
+pub enum U32Op {
   Max,
   Min,
   Eql,
@@ -37,8 +37,8 @@ pub enum U8Op {
   Ror,
   CountZeros,
   CountOnes,
+  ToU8,
   ToU16,
-  ToU32,
   ToU64,
   ToU128,
   ToNat,
@@ -52,7 +52,7 @@ pub enum U8Op {
   ToChar,
 }
 
-impl U8Op {
+impl U32Op {
   pub fn symbol(self) -> String {
     match self {
       Self::Max => "max".to_owned(),
@@ -78,8 +78,8 @@ impl U8Op {
       Self::Ror => "ror".to_owned(),
       Self::CountZeros => "count_zeros".to_owned(),
       Self::CountOnes => "count_ones".to_owned(),
+      Self::ToU8 => "to_U8".to_owned(),
       Self::ToU16 => "to_U16".to_owned(),
-      Self::ToU32 => "to_U32".to_owned(),
       Self::ToU64 => "to_U64".to_owned(),
       Self::ToU128 => "to_U128".to_owned(),
       Self::ToNat => "to_Nat".to_owned(),
@@ -119,8 +119,8 @@ impl U8Op {
       "ror" => Some(Self::Ror),
       "count_zeros" => Some(Self::CountZeros),
       "count_ones" => Some(Self::CountOnes),
+      "to_U8" => Some(Self::ToU8),
       "to_U16" => Some(Self::ToU16),
-      "to_U32" => Some(Self::ToU32),
       "to_U64" => Some(Self::ToU64),
       "to_U128" => Some(Self::ToU128),
       "to_Nat" => Some(Self::ToNat),
@@ -138,42 +138,42 @@ impl U8Op {
 
   pub fn type_of(self) -> Term {
     match self {
-      Self::Max => yatima!("#U8"),
-      Self::Min => yatima!("#U8"),
-      Self::Eql => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Lte => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Lth => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Gth => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Gte => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Not => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::And => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Or => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Xor => yatima!("∀ #U8 #U8 -> #Bool"),
-      Self::Add => yatima!("∀ #U8 #U8 -> #U8"),
-      Self::Sub => yatima!("∀ #U8 #U8 -> #U8"),
-      Self::Mul => yatima!("∀ #U8 #U8 -> #U8"),
-      Self::Div => yatima!("∀ #U8 #U8 -> #U8"),
-      Self::Mod => yatima!("∀ #U8 #U8 -> #U8"),
-      Self::Pow => yatima!("∀ #U8 #U32 -> #U8"),
-      Self::Shl => yatima!("∀ #U32 #U8 -> #U8"),
-      Self::Shr => yatima!("∀ #U32 #U8 -> #U8"),
-      Self::Rol => yatima!("∀ #U32 #U8 -> #U8"),
-      Self::Ror => yatima!("∀ #U32 #U8 -> #U8"),
-      Self::CountZeros => yatima!("∀ #U8 -> #U32"),
-      Self::CountOnes => yatima!("∀ #U8 -> #U32"),
-      Self::ToU16 => yatima!("∀ #U8 -> #U16"),
-      Self::ToU32 => yatima!("∀ #U8 -> #U32"),
-      Self::ToU64 => yatima!("∀ #U8 -> #U64"),
-      Self::ToU128 => yatima!("∀ #U8 -> #U128"),
-      Self::ToNat => yatima!("∀ #U8 -> #Nat"),
-      Self::ToI8 => yatima!("∀ #U8 -> #I8"),
-      Self::ToI16 => yatima!("∀ #U8 -> #I16"),
-      Self::ToI32 => yatima!("∀ #U8 -> #I32"),
-      Self::ToI64 => yatima!("∀ #U8 -> #I64"),
-      Self::ToI128 => yatima!("∀ #U8 -> #I128"),
-      Self::ToInt => yatima!("∀ #U8 -> #Int"),
-      Self::ToBytes => yatima!("∀ #U8 -> #Bytes"),
-      Self::ToChar => yatima!("∀ #U8 -> #Char"),
+      Self::Max => yatima!("#U32"),
+      Self::Min => yatima!("#U32"),
+      Self::Eql => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Lte => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Lth => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Gth => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Gte => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Not => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::And => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Or => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Xor => yatima!("∀ #U32 #U32 -> #Bool"),
+      Self::Add => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Sub => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Mul => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Div => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Mod => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Pow => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Shl => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Shr => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Rol => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::Ror => yatima!("∀ #U32 #U32 -> #U32"),
+      Self::CountZeros => yatima!("∀ #U32 -> #U32"),
+      Self::CountOnes => yatima!("∀ #U32 -> #U32"),
+      Self::ToU8 => yatima!("∀ #U32 -> #U8"),
+      Self::ToU16 => yatima!("∀ #U32 -> #U16"),
+      Self::ToU64 => yatima!("∀ #U32 -> #U64"),
+      Self::ToU128 => yatima!("∀ #U32 -> #U128"),
+      Self::ToNat => yatima!("∀ #U32 -> #Nat"),
+      Self::ToI8 => yatima!("∀ #U32 -> #I8"),
+      Self::ToI16 => yatima!("∀ #U32 -> #I16"),
+      Self::ToI32 => yatima!("∀ #U32 -> #I32"),
+      Self::ToI64 => yatima!("∀ #U32 -> #I64"),
+      Self::ToI128 => yatima!("∀ #U32 -> #I128"),
+      Self::ToInt => yatima!("∀ #U32 -> #Int"),
+      Self::ToBytes => yatima!("∀ #U32 -> #Bytes"),
+      Self::ToChar => yatima!("∀ #U32 -> #Char"),
     }
   }
 
@@ -202,8 +202,8 @@ impl U8Op {
       Self::Ror => Ipld::Integer(20),
       Self::CountZeros => Ipld::Integer(21),
       Self::CountOnes => Ipld::Integer(22),
-      Self::ToU16 => Ipld::Integer(23),
-      Self::ToU32 => Ipld::Integer(24),
+      Self::ToU8 => Ipld::Integer(23),
+      Self::ToU16 => Ipld::Integer(24),
       Self::ToU64 => Ipld::Integer(25),
       Self::ToU128 => Ipld::Integer(26),
       Self::ToNat => Ipld::Integer(27),
@@ -243,8 +243,8 @@ impl U8Op {
       Ipld::Integer(20) => Ok(Self::Ror),
       Ipld::Integer(21) => Ok(Self::CountZeros),
       Ipld::Integer(22) => Ok(Self::CountOnes),
-      Ipld::Integer(23) => Ok(Self::ToU16),
-      Ipld::Integer(24) => Ok(Self::ToU32),
+      Ipld::Integer(23) => Ok(Self::ToU8),
+      Ipld::Integer(24) => Ok(Self::ToU16),
       Ipld::Integer(25) => Ok(Self::ToU64),
       Ipld::Integer(26) => Ok(Self::ToU128),
       Ipld::Integer(27) => Ok(Self::ToNat),
@@ -285,9 +285,8 @@ impl U8Op {
       Self::Ror => 2,
       Self::CountZeros => 1,
       Self::CountOnes => 1,
-      Self::ToChar => 1,
+      Self::ToU8 => 1,
       Self::ToU16 => 1,
-      Self::ToU32 => 1,
       Self::ToU64 => 1,
       Self::ToU128 => 1,
       Self::ToNat => 1,
@@ -298,14 +297,15 @@ impl U8Op {
       Self::ToI128 => 1,
       Self::ToInt => 1,
       Self::ToBytes => 1,
+      Self::ToChar => 1,
     }
   }
 
   pub fn apply0(self) -> Option<Literal> {
     use Literal::*;
     match self {
-      Self::Max => Some(U8(u8::MAX)),
-      Self::Min => Some(U8(u8::MIN)),
+      Self::Max => Some(U32(u32::MAX)),
+      Self::Min => Some(U32(u32::MIN)),
       _ => None,
     }
   }
@@ -313,21 +313,21 @@ impl U8Op {
   pub fn apply1(self, x: Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
-      (Self::CountZeros, U8(x)) => Some(U32(x.count_zeros())),
-      (Self::CountOnes, U8(x)) => Some(U32(x.count_ones())),
-      (Self::ToChar, U8(x)) => Some(Char(x.into())),
-      (Self::ToU16, U8(x)) => Some(U16(x.into())),
-      (Self::ToU32, U8(x)) => Some(U32(x.into())),
-      (Self::ToU64, U8(x)) => Some(U64(x.into())),
-      (Self::ToU128, U8(x)) => Some(U128(x.into())),
-      (Self::ToI8, U8(x)) => i8::try_from(x).ok().map(I8),
-      (Self::ToI16, U8(x)) => Some(I16(x.into())),
-      (Self::ToI32, U8(x)) => Some(I32(x.into())),
-      (Self::ToI64, U8(x)) => Some(I64(x.into())),
-      (Self::ToI128, U8(x)) => Some(I128(x.into())),
-      (Self::Not, U8(x)) => Some(U8(!x)),
-      (Self::ToInt, U8(x)) => Some(Int(x.into())),
-      (Self::ToBytes, U8(x)) => Some(Bytes(x.to_be_bytes().into())),
+      (Self::CountZeros, U32(x)) => Some(U32(x.count_zeros())),
+      (Self::CountOnes, U32(x)) => Some(U32(x.count_ones())),
+      (Self::ToChar, U32(x)) => char::from_u32(x).map(Char),
+      (Self::ToU8, U32(x)) => u8::try_from(x).ok().map(U8),
+      (Self::ToU16, U32(x)) => u16::try_from(x).ok().map(U16),
+      (Self::ToU64, U32(x)) => Some(U64(x.into())),
+      (Self::ToU128, U32(x)) => Some(U128(x.into())),
+      (Self::ToI8, U32(x)) => i8::try_from(x).ok().map(I8),
+      (Self::ToI16, U32(x)) => i16::try_from(x).ok().map(I16),
+      (Self::ToI32, U32(x)) => i32::try_from(x).ok().map(I32),
+      (Self::ToI64, U32(x)) => Some(I64(x.into())),
+      (Self::ToI128, U32(x)) => Some(I128(x.into())),
+      (Self::Not, U32(x)) => Some(U32(!x)),
+      (Self::ToInt, U32(x)) => Some(Int(x.into())),
+      (Self::ToBytes, U32(x)) => Some(Bytes(x.to_be_bytes().into())),
       _ => None,
     }
   }
@@ -335,30 +335,30 @@ impl U8Op {
   pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      (Self::Eql, U8(x), U8(y)) => Some(Bool(x == y)),
-      (Self::Lte, U8(x), U8(y)) => Some(Bool(x <= y)),
-      (Self::Lth, U8(x), U8(y)) => Some(Bool(x < y)),
-      (Self::Gth, U8(x), U8(y)) => Some(Bool(x > y)),
-      (Self::Gte, U8(x), U8(y)) => Some(Bool(x >= y)),
-      (Self::And, U8(x), U8(y)) => Some(U8(x & y)),
-      (Self::Or, U8(x), U8(y)) => Some(U8(x | y)),
-      (Self::Xor, U8(x), U8(y)) => Some(U8(x ^ y)),
-      (Self::Add, U8(x), U8(y)) => Some(U8(x.wrapping_add(y))),
-      (Self::Sub, U8(x), U8(y)) => Some(U8(x.wrapping_sub(y))),
-      (Self::Mul, U8(x), U8(y)) => Some(U8(x.wrapping_mul(y))),
-      (Self::Div, U8(x), U8(y)) => Some(U8(x.wrapping_div(y))),
-      (Self::Mod, U8(x), U8(y)) => Some(U8(x.wrapping_rem(y))),
-      (Self::Pow, U8(x), U32(y)) => Some(U8(x.wrapping_pow(y))),
-      (Self::Shl, U32(x), U8(y)) => Some(U8(y.wrapping_shl(x))),
-      (Self::Shr, U32(x), U8(y)) => Some(U8(y.wrapping_shr(x))),
-      (Self::Rol, U32(x), U8(y)) => Some(U8(y.rotate_left(x))),
-      (Self::Ror, U32(x), U8(y)) => Some(U8(y.rotate_right(x))),
+      (Self::Eql, U32(x), U32(y)) => Some(Bool(x == y)),
+      (Self::Lte, U32(x), U32(y)) => Some(Bool(x <= y)),
+      (Self::Lth, U32(x), U32(y)) => Some(Bool(x < y)),
+      (Self::Gth, U32(x), U32(y)) => Some(Bool(x > y)),
+      (Self::Gte, U32(x), U32(y)) => Some(Bool(x >= y)),
+      (Self::And, U32(x), U32(y)) => Some(U32(x & y)),
+      (Self::Or, U32(x), U32(y)) => Some(U32(x | y)),
+      (Self::Xor, U32(x), U32(y)) => Some(U32(x ^ y)),
+      (Self::Add, U32(x), U32(y)) => Some(U32(x.wrapping_add(y))),
+      (Self::Sub, U32(x), U32(y)) => Some(U32(x.wrapping_sub(y))),
+      (Self::Mul, U32(x), U32(y)) => Some(U32(x.wrapping_mul(y))),
+      (Self::Div, U32(x), U32(y)) => Some(U32(x.wrapping_div(y))),
+      (Self::Mod, U32(x), U32(y)) => Some(U32(x.wrapping_rem(y))),
+      (Self::Pow, U32(x), U32(y)) => Some(U32(x.wrapping_pow(y))),
+      (Self::Shl, U32(x), U32(y)) => Some(U32(y.wrapping_shl(x))),
+      (Self::Shr, U32(x), U32(y)) => Some(U32(y.wrapping_shr(x))),
+      (Self::Rol, U32(x), U32(y)) => Some(U32(y.rotate_left(x))),
+      (Self::Ror, U32(x), U32(y)) => Some(U32(y.rotate_right(x))),
       _ => None,
     }
   }
 }
 
-impl fmt::Display for U8Op {
+impl fmt::Display for U32Op {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.symbol())
   }
@@ -372,7 +372,7 @@ pub mod tests {
     Gen,
   };
   use rand::Rng;
-  impl Arbitrary for U8Op {
+  impl Arbitrary for U32Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
       let gen: u32 = rng.gen_range(0..11);
@@ -401,8 +401,8 @@ pub mod tests {
         21 => Self::CountZeros,
         22 => Self::CountOnes,
         23 => Self::ToChar,
-        24 => Self::ToU16,
-        25 => Self::ToU32,
+        24 => Self::ToU8,
+        25 => Self::ToU16,
         26 => Self::ToU64,
         27 => Self::ToU128,
         28 => Self::ToNat,
@@ -418,8 +418,8 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn u8_op_ipld(x: U8Op) -> bool {
-    match U8Op::from_ipld(&x.to_ipld()) {
+  fn u32_op_ipld(x: U32Op) -> bool {
+    match U32Op::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
     }

@@ -45,6 +45,7 @@ pub enum ParseErrorKind {
   UnknownNatOp(String),
   UnknownIntOp(String),
   UnknownBytesOp(String),
+  UnknownBoolOp(String),
   UnknownTextOp(String),
   UnknownCharOp(String),
   UnknownU8Op(String),

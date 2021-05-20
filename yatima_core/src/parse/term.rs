@@ -728,8 +728,14 @@ pub fn parse_lit(
   input: Cid,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, lit) =
-      alt((parse_bytes, parse_text, parse_char, parse_nat, parse_int))(from)?;
+    let (i, lit) = alt((
+      parse_bytes,
+      parse_bool,
+      parse_text,
+      parse_char,
+      parse_int,
+      parse_nat,
+    ))(from)?;
     let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
       ParseError::new(
         i,
