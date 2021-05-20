@@ -43,7 +43,7 @@ pub fn parse_nat(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (upto, suffix) =
     opt(alt((tag("u8"), tag("u16"), tag("u32"), tag("u64"), tag("u128"))))(i)?;
   match suffix {
-    None => match base_x::decode(base.base_digits(), digits.fragment()) {
+    None => match base_x::decode(base.base_digits(), &digits) {
       Ok(bytes) => Ok((upto, Literal::Nat(BigUint::from_bytes_be(&bytes)))),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
@@ -112,7 +112,7 @@ pub fn parse_int(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (upto, suffix) =
     opt(alt((tag("i8"), tag("i16"), tag("i32"), tag("i64"), tag("i128"))))(i)?;
   match suffix {
-    None => match base_x::decode(base.base_digits(), digits.fragment()) {
+    None => match base_x::decode(base.base_digits(), &digits) {
       Ok(bytes) => Ok((upto, Literal::Int(BigInt::from_bytes_be(s, &bytes)))),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
@@ -196,7 +196,10 @@ pub fn parse_bytes(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (i, bytes) = opt(base::parse_litbase_bytes(base))(i)?;
   let (upto, _) = context("close quotes", tag("\'"))(i)?;
   match bytes {
-    Some(bytes) => Ok((upto, Literal::Bytes(bytes.into()))),
+    Some(mut bytes) => {
+      bytes.reverse();
+      Ok((upto, Literal::Bytes(bytes.into())))
+    }
     None => Ok((upto, Literal::Bytes(vec![].into()))),
   }
 }

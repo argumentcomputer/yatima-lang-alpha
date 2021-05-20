@@ -72,6 +72,8 @@ impl fmt::Display for Literal {
         _ => write!(f, "+{}", x.to_str_radix(10)),
       },
       Bytes(x) => {
+        let mut x = x.clone();
+        x.reverse();
         let x: &[u8] = x.as_ref();
         write!(f, "x\'{}\'", base::LitBase::Hex.encode(x))
       }

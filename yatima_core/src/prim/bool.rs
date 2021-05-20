@@ -46,6 +46,7 @@ impl BoolOp {
       "gte" => Some(Self::Gte),
       "gth" => Some(Self::Gth),
       "and" => Some(Self::And),
+      "or" => Some(Self::Or),
       "xor" => Some(Self::Xor),
       "not" => Some(Self::Not),
       _ => None,
