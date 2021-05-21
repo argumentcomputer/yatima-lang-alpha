@@ -4,7 +4,6 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
-  position::Pos,
   primop::{
     apply_bin_op,
     apply_una_op,
@@ -15,10 +14,10 @@ use crate::{
 use im::Vector;
 
 enum Single {
-  Lam(Pos, Var),
-  Slf(Pos, Var),
-  Dat(Pos),
-  Cse(Pos),
+  Lam(Var),
+  Slf(Var),
+  Dat,
+  Cse,
 }
 
 enum Branch {
@@ -38,28 +37,28 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
   loop {
     match input {
       DAGPtr::Lam(link) => {
-        let Lam { var, bod, pos, .. } = unsafe { link.as_ref() };
+        let Lam { var, bod, .. } = unsafe { link.as_ref() };
         input = *bod;
-        spine.push(Single::Lam(*pos, var.clone()));
+        spine.push(Single::Lam(var.clone()));
       }
       DAGPtr::Slf(link) => {
-        let Slf { var, bod, pos, .. } = unsafe { link.as_ref() };
+        let Slf { var, bod, .. } = unsafe { link.as_ref() };
         input = *bod;
-        spine.push(Single::Slf(*pos, var.clone()));
+        spine.push(Single::Slf(var.clone()));
       }
       DAGPtr::Dat(link) => {
-        let Dat { bod, pos, .. } = unsafe { link.as_ref() };
+        let Dat { bod, .. } = unsafe { link.as_ref() };
         input = *bod;
-        spine.push(Single::Dat(*pos));
+        spine.push(Single::Dat);
       }
       DAGPtr::Cse(link) => {
-        let Cse { bod, pos, .. } = unsafe { link.as_ref() };
+        let Cse { bod, .. } = unsafe { link.as_ref() };
         input = *bod;
-        spine.push(Single::Cse(*pos));
+        spine.push(Single::Cse);
       }
       DAGPtr::App(link) => {
-        let App { fun, arg: app_arg, pos, .. } = unsafe { link.as_ref() };
-        let new_app = alloc_app(*fun, *app_arg, None, *pos);
+        let App { fun, arg: app_arg, .. } = unsafe { link.as_ref() };
+        let new_app = alloc_app(*fun, *app_arg, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_app);
         }
@@ -71,8 +70,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         break;
       }
       DAGPtr::All(link) => {
-        let All { uses, dom, img, pos, .. } = unsafe { link.as_ref() };
-        let new_all = alloc_all(*uses, *dom, *img, None, *pos);
+        let All { uses, dom, img, .. } = unsafe { link.as_ref() };
+        let new_all = alloc_all(*uses, *dom, *img, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_all);
         }
@@ -84,8 +83,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         break;
       }
       DAGPtr::Ann(link) => {
-        let Ann { typ, exp, pos, .. } = unsafe { link.as_ref() };
-        let new_ann = alloc_ann(*typ, *exp, None, *pos);
+        let Ann { typ, exp, .. } = unsafe { link.as_ref() };
+        let new_ann = alloc_ann(*typ, *exp, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_ann);
         }
@@ -97,7 +96,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         break;
       }
       DAGPtr::Let(link) => {
-        let Let { var: old_var, uses, typ, exp, bod, pos, .. } =
+        let Let { var: old_var, uses, typ, exp, bod, .. } =
           unsafe { link.as_ref() };
         let Var { nam, dep, .. } = old_var;
         let new_let = alloc_let(
@@ -109,7 +108,6 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
           *exp,
           *bod,
           None,
-          *pos,
         );
         unsafe {
           (*link.as_ptr()).copy = Some(new_let);
@@ -135,9 +133,9 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
   }
   while let Some(single) = spine.pop() {
     match single {
-      Single::Lam(pos, var) => {
+      Single::Lam(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_lam = alloc_lam(nam, dep, None, result, None, pos);
+        let new_lam = alloc_lam(nam, dep, None, result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_lam.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
@@ -146,9 +144,9 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         result = DAGPtr::Lam(new_lam);
       }
-      Single::Slf(pos, var) => {
+      Single::Slf(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_slf = alloc_slf(nam, dep, None, result, None, pos);
+        let new_slf = alloc_slf(nam, dep, None, result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_slf.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
@@ -157,14 +155,14 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         result = DAGPtr::Slf(new_slf);
       }
-      Single::Dat(pos) => {
-        let new_dat = alloc_dat(result, None, pos);
+      Single::Dat => {
+        let new_dat = alloc_dat(result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_dat.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         result = DAGPtr::Dat(new_dat);
       }
-      Single::Cse(pos) => {
-        let new_cse = alloc_cse(result, None, pos);
+      Single::Cse => {
+        let new_cse = alloc_cse(result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_cse.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         result = DAGPtr::Cse(new_cse);
@@ -365,7 +363,6 @@ impl DAG {
                   node = DAGPtr::Lit(alloc_val(Lit {
                     lit: res,
                     parents: None,
-                    pos: Pos::None,
                   }));
                   replace_child(arg.head, node);
                   free_dead_node(arg.head);
@@ -393,7 +390,6 @@ impl DAG {
                   node = DAGPtr::Lit(alloc_val(Lit {
                     lit: res,
                     parents: None,
-                    pos: Pos::None,
                   }));
                   replace_child(arg1.head, node);
                   free_dead_node(arg1.head);

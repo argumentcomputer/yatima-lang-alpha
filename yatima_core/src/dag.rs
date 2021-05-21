@@ -94,7 +94,6 @@ pub struct Var {
   pub dep: u64,
   pub binder: BinderPtr,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -103,7 +102,6 @@ pub struct Lam {
   pub bod_ref: Parents,
   pub var: Var,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -114,7 +112,6 @@ pub struct App {
   pub arg_ref: Parents,
   pub copy: Option<NonNull<App>>,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -126,7 +123,6 @@ pub struct All {
   pub img_ref: Parents,
   pub copy: Option<NonNull<All>>,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -135,7 +131,6 @@ pub struct Slf {
   pub bod_ref: Parents,
   pub var: Var,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -143,7 +138,6 @@ pub struct Dat {
   pub bod: DAGPtr,
   pub bod_ref: Parents,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -151,7 +145,6 @@ pub struct Cse {
   pub bod: DAGPtr,
   pub bod_ref: Parents,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -162,7 +155,6 @@ pub struct Ann {
   pub exp_ref: Parents,
   pub copy: Option<NonNull<Ann>>,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -177,7 +169,6 @@ pub struct Let {
   pub copy: Option<NonNull<Let>>,
   pub var: Var,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
@@ -187,34 +178,29 @@ pub struct Ref {
   pub exp: Cid,
   pub ast: Cid,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
 pub struct Typ {
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
 pub struct Lit {
   pub lit: Literal,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
 pub struct LTy {
   pub lty: LitType,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 #[repr(C)]
 pub struct Opr {
   pub opr: PrimOp,
   pub parents: Option<NonNull<Parents>>,
-  pub pos: Pos,
 }
 
 // Auxiliary allocation functions
@@ -230,7 +216,6 @@ pub fn alloc_lam(
   var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<Lam> {
   unsafe {
     let lam = alloc_val(Lam {
@@ -240,12 +225,10 @@ pub fn alloc_lam(
         dep: var_dep,
         binder: mem::zeroed(),
         parents: var_parents,
-        pos,
       },
       bod,
       bod_ref: mem::zeroed(),
       parents,
-      pos,
     });
     (*lam.as_ptr()).var.binder = BinderPtr::Lam(lam);
     (*lam.as_ptr()).bod_ref = DLL::singleton(ParentPtr::LamBod(lam));
@@ -260,7 +243,6 @@ pub fn alloc_slf(
   var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<Slf> {
   unsafe {
     let slf = alloc_val(Slf {
@@ -270,12 +252,10 @@ pub fn alloc_slf(
         dep: var_dep,
         binder: mem::zeroed(),
         parents: var_parents,
-        pos,
       },
       bod,
       bod_ref: mem::zeroed(),
       parents,
-      pos,
     });
     (*slf.as_ptr()).var.binder = BinderPtr::Slf(slf);
     (*slf.as_ptr()).bod_ref = DLL::singleton(ParentPtr::SlfBod(slf));
@@ -287,10 +267,9 @@ pub fn alloc_slf(
 pub fn alloc_dat(
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<Dat> {
   unsafe {
-    let dat = alloc_val(Dat { bod, bod_ref: mem::zeroed(), parents, pos });
+    let dat = alloc_val(Dat { bod, bod_ref: mem::zeroed(), parents });
     (*dat.as_ptr()).bod_ref = DLL::singleton(ParentPtr::DatBod(dat));
     dat
   }
@@ -300,10 +279,9 @@ pub fn alloc_dat(
 pub fn alloc_cse(
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<Cse> {
   unsafe {
-    let cse = alloc_val(Cse { bod, bod_ref: mem::zeroed(), parents, pos });
+    let cse = alloc_val(Cse { bod, bod_ref: mem::zeroed(), parents });
     (*cse.as_ptr()).bod_ref = DLL::singleton(ParentPtr::CseBod(cse));
     cse
   }
@@ -315,7 +293,6 @@ pub fn alloc_all(
   dom: DAGPtr,
   img: NonNull<Lam>,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<All> {
   unsafe {
     let all = alloc_val(All {
@@ -326,7 +303,6 @@ pub fn alloc_all(
       dom_ref: mem::zeroed(),
       img_ref: mem::zeroed(),
       parents,
-      pos,
     });
     (*all.as_ptr()).dom_ref = DLL::singleton(ParentPtr::AllDom(all));
     (*all.as_ptr()).img_ref = DLL::singleton(ParentPtr::AllImg(all));
@@ -339,7 +315,6 @@ pub fn alloc_app(
   fun: DAGPtr,
   arg: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<App> {
   unsafe {
     let app = alloc_val(App {
@@ -349,7 +324,6 @@ pub fn alloc_app(
       fun_ref: mem::zeroed(),
       arg_ref: mem::zeroed(),
       parents,
-      pos,
     });
     (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppFun(app));
     (*app.as_ptr()).arg_ref = DLL::singleton(ParentPtr::AppArg(app));
@@ -362,7 +336,6 @@ pub fn alloc_ann(
   typ: DAGPtr,
   exp: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<Ann> {
   unsafe {
     let ann = alloc_val(Ann {
@@ -372,7 +345,6 @@ pub fn alloc_ann(
       typ_ref: mem::zeroed(),
       exp_ref: mem::zeroed(),
       parents,
-      pos,
     });
     (*ann.as_ptr()).typ_ref = DLL::singleton(ParentPtr::AnnTyp(ann));
     (*ann.as_ptr()).exp_ref = DLL::singleton(ParentPtr::AnnExp(ann));
@@ -391,7 +363,6 @@ pub fn alloc_let(
   exp: DAGPtr,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
-  pos: Pos,
 ) -> NonNull<Let> {
   unsafe {
     let let_ = alloc_val(Let {
@@ -401,7 +372,6 @@ pub fn alloc_let(
         dep: var_dep,
         binder: mem::zeroed(),
         parents: var_parents,
-        pos,
       },
       uses,
       typ,
@@ -412,7 +382,6 @@ pub fn alloc_let(
       exp_ref: mem::zeroed(),
       bod_ref: mem::zeroed(),
       parents,
-      pos,
     });
     (*let_.as_ptr()).var.binder = BinderPtr::Let(let_);
     (*let_.as_ptr()).typ_ref = DLL::singleton(ParentPtr::LetTyp(let_));
@@ -666,69 +635,6 @@ impl DAG {
     free_dead_node(self.head)
   }
 
-  pub fn pos(node: &DAGPtr) -> Pos {
-    unsafe {
-      match node {
-        DAGPtr::Var(link) => {
-          let Var { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Ref(link) => {
-          let Ref { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Lam(link) => {
-          let Lam { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::App(link) => {
-          let App { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Ann(link) => {
-          let Ann { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::All(link) => {
-          let All { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Slf(link) => {
-          let Slf { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Dat(link) => {
-          let Dat { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Cse(link) => {
-          let Cse { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Let(link) => {
-          let Let { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Typ(link) => {
-          let Typ { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::LTy(link) => {
-          let LTy { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Lit(link) => {
-          let Lit { pos, .. } = link.as_ref();
-          *pos
-        }
-        DAGPtr::Opr(link) => {
-          let Opr { pos, .. } = link.as_ref();
-          *pos
-        }
-      }
-    }
-  }
-
   pub fn dag_ptr_to_term(
     node: &DAGPtr,
     map: &mut HashMap<*mut Var, u64>,
@@ -737,38 +643,37 @@ impl DAG {
   ) -> Term {
     match node {
       DAGPtr::Var(link) => {
-        let Var { nam, dep: var_depth, rec, pos, .. } =
+        let Var { nam, dep: var_depth, rec, .. } =
           unsafe { link.as_ref() };
         if *rec && re_rec {
-          Term::Rec(*pos)
+          Term::Rec(Pos::None)
         }
         else if let Some(level) = map.get(&link.as_ptr()) {
-          Term::Var(*pos, nam.clone(), depth - level - 1)
+          Term::Var(Pos::None, nam.clone(), depth - level - 1)
         }
         else {
-          Term::Var(*pos, nam.clone(), *var_depth)
+          Term::Var(Pos::None, nam.clone(), *var_depth)
         }
       }
-      DAGPtr::Typ(link) => {
-        let Typ { pos, .. } = unsafe { link.as_ref() };
-        Term::Typ(*pos)
+      DAGPtr::Typ(_) => {
+        Term::Typ(Pos::None)
       }
       DAGPtr::LTy(link) => {
-        let LTy { lty, pos, .. } = unsafe { link.as_ref() };
-        Term::LTy(*pos, *lty)
+        let LTy { lty, .. } = unsafe { link.as_ref() };
+        Term::LTy(Pos::None, *lty)
       }
       DAGPtr::Lit(link) => {
-        let Lit { lit, pos, .. } = unsafe { link.as_ref() };
-        Term::Lit(*pos, lit.clone())
+        let Lit { lit, .. } = unsafe { link.as_ref() };
+        Term::Lit(Pos::None, lit.clone())
       }
       DAGPtr::Opr(link) => {
-        let Opr { opr, pos, .. } = unsafe { link.as_ref() };
-        Term::Opr(*pos, *opr)
+        let Opr { opr, .. } = unsafe { link.as_ref() };
+        Term::Opr(Pos::None, *opr)
       }
       DAGPtr::Ref(link) => {
-        let Ref { nam, exp, ast, rec, pos, .. } = unsafe { link.as_ref() };
+        let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
         if *rec {
-          Term::Rec(*pos)
+          Term::Rec(Pos::None)
         }
         else {
           Term::Ref(Pos::None, nam.clone(), *exp, *ast)
@@ -911,10 +816,10 @@ impl DAG {
     rec_ref: Option<(String, Cid, Cid)>,
   ) -> DAGPtr {
     match tree {
-      Term::Rec(pos) => match rec_ref {
+      Term::Rec(_) => match rec_ref {
         Some((nam, exp, ast)) => {
           let ref_ =
-            alloc_val(Ref { nam, rec: true, exp, ast, parents, pos: *pos });
+            alloc_val(Ref { nam, rec: true, exp, ast, parents });
           DAGPtr::Ref(ref_)
         }
         None => {
@@ -924,12 +829,11 @@ impl DAG {
             dep: depth,
             binder: BinderPtr::Free,
             parents,
-            pos: Pos::None,
           });
           DAGPtr::Var(var)
         }
       },
-      Term::Var(pos, name, idx) => match ctx.get(*idx as usize) {
+      Term::Var(_, name, idx) => match ctx.get(*idx as usize) {
         Some(val) => {
           if let Some(parents) = parents {
             DLL::concat(parents, get_parents(*val));
@@ -938,37 +842,38 @@ impl DAG {
           *val
         }
         None => {
+          if depth < 1+idx {
+            panic!("Negative index found.")
+          }
           let var = alloc_val(Var {
             nam: name.clone(),
             rec: false,
             dep: depth - 1 - idx,
             binder: BinderPtr::Free,
             parents,
-            pos: *pos,
           });
           DAGPtr::Var(var)
         }
       },
-      Term::Typ(pos) => DAGPtr::Typ(alloc_val(Typ { parents, pos: *pos })),
-      Term::LTy(pos, lty) => {
-        DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents, pos: *pos }))
+      Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
+      Term::LTy(_, lty) => {
+        DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents }))
       }
-      Term::Lit(pos, lit) => {
-        DAGPtr::Lit(alloc_val(Lit { lit: lit.clone(), parents, pos: *pos }))
+      Term::Lit(_, lit) => {
+        DAGPtr::Lit(alloc_val(Lit { lit: lit.clone(), parents }))
       }
-      Term::Opr(pos, opr) => {
-        DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents, pos: *pos }))
+      Term::Opr(_, opr) => {
+        DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents }))
       }
-      Term::Ref(pos, nam, exp, ast) => DAGPtr::Ref(alloc_val(Ref {
+      Term::Ref(_, nam, exp, ast) => DAGPtr::Ref(alloc_val(Ref {
         nam: nam.clone(),
         rec: false,
         exp: *exp,
         ast: *ast,
         parents,
-        pos: *pos,
       })),
-      Term::Lam(pos, nam, bod) => unsafe {
-        let lam = alloc_lam(nam.clone(), 0, None, mem::zeroed(), parents, *pos);
+      Term::Lam(_, nam, bod) => unsafe {
+        let lam = alloc_lam(nam.clone(), 0, None, mem::zeroed(), parents);
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
@@ -981,8 +886,8 @@ impl DAG {
         (*lam.as_ptr()).bod = bod;
         DAGPtr::Lam(lam)
       },
-      Term::Slf(pos, nam, bod) => unsafe {
-        let slf = alloc_slf(nam.clone(), 0, None, mem::zeroed(), parents, *pos);
+      Term::Slf(_, nam, bod) => unsafe {
+        let slf = alloc_slf(nam.clone(), 0, None, mem::zeroed(), parents);
         let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
@@ -995,8 +900,8 @@ impl DAG {
         (*slf.as_ptr()).bod = bod;
         DAGPtr::Slf(slf)
       },
-      Term::Dat(pos, bod) => unsafe {
-        let dat = alloc_dat(mem::zeroed(), parents, *pos);
+      Term::Dat(_, bod) => unsafe {
+        let dat = alloc_dat(mem::zeroed(), parents);
         let Dat { bod_ref, .. } = &mut *dat.as_ptr();
         let bod = DAG::from_term_inner(
           &**bod,
@@ -1008,8 +913,8 @@ impl DAG {
         (*dat.as_ptr()).bod = bod;
         DAGPtr::Dat(dat)
       },
-      Term::Cse(pos, bod) => unsafe {
-        let cse = alloc_cse(mem::zeroed(), parents, *pos);
+      Term::Cse(_, bod) => unsafe {
+        let cse = alloc_cse(mem::zeroed(), parents);
         let Cse { bod_ref, .. } = &mut *cse.as_ptr();
         let bod = DAG::from_term_inner(
           &**bod,
@@ -1021,10 +926,10 @@ impl DAG {
         (*cse.as_ptr()).bod = bod;
         DAGPtr::Cse(cse)
       },
-      Term::All(pos, uses, nam, dom_img) => unsafe {
+      Term::All(_, uses, nam, dom_img) => unsafe {
         let (dom, img) = (**dom_img).clone();
         let all =
-          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents, *pos);
+          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
         let lam = alloc_lam(
           nam.clone(),
@@ -1032,7 +937,6 @@ impl DAG {
           None,
           mem::zeroed(),
           NonNull::new(img_ref),
-          *pos,
         );
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         let mut img_ctx = ctx.clone();
@@ -1056,9 +960,9 @@ impl DAG {
         (*lam.as_ptr()).bod = img;
         DAGPtr::All(all)
       },
-      Term::App(pos, fun_arg) => unsafe {
+      Term::App(_, fun_arg) => unsafe {
         let (fun, arg) = (**fun_arg).clone();
-        let app = alloc_app(mem::zeroed(), mem::zeroed(), parents, *pos);
+        let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
         let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
         let fun = DAG::from_term_inner(
           &fun,
@@ -1078,9 +982,9 @@ impl DAG {
         (*app.as_ptr()).arg = arg;
         DAGPtr::App(app)
       },
-      Term::Ann(pos, typ_exp) => unsafe {
+      Term::Ann(_, typ_exp) => unsafe {
         let (typ, exp) = (**typ_exp).clone();
-        let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents, *pos);
+        let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents);
         let Ann { typ_ref, exp_ref, .. } = &mut *ann.as_ptr();
         let typ = DAG::from_term_inner(
           &typ,
@@ -1103,7 +1007,7 @@ impl DAG {
       Term::Let(_, true, _uses, _name, _typ_exp_bod) => {
         panic!("letrec not implemented")
       }
-      Term::Let(pos, false, uses, nam, typ_exp_bod) => unsafe {
+      Term::Let(_, false, uses, nam, typ_exp_bod) => unsafe {
         let (typ, exp, bod) = (**typ_exp_bod).clone();
         let let_ = alloc_let(
           nam.clone(),
@@ -1114,7 +1018,6 @@ impl DAG {
           mem::zeroed(),
           mem::zeroed(),
           parents,
-          *pos,
         );
         let Let { var, typ_ref, exp_ref, bod_ref, .. } = &mut *let_.as_ptr();
         let typ = DAG::from_term_inner(
@@ -1171,31 +1074,28 @@ impl DAG {
           dep: *dep,
           binder: BinderPtr::Free,
           parents,
-          pos: Pos::None,
         });
         DAGPtr::Var(var)
       },
       DAGPtr::Ref(link) => unsafe {
-        let Ref { nam, exp, ast, rec, pos, .. } = &*link.as_ptr();
+        let Ref { nam, exp, ast, rec, .. } = &*link.as_ptr();
         let node = alloc_val(Ref {
           nam: nam.clone(),
           rec: *rec,
           exp: *exp,
           ast: *ast,
           parents,
-          pos: *pos,
         });
         DAGPtr::Ref(node)
       },
       DAGPtr::Lam(link) => unsafe {
-        let Lam { var, bod, pos, .. } = &mut *link.as_ptr();
+        let Lam { var, bod, .. } = &mut *link.as_ptr();
         let lam = alloc_lam(
           var.nam.clone(),
           var.dep,
           None,
           mem::zeroed(),
           parents,
-          *pos,
         );
         let Lam { var: new_var, bod: new_bod, bod_ref, .. } =
           &mut *lam.as_ptr();
@@ -1207,14 +1107,13 @@ impl DAG {
         DAGPtr::Lam(lam)
       },
       DAGPtr::Slf(link) => unsafe {
-        let Slf { var, bod, pos, .. } = &mut *link.as_ptr();
+        let Slf { var, bod, .. } = &mut *link.as_ptr();
         let slf = alloc_slf(
           var.nam.clone(),
           var.dep,
           None,
           mem::zeroed(),
           parents,
-          *pos,
         );
         let Slf { var: new_var, bod: new_bod, bod_ref, .. } =
           &mut *slf.as_ptr();
@@ -1226,22 +1125,22 @@ impl DAG {
         DAGPtr::Slf(slf)
       },
       DAGPtr::Cse(link) => unsafe {
-        let Cse { bod, pos, .. } = &mut *link.as_ptr();
-        let cse = alloc_cse(mem::zeroed(), parents, *pos);
+        let Cse { bod, .. } = &mut *link.as_ptr();
+        let cse = alloc_cse(mem::zeroed(), parents);
         let Cse { bod: new_bod, bod_ref, .. } = &mut *cse.as_ptr();
         *new_bod = DAG::from_subdag(*bod, map, NonNull::new(bod_ref));
         DAGPtr::Cse(cse)
       },
       DAGPtr::Dat(link) => unsafe {
-        let Dat { bod, pos, .. } = &mut *link.as_ptr();
-        let dat = alloc_dat(mem::zeroed(), parents, *pos);
+        let Dat { bod, .. } = &mut *link.as_ptr();
+        let dat = alloc_dat(mem::zeroed(), parents);
         let Dat { bod: new_bod, bod_ref, .. } = &mut *dat.as_ptr();
         *new_bod = DAG::from_subdag(*bod, map, NonNull::new(bod_ref));
         DAGPtr::Dat(dat)
       },
       DAGPtr::App(link) => unsafe {
-        let App { fun, arg, pos, .. } = &mut *link.as_ptr();
-        let app = alloc_app(mem::zeroed(), mem::zeroed(), parents, *pos);
+        let App { fun, arg, .. } = &mut *link.as_ptr();
+        let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
         let App { fun: new_fun, fun_ref, arg: new_arg, arg_ref, .. } =
           &mut *app.as_ptr();
         *new_fun = DAG::from_subdag(*fun, map, NonNull::new(fun_ref));
@@ -1249,9 +1148,9 @@ impl DAG {
         DAGPtr::App(app)
       },
       DAGPtr::All(link) => unsafe {
-        let All { uses, dom, img, pos, .. } = &mut *link.as_ptr();
+        let All { uses, dom, img, .. } = &mut *link.as_ptr();
         let all =
-          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents, *pos);
+          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom: new_dom, dom_ref, img: new_img, img_ref, .. } =
           &mut *all.as_ptr();
         *new_dom = DAG::from_subdag(*dom, map, NonNull::new(dom_ref));
@@ -1264,7 +1163,7 @@ impl DAG {
         DAGPtr::All(all)
       },
       DAGPtr::Let(link) => unsafe {
-        let Let { var, uses, typ, exp, bod, pos, .. } = &mut *link.as_ptr();
+        let Let { var, uses, typ, exp, bod, .. } = &mut *link.as_ptr();
         let let_ = alloc_let(
           var.nam.clone(),
           var.dep,
@@ -1274,7 +1173,6 @@ impl DAG {
           mem::zeroed(),
           mem::zeroed(),
           parents,
-          *pos,
         );
         let Let {
           var: new_var,
@@ -1296,8 +1194,8 @@ impl DAG {
         DAGPtr::Let(let_)
       },
       DAGPtr::Ann(link) => unsafe {
-        let Ann { typ, exp, pos, .. } = &mut *link.as_ptr();
-        let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents, *pos);
+        let Ann { typ, exp, .. } = &mut *link.as_ptr();
+        let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents);
         let Ann { typ: new_typ, typ_ref, exp: new_exp, exp_ref, .. } =
           &mut *ann.as_ptr();
         *new_typ = DAG::from_subdag(*typ, map, NonNull::new(typ_ref));
@@ -1305,23 +1203,22 @@ impl DAG {
         DAGPtr::Ann(ann)
       },
       DAGPtr::Lit(link) => unsafe {
-        let Lit { lit, pos, .. } = &*link.as_ptr();
-        let node = alloc_val(Lit { lit: lit.clone(), parents, pos: *pos });
+        let Lit { lit, .. } = &*link.as_ptr();
+        let node = alloc_val(Lit { lit: lit.clone(), parents });
         DAGPtr::Lit(node)
       },
       DAGPtr::LTy(link) => unsafe {
-        let LTy { lty, pos, .. } = *link.as_ptr();
-        let node = alloc_val(LTy { lty, parents, pos });
+        let LTy { lty, .. } = *link.as_ptr();
+        let node = alloc_val(LTy { lty, parents });
         DAGPtr::LTy(node)
       },
       DAGPtr::Opr(link) => unsafe {
-        let Opr { opr, pos, .. } = *link.as_ptr();
-        let node = alloc_val(Opr { opr, parents, pos });
+        let Opr { opr, .. } = *link.as_ptr();
+        let node = alloc_val(Opr { opr, parents });
         DAGPtr::Opr(node)
       },
-      DAGPtr::Typ(link) => unsafe {
-        let Typ { pos, .. } = *link.as_ptr();
-        let node = alloc_val(Typ { parents, pos });
+      DAGPtr::Typ(_) => {
+        let node = alloc_val(Typ { parents });
         DAGPtr::Typ(node)
       }, // _ => panic!("TODO"),
     };
