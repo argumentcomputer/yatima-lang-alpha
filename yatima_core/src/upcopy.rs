@@ -64,8 +64,7 @@ pub fn clean_up(cc: &ParentPtr) {
     ParentPtr::AllDom(mut link) | ParentPtr::AllImg(mut link) => unsafe {
       let all = link.as_mut();
       if let Some(all_copy) = all.copy {
-        let All { dom, img, dom_ref, img_ref, .. } =
-          &mut *all_copy.as_ptr();
+        let All { dom, img, dom_ref, img_ref, .. } = &mut *all_copy.as_ptr();
         all.copy = None;
         add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
         add_to_parents(DAGPtr::Lam(*img), NonNull::new(img_ref).unwrap());
@@ -214,8 +213,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).dom = new_child;
           }
           None => {
-            let new_all =
-              alloc_all(*uses, new_child, *img, None);
+            let new_all = alloc_all(*uses, new_child, *img, None);
             (*link.as_ptr()).copy = Some(new_all);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::All(new_all), *parent)
@@ -234,8 +232,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).img = new_child;
           }
           None => {
-            let new_all =
-              alloc_all(*uses, *dom, new_child, None);
+            let new_all = alloc_all(*uses, *dom, new_child, None);
             (*link.as_ptr()).copy = Some(new_all);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::All(new_all), *parent)

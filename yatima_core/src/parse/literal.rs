@@ -4,7 +4,10 @@ use num_bigint::{
   Sign,
 };
 
-use crate::literal::Literal;
+use crate::{
+  literal::Literal,
+  text,
+};
 
 use crate::parse::{
   base,
@@ -63,7 +66,7 @@ pub fn parse_text(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (i, _) = context("open quotes", tag("\""))(from)?;
   let (i, s) = parse_string("\"")(i)?;
   let (upto, _) = tag("\"")(i)?;
-  Ok((upto, Literal::Text(s)))
+  Ok((upto, Literal::Text(s.into())))
 }
 pub fn parse_char(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (upto, c) = delimited(tag("'"), parse_string("'"), tag("'"))(from)?;
@@ -84,8 +87,8 @@ pub fn parse_bytes(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (i, bytes) = opt(base::parse_litbase_bytes(base))(i)?;
   let (upto, _) = context("close quotes", tag("\""))(i)?;
   match bytes {
-    Some(bytes) => Ok((upto, Literal::Bytes(bytes))),
-    None => Ok((upto, Literal::Bytes(vec![]))),
+    Some(bytes) => Ok((upto, Literal::Bytes(bytes.into()))),
+    None => Ok((upto, Literal::Bytes(vec![].into()))),
   }
 }
 #[cfg(test)]

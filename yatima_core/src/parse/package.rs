@@ -99,6 +99,7 @@ pub fn parse_entry(
         defs.to_owned(),
         Some(Rc::new(nam.clone())),
         Vector::new(),
+        Vector::new(),
         nam.clone(),
         false,
       )(i)?;

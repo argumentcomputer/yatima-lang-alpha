@@ -11,6 +11,8 @@ use crate::{
   upcopy::*,
 };
 
+use im::Vector;
+
 enum Single {
   Lam(Var),
   Slf(Var),
@@ -69,8 +71,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
       }
       DAGPtr::All(link) => {
         let All { uses, dom, img, .. } = unsafe { link.as_ref() };
-        let new_all =
-          alloc_all(*uses, *dom, *img, None);
+        let new_all = alloc_all(*uses, *dom, *img, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_all);
         }
@@ -98,8 +99,16 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Let { var: old_var, uses, typ, exp, bod, .. } =
           unsafe { link.as_ref() };
         let Var { nam, dep, .. } = old_var;
-        let new_let =
-          alloc_let(nam.clone(), *dep, None, *uses, *typ, *exp, *bod, None);
+        let new_let = alloc_let(
+          nam.clone(),
+          *dep,
+          None,
+          *uses,
+          *typ,
+          *exp,
+          *bod,
+          None,
+        );
         unsafe {
           (*link.as_ptr()).copy = Some(new_let);
           let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
@@ -299,6 +308,19 @@ impl DAG {
               free_dead_node(node);
               node = *single_body;
             }
+            DAGPtr::Lit(link) => {
+              let Lit { lit, parents, .. } = unsafe { link.as_ref() };
+              let expand = DAG::from_term_inner(
+                &lit.clone().expand(),
+                0,
+                Vector::new(),
+                *parents,
+                None,
+              );
+              replace_child(node, expand);
+              free_dead_node(node);
+              node = expand;
+            }
             _ => break,
           }
         }
@@ -338,8 +360,10 @@ impl DAG {
                 let res = apply_una_op(opr, x);
                 if let Some(res) = res {
                   trail.pop();
-                  node =
-                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  node = DAGPtr::Lit(alloc_val(Lit {
+                    lit: res,
+                    parents: None,
+                  }));
                   replace_child(arg.head, node);
                   free_dead_node(arg.head);
                 }
@@ -363,8 +387,10 @@ impl DAG {
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
-                  node =
-                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  node = DAGPtr::Lit(alloc_val(Lit {
+                    lit: res,
+                    parents: None,
+                  }));
                   replace_child(arg1.head, node);
                   free_dead_node(arg1.head);
                 }
@@ -459,7 +485,7 @@ pub mod test {
   pub fn parse(
     i: &str,
   ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
-    let (i, tree) = crate::parse::term::parse(i)?;
+    let (i, tree) = crate::parse::term::parse(i, Defs::new())?;
     let (i, _) = nom::character::complete::multispace0(i)?;
     let (i, _) = nom::combinator::eof(i)?;
     let dag = DAG::from_term(&tree);
@@ -588,7 +614,7 @@ pub mod test {
       &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id,);
     println!("{}", trm_str);
     let (_, trm) = parse(trm_str).unwrap();
-    println!("{:?}", DAG::to_term(&trm));
+    println!("{:?}", DAG::to_term(&trm, true));
     // assert_eq!(true, false);
     norm_assert(trm_str, id);
   }

@@ -447,11 +447,9 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
       ParentPtr::AppFun(parent) => (*parent.as_ptr()).fun = newchild,
       ParentPtr::AppArg(parent) => (*parent.as_ptr()).arg = newchild,
       ParentPtr::AllDom(parent) => (*parent.as_ptr()).dom = newchild,
-      ParentPtr::AllImg(parent) => {
-        match newchild {
-          DAGPtr::Lam(link) => (*parent.as_ptr()).img = link,
-          _ => panic!("Cannot install a non-lambda node as image"),
-        }
+      ParentPtr::AllImg(parent) => match newchild {
+        DAGPtr::Lam(link) => (*parent.as_ptr()).img = link,
+        _ => panic!("Cannot install a non-lambda node as image"),
       },
       ParentPtr::AnnExp(parent) => (*parent.as_ptr()).exp = newchild,
       ParentPtr::AnnTyp(parent) => (*parent.as_ptr()).typ = newchild,
@@ -641,11 +639,13 @@ impl DAG {
     node: &DAGPtr,
     map: &mut HashMap<*mut Var, u64>,
     depth: u64,
+    re_rec: bool,
   ) -> Term {
     match node {
       DAGPtr::Var(link) => {
-        let Var { nam, dep: var_depth, rec, .. } = unsafe { link.as_ref() };
-        if *rec {
+        let Var { nam, dep: var_depth, rec, .. } =
+          unsafe { link.as_ref() };
+        if *rec && re_rec {
           Term::Rec(Pos::None)
         }
         else if let Some(level) = map.get(&link.as_ptr()) {
@@ -655,7 +655,9 @@ impl DAG {
           Term::Var(Pos::None, nam.clone(), *var_depth)
         }
       }
-      DAGPtr::Typ(_) => Term::Typ(Pos::None),
+      DAGPtr::Typ(_) => {
+        Term::Typ(Pos::None)
+      }
       DAGPtr::LTy(link) => {
         let LTy { lty, .. } = unsafe { link.as_ref() };
         Term::LTy(Pos::None, *lty)
@@ -681,23 +683,29 @@ impl DAG {
         let Lam { var, bod, .. } = unsafe { &mut *link.as_ptr() };
         let nam = var.nam.clone();
         map.insert(var, depth);
-        let body = DAG::dag_ptr_to_term(bod, map, depth + 1);
+        let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
         Term::Lam(Pos::None, nam, Box::new(body))
       }
       DAGPtr::Slf(link) => {
         let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
         let nam = var.nam.clone();
         map.insert(var, depth);
-        let body = DAG::dag_ptr_to_term(bod, map, depth + 1);
+        let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
         Term::Slf(Pos::None, nam, Box::new(body))
       }
       DAGPtr::Cse(link) => {
         let Cse { bod, .. } = unsafe { link.as_ref() };
-        Term::Cse(Pos::None, Box::new(DAG::dag_ptr_to_term(bod, map, depth)))
+        Term::Cse(
+          Pos::None,
+          Box::new(DAG::dag_ptr_to_term(bod, map, depth, re_rec)),
+        )
       }
       DAGPtr::Dat(link) => {
         let Dat { bod, .. } = unsafe { link.as_ref() };
-        Term::Dat(Pos::None, Box::new(DAG::dag_ptr_to_term(bod, map, depth)))
+        Term::Dat(
+          Pos::None,
+          Box::new(DAG::dag_ptr_to_term(bod, map, depth, re_rec)),
+        )
       }
       DAGPtr::App(link) => {
         let App { fun, arg, .. } = unsafe { link.as_ref() };
@@ -705,8 +713,8 @@ impl DAG {
         Term::App(
           Pos::None,
           Box::new((
-            DAG::dag_ptr_to_term(fun, fun_map, depth),
-            DAG::dag_ptr_to_term(arg, map, depth),
+            DAG::dag_ptr_to_term(fun, fun_map, depth, re_rec),
+            DAG::dag_ptr_to_term(arg, map, depth, re_rec),
           )),
         )
       }
@@ -716,13 +724,14 @@ impl DAG {
         Term::Ann(
           Pos::None,
           Box::new((
-            DAG::dag_ptr_to_term(typ, typ_map, depth),
-            DAG::dag_ptr_to_term(exp, map, depth),
+            DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
+            DAG::dag_ptr_to_term(exp, map, depth, re_rec),
           )),
         )
       }
       DAGPtr::All(link) => {
-        let All { uses, dom, img: lam_link, .. } = unsafe { &mut *link.as_ptr() };
+        let All { uses, dom, img: lam_link, .. } =
+          unsafe { &mut *link.as_ptr() };
         let Lam { var, bod: img, .. } = unsafe { &mut *lam_link.as_ptr() };
         let nam = var.nam.clone();
         let dom_map = &mut map.clone();
@@ -732,8 +741,8 @@ impl DAG {
           *uses,
           nam,
           Box::new((
-            DAG::dag_ptr_to_term(dom, dom_map, depth),
-            DAG::dag_ptr_to_term(img, map, depth + 1),
+            DAG::dag_ptr_to_term(dom, dom_map, depth, re_rec),
+            DAG::dag_ptr_to_term(img, map, depth + 1, re_rec),
           )),
         )
       }
@@ -750,18 +759,18 @@ impl DAG {
           *uses,
           nam,
           Box::new((
-            DAG::dag_ptr_to_term(typ, typ_map, depth),
-            DAG::dag_ptr_to_term(exp, exp_map, depth),
-            DAG::dag_ptr_to_term(bod, map, depth + 1),
+            DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
+            DAG::dag_ptr_to_term(exp, exp_map, depth, re_rec),
+            DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec),
           )),
         )
       }
     }
   }
 
-  pub fn to_term(&self) -> Term {
+  pub fn to_term(&self, re_rec: bool) -> Term {
     let mut map = HashMap::new();
-    DAG::dag_ptr_to_term(&self.head, &mut map, 0)
+    DAG::dag_ptr_to_term(&self.head, &mut map, 0, re_rec)
   }
 
   pub fn from_term(tree: &Term) -> Self {
@@ -809,7 +818,8 @@ impl DAG {
     match tree {
       Term::Rec(_) => match rec_ref {
         Some((nam, exp, ast)) => {
-          let ref_ = alloc_val(Ref { nam, rec: true, exp, ast, parents });
+          let ref_ =
+            alloc_val(Ref { nam, rec: true, exp, ast, parents });
           DAGPtr::Ref(ref_)
         }
         None => {
@@ -832,6 +842,9 @@ impl DAG {
           *val
         }
         None => {
+          if depth < 1+idx {
+            panic!("Negative index found.")
+          }
           let var = alloc_val(Var {
             nam: name.clone(),
             rec: false,
@@ -843,11 +856,15 @@ impl DAG {
         }
       },
       Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
-      Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
+      Term::LTy(_, lty) => {
+        DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents }))
+      }
       Term::Lit(_, lit) => {
         DAGPtr::Lit(alloc_val(Lit { lit: lit.clone(), parents }))
       }
-      Term::Opr(_, opr) => DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents })),
+      Term::Opr(_, opr) => {
+        DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents }))
+      }
       Term::Ref(_, nam, exp, ast) => DAGPtr::Ref(alloc_val(Ref {
         nam: nam.clone(),
         rec: false,
@@ -911,9 +928,16 @@ impl DAG {
       },
       Term::All(_, uses, nam, dom_img) => unsafe {
         let (dom, img) = (**dom_img).clone();
-        let all = alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents,);
+        let all =
+          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
-        let lam = alloc_lam(nam.clone(), 0, None, mem::zeroed(), NonNull::new(img_ref));
+        let lam = alloc_lam(
+          nam.clone(),
+          0,
+          None,
+          mem::zeroed(),
+          NonNull::new(img_ref),
+        );
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         let mut img_ctx = ctx.clone();
         let dom = DAG::from_term_inner(
@@ -1066,8 +1090,13 @@ impl DAG {
       },
       DAGPtr::Lam(link) => unsafe {
         let Lam { var, bod, .. } = &mut *link.as_ptr();
-        let lam =
-          alloc_lam(var.nam.clone(), var.dep, None, mem::zeroed(), parents);
+        let lam = alloc_lam(
+          var.nam.clone(),
+          var.dep,
+          None,
+          mem::zeroed(),
+          parents,
+        );
         let Lam { var: new_var, bod: new_bod, bod_ref, .. } =
           &mut *lam.as_ptr();
         map.insert(
@@ -1079,8 +1108,13 @@ impl DAG {
       },
       DAGPtr::Slf(link) => unsafe {
         let Slf { var, bod, .. } = &mut *link.as_ptr();
-        let slf =
-          alloc_slf(var.nam.clone(), var.dep, None, mem::zeroed(), parents);
+        let slf = alloc_slf(
+          var.nam.clone(),
+          var.dep,
+          None,
+          mem::zeroed(),
+          parents,
+        );
         let Slf { var: new_var, bod: new_bod, bod_ref, .. } =
           &mut *slf.as_ptr();
         map.insert(
@@ -1115,24 +1149,17 @@ impl DAG {
       },
       DAGPtr::All(link) => unsafe {
         let All { uses, dom, img, .. } = &mut *link.as_ptr();
-        let all = alloc_all(
-          *uses,
-          mem::zeroed(),
-          NonNull::dangling(),
-          parents,
-        );
-        let All {
-          dom: new_dom,
-          dom_ref,
-          img: new_img,
-          img_ref,
-          ..
-        } = &mut *all.as_ptr();
+        let all =
+          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
+        let All { dom: new_dom, dom_ref, img: new_img, img_ref, .. } =
+          &mut *all.as_ptr();
         *new_dom = DAG::from_subdag(*dom, map, NonNull::new(dom_ref));
-        *new_img = match DAG::from_subdag(DAGPtr::Lam(*img), map, NonNull::new(img_ref)) {
-          DAGPtr::Lam(link) => link,
-          _ => panic!("Clone implementation incorrect"),
-        };
+        *new_img =
+          match DAG::from_subdag(DAGPtr::Lam(*img), map, NonNull::new(img_ref))
+          {
+            DAGPtr::Lam(link) => link,
+            _ => panic!("Clone implementation incorrect"),
+          };
         DAGPtr::All(all)
       },
       DAGPtr::Let(link) => unsafe {
@@ -1193,7 +1220,7 @@ impl DAG {
       DAGPtr::Typ(_) => {
         let node = alloc_val(Typ { parents });
         DAGPtr::Typ(node)
-      } // _ => panic!("TODO"),
+      }, // _ => panic!("TODO"),
     };
     // Map `node` to `new_node`
     map.insert(node, new_node);
@@ -1271,7 +1298,7 @@ impl fmt::Debug for DAG {
           }
         }
         DAGPtr::Typ(link) => {
-          let Typ { parents } = unsafe { link.as_ref() };
+          let Typ { parents, .. } = unsafe { link.as_ref() };
           format!(
             "\nTyp<{:?}> parents: {}",
             (link.as_ptr()),
@@ -1414,8 +1441,7 @@ impl fmt::Debug for DAG {
         DAGPtr::All(link) => {
           if set.get(&(link.as_ptr() as usize)).is_none() {
             set.insert(link.as_ptr() as usize);
-            let All { dom, img, parents, copy, .. } =
-              unsafe { link.as_ref() };
+            let All { dom, img, parents, copy, .. } = unsafe { link.as_ref() };
             let copy = copy.map(|link| link.as_ptr() as usize);
             format!(
               "\nAll<{:?}> parents: {} copy: {:?}{}{}",
@@ -1460,13 +1486,13 @@ impl fmt::Debug for DAG {
 
 impl fmt::Display for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_term())
+    write!(f, "{}", self.to_term(false))
   }
 }
 
 impl fmt::Display for DAGPtr {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", DAG::new(self.clone()).to_term())
+    write!(f, "{}", DAG::new(self.clone()).to_term(false))
   }
 }
 
@@ -1490,7 +1516,7 @@ pub mod test {
   fn dag_term_iso(x: Term) -> bool {
     // println!("x: {}", x);
     // println!("x: {:?}", x);
-    let y = DAG::to_term(&DAG::from_term(&x));
+    let y = DAG::to_term(&DAG::from_term(&x), true);
     // println!("y: {}", y);
     // println!("y: {:?}", y);
     x == y
@@ -1498,7 +1524,7 @@ pub mod test {
 
   #[quickcheck]
   fn dag_def_iso(x: Def) -> bool {
-    let y = DAG::to_term(&DAG::from_def(&x, "test".to_owned()));
+    let y = DAG::to_term(&DAG::from_def(&x, "test".to_owned()), true);
     x.term == y
   }
 }

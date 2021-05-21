@@ -205,7 +205,7 @@ pub fn from_dag_ptr(
 ) -> NodeIndex<DefaultIx> {
   match node {
     DAGPtr::Var(link) => {
-      let Var { nam, dep, rec, binder, parents } = unsafe { link.as_ref() };
+      let Var { nam, dep, rec, binder, parents, .. } = unsafe { link.as_ref() };
       if let Some(ix) = map.get(node) {
         *ix
       }
@@ -329,8 +329,7 @@ pub fn from_dag_ptr(
       else {
         let All { uses, dom, img, parents, .. } =
           unsafe { &mut *link.as_ptr() };
-        let ix =
-          graph.add_node(Node::All { uses: *uses });
+        let ix = graph.add_node(Node::All { uses: *uses });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let dom_ix = from_dag_ptr(dom, map, graph);
