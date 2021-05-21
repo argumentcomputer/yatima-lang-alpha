@@ -123,16 +123,16 @@ pub fn check(
           div_use_ctx(uses, &mut bod_ctx);
           bod_ctx.push((all_var.nam.to_string(), *lam_uses, dom));
           check(rec, defs, &mut bod_ctx, Uses::Once, lam_bod, &mut img)?;
-          let (_, rest, _) = bod_ctx.pop().unwrap();
+          let (_, rest, _) = bod_ctx.last().unwrap();
           // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
           // otherwise the variable was not used enough
-          if !Uses::lte(Uses::None, rest) {
+          if !Uses::lte(Uses::None, *rest) {
             Err(CheckError::QuantityTooLittle(
               *pos,
-              error_context(&ctx),
+              error_context(&bod_ctx),
               all_var.nam.clone(),
               *lam_uses,
-              rest,
+              *rest,
             ))
           }
           else {
