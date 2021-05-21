@@ -226,13 +226,23 @@ pub fn infer(
   term: &Term,
 ) -> Result<DAG, CheckError> {
   match term {
-    Term::Var(pos, nam, dep) => {
-      let bind = ctx.get(*dep as usize).ok_or_else(|| {
+    Term::Rec(_) => {
+      let (nam, exp, _) = rec;
+      if let Some(def) = defs.defs.get(exp) {
+        Ok(DAG::from_term(&def.typ_))
+      }
+      else {
+        panic!("undefined runtime reference: {}, {}", nam, exp);
+      }
+    }
+    Term::Var(pos, nam, idx) => {
+      let dep = ctx.len() - 1 - (*idx as usize);
+      let bind = ctx.get(dep).ok_or_else(|| {
         CheckError::UnboundVariable(
           *pos,
           error_context(&ctx),
           nam.clone(),
-          *dep,
+          dep as u64,
         )
       })?;
       let subtract_use = (bind.1 - uses).ok_or_else(|| {
@@ -243,7 +253,7 @@ pub fn infer(
           bind.1,
           uses,
         )})?;
-      let bind = &mut ctx[*dep as usize];
+      let bind = &mut ctx[dep];
       bind.1 = subtract_use;
       let typ = unsafe {
         let dag = DAG::new(*bind.2);
@@ -383,11 +393,9 @@ pub fn infer(
     Term::Lam(_, _, _) => {
       Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx)))
     }
-    _ => Err(CheckError::GenericError(
-      term.pos(),
-      error_context(&ctx),
-      "TODO".to_string(),
-    )),
+    Term::Dat(_, _) => {
+      Err(CheckError::UntypedData(term.pos(), error_context(&ctx)))
+    }
   }
 }
 

@@ -18,8 +18,6 @@ use im::{
 // the time we add the child node to the context.
 pub type Ctx = Vec<(String, Uses, *mut DAGPtr)>;
 
-// pub type UseCtx = Vec<Uses>;
-
 #[inline]
 pub fn add_use_ctx(use_ctx: &mut Ctx, use_ctx2: Ctx) {
   #[allow(clippy::needless_range_loop)]
@@ -52,15 +50,16 @@ pub fn lam_rule(uses: Uses, use_ctx: &mut Ctx, use_ctx2: &Ctx) {
   }
 }
 
-pub type ErrCtx = Vector<(String, Term)>;
+pub type ErrCtx = Vector<(String, Uses, Term)>;
 
 pub fn error_context(ctx: &Ctx) -> ErrCtx {
   let mut res: ErrCtx = Vector::new();
-  for (n, _, ptr) in ctx {
+  for (n, uses, ptr) in ctx {
     let dagptr = unsafe { **ptr };
     let mut map = HashMap::new();
     res.push_back((
       n.clone(),
+      *uses,
       DAG::dag_ptr_to_term(&dagptr, &mut map, 0, false),
     ));
   }
@@ -69,8 +68,8 @@ pub fn error_context(ctx: &Ctx) -> ErrCtx {
 
 pub fn pretty_context(ctx: &ErrCtx) -> String {
   let mut res: String = String::new();
-  for (n, typ) in ctx {
-    res.push_str(&format!("- {}: {}\n", n, typ))
+  for (n, uses, typ) in ctx {
+    res.push_str(&format!("- {} {}: {}\n", uses, n, typ))
   }
   res
 }

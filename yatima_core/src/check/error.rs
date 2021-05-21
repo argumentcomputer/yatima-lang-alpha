@@ -15,6 +15,7 @@ pub enum CheckError {
   UndefinedReference(Pos, String),
   UnboundVariable(Pos, ErrCtx, String, u64),
   UntypedLambda(Pos, ErrCtx),
+  UntypedData(Pos, ErrCtx),
   QuantityTooLittle(Pos, ErrCtx, String, Uses, Uses),
   QuantityTooMuch(Pos, ErrCtx, String, Uses, Uses),
   TypeMismatch(Pos, ErrCtx, Term, Term),
@@ -60,8 +61,8 @@ impl fmt::Display for CheckError {
         )?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         Ok(())
@@ -73,8 +74,18 @@ impl fmt::Display for CheckError {
         write!(f, "Untyped lambda {}", pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
+          }
+        }
+        Ok(())
+      }
+      CheckError::UntypedData(pos, ctx) => {
+        write!(f, "Untyped data expression {}", pretty_pos(*pos))?;
+        if !ctx.is_empty() {
+          writeln!(f, "• Context:")?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         Ok(())
@@ -87,8 +98,8 @@ impl fmt::Display for CheckError {
         )?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Checked: {}", trm)?;
@@ -103,8 +114,8 @@ impl fmt::Display for CheckError {
         )?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Checked: {}", fun)?;
@@ -120,8 +131,8 @@ impl fmt::Display for CheckError {
         )?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Checked: {}", dat)?;
@@ -136,8 +147,8 @@ impl fmt::Display for CheckError {
         )?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Checked: {}", trm)?;
@@ -148,8 +159,8 @@ impl fmt::Display for CheckError {
         writeln!(f, "Variable `{}` not used enough {}", nam, pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Expected: {}", exp)?;
@@ -160,8 +171,8 @@ impl fmt::Display for CheckError {
         writeln!(f, "Variable `{}` used too much {}", nam, pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Expected: {}", exp)?;
@@ -172,8 +183,8 @@ impl fmt::Display for CheckError {
         writeln!(f, "Type Mismatch {}", pretty_pos(*pos))?;
         if !ctx.is_empty() {
           writeln!(f, "• Context:")?;
-          for (n, typ) in ctx {
-            writeln!(f, "  - {}: {}", n, typ)?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
           }
         }
         writeln!(f, "• Expected: {}", exp)?;
