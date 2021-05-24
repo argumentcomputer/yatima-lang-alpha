@@ -5,7 +5,8 @@ version = "0.1.0"
 authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cid = "0.6.1"
