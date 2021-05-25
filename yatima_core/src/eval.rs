@@ -355,7 +355,7 @@ impl DAG {
             arg.whnf(defs);
             match arg.head {
               DAGPtr::Lit(link) => {
-                let x = unsafe { (*link.as_ptr()).lit.clone() };
+                let x = unsafe { &(*link.as_ptr()).lit.clone() };
                 let res = apply_una_op(opr, x);
                 if let Some(res) = res {
                   trail.pop();
@@ -380,8 +380,8 @@ impl DAG {
             arg2.whnf(defs);
             match (arg1.head, arg2.head) {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
-                let x = unsafe { (*x_link.as_ptr()).lit.clone() };
-                let y = unsafe { (*y_link.as_ptr()).lit.clone() };
+                let x = unsafe { &(*x_link.as_ptr()).lit };
+                let y = unsafe { &(*y_link.as_ptr()).lit };
                 let res = apply_bin_op(opr, y, x);
                 if let Some(res) = res {
                   trail.pop();

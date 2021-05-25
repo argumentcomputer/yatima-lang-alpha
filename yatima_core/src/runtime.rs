@@ -5,7 +5,11 @@ use crate::{
     LitType,
     Literal,
   },
-  primop::PrimOp,
+  primop::{
+    PrimOp,
+    apply_bin_op,
+    apply_una_op,
+  },
   term::Term,
 };
 
@@ -509,62 +513,61 @@ pub fn whnf(dag: &mut DAG) {
         node = *bod;
       },
       DAG::Opr(link) => {
-        todo!()
-      //   let opr = unsafe { (*link.as_ptr()).opr };
-      //   let len = trail.len();
-      //   if len >= 1 && opr.arity() == 1 {
-      //     let mut arg = unsafe { (*trail[len - 1].as_ptr()).arg };
-      //     whnf(arg);
-      //     match arg {
-      //       DAG::Lit(link) => {
-      //         let x = unsafe { (*link.as_ptr()).lit.clone() };
-      //         let res = apply_una_op(opr, x);
-      //         if let Some(res) = res {
-      //           trail.pop();
-      //           node = DAG::Lit(alloc_val(Lit {
-      //             lit: res,
-      //             parents: None,
-      //           }));
-      //           replace_child(arg, node);
-      //           free_dead_node(arg);
-      //         }
-      //         else {
-      //           break;
-      //         }
-      //       }
-      //       _ => break,
-      //     }
-      //   }
-      //   else if len >= 2 && opr.arity() == 2 {
-      //     let mut arg1 = unsafe { (*trail[len - 2].as_ptr()).arg };
-      //     let mut arg2 = unsafe { (*trail[len - 1].as_ptr()).arg };
-      //     whnf(arg1);
-      //     whnf(arg2);
-      //     match (arg1, arg2) {
-      //       (DAG::Lit(x_link), DAG::Lit(y_link)) => {
-      //         let x = unsafe { (*x_link.as_ptr()).lit.clone() };
-      //         let y = unsafe { (*y_link.as_ptr()).lit.clone() };
-      //         let res = apply_bin_op(opr, y, x);
-      //         if let Some(res) = res {
-      //           trail.pop();
-      //           trail.pop();
-      //           node = DAG::Lit(alloc_val(Lit {
-      //             lit: res,
-      //             parents: None,
-      //           }));
-      //           replace_child(arg1, node);
-      //           free_dead_node(arg1);
-      //         }
-      //         else {
-      //           break;
-      //         }
-      //       }
-      //       _ => break,
-      //     }
-      //   }
-      //   else {
-      //     break;
-      //   }
+        let opr = unsafe { (*link.as_ptr()).opr };
+        let len = trail.len();
+        if len >= 1 && opr.arity() == 1 {
+          let mut arg = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          whnf(arg);
+          match arg {
+            DAG::Lit(link) => {
+              let x = unsafe { &(*link.as_ptr()).lit };
+              let res = apply_una_op(opr, x);
+              if let Some(res) = res {
+                trail.pop();
+                node = DAG::Lit(alloc_val(Lit {
+                  lit: res,
+                  parents: None,
+                }));
+                replace_child(*arg, node);
+                free_dead_node(*arg);
+              }
+              else {
+                break;
+              }
+            }
+            _ => break,
+          }
+        }
+        else if len >= 2 && opr.arity() == 2 {
+          let mut arg1 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
+          let mut arg2 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          whnf(arg1);
+          whnf(arg2);
+          match (*arg1, *arg2) {
+            (DAG::Lit(x_link), DAG::Lit(y_link)) => {
+              let x = unsafe { &(*x_link.as_ptr()).lit };
+              let y = unsafe { &(*y_link.as_ptr()).lit };
+              let res = apply_bin_op(opr, y, x);
+              if let Some(res) = res {
+                trail.pop();
+                trail.pop();
+                node = DAG::Lit(alloc_val(Lit {
+                  lit: res,
+                  parents: None,
+                }));
+                replace_child(*arg1, node);
+                free_dead_node(*arg1);
+              }
+              else {
+                break;
+              }
+            }
+            _ => break,
+          }
+        }
+        else {
+          break;
+        }
       }
       _ => break,
     }
