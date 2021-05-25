@@ -8,6 +8,7 @@ use std::{
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
+  prim::bits,
   term::Term,
   yatima,
 };
@@ -48,6 +49,7 @@ pub enum U16Op {
   ToI64,
   ToI128,
   ToInt,
+  ToBits,
   ToBytes,
 }
 
@@ -89,6 +91,7 @@ impl U16Op {
       Self::ToI128 => "to_I128".to_owned(),
       Self::ToInt => "to_Int".to_owned(),
       Self::ToBytes => "to_Bytes".to_owned(),
+      Self::ToBits => "to_Bits".to_owned(),
     }
   }
 
@@ -129,6 +132,7 @@ impl U16Op {
       "to_I128" => Some(Self::ToI128),
       "to_Int" => Some(Self::ToInt),
       "to_Bytes" => Some(Self::ToBytes),
+      "to_Bits" => Some(Self::ToBits),
       _ => None,
     }
   }
@@ -170,6 +174,7 @@ impl U16Op {
       Self::ToI128 => yatima!("∀ #U16 -> #I128"),
       Self::ToInt => yatima!("∀ #U16 -> #Int"),
       Self::ToBytes => yatima!("∀ #U16 -> #Bytes"),
+      Self::ToBits => yatima!("∀ #U8 -> #Bits"),
     }
   }
 
@@ -209,7 +214,8 @@ impl U16Op {
       Self::ToI64 => Ipld::Integer(31),
       Self::ToI128 => Ipld::Integer(32),
       Self::ToInt => Ipld::Integer(33),
-      Self::ToBytes => Ipld::Integer(34),
+      Self::ToBits => Ipld::Integer(34),
+      Self::ToBytes => Ipld::Integer(35),
     }
   }
 
@@ -249,7 +255,8 @@ impl U16Op {
       Ipld::Integer(31) => Ok(Self::ToI64),
       Ipld::Integer(32) => Ok(Self::ToI128),
       Ipld::Integer(33) => Ok(Self::ToInt),
-      Ipld::Integer(34) => Ok(Self::ToBytes),
+      Ipld::Integer(34) => Ok(Self::ToBits),
+      Ipld::Integer(35) => Ok(Self::ToBytes),
       xs => Err(IpldError::NatOp(xs.to_owned())),
     }
   }
@@ -291,6 +298,7 @@ impl U16Op {
       Self::ToI128 => 1,
       Self::ToInt => 1,
       Self::ToBytes => 1,
+      Self::ToBits => 1,
     }
   }
 
@@ -320,6 +328,9 @@ impl U16Op {
       (Self::Not, U16(x)) => Some(U16(!x)),
       (Self::ToInt, U16(x)) => Some(Int(x.into())),
       (Self::ToBytes, U16(x)) => Some(Bytes(x.to_be_bytes().into())),
+      (Self::ToBits, U16(x)) => {
+        Some(Bits(bits::bytes_to_bits(16, x.to_be_bytes().into())))
+      }
       _ => None,
     }
   }

@@ -4,8 +4,6 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
-  position::Pos,
-  prim::Op,
   upcopy::*,
 };
 
@@ -300,16 +298,21 @@ impl DAG {
             }
             DAGPtr::Lit(link) => {
               let Lit { lit, parents, .. } = unsafe { link.as_ref() };
-              let expand = DAG::from_term_inner(
-                &lit.clone().expand(),
-                0,
-                Vector::new(),
-                *parents,
-                None,
-              );
-              replace_child(node, expand);
-              free_dead_node(node);
-              node = expand;
+              match &lit.clone().expand() {
+                None => break,
+                Some(expand) => {
+                  let expand = DAG::from_term_inner(
+                    expand,
+                    0,
+                    Vector::new(),
+                    *parents,
+                    None,
+                  );
+                  replace_child(node, expand);
+                  free_dead_node(node);
+                  node = expand;
+                }
+              }
             }
             _ => break,
           }

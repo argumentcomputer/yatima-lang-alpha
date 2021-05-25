@@ -158,46 +158,53 @@ impl fmt::Display for Literal {
 }
 
 impl Literal {
-  pub fn expand(self) -> Term {
+  pub fn expand(self) -> Option<Term> {
     match self {
       Self::Nat(n) => {
         if n == BigUint::from(0u64) {
-          yatima!("λ P z s => z")
+          Some(yatima!("λ P z s => z"))
         }
         else {
-          yatima!(
+          Some(yatima!(
             "λ P z s => s #$0",
             Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
-          )
+          ))
         }
       }
-      Self::Int(_) => yatima!("λ P i => i"),
+      Self::Int(_) => Some(yatima!("λ P i => i")),
+      Self::Bits(mut t) => {
+        let c = t.pop();
+        match c {
+          None => Some(yatima!("λ P n c => n")),
+          Some(c) => Some(yatima!(
+            "λ P n c => c #$0 #$1",
+            Term::Lit(Pos::None, Literal::Bool(c)),
+            Term::Lit(Pos::None, Literal::Bits(t))
+          )),
+        }
+      }
       Self::Bytes(mut t) => {
         let c = t.pop();
         match c {
-          None => yatima!("λ P n c => n"),
-          Some(c) => {
-            yatima!(
-              "λ P n c => c #$0 #$1",
-              Term::Lit(Pos::None, Literal::U8(c)),
-              Term::Lit(Pos::None, Literal::Bytes(t))
-            )
-          }
+          None => Some(yatima!("λ P n c => n")),
+          Some(c) => Some(yatima!(
+            "λ P n c => c #$0 #$1",
+            Term::Lit(Pos::None, Literal::U8(c)),
+            Term::Lit(Pos::None, Literal::Bytes(t))
+          )),
         }
       }
       Self::Text(t) => match text::safe_head(t) {
-        None => yatima!("λ P n c => n"),
-        Some((c, t)) => {
-          yatima!(
-            "λ P n c => c #$0 #$1",
-            Term::Lit(Pos::None, Literal::Char(c)),
-            Term::Lit(Pos::None, Literal::Text(t))
-          )
-        }
+        None => Some(yatima!("λ P n c => n")),
+        Some((c, t)) => Some(yatima!(
+          "λ P n c => c #$0 #$1",
+          Term::Lit(Pos::None, Literal::Char(c)),
+          Term::Lit(Pos::None, Literal::Text(t))
+        )),
       },
-      Self::Bool(true) => yatima!("λ P t f => t"),
-      Self::Bool(false) => yatima!("λ P t f => f"),
-      _ => todo!(),
+      Self::Bool(true) => Some(yatima!("λ P t f => t")),
+      Self::Bool(false) => Some(yatima!("λ P t f => f")),
+      _ => None,
     }
   }
 
@@ -390,58 +397,56 @@ impl Literal {
 }
 
 impl LitType {
-  pub fn induction(self, val: Term) -> Term {
+  pub fn induction(self, val: Term) -> Option<Term> {
     match self {
-      Self::Nat => {
-        yatima!(
-          "∀ (0 P: ∀ #Nat -> Type)
+      Self::Nat => Some(yatima!(
+        "∀ (0 P: ∀ #Nat -> Type)
              (& zero: P 0)
              (& succ: ∀ (pred: #Nat) -> (#Nat.suc pred))
            -> P #$0
           ",
-          val
-        )
-      }
-      Self::Int => {
-        yatima!(
-          "∀ (0 P: ∀ #Int -> Type)
+        val
+      )),
+      Self::Int => Some(yatima!(
+        "∀ (0 P: ∀ #Int -> Type)
              (& int: ∀ (sign: #Bool) (abs: #Nat) -> P (#Int.new sign abs))
            -> P #$0
           ",
-          val
-        )
-      }
-      Self::Bytes => {
-        yatima!(
-          "∀ (0 P: ∀ #Bytes -> Type)
+        val
+      )),
+      Self::Bytes => Some(yatima!(
+        "∀ (0 P: ∀ #Bytes -> Type)
              (& nil: P \"\")
              (& cons: ∀ (x: #U8) (xs: #Bytes) -> (#Bytes.cons x xs))
            -> P #$0
           ",
-          val
-        )
-      }
-      Self::Text => {
-        yatima!(
-          "∀ (0 P: ∀ #Text -> Type)
+        val
+      )),
+      Self::Bits => Some(yatima!(
+        "∀ (0 P: ∀ #Bits -> Type)
+             (& nil: P #b)
+             (& cons: ∀ (x: #Bool) (xs: #Bits) -> (#Bits.cons x xs))
+           -> P #$0
+          ",
+        val
+      )),
+      Self::Text => Some(yatima!(
+        "∀ (0 P: ∀ #Text -> Type)
              (& nil: P \"\")
              (& cons: ∀ (x: #Char) (xs: #Text) -> (#Text.cons x xs))
            -> P #$0
           ",
-          val
-        )
-      }
-      Self::Bool => {
-        yatima!(
-          "∀ (0 P: ∀ #Bool -> Type)
+        val
+      )),
+      Self::Bool => Some(yatima!(
+        "∀ (0 P: ∀ #Bool -> Type)
              (& t: P #Bool.true)
              (& f: P #Bool.false)
            -> P #$0
           ",
-          val
-        )
-      }
-      _ => todo!(),
+        val
+      )),
+      _ => None,
     }
   }
 
@@ -696,7 +701,7 @@ pub mod tests {
   fn test_expand() {
     assert_eq!(
       Literal::Nat(BigUint::from(1u64)).expand(),
-      yatima!("λ P z s => s 0")
+      Some(yatima!("λ P z s => s 0"))
     )
   }
 }

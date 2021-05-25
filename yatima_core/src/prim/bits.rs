@@ -65,14 +65,14 @@ impl BitsOp {
 
   pub fn type_of(self) -> Term {
     match self {
-      Self::Cons => yatima!("∀ #Char #Bits -> #Bits"),
+      Self::Cons => yatima!("∀ #Bool #Bits -> #Bits"),
       Self::Len => yatima!("∀ #Bits -> #Nat"),
       Self::Head => yatima!("∀ #Bits -> #U8"),
       Self::Tail => yatima!("∀ #Bits -> #Bits"),
       Self::Take => yatima!("∀ #Nat #Bits -> #Bits"),
       Self::Drop => yatima!("∀ #Nat #Bits -> #Bits"),
       Self::Append => yatima!("∀ #Bits #Bits -> #Bits"),
-      Self::Insert => yatima!("∀ #U8 #Nat #Bits -> #Bits"),
+      Self::Insert => yatima!("∀ #Bool #Nat #Bits -> #Bits"),
       Self::Remove => yatima!("∀ #Nat #Bits -> #Bits"),
       Self::Index => yatima!("∀ #Nat #Bits -> #U8"),
       Self::ToBytes => yatima!("∀ #Bits -> #Bytes"),
@@ -131,15 +131,16 @@ impl BitsOp {
   pub fn apply1(self, x: Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
-      //(Self::Len, Bits(xs)) => Some(Nat(xs.len().into())),
-      //(Self::Head, Bits(mut xs)) => {
-      //  let x = xs.pop();
-      //  x.map(U8)
-      //}
-      //(Self::Tail, Bits(mut xs)) => {
-      //  xs.pop();
-      //  Some(Bits(xs))
-      //}
+      (Self::Len, Bits(xs)) => Some(Nat(xs.len().into())),
+      (Self::Head, Bits(mut xs)) => {
+        let x = xs.pop();
+        x.map(Bool)
+      }
+      (Self::Tail, Bits(mut xs)) => {
+        xs.pop();
+        Some(Bits(xs))
+      }
+      (Self::ToBytes, Bits(xs)) => Some(Literal::Bytes(bits_to_bytes(xs).1)),
       _ => None,
     }
   }
@@ -147,42 +148,42 @@ impl BitsOp {
   pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      //(Self::Cons, U8(x), Bits(mut xs)) => {
-      //  xs.push(x);
-      //  Some(Bits(xs))
-      //}
-      //(Self::Drop, Nat(x), Bits(xs)) => {
-      //  let (_, ys) = safe_split(x, xs);
-      //  Some(Bits(ys))
-      //}
-      //(Self::Take, Nat(x), Bits(xs)) => {
-      //  let (xs, _) = safe_split(x, xs);
-      //  Some(Bits(xs))
-      //}
-      //(Self::Append, Bits(mut xs), Bits(mut ys)) => {
-      //  xs.append(&mut ys);
-      //  Some(Bits(xs))
-      //}
-      //(Self::Remove, Nat(idx), Bits(mut xs)) => {
-      //  let idx = usize::try_from(idx);
-      //  match idx {
-      //    Ok(idx) if idx < xs.len() => {
-      //      xs.remove(idx);
-      //      Some(Bits(xs))
-      //    }
-      //    _ => Some(Bits(xs)),
-      //  }
-      //}
-      //(Self::Index, Nat(idx), Bits(xs)) => {
-      //  let idx = usize::try_from(idx);
-      //  match idx {
-      //    Ok(idx) if idx < xs.len() => {
-      //      let x = xs[idx];
-      //      Some(U8(x))
-      //    }
-      //    _ => None,
-      //  }
-      //}
+      (Self::Cons, Bool(x), Bits(mut xs)) => {
+        xs.push(x);
+        Some(Bits(xs))
+      }
+      (Self::Drop, Nat(x), Bits(xs)) => {
+        let (_, ys) = safe_split(x, xs);
+        Some(Bits(ys))
+      }
+      (Self::Take, Nat(x), Bits(xs)) => {
+        let (xs, _) = safe_split(x, xs);
+        Some(Bits(xs))
+      }
+      (Self::Append, Bits(mut xs), Bits(mut ys)) => {
+        xs.append(&mut ys);
+        Some(Bits(xs))
+      }
+      (Self::Remove, Nat(idx), Bits(mut xs)) => {
+        let idx = usize::try_from(idx);
+        match idx {
+          Ok(idx) if idx < xs.len() => {
+            xs.remove(idx);
+            Some(Bits(xs))
+          }
+          _ => Some(Bits(xs)),
+        }
+      }
+      (Self::Index, Nat(idx), Bits(xs)) => {
+        let idx = usize::try_from(idx);
+        match idx {
+          Ok(idx) if idx < xs.len() => {
+            let x = xs[idx];
+            Some(Bool(x))
+          }
+          _ => None,
+        }
+      }
       _ => None,
     }
   }
@@ -190,31 +191,31 @@ impl BitsOp {
   pub fn apply3(self, x: Literal, y: Literal, z: Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y, z) {
-      //(Self::Insert, Nat(idx), U8(y), Bits(mut xs)) => {
-      //  let idx = usize::try_from(idx);
-      //  match idx {
-      //    Ok(idx) if idx < xs.len() => {
-      //      xs.insert(idx, y);
-      //      Some(Bits(xs))
-      //    }
-      //    _ => Some(Bits(xs)),
-      //  }
-      //}
+      (Self::Insert, Nat(idx), Bool(y), Bits(mut xs)) => {
+        let idx = usize::try_from(idx);
+        match idx {
+          Ok(idx) if idx < xs.len() => {
+            xs.insert(idx, y);
+            Some(Bits(xs))
+          }
+          _ => Some(Bits(xs)),
+        }
+      }
       _ => None,
     }
   }
 }
 
-// pub fn safe_split(idx: BigUint, mut xs: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
-//  let idx = usize::try_from(idx);
-//  match idx {
-//    Ok(idx) if idx <= xs.len() => {
-//      let ys = xs.split_off(idx);
-//      (xs, ys)
-//    }
-//    _ => (xs, vec![]),
-//  }
-//}
+pub fn safe_split(idx: BigUint, mut xs: Vec<bool>) -> (Vec<bool>, Vec<bool>) {
+  let idx = usize::try_from(idx);
+  match idx {
+    Ok(idx) if idx <= xs.len() => {
+      let ys = xs.split_off(idx);
+      (xs, ys)
+    }
+    _ => (xs, vec![]),
+  }
+}
 
 pub fn bits_to_byte(bits: [bool; 8]) -> u8 {
   let mut i = 0;

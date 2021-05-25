@@ -8,6 +8,7 @@ use std::{
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
+  prim::bits,
   term::Term,
   yatima,
 };
@@ -49,6 +50,7 @@ pub enum U64Op {
   ToI128,
   ToInt,
   ToBytes,
+  ToBits,
 }
 
 impl U64Op {
@@ -88,6 +90,7 @@ impl U64Op {
       Self::ToI64 => "to_I64".to_owned(),
       Self::ToI128 => "to_I128".to_owned(),
       Self::ToInt => "to_Int".to_owned(),
+      Self::ToBits => "to_Bits".to_owned(),
       Self::ToBytes => "to_Bytes".to_owned(),
     }
   }
@@ -128,6 +131,7 @@ impl U64Op {
       "to_I64" => Some(Self::ToI64),
       "to_I128" => Some(Self::ToI128),
       "to_Int" => Some(Self::ToInt),
+      "to_Bits" => Some(Self::ToBits),
       "to_Bytes" => Some(Self::ToBytes),
       _ => None,
     }
@@ -169,6 +173,7 @@ impl U64Op {
       Self::ToI64 => yatima!("∀ #U64 -> #I64"),
       Self::ToI128 => yatima!("∀ #U64 -> #I128"),
       Self::ToInt => yatima!("∀ #U64 -> #Int"),
+      Self::ToBits => yatima!("∀ #U64 -> #Bits"),
       Self::ToBytes => yatima!("∀ #U64 -> #Bytes"),
     }
   }
@@ -209,7 +214,8 @@ impl U64Op {
       Self::ToI64 => Ipld::Integer(31),
       Self::ToI128 => Ipld::Integer(32),
       Self::ToInt => Ipld::Integer(33),
-      Self::ToBytes => Ipld::Integer(34),
+      Self::ToBits => Ipld::Integer(34),
+      Self::ToBytes => Ipld::Integer(35),
     }
   }
 
@@ -249,7 +255,8 @@ impl U64Op {
       Ipld::Integer(31) => Ok(Self::ToI64),
       Ipld::Integer(32) => Ok(Self::ToI128),
       Ipld::Integer(33) => Ok(Self::ToInt),
-      Ipld::Integer(34) => Ok(Self::ToBytes),
+      Ipld::Integer(34) => Ok(Self::ToBits),
+      Ipld::Integer(35) => Ok(Self::ToBytes),
       xs => Err(IpldError::NatOp(xs.to_owned())),
     }
   }
@@ -291,6 +298,7 @@ impl U64Op {
       Self::ToI128 => 1,
       Self::ToInt => 1,
       Self::ToBytes => 1,
+      Self::ToBits => 1,
     }
   }
 
@@ -320,6 +328,9 @@ impl U64Op {
       (Self::Not, U64(x)) => Some(U64(!x)),
       (Self::ToInt, U64(x)) => Some(Int(x.into())),
       (Self::ToBytes, U64(x)) => Some(Bytes(x.to_be_bytes().into())),
+      (Self::ToBits, U64(x)) => {
+        Some(Bits(bits::bytes_to_bits(64, x.to_be_bytes().into())))
+      }
       _ => None,
     }
   }
@@ -367,7 +378,7 @@ pub mod tests {
   impl Arbitrary for U64Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..34);
+      let gen: u32 = rng.gen_range(0..35);
       match gen {
         0 => Self::Max,
         1 => Self::Min,
@@ -403,7 +414,8 @@ pub mod tests {
         31 => Self::ToI64,
         32 => Self::ToI128,
         33 => Self::ToInt,
-        _ => Self::ToBytes,
+        34 => Self::ToBytes,
+        _ => Self::ToBits,
       }
     }
   }

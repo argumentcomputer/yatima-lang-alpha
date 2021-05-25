@@ -44,6 +44,7 @@ pub enum ParseErrorKind {
   LitTypeLacksWhitespaceTermination(LitType),
   UnknownNatOp(String),
   UnknownIntOp(String),
+  UnknownBitsOp(String),
   UnknownBytesOp(String),
   UnknownBoolOp(String),
   UnknownTextOp(String),

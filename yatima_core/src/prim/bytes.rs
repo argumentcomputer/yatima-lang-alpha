@@ -5,6 +5,7 @@ use std::fmt;
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
+  prim::bits,
   term::Term,
   yatima,
 };
@@ -23,6 +24,7 @@ pub enum BytesOp {
   Insert,
   Remove,
   Index,
+  ToBits,
 }
 
 impl BytesOp {
@@ -38,6 +40,7 @@ impl BytesOp {
       Self::Insert => "insert".to_owned(),
       Self::Remove => "remove".to_owned(),
       Self::Index => "index".to_owned(),
+      Self::ToBits => "to_Bits".to_owned(),
     }
   }
 
@@ -53,13 +56,14 @@ impl BytesOp {
       "insert" => Some(Self::Insert),
       "remove" => Some(Self::Remove),
       "index" => Some(Self::Index),
+      "to_Bits" => Some(Self::ToBits),
       _ => None,
     }
   }
 
   pub fn type_of(self) -> Term {
     match self {
-      Self::Cons => yatima!("∀ #Char #Bytes -> #Bytes"),
+      Self::Cons => yatima!("∀ #U8 #Bytes -> #Bytes"),
       Self::Len => yatima!("∀ #Bytes -> #Nat"),
       Self::Head => yatima!("∀ #Bytes -> #U8"),
       Self::Tail => yatima!("∀ #Bytes -> #Bytes"),
@@ -69,6 +73,7 @@ impl BytesOp {
       Self::Insert => yatima!("∀ #U8 #Nat #Bytes -> #Bytes"),
       Self::Remove => yatima!("∀ #Nat #Bytes -> #Bytes"),
       Self::Index => yatima!("∀ #Nat #Bytes -> #U8"),
+      Self::ToBits => yatima!("∀ #Nat #Bytes -> #Bits"),
     }
   }
 
@@ -84,6 +89,7 @@ impl BytesOp {
       Self::Insert => Ipld::Integer(7),
       Self::Remove => Ipld::Integer(8),
       Self::Index => Ipld::Integer(9),
+      Self::ToBits => Ipld::Integer(10),
     }
   }
 
@@ -99,6 +105,7 @@ impl BytesOp {
       Ipld::Integer(7) => Ok(Self::Insert),
       Ipld::Integer(8) => Ok(Self::Remove),
       Ipld::Integer(9) => Ok(Self::Index),
+      Ipld::Integer(10) => Ok(Self::ToBits),
       xs => Err(IpldError::BytesOp(xs.to_owned())),
     }
   }
@@ -115,6 +122,7 @@ impl BytesOp {
       Self::Insert => 3,
       Self::Remove => 2,
       Self::Index => 2,
+      Self::ToBits => 2,
     }
   }
 
@@ -173,6 +181,10 @@ impl BytesOp {
           _ => None,
         }
       }
+      (Self::ToBits, Nat(idx), Bytes(xs)) => match usize::try_from(idx) {
+        Ok(x) => Some(Literal::Bits(bits::bytes_to_bits(x, xs))),
+        _ => None,
+      },
       _ => None,
     }
   }
