@@ -1,5 +1,5 @@
 use crate::{
-  defs::Def,
+  defs::Defs,
   dll::*,
   literal::{
     LitType,
@@ -516,7 +516,7 @@ pub fn whnf(dag: &mut DAG) {
         let opr = unsafe { (*link.as_ptr()).opr };
         let len = trail.len();
         if len >= 1 && opr.arity() == 1 {
-          let mut arg = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          let arg = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
           whnf(arg);
           match arg {
             DAG::Lit(link) => {
@@ -539,8 +539,8 @@ pub fn whnf(dag: &mut DAG) {
           }
         }
         else if len >= 2 && opr.arity() == 2 {
-          let mut arg1 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
-          let mut arg2 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          let arg1 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
+          let arg2 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
           whnf(arg1);
           whnf(arg2);
           match (*arg1, *arg2) {
@@ -577,5 +577,133 @@ pub fn whnf(dag: &mut DAG) {
   }
   else {
     *dag = DAG::App(trail[0]);
+  }
+}
+
+// Assumes erased terms
+pub fn from_term(
+  defs: &Defs,
+  term: &Term,
+  parents: Option<NonNull<Parents>>
+) -> DAG {
+  let (bod, maybe_fix) = from_term_inner(defs, term, &mut vec![], None, None);
+  match maybe_fix {
+    Some(mut link) => unsafe {
+      let fix = link.as_mut();
+      fix.parents = parents;
+      fix.bod = bod;
+      add_to_parents(bod, NonNull::new_unchecked(&mut fix.bod_ref));
+      DAG::Fix(link)
+    },
+    None => {
+      set_parents(bod, parents);
+      bod
+    },
+  }
+}
+
+pub fn from_term_inner(
+  defs: &Defs,
+  term: &Term,
+  ctx: &mut Vec<DAG>,
+  parents: Option<NonNull<Parents>>,
+  maybe_fix: Option<NonNull<Fix>>
+) -> (DAG, Option<NonNull<Fix>>) {
+  match term {
+    Term::Rec(_) => unsafe {
+      let mut fix = match maybe_fix {
+        Some(fix) => fix,
+        None => alloc_fix(mem::zeroed(), None),
+      };
+      let Fix { var, .. } = fix.as_mut();
+      let var = DAG::Var(NonNull::new_unchecked(var));
+      if let Some(parents) = parents {
+        DLL::concat(parents, get_parents(var));
+        set_parents(var, Some(parents));
+      }
+      (var, Some(fix))
+    },
+    Term::Var(_, _, idx) => match ctx.get(ctx.len() - 1 - *idx as usize) {
+      Some(val) => {
+        if let Some(parents) = parents {
+          DLL::concat(parents, get_parents(*val));
+          set_parents(*val, Some(parents));
+        }
+        (*val, maybe_fix)
+      }
+      None => panic!("Free variable found"),
+    }
+    Term::Lit(_, lit) => {
+      (DAG::Lit(alloc_val(Lit { lit: lit.clone(), parents })), maybe_fix)
+    }
+    Term::Opr(_, opr) => {
+      (DAG::Opr(alloc_val(Opr { opr: *opr, parents })), maybe_fix)
+    }
+    Term::Ref(_, nam, exp, _) => {
+      if let Some(def) = defs.defs.get(exp) {
+        (from_term(defs, &def.term, parents), maybe_fix)
+      }
+      else {
+        panic!("undefined runtime reference: {}, {}", nam, exp);
+      }
+    },
+    Term::Lam(_, _, bod) => unsafe {
+      let lam = alloc_lam(mem::zeroed(), parents);
+      let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
+      ctx.push(DAG::Var(NonNull::new(var).unwrap()));
+      let (bod, maybe_fix) = from_term_inner(
+        defs,
+        &**bod,
+        ctx,
+        NonNull::new(bod_ref),
+        maybe_fix,
+      );
+      (*lam.as_ptr()).bod = bod;
+      (DAG::Lam(lam), maybe_fix)
+    },
+    Term::Dat(_, bod) => from_term_inner(defs, &**bod, ctx, parents, maybe_fix),
+    Term::Cse(_, bod) => from_term_inner(defs, &**bod, ctx, parents, maybe_fix),
+    Term::App(_, fun_arg) => unsafe {
+      let (fun, arg) = &**fun_arg;
+      let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
+      let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
+      let (fun, maybe_fix) = from_term_inner(
+        defs,
+        fun,
+        &mut ctx.clone(),
+        NonNull::new(fun_ref),
+        maybe_fix,
+      );
+      let (arg, maybe_fix) = from_term_inner(
+        defs,
+        arg,
+        ctx,
+        NonNull::new(arg_ref),
+        maybe_fix,
+      );
+      (*app.as_ptr()).fun = fun;
+      (*app.as_ptr()).arg = arg;
+      (DAG::App(app), maybe_fix)
+    },
+    Term::Ann(_, typ_exp) => {
+      let (_, exp) = (**typ_exp).clone();
+      from_term_inner(defs, &exp, ctx, parents, maybe_fix)
+    },
+    Term::Let(_, rec, _, _, typ_exp_bod) => unsafe {
+      let (_, exp, bod) = &**typ_exp_bod;
+      let (exp, maybe_fix) = if *rec {
+        let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
+        let (bod, maybe_fix) = from_term_inner(defs, &exp, &mut ctx.clone(), parents, maybe_fix);
+        new_fix.bod = bod;
+        add_to_parents(bod, NonNull::new_unchecked(&mut new_fix.bod_ref));
+        (DAG::Fix(NonNull::new_unchecked(new_fix)), maybe_fix)
+      }
+      else {
+        from_term_inner(defs, &exp, &mut ctx.clone(), None, maybe_fix)
+      };
+      ctx.push(exp);
+      from_term_inner(defs, &bod, ctx, parents, maybe_fix)
+    },
+    _ => panic!("Runtime cannot contain type level terms")
   }
 }

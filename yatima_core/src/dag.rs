@@ -924,7 +924,7 @@ impl DAG {
         DAGPtr::Cse(cse)
       },
       Term::All(_, uses, nam, dom_img) => unsafe {
-        let (dom, img) = (**dom_img).clone();
+        let (dom, img) = &**dom_img;
         let all =
           alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
@@ -937,7 +937,7 @@ impl DAG {
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         let mut img_ctx = ctx.clone();
         let dom = DAG::from_term_inner(
-          &dom,
+          dom,
           depth,
           ctx,
           NonNull::new(dom_ref),
@@ -945,7 +945,7 @@ impl DAG {
         );
         img_ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let img = DAG::from_term_inner(
-          &img,
+          img,
           depth + 1,
           img_ctx,
           NonNull::new(bod_ref),
@@ -957,18 +957,18 @@ impl DAG {
         DAGPtr::All(all)
       },
       Term::App(_, fun_arg) => unsafe {
-        let (fun, arg) = (**fun_arg).clone();
+        let (fun, arg) = &**fun_arg;
         let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
         let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
         let fun = DAG::from_term_inner(
-          &fun,
+          fun,
           depth,
           ctx.clone(),
           NonNull::new(fun_ref),
           rec_ref.clone(),
         );
         let arg = DAG::from_term_inner(
-          &arg,
+          arg,
           depth,
           ctx,
           NonNull::new(arg_ref),
@@ -979,18 +979,18 @@ impl DAG {
         DAGPtr::App(app)
       },
       Term::Ann(_, typ_exp) => unsafe {
-        let (typ, exp) = (**typ_exp).clone();
+        let (typ, exp) = &**typ_exp;
         let ann = alloc_ann(mem::zeroed(), mem::zeroed(), parents);
         let Ann { typ_ref, exp_ref, .. } = &mut *ann.as_ptr();
         let typ = DAG::from_term_inner(
-          &typ,
+          typ,
           depth,
           ctx.clone(),
           NonNull::new(typ_ref),
           rec_ref.clone(),
         );
         let exp = DAG::from_term_inner(
-          &exp,
+          exp,
           depth,
           ctx,
           NonNull::new(exp_ref),
@@ -1004,7 +1004,7 @@ impl DAG {
         panic!("letrec not implemented")
       }
       Term::Let(_, false, uses, nam, typ_exp_bod) => unsafe {
-        let (typ, exp, bod) = (**typ_exp_bod).clone();
+        let (typ, exp, bod) = &**typ_exp_bod;
         let let_ = alloc_let(
           nam.clone(),
           0,
@@ -1016,14 +1016,14 @@ impl DAG {
         );
         let Let { var, typ_ref, exp_ref, bod_ref, .. } = &mut *let_.as_ptr();
         let typ = DAG::from_term_inner(
-          &typ,
+          typ,
           depth,
           ctx.clone(),
           NonNull::new(typ_ref),
           rec_ref.clone(),
         );
         let exp = DAG::from_term_inner(
-          &exp,
+          exp,
           depth,
           ctx.clone(),
           NonNull::new(exp_ref),
@@ -1031,7 +1031,7 @@ impl DAG {
         );
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
-          &bod,
+          bod,
           depth + 1,
           ctx,
           NonNull::new(bod_ref),
