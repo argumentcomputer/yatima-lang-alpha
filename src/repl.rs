@@ -8,8 +8,6 @@ use rustyline::{
   KeyEvent,
 };
 
-use im::HashMap;
-
 use nom::Err;
 
 pub mod command;

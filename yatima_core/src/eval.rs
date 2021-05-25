@@ -4,10 +4,6 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
-  primop::{
-    apply_bin_op,
-    apply_una_op,
-  },
   upcopy::*,
 };
 
@@ -99,16 +95,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Let { var: old_var, uses, typ, exp, bod, .. } =
           unsafe { link.as_ref() };
         let Var { nam, dep, .. } = old_var;
-        let new_let = alloc_let(
-          nam.clone(),
-          *dep,
-          None,
-          *uses,
-          *typ,
-          *exp,
-          *bod,
-          None,
-        );
+        let new_let =
+          alloc_let(nam.clone(), *dep, None, *uses, *typ, *exp, *bod, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_let);
           let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
@@ -310,16 +298,21 @@ impl DAG {
             }
             DAGPtr::Lit(link) => {
               let Lit { lit, parents, .. } = unsafe { link.as_ref() };
-              let expand = DAG::from_term_inner(
-                &lit.clone().expand(),
-                0,
-                Vector::new(),
-                *parents,
-                None,
-              );
-              replace_child(node, expand);
-              free_dead_node(node);
-              node = expand;
+              match &lit.clone().expand() {
+                None => break,
+                Some(expand) => {
+                  let expand = DAG::from_term_inner(
+                    expand,
+                    0,
+                    Vector::new(),
+                    *parents,
+                    None,
+                  );
+                  replace_child(node, expand);
+                  free_dead_node(node);
+                  node = expand;
+                }
+              }
             }
             _ => break,
           }
@@ -351,19 +344,26 @@ impl DAG {
         DAGPtr::Opr(link) => {
           let opr = unsafe { (*link.as_ptr()).opr };
           let len = trail.len();
-          if len >= 1 && opr.arity() == 1 {
+          if len == 0 && opr.arity() == 0 {
+            let res = opr.apply0();
+            if let Some(res) = res {
+              node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+            }
+            else {
+              break;
+            }
+          }
+          else if len >= 1 && opr.arity() == 1 {
             let mut arg = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
             arg.whnf(defs);
             match arg.head {
               DAGPtr::Lit(link) => {
                 let x = unsafe { (*link.as_ptr()).lit.clone() };
-                let res = apply_una_op(opr, x);
+                let res = opr.apply1(x);
                 if let Some(res) = res {
                   trail.pop();
-                  node = DAGPtr::Lit(alloc_val(Lit {
-                    lit: res,
-                    parents: None,
-                  }));
+                  node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(arg.head, node);
                   free_dead_node(arg.head);
                 }
@@ -383,14 +383,45 @@ impl DAG {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
                 let x = unsafe { (*x_link.as_ptr()).lit.clone() };
                 let y = unsafe { (*y_link.as_ptr()).lit.clone() };
-                let res = apply_bin_op(opr, y, x);
+                let res = opr.apply2(y, x);
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
-                  node = DAGPtr::Lit(alloc_val(Lit {
-                    lit: res,
-                    parents: None,
-                  }));
+                  node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  replace_child(arg1.head, node);
+                  free_dead_node(arg1.head);
+                }
+                else {
+                  break;
+                }
+              }
+              _ => break,
+            }
+          }
+          else if len >= 3 && opr.arity() == 3 {
+            let mut arg1 = unsafe { DAG::new((*trail[len - 3].as_ptr()).arg) };
+            let mut arg2 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
+            let mut arg3 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            arg1.whnf(defs);
+            arg2.whnf(defs);
+            arg3.whnf(defs);
+            match (arg1.head, arg2.head, arg3.head) {
+              (
+                DAGPtr::Lit(x_link),
+                DAGPtr::Lit(y_link),
+                DAGPtr::Lit(z_link),
+              ) => {
+                let x = unsafe { (*x_link.as_ptr()).lit.clone() };
+                let y = unsafe { (*y_link.as_ptr()).lit.clone() };
+                let z = unsafe { (*z_link.as_ptr()).lit.clone() };
+                let res = opr.apply3(z, y, x);
+                if let Some(res) = res {
+                  trail.pop();
+                  trail.pop();
+                  trail.pop();
+                  node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(arg1.head, node);
                   free_dead_node(arg1.head);
                 }

@@ -7,7 +7,7 @@ pub use crate::{
   },
   meta::Meta,
   position::Pos,
-  primop::PrimOp,
+  prim::Op,
   uses::Uses,
 };
 
@@ -30,7 +30,7 @@ pub enum Term {
   Ann(Pos, Box<(Term, Term)>),
   Lit(Pos, Literal),
   LTy(Pos, LitType),
-  Opr(Pos, PrimOp),
+  Opr(Pos, Op),
   Rec(Pos),
 }
 

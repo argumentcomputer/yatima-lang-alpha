@@ -15,7 +15,7 @@ use crate::{
     LitType,
     Literal,
   },
-  primop::PrimOp,
+  prim::Op,
   uses::Uses,
 };
 
@@ -36,7 +36,7 @@ pub enum Anon {
   Ann(Box<(Anon, Anon)>),
   Lit(Literal),
   LTy(LitType),
-  Opr(PrimOp),
+  Opr(Op),
   Rec,
 }
 
@@ -157,7 +157,7 @@ impl Anon {
           Ok(Self::LTy(lty))
         }
         [Ipld::Integer(13), opr] => {
-          let opr = PrimOp::from_ipld(&opr)?;
+          let opr = Op::from_ipld(&opr)?;
           Ok(Self::Opr(opr))
         }
         xs => Err(IpldError::Anon(Ipld::List(xs.to_owned()))),
