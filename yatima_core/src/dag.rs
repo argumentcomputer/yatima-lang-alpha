@@ -213,7 +213,6 @@ pub fn alloc_val<T>(val: T) -> NonNull<T> {
 pub fn alloc_lam(
   var_nam: String,
   var_dep: u64,
-  var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
 ) -> NonNull<Lam> {
@@ -224,7 +223,7 @@ pub fn alloc_lam(
         rec: false,
         dep: var_dep,
         binder: mem::zeroed(),
-        parents: var_parents,
+        parents: None,
       },
       bod,
       bod_ref: mem::zeroed(),
@@ -240,7 +239,6 @@ pub fn alloc_lam(
 pub fn alloc_slf(
   var_nam: String,
   var_dep: u64,
-  var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
 ) -> NonNull<Slf> {
@@ -251,7 +249,7 @@ pub fn alloc_slf(
         rec: false,
         dep: var_dep,
         binder: mem::zeroed(),
-        parents: var_parents,
+        parents: None,
       },
       bod,
       bod_ref: mem::zeroed(),
@@ -357,7 +355,6 @@ pub fn alloc_ann(
 pub fn alloc_let(
   var_nam: String,
   var_dep: u64,
-  var_parents: Option<NonNull<Parents>>,
   uses: Uses,
   typ: DAGPtr,
   exp: DAGPtr,
@@ -371,7 +368,7 @@ pub fn alloc_let(
         rec: false,
         dep: var_dep,
         binder: mem::zeroed(),
-        parents: var_parents,
+        parents: None,
       },
       uses,
       typ,
@@ -873,7 +870,7 @@ impl DAG {
         parents,
       })),
       Term::Lam(_, nam, bod) => unsafe {
-        let lam = alloc_lam(nam.clone(), 0, None, mem::zeroed(), parents);
+        let lam = alloc_lam(nam.clone(), 0, mem::zeroed(), parents);
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
@@ -887,7 +884,7 @@ impl DAG {
         DAGPtr::Lam(lam)
       },
       Term::Slf(_, nam, bod) => unsafe {
-        let slf = alloc_slf(nam.clone(), 0, None, mem::zeroed(), parents);
+        let slf = alloc_slf(nam.clone(), 0, mem::zeroed(), parents);
         let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
         ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
@@ -934,7 +931,6 @@ impl DAG {
         let lam = alloc_lam(
           nam.clone(),
           0,
-          None,
           mem::zeroed(),
           NonNull::new(img_ref),
         );
@@ -1012,7 +1008,6 @@ impl DAG {
         let let_ = alloc_let(
           nam.clone(),
           0,
-          None,
           *uses,
           mem::zeroed(),
           mem::zeroed(),
@@ -1093,7 +1088,6 @@ impl DAG {
         let lam = alloc_lam(
           var.nam.clone(),
           var.dep,
-          None,
           mem::zeroed(),
           parents,
         );
@@ -1111,7 +1105,6 @@ impl DAG {
         let slf = alloc_slf(
           var.nam.clone(),
           var.dep,
-          None,
           mem::zeroed(),
           parents,
         );
@@ -1167,7 +1160,6 @@ impl DAG {
         let let_ = alloc_let(
           var.nam.clone(),
           var.dep,
-          None,
           *uses,
           mem::zeroed(),
           mem::zeroed(),

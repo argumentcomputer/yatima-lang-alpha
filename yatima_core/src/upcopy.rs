@@ -103,7 +103,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
       ParentPtr::LamBod(link) => {
         let Lam { var, parents, .. } = link.as_ref();
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_lam = alloc_lam(nam.clone(), *dep, None, new_child, None);
+        let new_lam = alloc_lam(nam.clone(), *dep, new_child, None);
         let ptr: *mut Parents = &mut (*new_lam.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_lam.as_ptr()).var;
@@ -117,7 +117,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
       ParentPtr::SlfBod(link) => {
         let Slf { var, parents, .. } = link.as_ref();
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_slf = alloc_slf(nam.clone(), *dep, None, new_child, None);
+        let new_slf = alloc_slf(nam.clone(), *dep, new_child, None);
         let ptr: *mut Parents = &mut (*new_slf.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_slf.as_ptr()).var;
@@ -251,7 +251,6 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_let = alloc_let(
               nam.clone(),
               *dep,
-              None,
               *uses,
               new_child,
               *typ,
@@ -280,7 +279,6 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_let = alloc_let(
               nam.clone(),
               *dep,
-              None,
               *uses,
               *exp,
               new_child,
@@ -309,7 +307,6 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_let = alloc_let(
               nam.clone(),
               *dep,
-              None,
               *uses,
               *exp,
               *typ,
