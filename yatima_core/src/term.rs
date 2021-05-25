@@ -69,6 +69,27 @@ impl PartialEq for Term {
 }
 
 impl Term {
+  pub fn pos(&self) -> Pos {
+    match self {
+      Term::Var(pos, _, _) => *pos,
+      Term::Ref(pos, _, _, _) => *pos,
+      Term::Lam(pos, _, _) => *pos,
+      Term::App(pos, _) => *pos,
+      Term::Ann(pos, _) => *pos,
+      Term::All(pos, _, _, _) => *pos,
+      Term::Slf(pos, _, _) => *pos,
+      Term::Dat(pos, _) => *pos,
+      Term::Cse(pos, _) => *pos,
+      Term::Let(pos, _, _, _, _) => *pos,
+      Term::Typ(pos) => *pos,
+      Term::LTy(pos, _) => *pos,
+      Term::Lit(pos, _) => *pos,
+      Term::Opr(pos, _) => *pos,
+      Term::Rec(pos) => *pos,
+    }
+  }
+
+
   pub fn shift(self, inc: u64, dep: u64) -> Self {
     match self {
       Self::Var(pos, nam, idx) if idx < dep => Self::Var(pos, nam, idx),

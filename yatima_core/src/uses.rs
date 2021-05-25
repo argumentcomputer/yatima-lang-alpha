@@ -35,6 +35,56 @@ impl std::ops::Add for Uses {
   }
 }
 
+impl std::ops::Sub for Uses {
+  type Output = Option<Self>;
+
+  fn sub(self, rhs: Self) -> Option<Self> {
+    match (self, rhs) {
+      (x, Self::None) => Some(x),
+      (Self::None, _) => None,
+      (Self::Once, Self::Once) => Some(Self::None),
+      (Self::Once, _) => None,
+      (Self::Affi, Self::Many) => None,
+      (Self::Affi, _) => Some(Self::None),
+      (Self::Many, _) => Some(Self::Many),
+    }
+  }
+}
+
+// Division-remainder for multiplicities is as follows: if x and y are multiplicities, then x/y and x%y are such that
+// x = y*(x/y) + x%y in such a way that x/y and x%y are maximal, with x/y taking precedence.
+impl std::ops::Div for Uses {
+  type Output = Self;
+
+  fn div(self, rhs: Self) -> Self {
+    match (self, rhs) {
+      (Self::Many, _) => Self::Many,
+      (_, Self::Many) => Self::None,
+      (_, Self::None) => Self::Many,
+      (Self::None, _) => Self::None,
+      (x, Self::Once) => x,
+      (Self::Affi, Self::Affi) => Self::Once,
+      (Self::Once, Self::Affi) => Self::None,
+    }
+  }
+}
+
+impl std::ops::Rem for Uses {
+  type Output = Self;
+
+  fn rem(self, rhs: Self) -> Self {
+    match (self, rhs) {
+      (Self::Many, _) => Self::Many,
+      (x, Self::Many) => x,
+      (x, Self::None) => x,
+      (Self::None, _) => Self::None,
+      (_, Self::Once) => Self::None,
+      (Self::Affi, Self::Affi) => Self::None,
+      (Self::Once, Self::Affi) => Self::Once,
+    }
+  }
+}
+
 impl fmt::Display for Uses {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
@@ -62,8 +112,6 @@ impl Uses {
       (Self::Many, _) => false,
     }
   }
-
-  pub fn gth(self, y: Self) -> bool { !self.lte(y) }
 
   pub fn to_ipld(self) -> Ipld {
     match self {

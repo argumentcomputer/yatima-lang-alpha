@@ -26,6 +26,7 @@ use libipld::Cid;
 
 use core::ptr::NonNull;
 use std::collections::HashSet;
+use std::mem;
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -97,17 +98,17 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
 }
 
 pub fn check(
+  rec: &(String, Cid, Cid),
   defs: &Defs,
-  mut ctx: Ctx,
+  ctx: &mut Ctx,
   uses: Uses,
-  term: &mut DAG,
+  term: &Term,
   typ: &mut DAG,
-) -> Result<UseCtx, CheckError> {
-  match term.head {
-    DAGPtr::Lam(lam_link) => {
+) -> Result<(), CheckError> {
+  match term {
+    Term::Lam(pos, _, lam_bod) => {
+      let lam_bod = &**lam_bod;
       typ.whnf(defs);
-      let Lam { bod: lam_bod, var: lam_var, pos: lam_pos, .. } =
-        unsafe { &mut *lam_link.as_ptr() };
       match typ.head {
         DAGPtr::All(all_link) => {
           let All { uses: lam_uses, dom, img, .. } =
@@ -116,32 +117,34 @@ pub fn check(
             unsafe { &mut *img.as_ptr() };
           // Annotate the depth of the node that binds each variable
           (*all_var).dep = ctx.len() as u64;
-          (*lam_var).dep = ctx.len() as u64;
-          // Add the domain of the function to the ctxcontext
-          let mut lam_bod = DAG::new(*lam_bod);
+          // Add the domain of the function to the context
           let mut img = DAG::new(*img);
-          ctx.push_back((all_var.nam.to_string(), dom));
-          let mut use_ctx =
-            check(defs, ctx.clone(), Uses::Once, &mut lam_bod, &mut img)?;
-          let infer_uses = use_ctx.pop_back().unwrap();
-          if Uses::gth(infer_uses, *lam_uses) {
-            Err(CheckError::QuantityMismatch(
-              *lam_pos,
-              error_context(&ctx),
+          let mut bod_ctx = ctx.clone();
+          div_use_ctx(uses, &mut bod_ctx);
+          bod_ctx.push((all_var.nam.to_string(), *lam_uses, dom));
+          check(rec, defs, &mut bod_ctx, Uses::Once, lam_bod, &mut img)?;
+          let (_, rest, _) = bod_ctx.last().unwrap();
+          // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
+          // otherwise the variable was not used enough
+          if !Uses::lte(Uses::None, *rest) {
+            Err(CheckError::QuantityTooLittle(
+              *pos,
+              error_context(&bod_ctx),
+              all_var.nam.clone(),
               *lam_uses,
-              infer_uses,
+              *rest,
             ))
           }
           else {
-            mul_use_ctx(uses, &mut use_ctx);
-            Ok(use_ctx)
+            lam_rule(uses, ctx, &bod_ctx);
+            Ok(())
           }
         }
         _ => {
-          let checked = term.to_term(false);
+          let checked = term.clone();
           let against = typ.to_term(false);
           Err(CheckError::LamAllMismatch(
-            *lam_pos,
+            *pos,
             error_context(&ctx),
             checked,
             against,
@@ -149,10 +152,9 @@ pub fn check(
         }
       }
     }
-    DAGPtr::Dat(dat_link) => {
+    Term::Dat(pos, dat_bod) => {
+      let dat_bod = &**dat_bod;
       typ.whnf(defs);
-      let Dat { bod: dat_bod, pos: dat_pos, .. } =
-        unsafe { &mut *dat_link.as_ptr() };
       match typ.head {
         DAGPtr::Slf(slf_link) => {
           let Slf { var, bod: slf_bod, .. } =
@@ -160,7 +162,7 @@ pub fn check(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              DAG::from_subdag(term.head, &mut HashMap::new(), None),
+              DAG::from_term_inner(term, ctx.len() as u64, Vector::new(), None, Some(rec.clone())),
             )
           }
           else {
@@ -169,16 +171,15 @@ pub fn check(
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let mut new_bod =
             DAG::new(DAG::from_subdag(*slf_bod, &mut map, Some(root)));
-          let mut dat_bod = DAG::new(*dat_bod);
-          let use_ctx = check(defs, ctx, uses, &mut dat_bod, &mut new_bod)?;
+          check(rec, defs, ctx, uses, dat_bod, &mut new_bod)?;
           new_bod.free();
-          Ok(use_ctx)
+          Ok(())
         }
         _ => {
-          let checked = term.to_term(false);
+          let checked = term.clone();
           let against = typ.to_term(false);
           Err(CheckError::DatSlfMismatch(
-            *dat_pos,
+            *pos,
             error_context(&ctx),
             checked,
             against,
@@ -186,28 +187,28 @@ pub fn check(
         }
       }
     }
-    DAGPtr::Let(let_link) => {
-      let Let { pos: let_pos, .. } = unsafe { &mut *let_link.as_ptr() };
+    Term::Let(pos, _, _, _, _) => {
       Err(CheckError::GenericError(
-        *let_pos,
+        *pos,
         error_context(&ctx),
         "TODO: Let typecheck".to_string(),
       ))
     }
     _ => {
       let depth = ctx.len();
-      let (use_ctx, mut infer_typ) = infer(defs, ctx.clone(), uses, term)?;
+      // TODO Should we clone ctx?
+      let mut infer_typ = infer(rec, defs, ctx, uses, term)?;
       let eq = equal(defs, typ, &mut infer_typ, depth as u64);
       if eq {
         infer_typ.free();
-        Ok(use_ctx)
+        Ok(())
       }
       else {
         let expected = typ.to_term(false);
         let detected = infer_typ.to_term(false);
         infer_typ.free();
         Err(CheckError::TypeMismatch(
-          DAG::pos(&term.head),
+          term.pos(),
           error_context(&ctx),
           expected,
           detected,
@@ -218,60 +219,72 @@ pub fn check(
 }
 
 pub fn infer(
+  rec: &(String, Cid, Cid),
   defs: &Defs,
-  mut ctx: Ctx,
+  ctx: &mut Ctx,
   uses: Uses,
-  term: &mut DAG,
-) -> Result<(UseCtx, DAG), CheckError> {
-  match term.head {
-    DAGPtr::Var(mut link) => {
-      let Var { dep, pos, nam, .. } = unsafe { link.as_mut() };
-      let mut use_ctx: UseCtx = vec![Uses::None; ctx.len()].into();
-      use_ctx[*dep as usize] = uses;
-      let bind = ctx.get(*dep as usize).ok_or_else(|| {
+  term: &Term,
+) -> Result<DAG, CheckError> {
+  match term {
+    Term::Rec(_) => {
+      let (nam, exp, _) = rec;
+      if let Some(def) = defs.defs.get(exp) {
+        Ok(DAG::from_term(&def.typ_))
+      }
+      else {
+        panic!("undefined runtime reference: {}, {}", nam, exp);
+      }
+    }
+    Term::Var(pos, nam, idx) => {
+      let dep = ctx.len() - 1 - (*idx as usize);
+      let bind = ctx.get(dep).ok_or_else(|| {
         CheckError::UnboundVariable(
           *pos,
           error_context(&ctx),
           nam.clone(),
-          *dep,
+          dep as u64,
         )
       })?;
+      let subtract_use = (bind.1 - uses).ok_or_else(|| {
+        CheckError::QuantityTooMuch(
+          *pos,
+          error_context(&ctx),
+          nam.clone(),
+          bind.1,
+          uses,
+        )})?;
+      let bind = &mut ctx[dep];
+      bind.1 = subtract_use;
       let typ = unsafe {
-        let dag = DAG::new(*bind.1);
+        let dag = DAG::new(*bind.2);
         #[allow(clippy::redundant_clone)]
         dag.clone()
       };
-      Ok((use_ctx, typ))
+      Ok(typ)
     }
-    DAGPtr::Ref(mut link) => {
-      let Ref { nam, exp: def_link, pos, .. } = unsafe { link.as_mut() };
+    Term::Ref(pos, nam, def_link, _) => {
       let def = defs
         .defs
         .get(def_link)
         .ok_or_else(|| CheckError::UndefinedReference(*pos, nam.clone()))?;
-      let use_ctx = vec![Uses::None; ctx.len()].into();
       let typ = DAG::from_term(&def.typ_);
-      Ok((use_ctx, typ))
+      Ok(typ)
     }
-    DAGPtr::App(mut link) => {
-      let App { fun, arg, .. } = unsafe { link.as_mut() };
-      let mut fun = DAG::new(*fun);
-      let mut arg = DAG::new(*arg);
-      let (mut fun_use_ctx, mut fun_typ) =
-        infer(defs, ctx.clone(), uses, &mut fun)?;
+    Term::App(pos, fun_arg) => {
+      let (fun, arg) = &**fun_arg;
+      let mut fun_typ =
+        infer(rec, defs, ctx, uses, fun)?;
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(link) => {
           let All { uses: lam_uses, dom, img, .. } =
             unsafe { &mut *link.as_ptr() };
           let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
-          let arg_use_ctx =
-            check(defs, ctx, *lam_uses * uses, &mut arg, &mut DAG::new(*dom))?;
-          add_use_ctx(&mut fun_use_ctx, arg_use_ctx);
+          check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              DAG::from_subdag(arg.head, &mut HashMap::new(), None),
+              DAG::from_term_inner(arg, ctx.len() as u64, Vector::new(), None, Some(rec.clone())),
             )
           }
           else {
@@ -280,21 +293,20 @@ pub fn infer(
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let new_img = DAG::from_subdag(*img, &mut map, Some(root));
           fun_typ.free();
-          Ok((fun_use_ctx, DAG::new(new_img)))
+          Ok(DAG::new(new_img))
         }
-        node => Err(CheckError::AppFunMismatch(
-          DAG::pos(&node),
+        _ => Err(CheckError::AppFunMismatch(
+          *pos,
           error_context(&ctx),
-          fun.to_term(false),
+          fun.clone(),
           fun_typ.to_term(false),
         )),
       }
     }
-    DAGPtr::Cse(mut link) => {
-      let Cse { bod: exp, .. } = unsafe { link.as_mut() };
-      let mut exp = DAG::new(*exp);
-      let (exp_use_ctx, mut exp_typ) =
-        infer(defs, ctx.clone(), uses, &mut exp)?;
+    Term::Cse(pos, exp) => {
+      let exp = &**exp;
+      let mut exp_typ =
+        infer(rec, defs, ctx, uses, exp)?;
       exp_typ.whnf(defs);
       match exp_typ.head {
         DAGPtr::Slf(link) => {
@@ -302,8 +314,7 @@ pub fn infer(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              #[allow(clippy::redundant_clone)]
-              DAG::from_subdag(exp.head, &mut HashMap::new(), None),
+              DAG::from_term_inner(exp, ctx.len() as u64, Vector::new(), None, Some(rec.clone())),
             )
           }
           else {
@@ -312,91 +323,79 @@ pub fn infer(
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let new_bod = DAG::from_subdag(*bod, &mut map, Some(root));
           exp_typ.free();
-          Ok((exp_use_ctx, DAG::new(new_bod)))
+          Ok(DAG::new(new_bod))
         }
         DAGPtr::LTy(link) => {
           let LTy { lty, .. } = unsafe { &mut *link.as_ptr() };
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let induction = DAG::from_term_inner(
-            &lty.induction(exp.to_term(true)),
+            &lty.induction(exp.clone()),
             0,
             Vector::new(),
             Some(root),
             None,
           );
-          Ok((exp_use_ctx, DAG::new(induction)))
+          Ok(DAG::new(induction))
         }
-        node => Err(CheckError::CseDatMismatch(
-          DAG::pos(&node),
+        _ => Err(CheckError::CseDatMismatch(
+          *pos,
           error_context(&ctx),
-          exp.to_term(false),
+          exp.clone(),
           exp_typ.to_term(false),
         )),
       }
     }
-    DAGPtr::All(link) => {
-      let All { dom, img, pos: all_pos, .. } = unsafe { &mut *link.as_ptr() };
-      let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
-      let mut typ = DAG::from_term(&Term::Typ(*all_pos));
-      let _ =
-        check(defs, ctx.clone(), Uses::None, &mut DAG::new(*dom), &mut typ)?;
-      (*var).dep = ctx.len() as u64;
-      ctx.push_back((var.nam.to_string(), dom));
-      let mut img = DAG::new(*img);
-      let mut use_ctx = check(defs, ctx, Uses::None, &mut img, &mut typ)?;
-      use_ctx.pop_back();
-      Ok((use_ctx, typ))
+    Term::All(_, _, nam, dom_img) => {
+      let (dom, img) = &**dom_img;
+      let mut typ = DAG::from_term(&Term::Typ(Pos::None));
+      check(rec, defs, ctx, Uses::None, dom, &mut typ)?;
+      let mut dom_dag = DAG::from_term_inner(dom, ctx.len() as u64, Vector::new(), None, Some(rec.clone()));
+      ctx.push((nam.to_string(), Uses::None, &mut dom_dag));
+      check(rec, defs, ctx, Uses::None, img, &mut typ)?;
+      ctx.pop();
+      free_dead_node(dom_dag);
+      Ok(typ)
     }
-    DAGPtr::Slf(mut link) => {
-      let Slf { var, bod, pos: slf_pos, .. } = unsafe { link.as_mut() };
-      let mut typ = DAG::from_term(&Term::Typ(*slf_pos));
-      (*var).dep = ctx.len() as u64;
-      ctx.push_back((var.nam.to_string(), &mut term.head));
-      let mut bod = DAG::new(*bod);
-      let mut use_ctx = check(defs, ctx, Uses::None, &mut bod, &mut typ)?;
-      use_ctx.pop_back();
-      Ok((use_ctx, typ))
+    Term::Slf(_, nam, bod) => {
+      let bod = &**bod;
+      let mut typ = DAG::from_term(&Term::Typ(Pos::None));
+      let mut term_dag = DAG::from_term_inner(term, ctx.len() as u64, Vector::new(), None, Some(rec.clone()));
+      ctx.push((nam.to_string(), Uses::None, &mut term_dag));
+      check(rec, defs, ctx, Uses::None, bod, &mut typ)?;
+      ctx.pop();
+      free_dead_node(term_dag);
+      Ok(typ)
     }
-    DAGPtr::Typ(link) => {
-      let Typ { pos, .. } = unsafe { link.as_ref() };
-      let use_ctx = vec![Uses::None; ctx.len()].into();
-      let typ = DAG::from_term(&Term::Typ(*pos));
-      Ok((use_ctx, typ))
+    Term::Typ(_) => {
+      let typ = DAG::from_term(&Term::Typ(Pos::None));
+      Ok(typ)
     }
-    DAGPtr::Ann(mut link) => {
-      let Ann { typ, exp, .. } = unsafe { link.as_mut() };
-      #[allow(clippy::redundant_clone)]
-      let mut typ_clone = DAG::new(*typ).clone();
-      let mut exp = DAG::new(*exp);
-      let use_ctx = check(defs, ctx, uses, &mut exp, &mut typ_clone)?;
-      Ok((use_ctx, typ_clone))
+    Term::Ann(_, typ_exp) => {
+      let (typ, exp) = &**typ_exp;
+      let mut typ_dag = DAG::new(
+        DAG::from_term_inner(typ, ctx.len() as u64, Vector::new(), None, Some(rec.clone())) 
+      );
+      check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
+      Ok(typ_dag)
     }
-    DAGPtr::Let(_) => {
+    Term::Let(_, _, _, _, _) => {
       panic!("TODO: Let inference")
     }
-    DAGPtr::Lit(mut link) => {
-      let Lit { lit, .. } = unsafe { link.as_mut() };
-      let use_ctx = vec![Uses::None; ctx.len()].into();
-      Ok((use_ctx, DAG::from_term(&infer_lit(lit.to_owned()))))
+    Term::Lit(_, lit) => {
+      Ok(DAG::from_term(&infer_lit(lit.to_owned())))
     }
-    DAGPtr::LTy(mut link) => {
-      let LTy { lty, .. } = unsafe { link.as_mut() };
-      let use_ctx = vec![Uses::None; ctx.len()].into();
-      Ok((use_ctx, DAG::from_term(&infer_lty(*lty))))
+    Term::LTy(_, lty) => {
+      Ok(DAG::from_term(&infer_lty(*lty)))
     }
-    DAGPtr::Opr(mut link) => {
-      let Opr { opr, .. } = unsafe { link.as_mut() };
-      let use_ctx = vec![Uses::None; ctx.len()].into();
-      Ok((use_ctx, DAG::from_term(&opr.type_of())))
+    Term::Opr(_, opr) => {
+      Ok(DAG::from_term(&opr.type_of()))
     }
-    DAGPtr::Lam(_) => {
-      Err(CheckError::UntypedLambda(DAG::pos(&term.head), error_context(&ctx)))
+    Term::Lam(_, _, _) => {
+      Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx)))
     }
-    node => Err(CheckError::GenericError(
-      DAG::pos(&node),
-      error_context(&ctx),
-      "TODO".to_string(),
-    )),
+    Term::Dat(_, _) => {
+      Err(CheckError::UntypedData(term.pos(), error_context(&ctx)))
+    }
   }
 }
 
@@ -430,11 +429,12 @@ pub fn infer_lty(lty: LitType) -> Term {
 }
 
 pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
-  let mut dag = DAG::from_term(&term);
-  let (_, typ_dag) = infer(&defs, vec![].into(), Uses::Once, &mut dag)?;
+  // TODO add a safer version
+  let typ_dag = unsafe {
+    infer(mem::zeroed(), &defs, &mut vec![].into(), Uses::Once, &term)?
+  };
   let typ = DAG::to_term(&typ_dag, true);
   typ_dag.free();
-  dag.free();
   Ok(typ)
 }
 
@@ -442,17 +442,12 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&name.to_string()).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;
-  let root = Some(alloc_val(DLL::singleton(ParentPtr::Root)));
-  let mut trm = DAG::new(DAG::from_ref(
-    &def,
-    name.to_string(),
-    def.def_cid,
-    def.ast_cid,
-    root,
-  ));
+  let (d, _, a) = def.embed();
+  let def_cid = d.cid();
+  let ast_cid = a.cid();
+  let rec = (name.to_owned(), def_cid, ast_cid);
   let mut typ = DAG::from_term(&def.typ_);
-  check(&defs, vec![].into(), Uses::Once, &mut trm, &mut typ)?;
-  trm.free();
+  check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
   typ.free();
   Ok(def.typ_.clone())
 }
