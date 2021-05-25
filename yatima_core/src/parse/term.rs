@@ -700,7 +700,18 @@ pub fn parse_lty(
       value(LitType::Int, tag("#Int")),
       value(LitType::Bytes, tag("#Bytes")),
       value(LitType::Text, tag("#Text")),
+      value(LitType::Bool, tag("#Bool")),
       value(LitType::Char, tag("#Char")),
+      value(LitType::U8, tag("#U8")),
+      value(LitType::U16, tag("#U16")),
+      value(LitType::U32, tag("#U32")),
+      value(LitType::U64, tag("#U64")),
+      value(LitType::U128, tag("#U128")),
+      value(LitType::I8, tag("#I8")),
+      value(LitType::I16, tag("#I16")),
+      value(LitType::I32, tag("#I32")),
+      value(LitType::I64, tag("#I64")),
+      value(LitType::I128, tag("#I128")),
     ))(from)?;
     let (upto, _) = throw_err(parse_builtin_symbol_end()(i), |_| {
       ParseError::new(
@@ -729,6 +740,7 @@ pub fn parse_lit(
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, lit) = alt((
+      parse_bits,
       parse_bytes,
       parse_bool,
       parse_text,

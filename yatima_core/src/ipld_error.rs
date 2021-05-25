@@ -16,6 +16,7 @@ pub enum IpldError {
   NatOp(Ipld),
   IntOp(Ipld),
   BytesOp(Ipld),
+  BitsOp(Ipld),
   TextOp(Ipld),
   CharOp(Ipld),
   BoolOp(Ipld),

@@ -404,6 +404,7 @@ pub fn infer_lit(lit: Literal) -> Term {
   match lit {
     Literal::Nat(_) => Term::LTy(Pos::None, LitType::Nat),
     Literal::Int(_) => Term::LTy(Pos::None, LitType::Int),
+    Literal::Bits(_) => Term::LTy(Pos::None, LitType::Bits),
     Literal::Bytes(_) => Term::LTy(Pos::None, LitType::Bytes),
     Literal::Text(_) => Term::LTy(Pos::None, LitType::Text),
     Literal::Char(_) => Term::LTy(Pos::None, LitType::Char),

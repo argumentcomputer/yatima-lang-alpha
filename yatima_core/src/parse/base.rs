@@ -196,6 +196,15 @@ pub fn parse_litbase_code()
     )
   }
 }
+pub fn parse_litbase_bits_code()
+-> impl Fn(Span) -> IResult<Span, LitBase, ParseError<Span>> {
+  move |from: Span| {
+    throw_err(
+      alt((value(LitBase::Bin, tag("b")), value(LitBase::Hex, tag("x"))))(from),
+      |_| ParseError::new(from, ParseErrorKind::UnknownBaseCode),
+    )
+  }
+}
 
 pub fn parse_litbase_digits(
   base: LitBase,

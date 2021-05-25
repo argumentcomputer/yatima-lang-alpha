@@ -4,7 +4,10 @@ use num_bigint::{
   Sign,
 };
 
-use crate::literal::Literal;
+use crate::{
+  literal::Literal,
+  prim::bits,
+};
 
 use crate::parse::{
   base,
@@ -201,6 +204,32 @@ pub fn parse_bytes(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
       Ok((upto, Literal::Bytes(bytes.into())))
     }
     None => Ok((upto, Literal::Bytes(vec![].into()))),
+  }
+}
+
+pub fn parse_bits(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
+  let (i, base) = preceded(tag("#"), base::parse_litbase_bits_code())(from)?;
+  let (i, digits) = opt(base::parse_litbase_digits(base))(i)?;
+  if let Some(digits) = digits {
+    let len = match base {
+      base::LitBase::Bin => digits.len(),
+      base::LitBase::Hex => digits.len() * 4,
+      _ => panic!("impossible parse_bits case"),
+    };
+    match base_x::decode(base.base_digits(), &digits) {
+      Ok(mut bytes) => {
+        bytes.reverse();
+        let bits = bits::bytes_to_bits(len, bytes);
+        Ok((i, Literal::Bits(bits)))
+      }
+      Err(_) => Err(nom::Err::Error(ParseError::new(
+        i,
+        ParseErrorKind::InvalidBaseEncoding(base),
+      ))),
+    }
+  }
+  else {
+    Ok((i, Literal::Bits(vec![])))
   }
 }
 

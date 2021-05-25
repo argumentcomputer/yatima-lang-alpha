@@ -2,7 +2,10 @@ use crate::{
   ipld_error::IpldError,
   parse::base,
   position::Pos,
-  prim::text,
+  prim::{
+    bits,
+    text,
+  },
   term::Term,
   yatima,
 };
@@ -26,6 +29,7 @@ use std::{
 pub enum Literal {
   Nat(BigUint),
   Int(BigInt),
+  Bits(Vec<bool>),
   Bytes(Vec<u8>),
   Text(Rope),
   Char(char),
@@ -47,6 +51,7 @@ pub enum LitType {
   Nat,
   Int,
   Bytes,
+  Bits,
   Text,
   Char,
   Bool,
@@ -76,6 +81,26 @@ impl fmt::Display for Literal {
         x.reverse();
         let x: &[u8] = x.as_ref();
         write!(f, "x\'{}\'", base::LitBase::Hex.encode(x))
+      }
+      Bits(x) => {
+        if x.len() % 4 == 0 {
+          let (len, mut x) = bits::bits_to_bytes(x.clone());
+          x.reverse();
+          let x: &[u8] = x.as_ref();
+          write!(f, "#x{:0>len$}", base::LitBase::Hex.encode(x), len = len / 4)
+        }
+        else {
+          let mut res = String::new();
+          for b in x.iter().rev() {
+            if *b {
+              res.push('1');
+            }
+            else {
+              res.push('0');
+            }
+          }
+          write!(f, "#b{}", res)
+        }
       }
       Text(x) => {
         write!(f, "\"{}\"", Rope::to_string(x).escape_default())
@@ -147,19 +172,19 @@ impl Literal {
         }
       }
       Self::Int(_) => yatima!("λ P i => i"),
-      // Self::Bytes(mut t) => {
-      //  let c = t.pop_front();
-      //  match c {
-      //    None => yatima!("λ P n c => n"),
-      //    Some(c) => {
-      //      yatima!(
-      //        "λ P n c => c #$0 #$1",
-      //        Term::Lit(Pos::None, Literal::U8(c)),
-      //        Term::Lit(Pos::None, Literal::Bytes(t))
-      //      )
-      //    }
-      //  }
-      //}
+      Self::Bytes(mut t) => {
+        let c = t.pop();
+        match c {
+          None => yatima!("λ P n c => n"),
+          Some(c) => {
+            yatima!(
+              "λ P n c => c #$0 #$1",
+              Term::Lit(Pos::None, Literal::U8(c)),
+              Term::Lit(Pos::None, Literal::Bytes(t))
+            )
+          }
+        }
+      }
       Self::Text(t) => match text::safe_head(t) {
         None => yatima!("λ P n c => n"),
         Some((c, t)) => {
@@ -170,6 +195,8 @@ impl Literal {
           )
         }
       },
+      Self::Bool(true) => yatima!("λ P t f => t"),
+      Self::Bool(false) => yatima!("λ P t f => f"),
       _ => todo!(),
     }
   }
@@ -182,59 +209,67 @@ impl Literal {
       Self::Int(x) => {
         Ipld::List(vec![Ipld::Integer(1), Ipld::Bytes(x.to_signed_bytes_be())])
       }
+      Self::Bits(x) => {
+        let (len, bytes) = bits::bits_to_bytes(x.to_owned());
+        Ipld::List(vec![
+          Ipld::Integer(2),
+          Ipld::Integer(len as i128),
+          Ipld::Bytes(bytes),
+        ])
+      }
       Self::Bytes(x) => {
-        Ipld::List(vec![Ipld::Integer(2), Ipld::Bytes(x.to_owned())])
+        Ipld::List(vec![Ipld::Integer(3), Ipld::Bytes(x.to_owned())])
       }
       Self::Text(x) => Ipld::List(vec![
-        Ipld::Integer(3),
+        Ipld::Integer(4),
         Ipld::Bytes(x.to_string().into_bytes()),
       ]),
       Self::Char(x) => Ipld::List(vec![
-        Ipld::Integer(4),
+        Ipld::Integer(5),
         Ipld::Bytes((*x as u32).to_be_bytes().to_vec()),
       ]),
       Self::Bool(x) => Ipld::List(vec![
-        Ipld::Integer(5),
+        Ipld::Integer(6),
         Ipld::Bytes(vec![if *x { 1 } else { 0 }]),
       ]),
       Self::U8(x) => Ipld::List(vec![
-        Ipld::Integer(6),
-        Ipld::Bytes(x.to_be_bytes().to_vec()),
-      ]),
-      Self::U16(x) => Ipld::List(vec![
         Ipld::Integer(7),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::U32(x) => Ipld::List(vec![
+      Self::U16(x) => Ipld::List(vec![
         Ipld::Integer(8),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::U64(x) => Ipld::List(vec![
+      Self::U32(x) => Ipld::List(vec![
         Ipld::Integer(9),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::U128(x) => Ipld::List(vec![
+      Self::U64(x) => Ipld::List(vec![
         Ipld::Integer(10),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::I8(x) => Ipld::List(vec![
+      Self::U128(x) => Ipld::List(vec![
         Ipld::Integer(11),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::I16(x) => Ipld::List(vec![
+      Self::I8(x) => Ipld::List(vec![
         Ipld::Integer(12),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::I32(x) => Ipld::List(vec![
+      Self::I16(x) => Ipld::List(vec![
         Ipld::Integer(13),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::I64(x) => Ipld::List(vec![
+      Self::I32(x) => Ipld::List(vec![
         Ipld::Integer(14),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::I128(x) => Ipld::List(vec![
+      Self::I64(x) => Ipld::List(vec![
         Ipld::Integer(15),
+        Ipld::Bytes(x.to_be_bytes().to_vec()),
+      ]),
+      Self::I128(x) => Ipld::List(vec![
+        Ipld::Integer(16),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
     }
@@ -249,15 +284,19 @@ impl Literal {
         [Ipld::Integer(1), Ipld::Bytes(x)] => {
           Ok(Self::Int(BigInt::from_signed_bytes_be(x)))
         }
-        [Ipld::Integer(2), Ipld::Bytes(x)] => {
+        [Ipld::Integer(2), Ipld::Integer(len), Ipld::Bytes(x)] => {
+          let bits = bits::bytes_to_bits(*len as usize, x.to_owned());
+          Ok(Self::Bits(bits))
+        }
+        [Ipld::Integer(3), Ipld::Bytes(x)] => {
           Ok(Self::Bytes(x.to_owned().into()))
         }
-        [Ipld::Integer(3), Ipld::Bytes(x)] => String::from_utf8(x.to_owned())
+        [Ipld::Integer(4), Ipld::Bytes(x)] => String::from_utf8(x.to_owned())
           .map_or_else(
             |e| Err(IpldError::Utf8(x.clone(), e)),
             |x| Ok(Self::Text(x.into())),
           ),
-        [Ipld::Integer(4), Ipld::Bytes(x)] => {
+        [Ipld::Integer(5), Ipld::Bytes(x)] => {
           let x: [u8; 4] = x
             .to_owned()
             .try_into()
@@ -268,75 +307,75 @@ impl Literal {
             None => Err(IpldError::UnicodeChar(x)),
           }
         }
-        [Ipld::Integer(5), Ipld::Bytes(x)] => match x.as_slice() {
+        [Ipld::Integer(6), Ipld::Bytes(x)] => match x.as_slice() {
           [1] => Ok(Self::Bool(true)),
           [0] => Ok(Self::Bool(false)),
           xs => Err(IpldError::Bool(Ipld::Bytes(xs.to_owned()))),
         },
-        [Ipld::Integer(6), Ipld::Bytes(x)] => {
+        [Ipld::Integer(7), Ipld::Bytes(x)] => {
           let x: [u8; 1] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 1)), Ok)?;
           Ok(Self::U8(u8::from_be_bytes(x)))
         }
-        [Ipld::Integer(7), Ipld::Bytes(x)] => {
+        [Ipld::Integer(8), Ipld::Bytes(x)] => {
           let x: [u8; 2] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 2)), Ok)?;
           Ok(Self::U16(u16::from_be_bytes(x)))
         }
-        [Ipld::Integer(8), Ipld::Bytes(x)] => {
+        [Ipld::Integer(9), Ipld::Bytes(x)] => {
           let x: [u8; 4] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 4)), Ok)?;
           Ok(Self::U32(u32::from_be_bytes(x)))
         }
-        [Ipld::Integer(9), Ipld::Bytes(x)] => {
+        [Ipld::Integer(10), Ipld::Bytes(x)] => {
           let x: [u8; 8] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 8)), Ok)?;
           Ok(Self::U64(u64::from_be_bytes(x)))
         }
-        [Ipld::Integer(10), Ipld::Bytes(x)] => {
+        [Ipld::Integer(11), Ipld::Bytes(x)] => {
           let x: [u8; 16] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 16)), Ok)?;
           Ok(Self::U128(u128::from_be_bytes(x)))
         }
-        [Ipld::Integer(11), Ipld::Bytes(x)] => {
+        [Ipld::Integer(12), Ipld::Bytes(x)] => {
           let x: [u8; 1] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 1)), Ok)?;
           Ok(Self::I8(i8::from_be_bytes(x)))
         }
-        [Ipld::Integer(12), Ipld::Bytes(x)] => {
+        [Ipld::Integer(13), Ipld::Bytes(x)] => {
           let x: [u8; 2] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 2)), Ok)?;
           Ok(Self::I16(i16::from_be_bytes(x)))
         }
-        [Ipld::Integer(13), Ipld::Bytes(x)] => {
+        [Ipld::Integer(14), Ipld::Bytes(x)] => {
           let x: [u8; 4] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 4)), Ok)?;
           Ok(Self::I32(i32::from_be_bytes(x)))
         }
-        [Ipld::Integer(14), Ipld::Bytes(x)] => {
+        [Ipld::Integer(15), Ipld::Bytes(x)] => {
           let x: [u8; 8] = x
             .to_owned()
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 8)), Ok)?;
           Ok(Self::I64(i64::from_be_bytes(x)))
         }
-        [Ipld::Integer(15), Ipld::Bytes(x)] => {
+        [Ipld::Integer(16), Ipld::Bytes(x)] => {
           let x: [u8; 16] = x
             .to_owned()
             .try_into()
@@ -392,6 +431,16 @@ impl LitType {
           val
         )
       }
+      Self::Bool => {
+        yatima!(
+          "∀ (0 P: ∀ #Bool -> Type)
+             (& t: P #Bool.true)
+             (& f: P #Bool.false)
+           -> P #$0
+          ",
+          val
+        )
+      }
       _ => todo!(),
     }
   }
@@ -400,20 +449,21 @@ impl LitType {
     match self {
       Self::Nat => Ipld::List(vec![Ipld::Integer(0)]),
       Self::Int => Ipld::List(vec![Ipld::Integer(1)]),
-      Self::Bytes => Ipld::List(vec![Ipld::Integer(2)]),
-      Self::Text => Ipld::List(vec![Ipld::Integer(3)]),
-      Self::Char => Ipld::List(vec![Ipld::Integer(4)]),
-      Self::Bool => Ipld::List(vec![Ipld::Integer(5)]),
-      Self::U8 => Ipld::List(vec![Ipld::Integer(6)]),
-      Self::U16 => Ipld::List(vec![Ipld::Integer(7)]),
-      Self::U32 => Ipld::List(vec![Ipld::Integer(8)]),
-      Self::U64 => Ipld::List(vec![Ipld::Integer(9)]),
-      Self::U128 => Ipld::List(vec![Ipld::Integer(10)]),
-      Self::I8 => Ipld::List(vec![Ipld::Integer(11)]),
-      Self::I16 => Ipld::List(vec![Ipld::Integer(12)]),
-      Self::I32 => Ipld::List(vec![Ipld::Integer(13)]),
-      Self::I64 => Ipld::List(vec![Ipld::Integer(14)]),
-      Self::I128 => Ipld::List(vec![Ipld::Integer(15)]),
+      Self::Bits => Ipld::List(vec![Ipld::Integer(2)]),
+      Self::Bytes => Ipld::List(vec![Ipld::Integer(3)]),
+      Self::Text => Ipld::List(vec![Ipld::Integer(4)]),
+      Self::Char => Ipld::List(vec![Ipld::Integer(5)]),
+      Self::Bool => Ipld::List(vec![Ipld::Integer(6)]),
+      Self::U8 => Ipld::List(vec![Ipld::Integer(7)]),
+      Self::U16 => Ipld::List(vec![Ipld::Integer(8)]),
+      Self::U32 => Ipld::List(vec![Ipld::Integer(9)]),
+      Self::U64 => Ipld::List(vec![Ipld::Integer(10)]),
+      Self::U128 => Ipld::List(vec![Ipld::Integer(11)]),
+      Self::I8 => Ipld::List(vec![Ipld::Integer(12)]),
+      Self::I16 => Ipld::List(vec![Ipld::Integer(13)]),
+      Self::I32 => Ipld::List(vec![Ipld::Integer(14)]),
+      Self::I64 => Ipld::List(vec![Ipld::Integer(15)]),
+      Self::I128 => Ipld::List(vec![Ipld::Integer(16)]),
     }
   }
 
@@ -422,20 +472,21 @@ impl LitType {
       Ipld::List(xs) => match xs.as_slice() {
         [Ipld::Integer(0)] => Ok(Self::Nat),
         [Ipld::Integer(1)] => Ok(Self::Int),
-        [Ipld::Integer(2)] => Ok(Self::Bytes),
-        [Ipld::Integer(3)] => Ok(Self::Text),
-        [Ipld::Integer(4)] => Ok(Self::Char),
-        [Ipld::Integer(5)] => Ok(Self::Bool),
-        [Ipld::Integer(6)] => Ok(Self::U8),
-        [Ipld::Integer(7)] => Ok(Self::U16),
-        [Ipld::Integer(8)] => Ok(Self::U32),
-        [Ipld::Integer(9)] => Ok(Self::U64),
-        [Ipld::Integer(10)] => Ok(Self::U128),
-        [Ipld::Integer(11)] => Ok(Self::I8),
-        [Ipld::Integer(12)] => Ok(Self::I16),
-        [Ipld::Integer(13)] => Ok(Self::I32),
-        [Ipld::Integer(14)] => Ok(Self::I64),
-        [Ipld::Integer(15)] => Ok(Self::I128),
+        [Ipld::Integer(2)] => Ok(Self::Bits),
+        [Ipld::Integer(3)] => Ok(Self::Bytes),
+        [Ipld::Integer(4)] => Ok(Self::Text),
+        [Ipld::Integer(5)] => Ok(Self::Char),
+        [Ipld::Integer(6)] => Ok(Self::Bool),
+        [Ipld::Integer(7)] => Ok(Self::U8),
+        [Ipld::Integer(8)] => Ok(Self::U16),
+        [Ipld::Integer(9)] => Ok(Self::U32),
+        [Ipld::Integer(10)] => Ok(Self::U64),
+        [Ipld::Integer(11)] => Ok(Self::U128),
+        [Ipld::Integer(12)] => Ok(Self::I8),
+        [Ipld::Integer(13)] => Ok(Self::I16),
+        [Ipld::Integer(14)] => Ok(Self::I32),
+        [Ipld::Integer(15)] => Ok(Self::I64),
+        [Ipld::Integer(16)] => Ok(Self::I128),
         xs => Err(IpldError::LitType(Ipld::List(xs.to_owned()))),
       },
       _ => Err(IpldError::LitType(ipld.clone())),
@@ -488,6 +539,12 @@ pub mod tests {
       let v: Vec<u8> = Arbitrary::arbitrary(g);
       let x: BigInt = BigInt::from_signed_bytes_be(&v);
       Literal::Int(x)
+    })
+  }
+  pub fn arbitrary_bits() -> Box<dyn Fn(&mut Gen) -> Literal> {
+    Box::new(move |g: &mut Gen| {
+      let x: Vec<bool> = Arbitrary::arbitrary(g);
+      Literal::Bits(x.into())
     })
   }
 
@@ -586,20 +643,21 @@ pub mod tests {
       frequency(g, vec![
         (1, arbitrary_nat()),
         (1, arbitrary_int()),
+        (1, arbitrary_bits()),
         (1, arbitrary_bytes()),
         (1, arbitrary_text()),
         (1, arbitrary_char()),
-        //(1, arbitrary_bool()),
+        (1, arbitrary_bool()),
         (1, arbitrary_u8()),
         (1, arbitrary_u16()),
         (1, arbitrary_u32()),
         (1, arbitrary_u64()),
         (1, arbitrary_u128()),
         (1, arbitrary_i8()),
-        //(1, arbitrary_i16()),
-        //(1, arbitrary_i32()),
-        //(1, arbitrary_i64()),
-        //(1, arbitrary_i128()),
+        (1, arbitrary_i16()),
+        (1, arbitrary_i32()),
+        (1, arbitrary_i64()),
+        (1, arbitrary_i128()),
         (1, Box::new(|g| Self::Char(Arbitrary::arbitrary(g)))),
       ])
     }

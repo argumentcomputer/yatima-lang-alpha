@@ -13,14 +13,12 @@ multihash = "0.13.2"
 multibase = "0.9.1"
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
 im  = "15.0.0"
-bit-vec = "0.6.3"
 num-bigint = "0.3.1"
 nom = "6.0.1"
 nom_locate = "3.0.0"
 base-x = "0.2.8"
 petgraph = "0.5.1"
 ropey = "1.2.0"
-bytes = "1.0.1"
 
 [dev-dependencies]
 quickcheck = "1.0.3"
