@@ -402,7 +402,7 @@ impl LitType {
       Self::Nat => Some(yatima!(
         "∀ (0 P: ∀ #Nat -> Type)
              (& zero: P 0)
-             (& succ: ∀ (pred: #Nat) -> (#Nat.suc pred))
+             (& succ: ∀ (pred: #Nat) -> P (#Nat.suc pred))
            -> P #$0
           ",
         val
@@ -417,7 +417,7 @@ impl LitType {
       Self::Bytes => Some(yatima!(
         "∀ (0 P: ∀ #Bytes -> Type)
              (& nil: P \"\")
-             (& cons: ∀ (x: #U8) (xs: #Bytes) -> (#Bytes.cons x xs))
+             (& cons: ∀ (x: #U8) (xs: #Bytes) -> P (#Bytes.cons x xs))
            -> P #$0
           ",
         val
@@ -425,7 +425,7 @@ impl LitType {
       Self::Bits => Some(yatima!(
         "∀ (0 P: ∀ #Bits -> Type)
              (& nil: P #b)
-             (& cons: ∀ (x: #Bool) (xs: #Bits) -> (#Bits.cons x xs))
+             (& cons: ∀ (x: #Bool) (xs: #Bits) -> P (#Bits.cons x xs))
            -> P #$0
           ",
         val
@@ -433,7 +433,7 @@ impl LitType {
       Self::Text => Some(yatima!(
         "∀ (0 P: ∀ #Text -> Type)
              (& nil: P \"\")
-             (& cons: ∀ (x: #Char) (xs: #Text) -> (#Text.cons x xs))
+             (& cons: ∀ (x: #Char) (xs: #Text) -> P (#Text.cons x xs))
            -> P #$0
           ",
         val
