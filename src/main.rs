@@ -45,63 +45,15 @@ async fn main() -> std::io::Result<()> {
       let env = file::parse::PackageEnv::new(root, path);
       let (cid, p, d) = file::parse::parse_file(env);
       file::store::put(p.to_ipld());
-      let ipld_cid =
-        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
+      // let ipld_cid =
+      //  ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
+      println!("Package parsed: {}", cid);
+      // println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
       println!("{}", d);
       Ok(())
     }
     Cli::Check { path } => {
-      let root = std::env::current_dir()?;
-      let env = file::parse::PackageEnv::new(root, path);
-      let (_, p, ds) = file::parse::parse_file(env);
-      let cid = file::store::put(p.to_ipld());
-      // let _ipld_cid =
-      //  ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      println!("Checking package {} at {}", p.name, cid);
-      for i in &p.imports {
-        println!("Checking import  {} at {}", i.name, i.cid);
-        for n in &i.with {
-          match yatima_core::check::check_def(
-            &ds,
-            &yatima_core::package::import_alias(n.to_owned(), &i),
-          ) {
-            Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
-            Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
-              println!("✕ {}: {}", n, e);
-            }
-            Err(err) => {
-              let def = ds.get(n).unwrap();
-              println!("✕ {}: {}", n, def.typ_.pretty(Some(n)));
-              if let Pos::Some(pos) = err.pos() {
-                if let Some(Ipld::String(input)) = file::store::get(pos.input) {
-                  println!("{}", pos.range(input))
-                }
-              }
-              print!("Error: {}", err);
-            }
-          }
-        }
-      }
-      println!("Checking definitions:");
-      for (n, _) in &p.index.0 {
-        match yatima_core::check::check_def(&ds, n) {
-          Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n))),
-          Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
-            println!("✕ {}: {}", n, e);
-          }
-          Err(err) => {
-            let def = ds.get(n).unwrap();
-            println!("✕ {}: {}", n, def.typ_.pretty(Some(n)));
-            if let Pos::Some(pos) = err.pos() {
-              if let Some(Ipld::String(input)) = file::store::get(pos.input) {
-                println!("{}", pos.range(input))
-              }
-            }
-            print!("Error: {}", err);
-          }
-        }
-      }
+      file::check_all(path)?;
       Ok(())
     }
     Cli::Run { path } => {
