@@ -135,8 +135,13 @@ impl NatOp {
     use Literal::*;
     match (self, x) {
       (Self::Suc, Nat(x)) => Some(Nat(x + BigUint::from(1u64))),
-      (Self::Pre, Nat(x)) if x != 0u64.into() => {
-        Some(Nat(x - BigUint::from(1u64)))
+      (Self::Pre, Nat(x)) => {
+        if x != 0u64.into() {
+          Some(Nat(x - BigUint::from(1u64)))
+        }
+        else {
+          Some(Nat(BigUint::from(0u64)))
+        }
       }
       _ => None,
     }
