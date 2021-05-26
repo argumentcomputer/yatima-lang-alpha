@@ -155,8 +155,8 @@ impl NatOp {
       (Self::Add, Nat(x), Nat(y)) => Some(Nat(x + y)),
       (Self::Sub, Nat(x), Nat(y)) if x >= y => Some(Nat(x - y)),
       (Self::Mul, Nat(x), Nat(y)) => Some(Nat(x * y)),
-      (Self::Div, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
-      (Self::Mod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
+      (Self::Div, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x / y)),
+      (Self::Mod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x % y)),
       _ => None,
     }
   }
