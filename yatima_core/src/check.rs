@@ -405,11 +405,12 @@ pub fn infer(
     }
     Term::Ann(_, typ_exp) => {
       let (typ, exp) = &**typ_exp;
+      let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let mut typ_dag = DAG::new(DAG::from_term_inner(
         typ,
         ctx.len() as u64,
         Vector::new(),
-        None,
+        Some(root),
         rec.clone(),
       ));
       check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
