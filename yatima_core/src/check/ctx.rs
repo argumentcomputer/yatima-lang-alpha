@@ -19,15 +19,15 @@ use im::{
 pub type Ctx = Vec<(String, Uses, *mut DAGPtr)>;
 
 #[inline]
-pub fn add_use_ctx(use_ctx: &mut Ctx, use_ctx2: Ctx) {
+pub fn add_mul_ctx(uses: Uses, use_ctx: &mut Ctx, use_ctx2: Ctx) {
   #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
-    use_ctx[i].1 = use_ctx[i].1 + use_ctx2[i].1
+    use_ctx[i].1 = (uses * use_ctx[i].1) + use_ctx2[i].1
   }
 }
 
 #[inline]
-pub fn mul_use_ctx(uses: Uses, use_ctx: &mut Ctx) {
+pub fn mul_ctx(uses: Uses, use_ctx: &mut Ctx) {
   #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
     use_ctx[i].1 = use_ctx[i].1 * uses
@@ -35,19 +35,14 @@ pub fn mul_use_ctx(uses: Uses, use_ctx: &mut Ctx) {
 }
 
 #[inline]
-pub fn div_use_ctx(uses: Uses, use_ctx: &mut Ctx) {
+pub fn div_ctx(uses: Uses, use_ctx: &mut Ctx) -> Ctx {
+  let mut rest = use_ctx.clone();
   #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
+    rest[i].1 = use_ctx[i].1 % uses;
     use_ctx[i].1 = use_ctx[i].1 / uses
   }
-}
-
-#[inline]
-pub fn lam_rule(uses: Uses, use_ctx: &mut Ctx, use_ctx2: &Ctx) {
-  #[allow(clippy::needless_range_loop)]
-  for i in 0..use_ctx.len() {
-    use_ctx[i].1 = (use_ctx[i].1 % uses) + (use_ctx2[i].1 * uses)
-  }
+  rest
 }
 
 pub type ErrCtx = Vector<(String, Uses, Term)>;

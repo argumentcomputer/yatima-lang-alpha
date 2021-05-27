@@ -1,10 +1,7 @@
 use crate::{
   defs::Defs,
   dll::*,
-  literal::{
-    LitType,
-    Literal,
-  },
+  literal::Literal,
   primop::{
     PrimOp,
     apply_bin_op,

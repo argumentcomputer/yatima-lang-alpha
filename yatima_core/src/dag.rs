@@ -1218,6 +1218,64 @@ impl DAG {
     map.insert(node, new_node);
     new_node
   }
+
+  // Substitution of free variable
+  pub fn subst(&mut self, idx: u64, val: DAGPtr) {
+    pub fn go(node: DAGPtr, idx: u64, val: DAGPtr) {
+      match node {
+        DAGPtr::Var(link) => {
+          let Var { dep, binder, .. } = unsafe { &*link.as_ptr() };
+          if *dep == idx {
+            match binder {
+              BinderPtr::Free => (),
+              _ => panic!("Variable not free"),
+            }
+            replace_child(node, val);
+            free_dead_node(node);
+          }
+        },
+        DAGPtr::Lam(link) => {
+          let Lam { bod, .. } = unsafe { &*link.as_ptr() };
+          go(*bod, idx, val)
+        },
+        DAGPtr::Slf(link) => {
+          let Slf { bod, .. } = unsafe { &*link.as_ptr() };
+          go(*bod, idx, val)
+        },
+        DAGPtr::Cse(link) => {
+          let Cse { bod, .. } = unsafe { &*link.as_ptr() };
+          go(*bod, idx, val)
+        },
+        DAGPtr::Dat(link) => {
+          let Dat { bod, .. } = unsafe { &*link.as_ptr() };
+          go(*bod, idx, val)
+        },
+        DAGPtr::App(link) => {
+          let App { fun, arg, .. } = unsafe { &*link.as_ptr() };
+          go(*fun, idx, val);
+          go(*arg, idx, val)
+        },
+        DAGPtr::All(link) => {
+          let All { dom, img, .. } = unsafe { &*link.as_ptr() };
+          go(*dom, idx, val);
+          go(DAGPtr::Lam(*img), idx, val)
+        },
+        DAGPtr::Let(link) => {
+          let Let { typ, exp, bod, .. } = unsafe { &*link.as_ptr() };
+          go(*typ, idx, val);
+          go(*exp, idx, val);
+          go(*bod, idx, val)
+        },
+        DAGPtr::Ann(link) => {
+          let Ann { typ, exp, .. } = unsafe { &*link.as_ptr() };
+          go(*typ, idx, val);
+          go(*exp, idx, val)
+        },
+        _ => ()
+      }
+    }
+    go(self.head, idx, val)
+  }
 }
 
 impl Clone for DAG {

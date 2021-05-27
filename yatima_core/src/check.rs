@@ -119,24 +119,25 @@ pub fn check(
           (*all_var).dep = ctx.len() as u64;
           // Add the domain of the function to the context
           let mut img = DAG::new(*img);
-          let mut bod_ctx = ctx.clone();
-          div_use_ctx(uses, &mut bod_ctx);
-          bod_ctx.push((all_var.nam.to_string(), *lam_uses, dom));
-          check(rec, defs, &mut bod_ctx, Uses::Once, lam_bod, &mut img)?;
-          let (_, rest, _) = bod_ctx.last().unwrap();
+          // let mut bod_ctx = ctx.clone();
+          let rest_ctx = div_ctx(uses, ctx);
+          ctx.push((all_var.nam.to_string(), *lam_uses, dom));
+          check(rec, defs, ctx, Uses::Once, lam_bod, &mut img)?;
+          let (_, rest, _) = ctx.last().unwrap();
           // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
           // otherwise the variable was not used enough
           if !Uses::lte(Uses::None, *rest) {
             Err(CheckError::QuantityTooLittle(
               *pos,
-              error_context(&bod_ctx),
+              error_context(ctx),
               all_var.nam.clone(),
               *lam_uses,
               *rest,
             ))
           }
           else {
-            lam_rule(uses, ctx, &bod_ctx);
+            ctx.pop();
+            add_mul_ctx(uses, ctx, rest_ctx);
             Ok(())
           }
         }
@@ -186,13 +187,6 @@ pub fn check(
           ))
         }
       }
-    }
-    Term::Let(pos, _, _, _, _) => {
-      Err(CheckError::GenericError(
-        *pos,
-        error_context(&ctx),
-        "TODO: Let typecheck".to_string(),
-      ))
     }
     _ => {
       let depth = ctx.len();
@@ -378,8 +372,45 @@ pub fn infer(
       check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
       Ok(typ_dag)
     }
-    Term::Let(_, _, _, _, _) => {
-      panic!("TODO: Let inference")
+    Term::Let(pos, false, exp_uses, nam, typ_exp_bod) => {
+      let (exp_typ, exp, bod) = &**typ_exp_bod;
+      let exp_dag = &mut DAG::new(
+        DAG::from_term_inner(exp, ctx.len() as u64, Vector::new(), None, Some(rec.clone())) 
+      );
+      let root = alloc_val(DLL::singleton(ParentPtr::Root));
+      let exp_typ_dag = &mut DAG::new(
+        DAG::from_term_inner(exp_typ, ctx.len() as u64, Vector::new(), Some(root), Some(rec.clone())) 
+      );
+      check(rec, defs, ctx, *exp_uses * uses, exp, exp_typ_dag)?;
+      let rest_ctx = div_ctx(uses, ctx);
+      ctx.push((nam.to_string(), *exp_uses, &mut exp_typ_dag.head));
+      let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
+      let (_, rest, _) = ctx.last().unwrap();
+      // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
+      // otherwise the variable was not used enough
+      if !Uses::lte(Uses::None, *rest) {
+        Err(CheckError::QuantityTooLittle(
+          *pos,
+          error_context(ctx),
+          nam.clone(),
+          *exp_uses,
+          *rest,
+        ))
+      }
+      else {
+        ctx.pop();
+        DAG::new(exp_typ_dag.head).free();
+        add_mul_ctx(uses, ctx, rest_ctx);
+        bod_typ.subst(ctx.len() as u64, exp_dag.head);
+        Ok(bod_typ)
+      }
+    }
+    Term::Let(pos, true, _, _, _) => {
+      Err(CheckError::GenericError(
+        *pos,
+        error_context(&ctx),
+        "TODO: Letrec inference".to_string(),
+      ))
     }
     Term::Lit(_, lit) => {
       Ok(DAG::from_term(&infer_lit(lit.to_owned())))
