@@ -361,10 +361,10 @@ impl DAG {
                 let x = unsafe { (*link.as_ptr()).lit.clone() };
                 let res = opr.apply1(x);
                 if let Some(res) = res {
-                  trail.pop();
+                  let top = DAGPtr::App(trail.pop().unwrap());
                   let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
-                  replace_child(node, new_node);
-                  free_dead_node(node);
+                  replace_child(top, new_node);
+                  free_dead_node(top);
                   node = new_node;
                 }
                 else {
@@ -386,10 +386,10 @@ impl DAG {
                 let res = opr.apply2(y, x);
                 if let Some(res) = res {
                   trail.pop();
-                  trail.pop();
+                  let top = DAGPtr::App(trail.pop().unwrap());
                   let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
-                  replace_child(node, new_node);
-                  free_dead_node(node);
+                  replace_child(top, new_node);
+                  free_dead_node(top);
                   node = new_node;
                 }
                 else {
@@ -419,10 +419,10 @@ impl DAG {
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
-                  trail.pop();
+                  let top = DAGPtr::App(trail.pop().unwrap());
                   let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
-                  replace_child(node, new_node);
-                  free_dead_node(node);
+                  replace_child(top, new_node);
+                  free_dead_node(top);
                   node = new_node;
                 }
                 else {
