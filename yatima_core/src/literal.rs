@@ -84,7 +84,7 @@ impl fmt::Display for Literal {
       }
       Bits(x) => {
         if x.len() % 4 == 0 {
-          let (len, mut x) = bits::bits_to_bytes(x.clone());
+          let (len, mut x) = bits::bits_to_bytes(x);
           x.reverse();
           let x: &[u8] = x.as_ref();
           write!(f, "#x{:0>len$}", base::LitBase::Hex.encode(x), len = len / 4)
@@ -217,7 +217,7 @@ impl Literal {
         Ipld::List(vec![Ipld::Integer(1), Ipld::Bytes(x.to_signed_bytes_be())])
       }
       Self::Bits(x) => {
-        let (len, bytes) = bits::bits_to_bytes(x.to_owned());
+        let (len, bytes) = bits::bits_to_bytes(x);
         Ipld::List(vec![
           Ipld::Integer(2),
           Ipld::Integer(len as i128),
@@ -292,7 +292,7 @@ impl Literal {
           Ok(Self::Int(BigInt::from_signed_bytes_be(x)))
         }
         [Ipld::Integer(2), Ipld::Integer(len), Ipld::Bytes(x)] => {
-          let bits = bits::bytes_to_bits(*len as usize, x.to_owned());
+          let bits = bits::bytes_to_bits(*len as usize, x);
           Ok(Self::Bits(bits))
         }
         [Ipld::Integer(3), Ipld::Bytes(x)] => {

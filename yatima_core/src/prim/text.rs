@@ -214,7 +214,7 @@ impl TextOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::LenChars, Text(xs)) => Some(Nat(xs.len_chars().into())),
@@ -224,23 +224,25 @@ impl TextOp {
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      (Self::Cons, Char(c), Text(mut cs)) => {
-        cs.insert_char(0, c);
+      (Self::Cons, Char(c), Text(cs)) => {
+        let mut cs = cs.clone();
+        cs.insert_char(0, *c);
         Some(Text(cs))
       }
-      (Self::Append, Text(mut xs), Text(ys)) => {
-        xs.append(ys);
+      (Self::Append, Text(xs), Text(ys)) => {
+        let mut xs = xs.clone();
+        xs.append(ys.clone());
         Some(Text(xs))
       }
       (Self::Take, Nat(x), Text(xs)) => {
-        let (xs, _) = safe_split(x, xs);
+        let (xs, _) = safe_split(x, xs.clone());
         Some(Text(xs))
       }
       (Self::Drop, Nat(x), Text(xs)) => {
-        let (_, ys) = safe_split(x, xs);
+        let (_, ys) = safe_split(x, xs.clone());
         Some(Text(ys))
       }
       (Self::Eql, Text(xs), Text(ys)) => Some(Bool(xs == ys)),
@@ -252,14 +254,14 @@ impl TextOp {
     }
   }
 
-  pub fn apply3(self, x: Literal, y: Literal, z: Literal) -> Option<Literal> {
+  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y, z) {
       (Self::Insert, Nat(x), Text(y), Text(xs)) => {
-        Some(Text(safe_insert(x, y, xs)))
+        Some(Text(safe_insert(x, y.clone(), xs.clone())))
       }
       (Self::Remove, Nat(x), Nat(y), Text(xs)) => {
-        Some(Text(safe_remove(x, y, xs)))
+        Some(Text(safe_remove(x, y, xs.clone())))
       }
       _ => None,
     }
@@ -272,7 +274,7 @@ impl fmt::Display for TextOp {
   }
 }
 
-pub fn safe_insert(idx: BigUint, ys: Rope, mut xs: Rope) -> Rope {
+pub fn safe_insert(idx: &BigUint, ys: Rope, mut xs: Rope) -> Rope {
   let idx = usize::try_from(idx);
   match idx {
     Ok(idx) if idx <= xs.len_chars() => {
@@ -283,7 +285,7 @@ pub fn safe_insert(idx: BigUint, ys: Rope, mut xs: Rope) -> Rope {
   }
 }
 
-pub fn safe_remove(from: BigUint, upto: BigUint, mut xs: Rope) -> Rope {
+pub fn safe_remove(from: &BigUint, upto: &BigUint, mut xs: Rope) -> Rope {
   let from = usize::try_from(from);
   let upto = usize::try_from(upto);
   let len = xs.len_chars();
@@ -306,7 +308,7 @@ pub fn safe_head(mut x: Rope) -> Option<(char, Rope)> {
   }
 }
 
-pub fn safe_split(idx: BigUint, mut xs: Rope) -> (Rope, Rope) {
+pub fn safe_split(idx: &BigUint, mut xs: Rope) -> (Rope, Rope) {
   let idx = usize::try_from(idx);
   match idx {
     Ok(idx) if idx <= xs.len_chars() => {
@@ -384,13 +386,13 @@ pub mod tests {
   #[test]
   fn test_safe_split() {
     let rope: Rope = Rope::from_str("foo");
-    let res = safe_split(0u64.into(), rope.clone());
+    let res = safe_split(&0u64.into(), rope.clone());
     assert_eq!(res, (Rope::from_str(""), Rope::from_str("foo")));
-    let res = safe_split(1u64.into(), rope.clone());
+    let res = safe_split(&1u64.into(), rope.clone());
     assert_eq!(res, (Rope::from_str("f"), Rope::from_str("oo")));
-    let res = safe_split(4u64.into(), rope.clone());
+    let res = safe_split(&4u64.into(), rope.clone());
     assert_eq!(res, (Rope::from_str("foo"), Rope::from_str("")));
-    let res = safe_split(u128::MAX.into(), rope.clone());
+    let res = safe_split(&u128::MAX.into(), rope.clone());
     assert_eq!(res, (Rope::from_str("foo"), Rope::from_str("")));
   }
 }

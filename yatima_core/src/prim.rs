@@ -176,7 +176,7 @@ impl Op {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     match self {
       Self::Nat(op) => op.apply1(x),
       Self::Int(op) => op.apply1(x),
@@ -198,7 +198,7 @@ impl Op {
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     match self {
       Self::Nat(op) => op.apply2(x, y),
       Self::Int(op) => op.apply2(x, y),
@@ -220,7 +220,7 @@ impl Op {
     }
   }
 
-  pub fn apply3(self, x: Literal, y: Literal, z: Literal) -> Option<Literal> {
+  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
     match self {
       Self::Bytes(op) => op.apply3(x, y, z),
       Self::Bits(op) => op.apply3(x, y, z),

@@ -126,27 +126,28 @@ impl BytesOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Len, Bytes(xs)) => Some(Nat(xs.len().into())),
-      (Self::Head, Bytes(mut xs)) => {
-        let x = xs.pop();
-        x.map(U8)
+      (Self::Head, Bytes(xs)) => {
+        let x = xs.last();
+        x.map(|x| U8(*x))
       }
-      (Self::Tail, Bytes(mut xs)) => {
-        xs.pop();
+      (Self::Tail, Bytes(xs)) => {
+        let xs = xs[0..xs.len()-1].to_vec();
         Some(Bytes(xs))
       }
       _ => None,
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      (Self::Cons, U8(x), Bytes(mut xs)) => {
-        xs.push(x);
+      (Self::Cons, U8(x), Bytes(xs)) => {
+        let mut xs = xs.clone();
+        xs.push(*x);
         Some(Bytes(xs))
       }
       (Self::Drop, Nat(x), Bytes(xs)) => {
@@ -157,18 +158,20 @@ impl BytesOp {
         let (xs, _) = safe_split(x, xs);
         Some(Bytes(xs))
       }
-      (Self::Append, Bytes(mut xs), Bytes(mut ys)) => {
-        xs.append(&mut ys);
+      (Self::Append, Bytes(xs), Bytes(ys)) => {
+        let mut xs = xs.clone();
+        xs.extend_from_slice(&ys);
         Some(Bytes(xs))
       }
-      (Self::Remove, Nat(idx), Bytes(mut xs)) => {
+      (Self::Remove, Nat(idx), Bytes(xs)) => {
         let idx = usize::try_from(idx);
         match idx {
           Ok(idx) if idx < xs.len() => {
+            let mut xs = xs.clone();
             xs.remove(idx);
             Some(Bytes(xs))
           }
-          _ => Some(Bytes(xs)),
+          _ => Some(Bytes(xs.clone())),
         }
       }
       (Self::Index, Nat(idx), Bytes(xs)) => {
@@ -189,17 +192,18 @@ impl BytesOp {
     }
   }
 
-  pub fn apply3(self, x: Literal, y: Literal, z: Literal) -> Option<Literal> {
+  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y, z) {
-      (Self::Insert, Nat(idx), U8(y), Bytes(mut xs)) => {
+      (Self::Insert, Nat(idx), U8(y), Bytes(xs)) => {
         let idx = usize::try_from(idx);
         match idx {
           Ok(idx) if idx < xs.len() => {
-            xs.insert(idx, y);
+            let mut xs = xs.clone();
+            xs.insert(idx, *y);
             Some(Bytes(xs))
           }
-          _ => Some(Bytes(xs)),
+          _ => Some(Bytes(xs.clone())),
         }
       }
       _ => None,
@@ -207,14 +211,15 @@ impl BytesOp {
   }
 }
 
-pub fn safe_split(idx: BigUint, mut xs: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
+pub fn safe_split(idx: &BigUint, xs: &Vec<u8>) -> (Vec<u8>, Vec<u8>) {
   let idx = usize::try_from(idx);
   match idx {
     Ok(idx) if idx <= xs.len() => {
-      let ys = xs.split_off(idx);
-      (xs, ys)
+      let ys = xs[0..idx].to_vec();
+      let zs = xs[idx..].to_vec();
+      (ys, zs)
     }
-    _ => (xs, vec![]),
+    _ => (xs.clone(), vec![]),
   }
 }
 
