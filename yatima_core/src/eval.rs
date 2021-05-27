@@ -362,10 +362,10 @@ impl DAG {
                 let res = opr.apply1(x);
                 if let Some(res) = res {
                   trail.pop();
-                  node =
-                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
-                  replace_child(arg.head, node);
-                  free_dead_node(arg.head);
+                  let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  replace_child(node, new_node);
+                  free_dead_node(node);
+                  node = new_node;
                 }
                 else {
                   break;
@@ -375,8 +375,8 @@ impl DAG {
             }
           }
           else if len >= 2 && opr.arity() == 2 {
-            let mut arg1 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
-            let mut arg2 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg1 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg2 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
             arg1.whnf(defs);
             arg2.whnf(defs);
             match (arg1.head, arg2.head) {
@@ -387,10 +387,10 @@ impl DAG {
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
-                  node =
-                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
-                  replace_child(arg1.head, node);
-                  free_dead_node(arg1.head);
+                  let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  replace_child(node, new_node);
+                  free_dead_node(node);
+                  node = new_node;
                 }
                 else {
                   break;
@@ -400,9 +400,9 @@ impl DAG {
             }
           }
           else if len >= 3 && opr.arity() == 3 {
-            let mut arg1 = unsafe { DAG::new((*trail[len - 3].as_ptr()).arg) };
+            let mut arg1 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
             let mut arg2 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
-            let mut arg3 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
+            let mut arg3 = unsafe { DAG::new((*trail[len - 3].as_ptr()).arg) };
             arg1.whnf(defs);
             arg2.whnf(defs);
             arg3.whnf(defs);
@@ -420,10 +420,10 @@ impl DAG {
                   trail.pop();
                   trail.pop();
                   trail.pop();
-                  node =
-                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
-                  replace_child(arg1.head, node);
-                  free_dead_node(arg1.head);
+                  let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  replace_child(node, new_node);
+                  free_dead_node(node);
+                  node = new_node;
                 }
                 else {
                   break;
