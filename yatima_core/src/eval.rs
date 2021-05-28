@@ -362,7 +362,8 @@ impl DAG {
                 let res = opr.apply1(x);
                 if let Some(res) = res {
                   let top = DAGPtr::App(trail.pop().unwrap());
-                  let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  let new_node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(top, new_node);
                   free_dead_node(top);
                   node = new_node;
@@ -383,11 +384,12 @@ impl DAG {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
                 let x = unsafe { &(*x_link.as_ptr()).lit };
                 let y = unsafe { &(*y_link.as_ptr()).lit };
-                let res = opr.apply2(y, x);
+                let res = opr.apply2(x, y);
                 if let Some(res) = res {
                   trail.pop();
                   let top = DAGPtr::App(trail.pop().unwrap());
-                  let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  let new_node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(top, new_node);
                   free_dead_node(top);
                   node = new_node;
@@ -415,12 +417,13 @@ impl DAG {
                 let x = unsafe { &(*x_link.as_ptr()).lit };
                 let y = unsafe { &(*y_link.as_ptr()).lit };
                 let z = unsafe { &(*z_link.as_ptr()).lit };
-                let res = opr.apply3(z, y, x);
+                let res = opr.apply3(x, y, z);
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
                   let top = DAGPtr::App(trail.pop().unwrap());
-                  let new_node = DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
+                  let new_node =
+                    DAGPtr::Lit(alloc_val(Lit { lit: res, parents: None }));
                   replace_child(top, new_node);
                   free_dead_node(top);
                   node = new_node;
