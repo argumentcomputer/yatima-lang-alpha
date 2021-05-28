@@ -1,6 +1,7 @@
 pub mod command;
 pub mod error;
 
+use std::sync::{Arc, Mutex};
 use nom::Err;
 use yatima_core::{
   check::{
@@ -26,82 +27,97 @@ pub trait Repl {
     fn load_history(&mut self);
     fn add_history_entry(&mut self, s: &str);
     fn save_history(&mut self);
+    fn get_defs(&mut self) -> Arc<Mutex<Defs>>;
+    fn handle_line(&mut self, readline: Result<String, ReplError>) -> Result<(),()> {
+      let mut defs = self.get_defs().lock().unwrap();
+      match readline {
+        Ok(line) => {
+          self.add_history_entry(line.as_str());
+          let res = command::parse_command(
+            input_cid(line.as_str()),
+            defs.clone(),
+          )(Span::new(&line));
+          match res {
+            Ok((_, command)) => {
+              match command {
+                Command::Eval(term) => {
+                  let mut dag = DAG::from_term(&term);
+                  dag.norm(&defs);
+                  self.println(format!("{}", dag));
+                }
+                Command::Type(term) => {
+                  let res = infer_term(&defs, *term);
+                  match res {
+                    Ok(term) => self.println(format!("{}", term)),
+                    Err(e) => self.println(format!("Error: {}", e)),
+                  }
+                }
+                Command::Define(boxed) => {
+                  let (n, def, _) = *boxed;
+                  let mut tmp_defs = defs.clone();
+                  tmp_defs.insert(n.clone(), def);
+                  let res = check_def(&tmp_defs, &n);
+                  match res {
+                    Ok(res) => {
+                      defs = tmp_defs;
+                      self.println(format!("{} : {}", n, res.pretty(Some(&n))))
+                    }
+                    Err(e) => self.println(format!("Error: {}", e)),
+                  }
+                }
+                Command::Browse => {
+                  for (n, d) in defs.named_defs() {
+                    self.println(format!("{}", d.pretty(n)))
+                  }
+                }
+                Command::Quit => {
+                  self.println(format!("Goodbye."));
+                  return Err(());
+                }
+              };
+              Ok(())
+            },
+            Err(e) => {
+              match e {
+                Err::Incomplete(_) => self.println(format!("Incomplete Input")),
+                Err::Failure(e) => {
+                  self.println(format!("Parse Failure:\n"));
+                  self.println(format!("{}", e));
+                }
+                Err::Error(e) => {
+                  self.println(format!("Parse Error:\n"));
+                  self.println(format!("{}", e));
+                }
+              };
+              Err(())
+            },
+          }
+        }
+        Err(ReplError::Interrupted) => {
+          self.println(format!("CTRL-C"));
+          Err(())
+        }
+        Err(ReplError::Eof) => {
+          self.println(format!("CTRL-D"));
+          Err(())
+        }
+        Err(ReplError::Other(err)) => {
+          self.println(format!("Error: {}", err));
+          Err(())
+        }
+      }
+    }
 }
 
 pub fn run_repl(rl: &mut dyn Repl) {
+
   let mut defs = Defs::new();
   rl.load_history();
   loop {
     let readline = rl.readline("⅄ ");
-    match readline {
-      Ok(line) => {
-        rl.add_history_entry(line.as_str());
-        let res = command::parse_command(
-          input_cid(line.as_str()),
-          defs.clone(),
-        )(Span::new(&line));
-        match res {
-          Ok((_, command)) => match command {
-            Command::Eval(term) => {
-              let mut dag = DAG::from_term(&term);
-              dag.norm(&defs);
-              rl.println(format!("{}", dag));
-            }
-            Command::Type(term) => {
-              let res = infer_term(&defs, *term);
-              match res {
-                Ok(term) => rl.println(format!("{}", term)),
-                Err(e) => rl.println(format!("Error: {}", e)),
-              }
-            }
-            Command::Define(boxed) => {
-              let (n, def, _) = *boxed;
-              let mut tmp_defs = defs.clone();
-              tmp_defs.insert(n.clone(), def);
-              let res = check_def(&tmp_defs, &n);
-              match res {
-                Ok(res) => {
-                  defs = tmp_defs;
-                  rl.println(format!("{} : {}", n, res.pretty(Some(&n))))
-                }
-                Err(e) => rl.println(format!("Error: {}", e)),
-              }
-            }
-            Command::Browse => {
-              for (n, d) in defs.named_defs() {
-                rl.println(format!("{}", d.pretty(n)))
-              }
-            }
-            Command::Quit => {
-              rl.println(format!("Goodbye."));
-              break;
-            }
-          },
-          Err(e) => match e {
-            Err::Incomplete(_) => rl.println(format!("Incomplete Input")),
-            Err::Failure(e) => {
-              rl.println(format!("Parse Failure:\n"));
-              rl.println(format!("{}", e));
-            }
-            Err::Error(e) => {
-              rl.println(format!("Parse Error:\n"));
-              rl.println(format!("{}", e));
-            }
-          },
-        }
-      }
-      Err(ReplError::Interrupted) => {
-        rl.println(format!("CTRL-C"));
-        break;
-      }
-      Err(ReplError::Eof) => {
-        rl.println(format!("CTRL-D"));
-        break;
-      }
-      Err(ReplError::Other(err)) => {
-        rl.println(format!("Error: {}", err));
-        break;
-      }
+    match rl.handle_line(readline) {
+      Ok(()) => continue,
+      Err(()) => break,
     }
   }
   rl.save_history();

@@ -1,5 +1,10 @@
+use std::sync::{Arc, Mutex};
 use yatima_utils::{
   file::parse,
+  repl::{
+    Repl,
+    run_repl,
+  }
 };
 // use wasm_bindgen_futures::JsFuture;
 
@@ -19,7 +24,7 @@ extern "C" {
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-const PROMPT: &str = "λ ";
+const PROMPT: &str = "⅄ ";
 
 fn prompt(term: &Terminal) {
     term.writeln("");
@@ -38,10 +43,15 @@ const KEY_L: u32 = 76;
 const CURSOR_LEFT: &str = "\x1b[D";
 const CURSOR_RIGHT: &str = "\x1b[C";
 
-#[wasm_bindgen(start)]
-pub fn main() -> Result<(), JsValue> {
-    utils::set_panic_hook();
+struct WebRepl {
+  terminal: Terminal,
+  defs: Arc<Mutex<Defs>>,
+}
 
+impl WebRepl {
+  pub fn new() -> Self {
+
+    let defs = Arc::new(Mutex::new(Defs::new()));
     let terminal: Terminal = Terminal::new(
         TerminalOptions::new()
             .with_rows(50)
@@ -65,21 +75,23 @@ pub fn main() -> Result<(), JsValue> {
         .unwrap();
 
     terminal.writeln("Supported keys in this example: <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> <Ctrl-C> <Ctrl-L>");
-    terminal.open(elem.dyn_into()?);
+    terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
     let mut line = String::new();
     let mut cursor_col = 0;
 
-    let term: Terminal = terminal.clone().dyn_into()?;
+    let term: Terminal = terminal.clone().dyn_into().unwrap();
 
-    let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| {
+    let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| handle_event(e)) as Box<dyn FnMut(_)>);
+
+    fn handle_event(e: OnKeyEvent) {
         let event = e.dom_event();
         match event.key_code() {
             KEY_ENTER => {
                 if !line.is_empty() {
                     term.writeln("");
-                    term.writeln(&format!("You entered {} characters '{}'", line.len(), line));
+                    // term.writeln(&format!("You entered {} characters '{}'", line.len(), line));
                     line.clear();
                     cursor_col = 0;
                 }
@@ -118,16 +130,50 @@ pub fn main() -> Result<(), JsValue> {
                 }
             }
         }
-    }) as Box<dyn FnMut(_)>);
+    }
 
     terminal.on_key(callback.as_ref().unchecked_ref());
 
     callback.forget();
 
     let addon = FitAddon::new();
-    terminal.load_addon(addon.clone().dyn_into::<FitAddon>()?.into());
+    terminal.load_addon(addon.clone().dyn_into::<FitAddon>().unwrap().into());
     addon.fit();
     terminal.focus();
+    WebRepl { terminal }
+  }
+}
+
+impl Repl for WebRepl {
+  fn readline(&mut self, _prompt: &str) -> Result<String, ReplError> {
+    
+  }
+
+  fn get_defs(&mut self) -> Arc<Mutex<Defs>> {
+    self.defs.clone()
+  }
+  
+  fn println(&self, s: String) {
+    self.terminal.writeln(s);
+  }
+  fn load_history(&mut self) {
+    // TODO
+  }
+  fn add_history_entry(&mut self, s: &str) {
+    // TODO
+  }
+  fn save_history(&mut self) {
+    // TODO
+  }
+}
+
+#[wasm_bindgen(start)]
+pub fn main() -> Result<(), JsValue> {
+    utils::set_panic_hook();
+
+    let repl = WebRepl::new();
+    let terminal = repl.terminal;
+
 
     Ok(())
 }
