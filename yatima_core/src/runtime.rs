@@ -2,11 +2,7 @@ use crate::{
   defs::Defs,
   dll::*,
   literal::Literal,
-  primop::{
-    PrimOp,
-    apply_bin_op,
-    apply_una_op,
-  },
+  prim::Op,
   term::Term,
 };
 
@@ -69,7 +65,7 @@ pub struct Lit {
 }
 
 pub struct Opr {
-  pub opr: PrimOp,
+  pub opr: Op,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -512,21 +508,28 @@ pub fn whnf(dag: &mut DAG) {
       DAG::Opr(link) => {
         let opr = unsafe { (*link.as_ptr()).opr };
         let len = trail.len();
-        if len >= 1 && opr.arity() == 1 {
+        if len == 0 && opr.arity() == 0 {
+          let res = opr.apply0();
+          if let Some(res) = res {
+            node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+          }
+          else {
+            break;
+          }
+        }
+        else if len >= 1 && opr.arity() == 1 {
           let arg = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
           whnf(arg);
-          match arg {
+          match *arg {
             DAG::Lit(link) => {
               let x = unsafe { &(*link.as_ptr()).lit };
-              let res = apply_una_op(opr, x);
+              let res = opr.apply1(x);
               if let Some(res) = res {
-                trail.pop();
-                node = DAG::Lit(alloc_val(Lit {
-                  lit: res,
-                  parents: None,
-                }));
-                replace_child(*arg, node);
-                free_dead_node(*arg);
+                let top = DAG::App(trail.pop().unwrap());
+                let new_node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+                replace_child(top, new_node);
+                free_dead_node(top);
+                node = new_node;
               }
               else {
                 break;
@@ -536,24 +539,55 @@ pub fn whnf(dag: &mut DAG) {
           }
         }
         else if len >= 2 && opr.arity() == 2 {
-          let arg1 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
-          let arg2 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          let arg1 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          let arg2 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
           whnf(arg1);
           whnf(arg2);
           match (*arg1, *arg2) {
             (DAG::Lit(x_link), DAG::Lit(y_link)) => {
               let x = unsafe { &(*x_link.as_ptr()).lit };
               let y = unsafe { &(*y_link.as_ptr()).lit };
-              let res = apply_bin_op(opr, y, x);
+              let res = opr.apply2(y, x);
+              if let Some(res) = res {
+                trail.pop();
+                let top = DAG::App(trail.pop().unwrap());
+                let new_node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+                replace_child(top, new_node);
+                free_dead_node(top);
+                node = new_node;
+              }
+              else {
+                break;
+              }
+            }
+            _ => break,
+          }
+        }
+        else if len >= 3 && opr.arity() == 3 {
+          let arg1 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
+          let arg2 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
+          let arg3 = unsafe { &mut (*trail[len - 3].as_ptr()).arg };
+          whnf(arg1);
+          whnf(arg2);
+          whnf(arg3);
+          match (*arg1, *arg2, *arg3) {
+            (
+              DAG::Lit(x_link),
+              DAG::Lit(y_link),
+              DAG::Lit(z_link),
+            ) => {
+              let x = unsafe { &(*x_link.as_ptr()).lit };
+              let y = unsafe { &(*y_link.as_ptr()).lit };
+              let z = unsafe { &(*z_link.as_ptr()).lit };
+              let res = opr.apply3(z, y, x);
               if let Some(res) = res {
                 trail.pop();
                 trail.pop();
-                node = DAG::Lit(alloc_val(Lit {
-                  lit: res,
-                  parents: None,
-                }));
-                replace_child(*arg1, node);
-                free_dead_node(*arg1);
+                let top = DAG::App(trail.pop().unwrap());
+                let new_node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+                replace_child(top, new_node);
+                free_dead_node(top);
+                node = new_node;
               }
               else {
                 break;

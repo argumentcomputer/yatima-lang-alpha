@@ -8,8 +8,6 @@ use rustyline::{
   KeyEvent,
 };
 
-use im::HashMap;
-
 use nom::Err;
 
 pub mod command;
@@ -28,6 +26,8 @@ use yatima_core::{
     term::input_cid,
   },
 };
+
+use crate::file;
 
 pub fn main() -> rustyline::Result<()> {
   let config = Config::builder().edit_mode(EditMode::Vi).build();
@@ -49,6 +49,16 @@ pub fn main() -> rustyline::Result<()> {
         )(Span::new(&line));
         match res {
           Ok((_, command)) => match command {
+            Command::Load(name) => {
+              let root = std::env::current_dir()?;
+              let mut path = root.clone();
+              for n in name.split('.') {
+                path.push(n);
+              }
+              path.set_extension("ya");
+              let ds = file::check_all(path)?;
+              defs = ds
+            }
             Command::Eval(term) => {
               let mut dag = DAG::from_term(&term);
               dag.norm(&defs);

@@ -12,8 +12,10 @@ use nom::{
   branch::alt,
   bytes::complete::{
     tag,
+    take_till,
     take_till1,
   },
+  character::complete::satisfy,
   combinator::value,
   error::context,
   IResult,
@@ -61,6 +63,15 @@ impl LitBase {
     }
   }
 
+  pub fn radix(&self) -> u32 {
+    match self {
+      Self::Bin => 2,
+      Self::Oct => 8,
+      Self::Dec => 10,
+      Self::Hex => 16,
+    }
+  }
+
   pub fn is_digit(&self, x: char) -> bool {
     self.base_digits().chars().any(|y| x == y)
   }
@@ -102,32 +113,72 @@ impl LitBase {
 }
 
 pub fn parse_bin_digits()
--> impl Fn(Span) -> IResult<Span, Span, ParseError<Span>> {
+-> impl Fn(Span) -> IResult<Span, String, ParseError<Span>> {
   move |from: Span| {
-    context("binary digits", take_till1(|x| !LitBase::Bin.is_digit(x)))(from)
+    let (i, d) =
+      context("binary digit", satisfy(|x| LitBase::Bin.is_digit(x)))(from)?;
+    let (i, ds) = context(
+      "binary digits",
+      take_till(|x| !(LitBase::Bin.is_digit(x) || x == '_')),
+    )(i)?;
+    let ds: String = std::iter::once(d)
+      .chain((*ds.fragment()).to_owned().chars())
+      .filter(|x| *x != '_')
+      .collect();
+    Ok((i, ds))
   }
 }
 
 pub fn parse_oct_digits()
--> impl Fn(Span) -> IResult<Span, Span, ParseError<Span>> {
+-> impl Fn(Span) -> IResult<Span, String, ParseError<Span>> {
   move |from: Span| {
-    context("octal digits", take_till1(|x| !LitBase::Oct.is_digit(x)))(from)
+    let (i, d) =
+      context("octal digit", satisfy(|x| LitBase::Oct.is_digit(x)))(from)?;
+    let (i, ds) = context(
+      "octal digits",
+      take_till(|x| !(LitBase::Oct.is_digit(x) || x == '_')),
+    )(i)?;
+    let ds: String = std::iter::once(d)
+      .chain((*ds.fragment()).to_owned().chars())
+      .filter(|x| *x != '_')
+      .collect();
+    Ok((i, ds))
   }
 }
 
 pub fn parse_dec_digits()
--> impl Fn(Span) -> IResult<Span, Span, ParseError<Span>> {
+-> impl Fn(Span) -> IResult<Span, String, ParseError<Span>> {
   move |from: Span| {
-    context("decimal digits", take_till1(|x| !LitBase::Dec.is_digit(x)))(from)
+    let (i, d) =
+      context("decimal digit", satisfy(|x| LitBase::Dec.is_digit(x)))(from)?;
+    let (i, ds) = context(
+      "decimal digits",
+      take_till(|x| !(LitBase::Dec.is_digit(x) || x == '_')),
+    )(i)?;
+    let ds: String = std::iter::once(d)
+      .chain((*ds.fragment()).to_owned().chars())
+      .filter(|x| *x != '_')
+      .collect();
+    Ok((i, ds))
   }
 }
 
 pub fn parse_hex_digits()
--> impl Fn(Span) -> IResult<Span, Span, ParseError<Span>> {
+-> impl Fn(Span) -> IResult<Span, String, ParseError<Span>> {
   move |from: Span| {
-    context("hexadecimal digits", take_till1(|x| !LitBase::Hex.is_digit(x)))(
-      from,
-    )
+    let (i, d) = context(
+      "hexadecimal digit",
+      satisfy(|x| LitBase::Hex.is_digit(x)),
+    )(from)?;
+    let (i, ds) = context(
+      "hexadecimal digits",
+      take_till(|x| !(LitBase::Hex.is_digit(x) || x == '_')),
+    )(i)?;
+    let ds: String = std::iter::once(d)
+      .chain((*ds.fragment()).to_owned().chars())
+      .filter(|x| *x != '_')
+      .collect();
+    Ok((i, ds))
   }
 }
 
@@ -145,10 +196,19 @@ pub fn parse_litbase_code()
     )
   }
 }
+pub fn parse_litbase_bits_code()
+-> impl Fn(Span) -> IResult<Span, LitBase, ParseError<Span>> {
+  move |from: Span| {
+    throw_err(
+      alt((value(LitBase::Bin, tag("b")), value(LitBase::Hex, tag("x"))))(from),
+      |_| ParseError::new(from, ParseErrorKind::UnknownBaseCode),
+    )
+  }
+}
 
 pub fn parse_litbase_digits(
   base: LitBase,
-) -> Box<dyn Fn(Span) -> IResult<Span, Span, ParseError<Span>>> {
+) -> Box<dyn Fn(Span) -> IResult<Span, String, ParseError<Span>>> {
   Box::new(move |from: Span| match base {
     LitBase::Bin => parse_bin_digits()(from),
     LitBase::Oct => parse_oct_digits()(from),
@@ -162,7 +222,7 @@ pub fn parse_litbase_bytes(
 ) -> impl Fn(Span) -> IResult<Span, Vec<u8>, ParseError<Span>> {
   move |from: Span| {
     let (i, o) = parse_litbase_digits(base)(from)?;
-    match base_x::decode(base.base_digits(), o.fragment()) {
+    match base_x::decode(base.base_digits(), &o) {
       Ok(bytes) => Ok((i, bytes)),
       Err(_) => Err(nom::Err::Error(ParseError::new(
         i,
