@@ -109,7 +109,7 @@ impl BoolOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Not, Bool(x)) => Some(Bool(!x)),
@@ -117,7 +117,7 @@ impl BoolOp {
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
       (Self::Eql, Bool(x), Bool(y)) => Some(Bool(x == y)),

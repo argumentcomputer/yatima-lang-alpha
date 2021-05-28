@@ -1,6 +1,7 @@
 use libipld::ipld::Ipld;
 use num_bigint::BigUint;
 use std::fmt;
+use std::cmp::min;
 
 use crate::{
   ipld_error::IpldError,
@@ -128,16 +129,16 @@ impl BitsOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Len, Bits(xs)) => Some(Nat(xs.len().into())),
-      (Self::Head, Bits(mut xs)) => {
-        let x = xs.pop();
-        x.map(Bool)
+      (Self::Head, Bits(xs)) => {
+        let x = xs.last();
+        x.map(|x| Bool(*x))
       }
-      (Self::Tail, Bits(mut xs)) => {
-        xs.pop();
+      (Self::Tail, Bits(xs)) => {
+        let xs = xs[0..xs.len()-1].to_vec();
         Some(Bits(xs))
       }
       (Self::ToBytes, Bits(xs)) => Some(Literal::Bytes(bits_to_bytes(xs).1)),
@@ -145,11 +146,12 @@ impl BitsOp {
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      (Self::Cons, Bool(x), Bits(mut xs)) => {
-        xs.push(x);
+      (Self::Cons, Bool(x), Bits(xs)) => {
+        let mut xs = xs.clone();
+        xs.push(*x);
         Some(Bits(xs))
       }
       (Self::Drop, Nat(x), Bits(xs)) => {
@@ -160,18 +162,20 @@ impl BitsOp {
         let (xs, _) = safe_split(x, xs);
         Some(Bits(xs))
       }
-      (Self::Append, Bits(mut xs), Bits(mut ys)) => {
-        xs.append(&mut ys);
+      (Self::Append, Bits(xs), Bits(ys)) => {
+        let mut xs = xs.clone();
+        xs.extend_from_slice(&ys);
         Some(Bits(xs))
       }
-      (Self::Remove, Nat(idx), Bits(mut xs)) => {
+      (Self::Remove, Nat(idx), Bits(xs)) => {
         let idx = usize::try_from(idx);
         match idx {
           Ok(idx) if idx < xs.len() => {
+            let mut xs = xs.clone();
             xs.remove(idx);
             Some(Bits(xs))
           }
-          _ => Some(Bits(xs)),
+          _ => Some(Bits(xs.clone())),
         }
       }
       (Self::Index, Nat(idx), Bits(xs)) => {
@@ -188,17 +192,18 @@ impl BitsOp {
     }
   }
 
-  pub fn apply3(self, x: Literal, y: Literal, z: Literal) -> Option<Literal> {
+  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y, z) {
-      (Self::Insert, Nat(idx), Bool(y), Bits(mut xs)) => {
+      (Self::Insert, Nat(idx), Bool(y), Bits(xs)) => {
         let idx = usize::try_from(idx);
         match idx {
           Ok(idx) if idx < xs.len() => {
-            xs.insert(idx, y);
+            let mut xs = xs.clone();
+            xs.insert(idx, *y);
             Some(Bits(xs))
           }
-          _ => Some(Bits(xs)),
+          _ => Some(Bits(xs.clone())),
         }
       }
       _ => None,
@@ -206,18 +211,19 @@ impl BitsOp {
   }
 }
 
-pub fn safe_split(idx: BigUint, mut xs: Vec<bool>) -> (Vec<bool>, Vec<bool>) {
+pub fn safe_split(idx: &BigUint, xs: &Vec<bool>) -> (Vec<bool>, Vec<bool>) {
   let idx = usize::try_from(idx);
   match idx {
     Ok(idx) if idx <= xs.len() => {
-      let ys = xs.split_off(idx);
-      (xs, ys)
+      let ys = xs[0..idx].to_vec();
+      let zs = xs[idx..].to_vec();
+      (ys, zs)
     }
-    _ => (xs, vec![]),
+    _ => (xs.clone(), vec![]),
   }
 }
 
-pub fn bits_to_byte(bits: [bool; 8]) -> u8 {
+pub fn bits_to_byte(bits: &[bool]) -> u8 {
   let mut i = 0;
   for b in bits.iter().rev() {
     if *b {
@@ -232,8 +238,7 @@ pub fn bits_to_byte(bits: [bool; 8]) -> u8 {
 
 pub fn byte_to_bits(byte: u8) -> [bool; 8] {
   let mut x = byte;
-  let mut res: [bool; 8] =
-    [false, false, false, false, false, false, false, false];
+  let mut res: [bool; 8] = [false; 8];
   for i in 0..=7 {
     res[i] = x % 2 == 1;
     x = x >> 1;
@@ -241,26 +246,26 @@ pub fn byte_to_bits(byte: u8) -> [bool; 8] {
   res
 }
 
-pub fn bits_to_bytes(bits: Vec<bool>) -> (usize, Vec<u8>) {
+pub fn bits_to_bytes(bits: &Vec<bool>) -> (usize, Vec<u8>) {
   let len = bits.len();
-  let mut x = bits;
   let mut res = Vec::new();
-  while x.len() % 8 != 0 {
-    x.push(false);
+  let mut idx = 0;
+  while len >= idx+8 {
+    let byte = bits_to_byte(&bits[idx..idx+8]);
+    res.push(byte);
+    idx = idx+8;
   }
-  while !x.is_empty() {
-    let rest = x.split_off(8);
-    let byte = bits_to_byte(x.try_into().unwrap());
-    x = rest;
-    res.push(byte)
+  if len > idx {
+    let byte = bits_to_byte(&bits[idx..]);
+    res.push(byte);
   }
   (len, res)
 }
 
-pub fn bytes_to_bits(len: usize, bytes: Vec<u8>) -> Vec<bool> {
+pub fn bytes_to_bits(len: usize, bytes: &Vec<u8>) -> Vec<bool> {
   let mut res = Vec::new();
   for byte in bytes {
-    let bits = byte_to_bits(byte);
+    let bits = byte_to_bits(*byte);
     for b in bits.iter() {
       res.push(*b)
     }
@@ -325,21 +330,21 @@ pub mod tests {
 
   #[quickcheck]
   fn test_bits_to_byte(x: Bits) -> bool {
-    byte_to_bits(bits_to_byte(x.0)) == x.0
+    byte_to_bits(bits_to_byte(&x.0)) == x.0
   }
 
   #[quickcheck]
-  fn test_byte_to_bits(x: u8) -> bool { bits_to_byte(byte_to_bits(x)) == x }
+  fn test_byte_to_bits(x: u8) -> bool { bits_to_byte(&byte_to_bits(x)) == x }
 
   #[quickcheck]
   fn test_bits_to_bytes(x: Vec<bool>) -> bool {
-    let (len, x1) = bits_to_bytes(x.clone());
-    bytes_to_bits(len, x1) == x
+    let (len, x1) = bits_to_bytes(&x);
+    bytes_to_bits(len, &x1) == x
   }
 
   #[quickcheck]
   fn test_bytes_to_bits(x: Vec<u8>) -> bool {
     let len = x.len() * 8;
-    bits_to_bytes(bytes_to_bits(len, x.clone())) == (len, x)
+    bits_to_bytes(&bytes_to_bits(len, &x)) == (len, x)
   }
 }

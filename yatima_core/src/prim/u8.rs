@@ -318,32 +318,32 @@ impl U8Op {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::CountZeros, U8(x)) => Some(U32(x.count_zeros())),
       (Self::CountOnes, U8(x)) => Some(U32(x.count_ones())),
-      (Self::ToChar, U8(x)) => Some(Char(x.into())),
-      (Self::ToU16, U8(x)) => Some(U16(x.into())),
-      (Self::ToU32, U8(x)) => Some(U32(x.into())),
-      (Self::ToU64, U8(x)) => Some(U64(x.into())),
-      (Self::ToU128, U8(x)) => Some(U128(x.into())),
-      (Self::ToI8, U8(x)) => i8::try_from(x).ok().map(I8),
-      (Self::ToI16, U8(x)) => Some(I16(x.into())),
-      (Self::ToI32, U8(x)) => Some(I32(x.into())),
-      (Self::ToI64, U8(x)) => Some(I64(x.into())),
-      (Self::ToI128, U8(x)) => Some(I128(x.into())),
+      (Self::ToChar, U8(x)) => Some(Char((*x).into())),
+      (Self::ToU16, U8(x)) => Some(U16((*x).into())),
+      (Self::ToU32, U8(x)) => Some(U32((*x).into())),
+      (Self::ToU64, U8(x)) => Some(U64((*x).into())),
+      (Self::ToU128, U8(x)) => Some(U128((*x).into())),
+      (Self::ToI8, U8(x)) => i8::try_from(*x).ok().map(I8),
+      (Self::ToI16, U8(x)) => Some(I16((*x).into())),
+      (Self::ToI32, U8(x)) => Some(I32((*x).into())),
+      (Self::ToI64, U8(x)) => Some(I64((*x).into())),
+      (Self::ToI128, U8(x)) => Some(I128((*x).into())),
       (Self::Not, U8(x)) => Some(U8(!x)),
-      (Self::ToInt, U8(x)) => Some(Int(x.into())),
+      (Self::ToInt, U8(x)) => Some(Int((*x).into())),
       (Self::ToBytes, U8(x)) => Some(Bytes(x.to_be_bytes().into())),
       (Self::ToBits, U8(x)) => {
-        Some(Bits(bits::bytes_to_bits(8, x.to_be_bytes().into())))
+        Some(Bits(bits::bytes_to_bits(8, &x.to_be_bytes().into())))
       }
       _ => None,
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
       (Self::Eql, U8(x), U8(y)) => Some(Bool(x == y)),
@@ -354,16 +354,16 @@ impl U8Op {
       (Self::And, U8(x), U8(y)) => Some(U8(x & y)),
       (Self::Or, U8(x), U8(y)) => Some(U8(x | y)),
       (Self::Xor, U8(x), U8(y)) => Some(U8(x ^ y)),
-      (Self::Add, U8(x), U8(y)) => Some(U8(x.wrapping_add(y))),
-      (Self::Sub, U8(x), U8(y)) => Some(U8(x.wrapping_sub(y))),
-      (Self::Mul, U8(x), U8(y)) => Some(U8(x.wrapping_mul(y))),
-      (Self::Div, U8(x), U8(y)) => Some(U8(x.wrapping_div(y))),
-      (Self::Mod, U8(x), U8(y)) => Some(U8(x.wrapping_rem(y))),
-      (Self::Pow, U8(x), U32(y)) => Some(U8(x.wrapping_pow(y))),
-      (Self::Shl, U32(x), U8(y)) => Some(U8(y.wrapping_shl(x))),
-      (Self::Shr, U32(x), U8(y)) => Some(U8(y.wrapping_shr(x))),
-      (Self::Rol, U32(x), U8(y)) => Some(U8(y.rotate_left(x))),
-      (Self::Ror, U32(x), U8(y)) => Some(U8(y.rotate_right(x))),
+      (Self::Add, U8(x), U8(y)) => Some(U8(x.wrapping_add(*y))),
+      (Self::Sub, U8(x), U8(y)) => Some(U8(x.wrapping_sub(*y))),
+      (Self::Mul, U8(x), U8(y)) => Some(U8(x.wrapping_mul(*y))),
+      (Self::Div, U8(x), U8(y)) => Some(U8(x.wrapping_div(*y))),
+      (Self::Mod, U8(x), U8(y)) => Some(U8(x.wrapping_rem(*y))),
+      (Self::Pow, U8(x), U32(y)) => Some(U8(x.wrapping_pow(*y))),
+      (Self::Shl, U32(x), U8(y)) => Some(U8(y.wrapping_shl(*x))),
+      (Self::Shr, U32(x), U8(y)) => Some(U8(y.wrapping_shr(*x))),
+      (Self::Rol, U32(x), U8(y)) => Some(U8(y.rotate_left(*x))),
+      (Self::Ror, U32(x), U8(y)) => Some(U8(y.rotate_right(*x))),
       _ => None,
     }
   }

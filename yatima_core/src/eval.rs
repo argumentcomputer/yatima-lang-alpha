@@ -358,7 +358,7 @@ impl DAG {
             arg.whnf(defs);
             match arg.head {
               DAGPtr::Lit(link) => {
-                let x = unsafe { (*link.as_ptr()).lit.clone() };
+                let x = unsafe { &(*link.as_ptr()).lit };
                 let res = opr.apply1(x);
                 if let Some(res) = res {
                   let top = DAGPtr::App(trail.pop().unwrap());
@@ -381,8 +381,8 @@ impl DAG {
             arg2.whnf(defs);
             match (arg1.head, arg2.head) {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
-                let x = unsafe { (*x_link.as_ptr()).lit.clone() };
-                let y = unsafe { (*y_link.as_ptr()).lit.clone() };
+                let x = unsafe { &(*x_link.as_ptr()).lit };
+                let y = unsafe { &(*y_link.as_ptr()).lit };
                 let res = opr.apply2(y, x);
                 if let Some(res) = res {
                   trail.pop();
@@ -412,9 +412,9 @@ impl DAG {
                 DAGPtr::Lit(y_link),
                 DAGPtr::Lit(z_link),
               ) => {
-                let x = unsafe { (*x_link.as_ptr()).lit.clone() };
-                let y = unsafe { (*y_link.as_ptr()).lit.clone() };
-                let z = unsafe { (*z_link.as_ptr()).lit.clone() };
+                let x = unsafe { &(*x_link.as_ptr()).lit };
+                let y = unsafe { &(*y_link.as_ptr()).lit };
+                let z = unsafe { &(*z_link.as_ptr()).lit };
                 let res = opr.apply3(z, y, x);
                 if let Some(res) = res {
                   trail.pop();

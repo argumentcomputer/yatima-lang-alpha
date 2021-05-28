@@ -131,12 +131,12 @@ impl NatOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Suc, Nat(x)) => Some(Nat(x + BigUint::from(1u64))),
       (Self::Pre, Nat(x)) => {
-        if x != 0u64.into() {
+        if *x != 0u64.into() {
           Some(Nat(x - BigUint::from(1u64)))
         }
         else {
@@ -147,7 +147,7 @@ impl NatOp {
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     let tt = Bool(true);
     let ff = Bool(false);
@@ -160,8 +160,8 @@ impl NatOp {
       (Self::Add, Nat(x), Nat(y)) => Some(Nat(x + y)),
       (Self::Sub, Nat(x), Nat(y)) if x >= y => Some(Nat(x - y)),
       (Self::Mul, Nat(x), Nat(y)) => Some(Nat(x * y)),
-      (Self::Div, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x / y)),
-      (Self::Mod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x % y)),
+      (Self::Div, Nat(x), Nat(y)) if *y != (0u64).into() => Some(Nat(x / y)),
+      (Self::Mod, Nat(x), Nat(y)) if *y != (0u64).into() => Some(Nat(x % y)),
       _ => None,
     }
   }

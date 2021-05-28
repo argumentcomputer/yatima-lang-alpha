@@ -325,33 +325,33 @@ impl I128Op {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Abs, I128(x)) => Some(U128(x.unsigned_abs())),
       (Self::Sgn, I128(x)) => Some(Bool(x.is_positive())),
       (Self::CountZeros, I128(x)) => Some(U32(x.count_zeros())),
       (Self::CountOnes, I128(x)) => Some(U32(x.count_ones())),
-      (Self::ToU8, I128(x)) => u8::try_from(x).ok().map(U8),
-      (Self::ToU16, I128(x)) => u16::try_from(x).ok().map(U16),
-      (Self::ToU32, I128(x)) => u32::try_from(x).ok().map(U32),
-      (Self::ToU64, I128(x)) => u64::try_from(x).ok().map(U64),
-      (Self::ToU128, I128(x)) => u128::try_from(x).ok().map(U128),
-      (Self::ToI8, I128(x)) => i8::try_from(x).ok().map(I8),
-      (Self::ToI16, I128(x)) => i16::try_from(x).ok().map(I16),
-      (Self::ToI32, I128(x)) => i32::try_from(x).ok().map(I32),
-      (Self::ToI64, I128(x)) => i64::try_from(x).ok().map(I64),
+      (Self::ToU8, I128(x)) => u8::try_from(*x).ok().map(U8),
+      (Self::ToU16, I128(x)) => u16::try_from(*x).ok().map(U16),
+      (Self::ToU32, I128(x)) => u32::try_from(*x).ok().map(U32),
+      (Self::ToU64, I128(x)) => u64::try_from(*x).ok().map(U64),
+      (Self::ToU128, I128(x)) => u128::try_from(*x).ok().map(U128),
+      (Self::ToI8, I128(x)) => i8::try_from(*x).ok().map(I8),
+      (Self::ToI16, I128(x)) => i16::try_from(*x).ok().map(I16),
+      (Self::ToI32, I128(x)) => i32::try_from(*x).ok().map(I32),
+      (Self::ToI64, I128(x)) => i64::try_from(*x).ok().map(I64),
       (Self::Not, I128(x)) => Some(I128(!x)),
-      (Self::ToInt, I128(x)) => Some(Int(x.into())),
+      (Self::ToInt, I128(x)) => Some(Int((*x).into())),
       (Self::ToBytes, I128(x)) => Some(Bytes(x.to_be_bytes().into())),
       (Self::ToBits, I128(x)) => {
-        Some(Bits(bits::bytes_to_bits(128, x.to_be_bytes().into())))
+        Some(Bits(bits::bytes_to_bits(128, &x.to_be_bytes().into())))
       }
       _ => None,
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
       (Self::Eql, I128(x), I128(y)) => Some(Bool(x == y)),
@@ -362,16 +362,16 @@ impl I128Op {
       (Self::And, I128(x), I128(y)) => Some(I128(x & y)),
       (Self::Or, I128(x), I128(y)) => Some(I128(x | y)),
       (Self::Xor, I128(x), I128(y)) => Some(I128(x ^ y)),
-      (Self::Add, I128(x), I128(y)) => Some(I128(x.wrapping_add(y))),
-      (Self::Sub, I128(x), I128(y)) => Some(I128(x.wrapping_sub(y))),
-      (Self::Mul, I128(x), I128(y)) => Some(I128(x.wrapping_mul(y))),
-      (Self::Div, I128(x), I128(y)) => Some(I128(x.wrapping_div(y))),
-      (Self::Mod, I128(x), I128(y)) => Some(I128(x.wrapping_rem(y))),
-      (Self::Pow, I128(x), U32(y)) => Some(I128(x.wrapping_pow(y))),
-      (Self::Shl, U32(x), I128(y)) => Some(I128(y.wrapping_shl(x))),
-      (Self::Shr, U32(x), I128(y)) => Some(I128(y.wrapping_shr(x))),
-      (Self::Rol, U32(x), I128(y)) => Some(I128(y.rotate_left(x))),
-      (Self::Ror, U32(x), I128(y)) => Some(I128(y.rotate_right(x))),
+      (Self::Add, I128(x), I128(y)) => Some(I128(x.wrapping_add(*y))),
+      (Self::Sub, I128(x), I128(y)) => Some(I128(x.wrapping_sub(*y))),
+      (Self::Mul, I128(x), I128(y)) => Some(I128(x.wrapping_mul(*y))),
+      (Self::Div, I128(x), I128(y)) => Some(I128(x.wrapping_div(*y))),
+      (Self::Mod, I128(x), I128(y)) => Some(I128(x.wrapping_rem(*y))),
+      (Self::Pow, I128(x), U32(y)) => Some(I128(x.wrapping_pow(*y))),
+      (Self::Shl, U32(x), I128(y)) => Some(I128(y.wrapping_shl(*x))),
+      (Self::Shr, U32(x), I128(y)) => Some(I128(y.wrapping_shr(*x))),
+      (Self::Rol, U32(x), I128(y)) => Some(I128(y.rotate_left(*x))),
+      (Self::Ror, U32(x), I128(y)) => Some(I128(y.rotate_right(*x))),
       _ => None,
     }
   }

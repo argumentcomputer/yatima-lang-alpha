@@ -219,7 +219,7 @@ pub fn parse_bits(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
     match base_x::decode(base.base_digits(), &digits) {
       Ok(mut bytes) => {
         bytes.reverse();
-        let bits = bits::bytes_to_bits(len, bytes);
+        let bits = bits::bytes_to_bits(len, &bytes);
         Ok((i, Literal::Bits(bits)))
       }
       Err(_) => Err(nom::Err::Error(ParseError::new(

@@ -325,33 +325,33 @@ impl I16Op {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Abs, I16(x)) => Some(U16(x.unsigned_abs())),
       (Self::Sgn, I16(x)) => Some(Bool(x.is_positive())),
       (Self::CountZeros, I16(x)) => Some(U32(x.count_zeros())),
       (Self::CountOnes, I16(x)) => Some(U32(x.count_ones())),
-      (Self::ToU8, I16(x)) => u8::try_from(x).ok().map(U8),
-      (Self::ToU16, I16(x)) => u16::try_from(x).ok().map(U16),
-      (Self::ToU32, I16(x)) => u32::try_from(x).ok().map(U32),
-      (Self::ToU64, I16(x)) => u64::try_from(x).ok().map(U64),
-      (Self::ToU128, I16(x)) => u128::try_from(x).ok().map(U128),
-      (Self::ToI8, I16(x)) => i8::try_from(x).ok().map(I8),
-      (Self::ToI32, I16(x)) => Some(I32(x.into())),
-      (Self::ToI64, I16(x)) => Some(I64(x.into())),
-      (Self::ToI128, I16(x)) => Some(I128(x.into())),
+      (Self::ToU8, I16(x)) => u8::try_from(*x).ok().map(U8),
+      (Self::ToU16, I16(x)) => u16::try_from(*x).ok().map(U16),
+      (Self::ToU32, I16(x)) => u32::try_from(*x).ok().map(U32),
+      (Self::ToU64, I16(x)) => u64::try_from(*x).ok().map(U64),
+      (Self::ToU128, I16(x)) => u128::try_from(*x).ok().map(U128),
+      (Self::ToI8, I16(x)) => i8::try_from(*x).ok().map(I8),
+      (Self::ToI32, I16(x)) => Some(I32((*x).into())),
+      (Self::ToI64, I16(x)) => Some(I64((*x).into())),
+      (Self::ToI128, I16(x)) => Some(I128((*x).into())),
       (Self::Not, I16(x)) => Some(I16(!x)),
-      (Self::ToInt, I16(x)) => Some(Int(x.into())),
+      (Self::ToInt, I16(x)) => Some(Int((*x).into())),
       (Self::ToBytes, I16(x)) => Some(Bytes(x.to_be_bytes().into())),
       (Self::ToBits, I16(x)) => {
-        Some(Bits(bits::bytes_to_bits(16, x.to_be_bytes().into())))
+        Some(Bits(bits::bytes_to_bits(16, &x.to_be_bytes().into())))
       }
       _ => None,
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
       (Self::Eql, I16(x), I16(y)) => Some(Bool(x == y)),
@@ -362,16 +362,16 @@ impl I16Op {
       (Self::And, I16(x), I16(y)) => Some(I16(x & y)),
       (Self::Or, I16(x), I16(y)) => Some(I16(x | y)),
       (Self::Xor, I16(x), I16(y)) => Some(I16(x ^ y)),
-      (Self::Add, I16(x), I16(y)) => Some(I16(x.wrapping_add(y))),
-      (Self::Sub, I16(x), I16(y)) => Some(I16(x.wrapping_sub(y))),
-      (Self::Mul, I16(x), I16(y)) => Some(I16(x.wrapping_mul(y))),
-      (Self::Div, I16(x), I16(y)) => Some(I16(x.wrapping_div(y))),
-      (Self::Mod, I16(x), I16(y)) => Some(I16(x.wrapping_rem(y))),
-      (Self::Pow, I16(x), U32(y)) => Some(I16(x.wrapping_pow(y))),
-      (Self::Shl, U32(x), I16(y)) => Some(I16(y.wrapping_shl(x))),
-      (Self::Shr, U32(x), I16(y)) => Some(I16(y.wrapping_shr(x))),
-      (Self::Rol, U32(x), I16(y)) => Some(I16(y.rotate_left(x))),
-      (Self::Ror, U32(x), I16(y)) => Some(I16(y.rotate_right(x))),
+      (Self::Add, I16(x), I16(y)) => Some(I16(x.wrapping_add(*y))),
+      (Self::Sub, I16(x), I16(y)) => Some(I16(x.wrapping_sub(*y))),
+      (Self::Mul, I16(x), I16(y)) => Some(I16(x.wrapping_mul(*y))),
+      (Self::Div, I16(x), I16(y)) => Some(I16(x.wrapping_div(*y))),
+      (Self::Mod, I16(x), I16(y)) => Some(I16(x.wrapping_rem(*y))),
+      (Self::Pow, I16(x), U32(y)) => Some(I16(x.wrapping_pow(*y))),
+      (Self::Shl, U32(x), I16(y)) => Some(I16(y.wrapping_shl(*x))),
+      (Self::Shr, U32(x), I16(y)) => Some(I16(y.wrapping_shr(*x))),
+      (Self::Rol, U32(x), I16(y)) => Some(I16(y.rotate_left(*x))),
+      (Self::Ror, U32(x), I16(y)) => Some(I16(y.rotate_right(*x))),
       _ => None,
     }
   }

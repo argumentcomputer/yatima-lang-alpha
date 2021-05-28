@@ -311,31 +311,31 @@ impl U64Op {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::CountZeros, U64(x)) => Some(U32(x.count_zeros())),
       (Self::CountOnes, U64(x)) => Some(U32(x.count_ones())),
-      (Self::ToU8, U64(x)) => u8::try_from(x).ok().map(U8),
-      (Self::ToU16, U64(x)) => u16::try_from(x).ok().map(U16),
-      (Self::ToU32, U64(x)) => u32::try_from(x).ok().map(U32),
-      (Self::ToU128, U64(x)) => Some(U128(x.into())),
-      (Self::ToI8, U64(x)) => i8::try_from(x).ok().map(I8),
-      (Self::ToI16, U64(x)) => i16::try_from(x).ok().map(I16),
-      (Self::ToI32, U64(x)) => i32::try_from(x).ok().map(I32),
-      (Self::ToI64, U64(x)) => i64::try_from(x).ok().map(I64),
-      (Self::ToI128, U64(x)) => Some(I128(x.into())),
+      (Self::ToU8, U64(x)) => u8::try_from(*x).ok().map(U8),
+      (Self::ToU16, U64(x)) => u16::try_from(*x).ok().map(U16),
+      (Self::ToU32, U64(x)) => u32::try_from(*x).ok().map(U32),
+      (Self::ToU128, U64(x)) => Some(U128((*x).into())),
+      (Self::ToI8, U64(x)) => i8::try_from(*x).ok().map(I8),
+      (Self::ToI16, U64(x)) => i16::try_from(*x).ok().map(I16),
+      (Self::ToI32, U64(x)) => i32::try_from(*x).ok().map(I32),
+      (Self::ToI64, U64(x)) => i64::try_from(*x).ok().map(I64),
+      (Self::ToI128, U64(x)) => Some(I128((*x).into())),
       (Self::Not, U64(x)) => Some(U64(!x)),
-      (Self::ToInt, U64(x)) => Some(Int(x.into())),
+      (Self::ToInt, U64(x)) => Some(Int((*x).into())),
       (Self::ToBytes, U64(x)) => Some(Bytes(x.to_be_bytes().into())),
       (Self::ToBits, U64(x)) => {
-        Some(Bits(bits::bytes_to_bits(64, x.to_be_bytes().into())))
+        Some(Bits(bits::bytes_to_bits(64, &x.to_be_bytes().into())))
       }
       _ => None,
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
       (Self::Eql, U64(x), U64(y)) => Some(Bool(x == y)),
@@ -346,16 +346,16 @@ impl U64Op {
       (Self::And, U64(x), U64(y)) => Some(U64(x & y)),
       (Self::Or, U64(x), U64(y)) => Some(U64(x | y)),
       (Self::Xor, U64(x), U64(y)) => Some(U64(x ^ y)),
-      (Self::Add, U64(x), U64(y)) => Some(U64(x.wrapping_add(y))),
-      (Self::Sub, U64(x), U64(y)) => Some(U64(x.wrapping_sub(y))),
-      (Self::Mul, U64(x), U64(y)) => Some(U64(x.wrapping_mul(y))),
-      (Self::Div, U64(x), U64(y)) => Some(U64(x.wrapping_div(y))),
-      (Self::Mod, U64(x), U64(y)) => Some(U64(x.wrapping_rem(y))),
-      (Self::Pow, U64(x), U32(y)) => Some(U64(x.wrapping_pow(y))),
-      (Self::Shl, U32(x), U64(y)) => Some(U64(y.wrapping_shl(x))),
-      (Self::Shr, U32(x), U64(y)) => Some(U64(y.wrapping_shr(x))),
-      (Self::Rol, U32(x), U64(y)) => Some(U64(y.rotate_left(x))),
-      (Self::Ror, U32(x), U64(y)) => Some(U64(y.rotate_right(x))),
+      (Self::Add, U64(x), U64(y)) => Some(U64(x.wrapping_add(*y))),
+      (Self::Sub, U64(x), U64(y)) => Some(U64(x.wrapping_sub(*y))),
+      (Self::Mul, U64(x), U64(y)) => Some(U64(x.wrapping_mul(*y))),
+      (Self::Div, U64(x), U64(y)) => Some(U64(x.wrapping_div(*y))),
+      (Self::Mod, U64(x), U64(y)) => Some(U64(x.wrapping_rem(*y))),
+      (Self::Pow, U64(x), U32(y)) => Some(U64(x.wrapping_pow(*y))),
+      (Self::Shl, U32(x), U64(y)) => Some(U64(y.wrapping_shl(*x))),
+      (Self::Shr, U32(x), U64(y)) => Some(U64(y.wrapping_shr(*x))),
+      (Self::Rol, U32(x), U64(y)) => Some(U64(y.rotate_left(*x))),
+      (Self::Ror, U32(x), U64(y)) => Some(U64(y.rotate_right(*x))),
       _ => None,
     }
   }

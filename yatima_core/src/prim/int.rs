@@ -141,7 +141,7 @@ impl IntOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
       (Self::Sgn, Int(x)) => match x.sign() {
@@ -149,12 +149,12 @@ impl IntOp {
         Sign::Plus => Some(Int(BigInt::from(1i64))),
         Sign::Minus => Some(Int(BigInt::from(-1i64))),
       },
-      (Self::Abs, Int(x)) => Some(Nat(x.into_parts().1)),
+      (Self::Abs, Int(x)) => Some(Nat(x.clone().into_parts().1)),
       _ => None,
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     let tt = Bool(true);
     let ff = Bool(false);
@@ -167,8 +167,8 @@ impl IntOp {
       (Self::Add, Int(x), Int(y)) => Some(Int(x + y)),
       (Self::Sub, Int(x), Int(y)) => Some(Int(x - y)),
       (Self::Mul, Int(x), Int(y)) => Some(Int(x * y)),
-      (Self::Div, Int(x), Int(y)) if y != 0.into() => Some(Int(x / y)),
-      (Self::Mod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
+      (Self::Div, Int(x), Int(y)) if *y != 0.into() => Some(Int(x / y)),
+      (Self::Mod, Int(x), Int(y)) if *y != 0.into() => Some(Int(x % y)),
       _ => None,
     }
   }

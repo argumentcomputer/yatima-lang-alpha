@@ -235,11 +235,11 @@ impl CharOp {
     }
   }
 
-  pub fn apply1(self, x: Literal) -> Option<Literal> {
+  pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
-      (Self::FromU32, U32(x)) => char::from_u32(x).map(Char),
-      (Self::ToU32, Char(x)) => Some(U32(x.into())),
+      (Self::FromU32, U32(x)) => char::from_u32(*x).map(Char),
+      (Self::ToU32, Char(x)) => Some(U32((*x).into())),
       (Self::IsAlphabetic, Char(x)) => Some(Bool(x.is_alphabetic())),
       (Self::IsAlphanumeric, Char(x)) => Some(Bool(x.is_alphanumeric())),
       (Self::IsAscii, Char(x)) => Some(Bool(x.is_ascii())),
@@ -276,10 +276,10 @@ impl CharOp {
     }
   }
 
-  pub fn apply2(self, x: Literal, y: Literal) -> Option<Literal> {
+  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      (Self::IsDigit, Char(x), U32(y)) => Some(Bool(x.is_digit(y))),
+      (Self::IsDigit, Char(x), U32(y)) => Some(Bool(x.is_digit(*y))),
       _ => None,
     }
   }
