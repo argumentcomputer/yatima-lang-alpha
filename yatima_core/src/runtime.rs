@@ -547,7 +547,7 @@ pub fn whnf(dag: &mut DAG) {
             (DAG::Lit(x_link), DAG::Lit(y_link)) => {
               let x = unsafe { &(*x_link.as_ptr()).lit };
               let y = unsafe { &(*y_link.as_ptr()).lit };
-              let res = opr.apply2(y, x);
+              let res = opr.apply2(x, y);
               if let Some(res) = res {
                 trail.pop();
                 let top = DAG::App(trail.pop().unwrap());
@@ -579,7 +579,7 @@ pub fn whnf(dag: &mut DAG) {
               let x = unsafe { &(*x_link.as_ptr()).lit };
               let y = unsafe { &(*y_link.as_ptr()).lit };
               let z = unsafe { &(*z_link.as_ptr()).lit };
-              let res = opr.apply3(z, y, x);
+              let res = opr.apply3(x, y, z);
               if let Some(res) = res {
                 trail.pop();
                 trail.pop();

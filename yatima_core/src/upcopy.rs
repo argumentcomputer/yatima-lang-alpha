@@ -237,21 +237,6 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
           }
         }
       }
-      ParentPtr::LetExp(link) => {
-        let Let { copy, uses, typ, bod, parents, .. } = link.as_ref();
-        match copy {
-          Some(cache) => {
-            (*cache.as_ptr()).exp = new_child;
-          }
-          None => {
-            let new_let = alloc_let(*uses, new_child, *typ, *bod, None);
-            (*link.as_ptr()).copy = Some(new_let);
-            for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::Let(new_let), *parent)
-            }
-          }
-        }
-      }
       ParentPtr::LetTyp(link) => {
         let Let { copy, uses, exp, bod, parents, .. } = link.as_ref();
         match copy {
@@ -259,7 +244,22 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).typ = new_child;
           }
           None => {
-            let new_let = alloc_let(*uses, *exp, new_child, *bod, None);
+            let new_let = alloc_let(*uses, new_child, *exp, *bod, None);
+            (*link.as_ptr()).copy = Some(new_let);
+            for parent in DLL::iter_option(*parents) {
+              upcopy(DAGPtr::Let(new_let), *parent)
+            }
+          }
+        }
+      }
+      ParentPtr::LetExp(link) => {
+        let Let { copy, uses, typ, bod, parents, .. } = link.as_ref();
+        match copy {
+          Some(cache) => {
+            (*cache.as_ptr()).exp = new_child;
+          }
+          None => {
+            let new_let = alloc_let(*uses, *typ, new_child, *bod, None);
             (*link.as_ptr()).copy = Some(new_let);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Let(new_let), *parent)
@@ -278,7 +278,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             (*cache.as_ptr()).bod = new_child;
           }
           None => {
-            let new_let = alloc_let(*uses, *exp, *typ, new_child, None);
+            let new_let = alloc_let(*uses, *typ, *exp, new_child, None);
             (*link.as_ptr()).copy = Some(new_let);
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Let(new_let), *parent)

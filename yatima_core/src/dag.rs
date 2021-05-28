@@ -438,8 +438,8 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
       },
       ParentPtr::AnnExp(parent) => (*parent.as_ptr()).exp = newchild,
       ParentPtr::AnnTyp(parent) => (*parent.as_ptr()).typ = newchild,
-      ParentPtr::LetExp(parent) => (*parent.as_ptr()).exp = newchild,
       ParentPtr::LetTyp(parent) => (*parent.as_ptr()).typ = newchild,
+      ParentPtr::LetExp(parent) => (*parent.as_ptr()).exp = newchild,
       ParentPtr::LetBod(parent) => match newchild {
         DAGPtr::Lam(link) => (*parent.as_ptr()).bod = link,
         _ => panic!("Cannot install a non-lambda node as let body"),
@@ -1260,8 +1260,8 @@ impl fmt::Debug for DAG {
         ParentPtr::AllImg(link) => format!("AllImg<{:?}>", link.as_ptr()),
         ParentPtr::AnnExp(link) => format!("AnnExp<{:?}>", link.as_ptr()),
         ParentPtr::AnnTyp(link) => format!("AnnTyp<{:?}>", link.as_ptr()),
-        ParentPtr::LetExp(link) => format!("LetExp<{:?}>", link.as_ptr()),
         ParentPtr::LetTyp(link) => format!("LetTyp<{:?}>", link.as_ptr()),
+        ParentPtr::LetExp(link) => format!("LetExp<{:?}>", link.as_ptr()),
         ParentPtr::LetBod(link) => format!("LetBod<{:?}>", link.as_ptr()),
       }
     }

@@ -388,7 +388,7 @@ impl DAG {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
                 let x = unsafe { &(*x_link.as_ptr()).lit };
                 let y = unsafe { &(*y_link.as_ptr()).lit };
-                let res = opr.apply2(y, x);
+                let res = opr.apply2(x, y);
                 if let Some(res) = res {
                   trail.pop();
                   let top = DAGPtr::App(trail.pop().unwrap());
@@ -420,7 +420,7 @@ impl DAG {
                 let x = unsafe { &(*x_link.as_ptr()).lit };
                 let y = unsafe { &(*y_link.as_ptr()).lit };
                 let z = unsafe { &(*z_link.as_ptr()).lit };
-                let res = opr.apply3(z, y, x);
+                let res = opr.apply3(x, y, z);
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
