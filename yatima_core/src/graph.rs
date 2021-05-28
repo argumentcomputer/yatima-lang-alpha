@@ -32,7 +32,7 @@ pub enum Node {
   Dat,
   Cse,
   Ref { name: String, rec: bool, exp: Cid, ast: Cid },
-  Let { uses: Uses, name: String },
+  Let { uses: Uses },
   Typ,
   Ann,
   Lit { lit: Literal },
@@ -55,10 +55,10 @@ impl fmt::Display for Node {
       Self::Cse => write!(f, "case"),
       Self::Ref { name, rec: false, .. } => write!(f, "#{}", name),
       Self::Ref { name, rec: true, .. } => write!(f, "#^{}", name),
-      Self::Let { uses: Uses::None, name } => write!(f, "let0 {}", name),
-      Self::Let { uses: Uses::Once, name } => write!(f, "let1 {}", name),
-      Self::Let { uses: Uses::Affi, name } => write!(f, "let& {}", name),
-      Self::Let { uses: Uses::Many, name } => write!(f, "letω {}", name),
+      Self::Let { uses: Uses::None } => write!(f, "let0"),
+      Self::Let { uses: Uses::Once } => write!(f, "let1"),
+      Self::Let { uses: Uses::Affi } => write!(f, "let&"),
+      Self::Let { uses: Uses::Many } => write!(f, "letω"),
       Self::Typ => write!(f, "Type"),
       Self::Ann => write!(f, "::"),
       Self::App => write!(f, "( )"),
@@ -225,10 +225,6 @@ pub fn from_dag_ptr(
             let bind_ix = from_dag_ptr(&DAGPtr::Slf(*link), map, graph);
             graph.add_edge(ix, bind_ix, Edge::BindSlf);
           }
-          BinderPtr::Let(link) => {
-            let bind_ix = from_dag_ptr(&DAGPtr::Let(*link), map, graph);
-            graph.add_edge(ix, bind_ix, Edge::BindLet);
-          }
         }
         add_parent_edges(ix, map, graph, *parents);
         ix
@@ -344,17 +340,17 @@ pub fn from_dag_ptr(
         *ix
       }
       else {
-        let Let { uses, var, typ, exp, bod, parents, .. } =
+        let Let { uses, typ, exp, bod, parents, .. } =
           unsafe { &mut *link.as_ptr() };
         let ix =
-          graph.add_node(Node::Let { uses: *uses, name: var.nam.clone() });
+          graph.add_node(Node::Let { uses: *uses });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let typ_ix = from_dag_ptr(typ, map, graph);
         graph.add_edge(ix, typ_ix, Edge::Downlink);
         let exp_ix = from_dag_ptr(exp, map, graph);
         graph.add_edge(ix, exp_ix, Edge::Downlink);
-        let bod_ix = from_dag_ptr(bod, map, graph);
+        let bod_ix = from_dag_ptr(&DAGPtr::Lam(*bod), map, graph);
         graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }

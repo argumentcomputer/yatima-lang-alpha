@@ -1,7 +1,6 @@
 use libipld::ipld::Ipld;
 use num_bigint::BigUint;
 use std::fmt;
-use std::cmp::min;
 
 use crate::{
   ipld_error::IpldError,
@@ -10,10 +9,7 @@ use crate::{
   yatima,
 };
 
-use core::convert::{
-  TryFrom,
-  TryInto,
-};
+use core::convert::TryFrom;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum BitsOp {

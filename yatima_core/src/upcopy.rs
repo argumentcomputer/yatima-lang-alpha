@@ -78,15 +78,12 @@ pub fn clean_up(cc: &ParentPtr) {
     | ParentPtr::LetBod(mut link) => unsafe {
       let let_ = link.as_mut();
       if let Some(let_copy) = let_.copy {
-        let Let { var, typ, exp, bod, typ_ref, exp_ref, bod_ref, .. } =
+        let Let { typ, exp, bod, typ_ref, exp_ref, bod_ref, .. } =
           &mut *let_copy.as_ptr();
         let_.copy = None;
         add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
         add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
-        add_to_parents(*bod, NonNull::new(bod_ref).unwrap());
-        for parent in DLL::iter_option(var.parents) {
-          clean_up(parent);
-        }
+        add_to_parents(DAGPtr::Lam(*bod), NonNull::new(bod_ref).unwrap());
         for parent in DLL::iter_option(let_.parents) {
           clean_up(parent);
         }
@@ -241,27 +238,14 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
       }
       ParentPtr::LetExp(link) => {
-        let Let { copy, uses, var, typ, bod, parents, .. } = link.as_ref();
+        let Let { copy, uses, typ, bod, parents, .. } = link.as_ref();
         match copy {
           Some(cache) => {
             (*cache.as_ptr()).exp = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents, .. } = var;
-            let new_let = alloc_let(
-              nam.clone(),
-              *dep,
-              *uses,
-              new_child,
-              *typ,
-              *bod,
-              None,
-            );
+            let new_let = alloc_let(*uses, new_child, *typ, *bod, None);
             (*link.as_ptr()).copy = Some(new_let);
-            let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
-            for parent in DLL::iter_option(*var_parents) {
-              upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-            }
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Let(new_let), *parent)
             }
@@ -269,27 +253,14 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
       }
       ParentPtr::LetTyp(link) => {
-        let Let { copy, uses, var, exp, bod, parents, .. } = link.as_ref();
+        let Let { copy, uses, exp, bod, parents, .. } = link.as_ref();
         match copy {
           Some(cache) => {
             (*cache.as_ptr()).typ = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents, .. } = var;
-            let new_let = alloc_let(
-              nam.clone(),
-              *dep,
-              *uses,
-              *exp,
-              new_child,
-              *bod,
-              None,
-            );
+            let new_let = alloc_let(*uses, *exp, new_child, *bod, None);
             (*link.as_ptr()).copy = Some(new_let);
-            let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
-            for parent in DLL::iter_option(*var_parents) {
-              upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-            }
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Let(new_let), *parent)
             }
@@ -297,27 +268,18 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
       }
       ParentPtr::LetBod(link) => {
-        let Let { copy, uses, var, typ, exp, parents, .. } = link.as_ref();
+        let Let { copy, uses, typ, exp, parents, .. } = link.as_ref();
+        let new_child = match new_child {
+          DAGPtr::Lam(link) => link,
+          _ => panic!("Cannot install a non-lambda node as image"),
+        };
         match copy {
           Some(cache) => {
             (*cache.as_ptr()).bod = new_child;
           }
           None => {
-            let Var { nam, dep, parents: var_parents, .. } = var;
-            let new_let = alloc_let(
-              nam.clone(),
-              *dep,
-              *uses,
-              *exp,
-              *typ,
-              new_child,
-              None,
-            );
+            let new_let = alloc_let(*uses, *exp, *typ, new_child, None);
             (*link.as_ptr()).copy = Some(new_let);
-            let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
-            for parent in DLL::iter_option(*var_parents) {
-              upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-            }
             for parent in DLL::iter_option(*parents) {
               upcopy(DAGPtr::Let(new_let), *parent)
             }
