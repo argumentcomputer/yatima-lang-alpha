@@ -39,6 +39,7 @@ pub enum DAGPtr {
   App(NonNull<App>),
   All(NonNull<All>),
   Slf(NonNull<Slf>),
+  Fix(NonNull<Fix>),
   Dat(NonNull<Dat>),
   Cse(NonNull<Cse>),
   Ref(NonNull<Ref>),
@@ -60,6 +61,7 @@ pub enum ParentPtr {
   Root,
   LamBod(NonNull<Lam>),
   SlfBod(NonNull<Slf>),
+  FixBod(NonNull<Fix>),
   DatBod(NonNull<Dat>),
   CseBod(NonNull<Cse>),
   AppFun(NonNull<App>),
@@ -78,6 +80,7 @@ pub enum BinderPtr {
   Free,
   Lam(NonNull<Lam>),
   Slf(NonNull<Slf>),
+  Fix(NonNull<Fix>),
 }
 
 // The λ-DAG nodes
@@ -126,6 +129,14 @@ pub struct All {
 
 #[repr(C)]
 pub struct Slf {
+  pub bod: DAGPtr,
+  pub bod_ref: Parents,
+  pub var: Var,
+  pub parents: Option<NonNull<Parents>>,
+}
+
+#[repr(C)]
+pub struct Fix {
   pub bod: DAGPtr,
   pub bod_ref: Parents,
   pub var: Var,
@@ -260,6 +271,32 @@ pub fn alloc_slf(
 }
 
 #[inline]
+pub fn alloc_fix(
+  var_nam: String,
+  var_dep: u64,
+  bod: DAGPtr,
+  parents: Option<NonNull<Parents>>,
+) -> NonNull<Fix> {
+  unsafe {
+    let fix = alloc_val(Fix {
+      var: Var {
+        nam: var_nam,
+        rec: false,
+        dep: var_dep,
+        binder: mem::zeroed(),
+        parents: None,
+      },
+      bod,
+      bod_ref: mem::zeroed(),
+      parents,
+    });
+    (*fix.as_ptr()).var.binder = BinderPtr::Fix(fix);
+    (*fix.as_ptr()).bod_ref = DLL::singleton(ParentPtr::FixBod(fix));
+    fix
+  }
+}
+
+#[inline]
 pub fn alloc_dat(
   bod: DAGPtr,
   parents: Option<NonNull<Parents>>,
@@ -386,6 +423,7 @@ pub fn get_parents(term: DAGPtr) -> Option<NonNull<Parents>> {
       DAGPtr::App(link) => (*link.as_ptr()).parents,
       DAGPtr::All(link) => (*link.as_ptr()).parents,
       DAGPtr::Slf(link) => (*link.as_ptr()).parents,
+      DAGPtr::Fix(link) => (*link.as_ptr()).parents,
       DAGPtr::Dat(link) => (*link.as_ptr()).parents,
       DAGPtr::Cse(link) => (*link.as_ptr()).parents,
       DAGPtr::Ref(link) => (*link.as_ptr()).parents,
@@ -408,6 +446,7 @@ pub fn set_parents(term: DAGPtr, pref: Option<NonNull<Parents>>) {
       DAGPtr::App(link) => (*link.as_ptr()).parents = pref,
       DAGPtr::All(link) => (*link.as_ptr()).parents = pref,
       DAGPtr::Slf(link) => (*link.as_ptr()).parents = pref,
+      DAGPtr::Fix(link) => (*link.as_ptr()).parents = pref,
       DAGPtr::Dat(link) => (*link.as_ptr()).parents = pref,
       DAGPtr::Cse(link) => (*link.as_ptr()).parents = pref,
       DAGPtr::Ref(link) => (*link.as_ptr()).parents = pref,
@@ -427,6 +466,7 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
     match parent {
       ParentPtr::LamBod(parent) => (*parent.as_ptr()).bod = newchild,
       ParentPtr::SlfBod(parent) => (*parent.as_ptr()).bod = newchild,
+      ParentPtr::FixBod(parent) => (*parent.as_ptr()).bod = newchild,
       ParentPtr::DatBod(parent) => (*parent.as_ptr()).bod = newchild,
       ParentPtr::CseBod(parent) => (*parent.as_ptr()).bod = newchild,
       ParentPtr::AppFun(parent) => (*parent.as_ptr()).fun = newchild,
@@ -495,6 +535,15 @@ pub fn free_dead_node(node: DAGPtr) {
       }
       DAGPtr::Slf(mut link) => {
         let Slf { bod, bod_ref, .. } = &link.as_mut();
+        let new_bod_parents = bod_ref.unlink_node();
+        set_parents(*bod, new_bod_parents);
+        if new_bod_parents.is_none() {
+          free_dead_node(*bod)
+        }
+        Box::from_raw(link.as_ptr());
+      }
+      DAGPtr::Fix(mut link) => {
+        let Fix { bod, bod_ref, .. } = &link.as_mut();
         let new_bod_parents = bod_ref.unlink_node();
         set_parents(*bod, new_bod_parents);
         if new_bod_parents.is_none() {
@@ -678,6 +727,9 @@ impl DAG {
         map.insert(var, depth);
         let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
         Term::Slf(Pos::None, nam, Box::new(body))
+      }
+      DAGPtr::Fix(_) => {
+        panic!("Fix conversion TODO")
       }
       DAGPtr::Cse(link) => {
         let Cse { bod, .. } = unsafe { link.as_ref() };
@@ -980,11 +1032,9 @@ impl DAG {
         (*ann.as_ptr()).exp = exp;
         DAGPtr::Ann(ann)
       },
-      Term::Let(_, true, _uses, _name, _typ_exp_bod) => {
-        panic!("letrec not implemented")
-      }
-      Term::Let(_, false, uses, nam, typ_exp_bod) => unsafe {
+      Term::Let(_, rec, uses, nam, typ_exp_bod) => unsafe {
         let (typ, exp, bod) = &**typ_exp_bod;
+        // Allocates the `Let` node and a `Lam` node for `bod`
         let let_ = alloc_let(
           *uses,
           mem::zeroed(),
@@ -992,38 +1042,60 @@ impl DAG {
           NonNull::dangling(),
           parents,
         );
-        let Let { typ_ref, exp_ref, bod_ref: let_bod_ref, .. } = &mut *let_.as_ptr();
+        let Let { typ_ref, exp_ref, bod_ref, .. } = &mut *let_.as_ptr();
         let lam =
-          alloc_lam(nam.clone(), 0, mem::zeroed(), NonNull::new(let_bod_ref));
-        let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
+          alloc_lam(nam.clone(), 0, mem::zeroed(), NonNull::new(bod_ref));
+        let Lam { var: lam_var, bod_ref: lam_bod_ref, .. } = &mut *lam.as_ptr();
+        // Sets up the context for `typ` and `bod` conversion
+        let typ_ctx = ctx.clone();
+        let mut bod_ctx = ctx.clone();
+        bod_ctx.push_front(DAGPtr::Var(NonNull::new(lam_var).unwrap()));
+        // Convert `typ` and `bod` to DAG and add it to the newly created `Let` node
         let typ = DAG::from_term_inner(
           typ,
           depth,
-          ctx.clone(),
+          typ_ctx,
           NonNull::new(typ_ref),
           rec_ref.clone(),
         );
-        let exp = DAG::from_term_inner(
-          exp,
-          depth,
-          ctx.clone(),
-          NonNull::new(exp_ref),
-          rec_ref.clone(),
-        );
-        ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
           bod,
           depth + 1,
-          ctx,
-          NonNull::new(bod_ref),
+          bod_ctx,
+          NonNull::new(lam_bod_ref),
           rec_ref.clone(),
         );
         (*let_.as_ptr()).typ = typ;
-        (*let_.as_ptr()).exp = exp;
         (*let_.as_ptr()).bod = lam;
         (*lam.as_ptr()).bod = bod;
+        // Do the same for `exp`, but set a `Fix` before if this is a recursive `Let`
+        if *rec {
+          let fix =
+            alloc_fix(nam.clone(), 0, mem::zeroed(), NonNull::new(exp_ref));
+          let Fix { var: fix_var, bod_ref: fix_bod_ref, .. } = &mut *fix.as_ptr();
+          ctx.push_front(DAGPtr::Var(NonNull::new(fix_var).unwrap()));
+          let exp = DAG::from_term_inner(
+            exp,
+            depth + 1,
+            ctx,
+            NonNull::new(fix_bod_ref),
+            rec_ref.clone(),
+          );
+          (*let_.as_ptr()).exp = DAGPtr::Fix(fix);
+          (*fix.as_ptr()).bod = exp;
+        }
+        else {
+          let exp = DAG::from_term_inner(
+            exp,
+            depth,
+            ctx,
+            NonNull::new(exp_ref),
+            rec_ref.clone(),
+          );
+          (*let_.as_ptr()).exp = exp;
+        }
         DAGPtr::Let(let_)
-      },
+      }
     }
   }
 
@@ -1090,6 +1162,19 @@ impl DAG {
         );
         *new_bod = DAG::from_subdag(*bod, map, NonNull::new(bod_ref));
         DAGPtr::Slf(slf)
+      },
+      DAGPtr::Fix(link) => unsafe {
+        let Fix { var, bod, .. } = &mut *link.as_ptr();
+        let fix =
+          alloc_fix(var.nam.clone(), var.dep, mem::zeroed(), parents);
+        let Fix { var: new_var, bod: new_bod, bod_ref, .. } =
+          &mut *fix.as_ptr();
+        map.insert(
+          DAGPtr::Var(NonNull::new(var).unwrap()),
+          DAGPtr::Var(NonNull::new(new_var).unwrap()),
+        );
+        *new_bod = DAG::from_subdag(*bod, map, NonNull::new(bod_ref));
+        DAGPtr::Fix(fix)
       },
       DAGPtr::Cse(link) => unsafe {
         let Cse { bod, .. } = &mut *link.as_ptr();
@@ -1200,6 +1285,10 @@ impl DAG {
           let Slf { bod, .. } = unsafe { &*link.as_ptr() };
           go(*bod, idx, val)
         },
+        DAGPtr::Fix(link) => {
+          let Fix { bod, .. } = unsafe { &*link.as_ptr() };
+          go(*bod, idx, val)
+        },
         DAGPtr::Cse(link) => {
           let Cse { bod, .. } = unsafe { &*link.as_ptr() };
           go(*bod, idx, val)
@@ -1252,6 +1341,7 @@ impl fmt::Debug for DAG {
         ParentPtr::Root => String::from("ROOT"),
         ParentPtr::LamBod(link) => format!("LamBod<{:?}>", link.as_ptr()),
         ParentPtr::SlfBod(link) => format!("SlfBod<{:?}>", link.as_ptr()),
+        ParentPtr::FixBod(link) => format!("FixBod<{:?}>", link.as_ptr()),
         ParentPtr::DatBod(link) => format!("DatBod<{:?}>", link.as_ptr()),
         ParentPtr::CseBod(link) => format!("CseBod<{:?}>", link.as_ptr()),
         ParentPtr::AppFun(link) => format!("AppFun<{:?}>", link.as_ptr()),
@@ -1289,6 +1379,7 @@ impl fmt::Debug for DAG {
             BinderPtr::Free => format!("Free<{}>", *dep),
             BinderPtr::Lam(link) => format!("Lam<{:?}>", link.as_ptr()),
             BinderPtr::Slf(link) => format!("Slf<{:?}>", link.as_ptr()),
+            BinderPtr::Fix(link) => format!("Fix<{:?}>", link.as_ptr()),
           };
           if set.get(&(link.as_ptr() as usize)).is_none() {
             set.insert(link.as_ptr() as usize);
@@ -1369,6 +1460,23 @@ impl fmt::Debug for DAG {
             set.insert(link.as_ptr() as usize);
             format!(
               "\nSlf<{:?}> {} parents: {}{}",
+              link.as_ptr(),
+              name,
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAGPtr::Fix(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            let Fix { var, parents, bod, .. } = unsafe { link.as_ref() };
+            let name = var.nam.clone();
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nFix<{:?}> {} parents: {}{}",
               link.as_ptr(),
               name,
               format_parents(*parents),

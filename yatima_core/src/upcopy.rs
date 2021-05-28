@@ -25,6 +25,15 @@ pub fn clean_up(cc: &ParentPtr) {
         clean_up(parent);
       }
     },
+    ParentPtr::FixBod(link) => unsafe {
+      let Fix { parents, var, .. } = link.as_ref();
+      for parent in DLL::iter_option(var.parents) {
+        clean_up(parent);
+      }
+      for parent in DLL::iter_option(*parents) {
+        clean_up(parent);
+      }
+    },
     ParentPtr::DatBod(link) => unsafe {
       let Dat { parents, .. } = link.as_ref();
       for parent in DLL::iter_option(*parents) {
@@ -123,6 +132,20 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         }
         for parent in DLL::iter_option(*parents) {
           upcopy(DAGPtr::Slf(new_slf), *parent)
+        }
+      }
+      ParentPtr::FixBod(link) => {
+        let Fix { var, parents, .. } = link.as_ref();
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_fix = alloc_fix(nam.clone(), *dep, new_child, None);
+        let ptr: *mut Parents = &mut (*new_fix.as_ptr()).bod_ref;
+        add_to_parents(new_child, NonNull::new(ptr).unwrap());
+        let ptr: *mut Var = &mut (*new_fix.as_ptr()).var;
+        for parent in DLL::iter_option(*var_parents) {
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+        }
+        for parent in DLL::iter_option(*parents) {
+          upcopy(DAGPtr::Fix(new_fix), *parent)
         }
       }
       ParentPtr::DatBod(link) => {

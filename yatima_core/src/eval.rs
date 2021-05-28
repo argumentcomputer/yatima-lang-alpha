@@ -7,11 +7,13 @@ use crate::{
   upcopy::*,
 };
 
+use std::mem;
 use im::Vector;
 
 enum Single {
   Lam(Var),
   Slf(Var),
+  Fix(Var),
   Dat,
   Cse,
 }
@@ -41,6 +43,11 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Slf { var, bod, .. } = unsafe { link.as_ref() };
         input = *bod;
         spine.push(Single::Slf(var.clone()));
+      }
+      DAGPtr::Fix(link) => {
+        let Fix { var, bod, .. } = unsafe { link.as_ref() };
+        input = *bod;
+        spine.push(Single::Fix(var.clone()));
       }
       DAGPtr::Dat(link) => {
         let Dat { bod, .. } = unsafe { link.as_ref() };
@@ -136,6 +143,17 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         result = DAGPtr::Slf(new_slf);
       }
+      Single::Fix(var) => {
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_fix = alloc_fix(nam, dep, result, None);
+        let ptr: *mut Parents = unsafe { &mut (*new_fix.as_ptr()).bod_ref };
+        add_to_parents(result, NonNull::new(ptr).unwrap());
+        let ptr: *mut Var = unsafe { &mut (*new_fix.as_ptr()).var };
+        for parent in DLL::iter_option(var_parents) {
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+        }
+        result = DAGPtr::Fix(new_fix);
+      }
       Single::Dat => {
         let new_dat = alloc_dat(result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_dat.as_ptr()).bod_ref };
@@ -202,6 +220,13 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         },
         DAGPtr::Slf(link) => unsafe {
           let Slf { var, bod, .. } = &mut *link.as_ptr();
+          for parent in DLL::iter_option(var.parents) {
+            clean_up(parent);
+          }
+          spine = *bod;
+        },
+        DAGPtr::Fix(link) => unsafe {
+          let Fix { var, bod, .. } = &mut *link.as_ptr();
           for parent in DLL::iter_option(var.parents) {
             clean_up(parent);
           }
@@ -328,6 +353,22 @@ impl DAG {
         }
         DAGPtr::Let(link) => {
           node = reduce_let(link);
+        }
+        DAGPtr::Fix(link) => unsafe {
+          let Fix { var, bod, .. } = &mut *link.as_ptr();
+          replace_child(node, *bod);
+          if !var.parents.is_none() {
+            let new_fix = alloc_fix(var.nam.clone(), 0, mem::zeroed(), None).as_mut();
+            let result = subst(*bod, var, DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)), true);
+            new_fix.bod = result;
+            add_to_parents(result, NonNull::new_unchecked(&mut new_fix.bod_ref));
+            replace_child(
+              DAGPtr::Var(NonNull::new(var).unwrap()),
+              DAGPtr::Fix(NonNull::new_unchecked(new_fix))
+            );
+          }
+          free_dead_node(node);
+          node = *bod;
         }
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
