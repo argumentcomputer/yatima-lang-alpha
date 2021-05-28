@@ -1,11 +1,18 @@
-use std::path::PathBuf;
+use std::{
+  rc::Rc,
+  path::PathBuf,
+};
 
 use structopt::StructOpt;
 
-use yatima::{
+use yatima_utils::{
   file,
+  store::Store,
+};
+use yatima_cli::{
   ipfs,
   repl,
+  file::store::FileStore,
 };
 use yatima_core::{
   check::error::CheckError,
@@ -18,6 +25,9 @@ use libipld::Ipld;
 #[structopt(about = "A programming language for the decentralized web")]
 enum Cli {
   Parse {
+    /// Pin data to the local IPFS daemon
+    #[structopt(short, long)]
+    no_ipfs: bool,
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
@@ -37,25 +47,32 @@ async fn main() -> std::io::Result<()> {
   let command = Cli::from_args();
   match command {
     Cli::Repl => {
-      repl::main().unwrap();
+      repl::main();
       Ok(())
     }
-    Cli::Parse { path } => {
+    Cli::Parse { no_ipfs, path } => {
       let root = std::env::current_dir()?;
-      let env = file::parse::PackageEnv::new(root, path);
+      let store = Rc::new(FileStore {});
+      let env = file::parse::PackageEnv::new(root, path, store.clone());
       let (cid, p, d) = file::parse::parse_file(env);
-      file::store::put(p.to_ipld());
-      let ipld_cid =
-        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
+      store.put(p.to_ipld());
+
+      let ipld_cid = 
+        if !no_ipfs {
+          ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
+        } else {
+          "Not using ipfs".to_string()
+        };
       println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
       println!("{}", d);
       Ok(())
     }
     Cli::Check { path } => {
       let root = std::env::current_dir()?;
-      let env = file::parse::PackageEnv::new(root, path);
+      let store = Rc::new(FileStore {});
+      let env = file::parse::PackageEnv::new(root, path, store.clone());
       let (_, p, ds) = file::parse::parse_file(env);
-      let cid = file::store::put(p.to_ipld());
+      let cid = store.put(p.to_ipld());
       // let _ipld_cid =
       //  ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
       println!("Checking package {} at {}", p.name, cid);
@@ -74,7 +91,7 @@ async fn main() -> std::io::Result<()> {
               let def = ds.get(n).unwrap();
               println!("✕ {}: {}", n, def.typ_.pretty(Some(n)));
               if let Pos::Some(pos) = err.pos() {
-                if let Some(Ipld::String(input)) = file::store::get(pos.input) {
+                if let Some(Ipld::String(input)) = store.get(pos.input) {
                   println!("{}", pos.range(input))
                 }
               }
@@ -94,7 +111,7 @@ async fn main() -> std::io::Result<()> {
             let def = ds.get(n).unwrap();
             println!("✕ {}: {}", n, def.typ_.pretty(Some(n)));
             if let Pos::Some(pos) = err.pos() {
-              if let Some(Ipld::String(input)) = file::store::get(pos.input) {
+              if let Some(Ipld::String(input)) = store.get(pos.input) {
                 println!("{}", pos.range(input))
               }
             }
@@ -106,9 +123,10 @@ async fn main() -> std::io::Result<()> {
     }
     Cli::Run { path } => {
       let root = std::env::current_dir()?;
-      let env = file::parse::PackageEnv::new(root, path.clone());
+      let store = Rc::new(FileStore {});
+      let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
       let (_, p, defs) = file::parse::parse_file(env);
-      let _cid = file::store::put(p.to_ipld());
+      let _cid = store.put(p.to_ipld());
       let _ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
       let def = defs.get(&"main".to_string()).expect(&format!(

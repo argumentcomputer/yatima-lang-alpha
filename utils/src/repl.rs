@@ -1,21 +1,7 @@
-// use directories_next::ProjectDirs;
-use rustyline::{
-  error::ReadlineError,
-  Cmd,
-  Config,
-  EditMode,
-  Editor,
-  KeyEvent,
-};
-
-use im::HashMap;
+pub mod command;
+pub mod error;
 
 use nom::Err;
-
-pub mod command;
-
-use command::Command;
-
 use yatima_core::{
   check::{
     check_def,
@@ -29,15 +15,22 @@ use yatima_core::{
   },
 };
 
-pub fn main() -> rustyline::Result<()> {
-  let config = Config::builder().edit_mode(EditMode::Vi).build();
-  let mut rl = Editor::<()>::with_config(config);
+use command::{
+    Command
+};
+use error::ReplError;
+
+pub trait Repl {
+    fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
+    fn println(&self, s: String);
+    fn load_history(&mut self);
+    fn add_history_entry(&mut self, s: &str);
+    fn save_history(&mut self);
+}
+
+pub fn run_repl(rl: &mut dyn Repl) {
   let mut defs = Defs::new();
-  rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
-  rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
-  if rl.load_history("history.txt").is_err() {
-    println!("No previous history.");
-  }
+  rl.load_history();
   loop {
     let readline = rl.readline("⅄ ");
     match readline {
@@ -52,13 +45,13 @@ pub fn main() -> rustyline::Result<()> {
             Command::Eval(term) => {
               let mut dag = DAG::from_term(&term);
               dag.norm(&defs);
-              println!("{}", dag);
+              rl.println(format!("{}", dag));
             }
             Command::Type(term) => {
               let res = infer_term(&defs, *term);
               match res {
-                Ok(term) => println!("{}", term),
-                Err(e) => println!("Error: {}", e),
+                Ok(term) => rl.println(format!("{}", term)),
+                Err(e) => rl.println(format!("Error: {}", e)),
               }
             }
             Command::Define(boxed) => {
@@ -69,47 +62,48 @@ pub fn main() -> rustyline::Result<()> {
               match res {
                 Ok(res) => {
                   defs = tmp_defs;
-                  println!("{} : {}", n, res.pretty(Some(&n)))
+                  rl.println(format!("{} : {}", n, res.pretty(Some(&n))))
                 }
-                Err(e) => println!("Error: {}", e),
+                Err(e) => rl.println(format!("Error: {}", e)),
               }
             }
             Command::Browse => {
               for (n, d) in defs.named_defs() {
-                println!("{}", d.pretty(n))
+                rl.println(format!("{}", d.pretty(n)))
               }
             }
             Command::Quit => {
-              println!("Goodbye.");
+              rl.println(format!("Goodbye."));
               break;
             }
           },
           Err(e) => match e {
-            Err::Incomplete(_) => println!("Incomplete Input"),
+            Err::Incomplete(_) => rl.println(format!("Incomplete Input")),
             Err::Failure(e) => {
-              println!("Parse Failure:\n");
-              println!("{}", e);
+              rl.println(format!("Parse Failure:\n"));
+              rl.println(format!("{}", e));
             }
             Err::Error(e) => {
-              println!("Parse Error:\n");
-              println!("{}", e);
+              rl.println(format!("Parse Error:\n"));
+              rl.println(format!("{}", e));
             }
           },
         }
       }
-      Err(ReadlineError::Interrupted) => {
-        println!("CTRL-C");
+      Err(ReplError::Interrupted) => {
+        rl.println(format!("CTRL-C"));
         break;
       }
-      Err(ReadlineError::Eof) => {
-        println!("CTRL-D");
+      Err(ReplError::Eof) => {
+        rl.println(format!("CTRL-D"));
         break;
       }
-      Err(err) => {
-        println!("Error: {}", err);
+      Err(ReplError::Other(err)) => {
+        rl.println(format!("Error: {}", err));
         break;
       }
     }
   }
-  rl.save_history("history.txt")
+  rl.save_history();
 }
+

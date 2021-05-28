@@ -4,7 +4,7 @@ use libipld::{
   codec::Codec,
   ipld::Ipld,
 };
-use crate::file::store::{cid};
+use yatima_utils::store::{cid};
 use serde_json;
 
 
@@ -48,6 +48,7 @@ pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {
     Ok(ipld)
 }
 
+#[cfg(test)]
 mod tests {
   use super::dag_get;
 

@@ -11,7 +11,6 @@
 //#[macro_use]
 extern crate yatima_core;
 
-pub mod file;
 pub mod ipfs;
-
 pub mod repl;
+pub mod file;
