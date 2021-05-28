@@ -225,7 +225,7 @@ impl I64Op {
       Self::ToI128 => Ipld::Integer(34),
       Self::ToInt => Ipld::Integer(35),
       Self::ToBits => Ipld::Integer(36),
-      Self::ToBytes => Ipld::Integer(36),
+      Self::ToBytes => Ipld::Integer(37),
     }
   }
 
