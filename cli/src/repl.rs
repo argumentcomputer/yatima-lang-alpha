@@ -58,7 +58,7 @@ impl Repl for RustyLineRepl {
     }
   }
 
-  fn add_history_entry(&mut self, s: &str) {
+  fn add_history_entry(&self, s: &str) {
     self.rl.add_history_entry(s);
   }
 
@@ -66,7 +66,7 @@ impl Repl for RustyLineRepl {
     self.rl.save_history("history.txt").unwrap();
   }
 
-  fn get_defs(&mut self) -> Arc<Mutex<Defs>> {
+  fn get_defs(&self) -> Arc<Mutex<Defs>> {
     self.defs.clone()
   }
 }

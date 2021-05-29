@@ -111,7 +111,10 @@ impl WebRepl {
       KEY_ENTER => {
         if !line.is_empty() {
           term.writeln("");
-          self.handle_line(Ok(line.clone())).unwrap();
+          match self.handle_line(Ok(line.clone())) {
+            Ok(()) => term.writeln("Ok"),
+            Err(()) => term.writeln("Error"),
+          }
           line.clear();
           cursor_col = 0;
         }
