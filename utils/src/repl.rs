@@ -25,11 +25,12 @@ pub trait Repl {
     fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
     fn println(&self, s: String);
     fn load_history(&mut self);
-    fn add_history_entry(&mut self, s: &str);
+    fn add_history_entry(&self, s: &str);
     fn save_history(&mut self);
-    fn get_defs(&mut self) -> Arc<Mutex<Defs>>;
-    fn handle_line(&mut self, readline: Result<String, ReplError>) -> Result<(),()> {
-      let mut defs = self.get_defs().lock().unwrap();
+    fn get_defs(&self) -> Arc<Mutex<Defs>>;
+    fn handle_line(&self, readline: Result<String, ReplError>) -> Result<(),()> {
+      let mutex_defs = self.get_defs();
+      let mut defs = mutex_defs.lock().unwrap();
       match readline {
         Ok(line) => {
           self.add_history_entry(line.as_str());
@@ -59,7 +60,7 @@ pub trait Repl {
                   let res = check_def(&tmp_defs, &n);
                   match res {
                     Ok(res) => {
-                      defs = tmp_defs;
+                      *defs = tmp_defs;
                       self.println(format!("{} : {}", n, res.pretty(Some(&n))))
                     }
                     Err(e) => self.println(format!("Error: {}", e)),
@@ -111,7 +112,7 @@ pub trait Repl {
 
 pub fn run_repl(rl: &mut dyn Repl) {
 
-  let mut defs = Defs::new();
+  let defs = Defs::new();
   rl.load_history();
   loop {
     let readline = rl.readline("⅄ ");

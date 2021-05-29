@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 use rustyline::{
   error::ReadlineError,
   Cmd,
@@ -8,6 +9,9 @@ use rustyline::{
   KeyEvent,
 };
 
+use yatima_core::{
+  defs::Defs,
+};
 use yatima_utils::repl::{
   run_repl,
   Repl,
@@ -16,7 +20,21 @@ use yatima_utils::repl::{
 
 
 struct RustyLineRepl {
-  rl: Editor<()>
+  rl: Editor<()>,
+  defs: Arc<Mutex<Defs>>,
+}
+
+impl RustyLineRepl {
+  pub fn new() -> Self {
+    let config = Config::builder().edit_mode(EditMode::Vi).build();
+    let mut rl = Editor::<()>::with_config(config);
+    rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
+    rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
+    RustyLineRepl {
+      rl: rl,
+      defs: Arc::new(Mutex::new(Defs::new()))
+    }
+  }
 }
 
 impl Repl for RustyLineRepl {
@@ -47,12 +65,12 @@ impl Repl for RustyLineRepl {
   fn save_history(&mut self) {
     self.rl.save_history("history.txt").unwrap();
   }
+
+  fn get_defs(&mut self) -> Arc<Mutex<Defs>> {
+    self.defs.clone()
+  }
 }
 
 pub fn main() {
-  let config = Config::builder().edit_mode(EditMode::Vi).build();
-  let mut rl = Editor::<()>::with_config(config);
-  rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
-  rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
-  run_repl(&mut RustyLineRepl { rl : rl });
+  run_repl(&mut RustyLineRepl::new());
 }

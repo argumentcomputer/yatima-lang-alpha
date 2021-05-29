@@ -4,7 +4,11 @@ use yatima_utils::{
   repl::{
     Repl,
     run_repl,
+    error::ReplError,
   }
+};
+use yatima_core::{
+  defs::Defs,
 };
 // use wasm_bindgen_futures::JsFuture;
 
@@ -46,6 +50,13 @@ const CURSOR_RIGHT: &str = "\x1b[C";
 struct WebRepl {
   terminal: Terminal,
   defs: Arc<Mutex<Defs>>,
+  shell_state: Arc<Mutex<ShellState>>,
+}
+
+#[derive(Debug,Clone)]
+struct ShellState {
+  line: String,
+  cursor_col: usize,
 }
 
 impl WebRepl {
@@ -78,90 +89,94 @@ impl WebRepl {
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
-    let mut line = String::new();
-    let mut cursor_col = 0;
+    let line = String::new();
+    let cursor_col = 0;
+    let shell_state = Arc::new(Mutex::new(ShellState { line, cursor_col }));
 
-    let term: Terminal = terminal.clone().dyn_into().unwrap();
-
-    let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| handle_event(e)) as Box<dyn FnMut(_)>);
-
-    fn handle_event(e: OnKeyEvent) {
-        let event = e.dom_event();
-        match event.key_code() {
-            KEY_ENTER => {
-                if !line.is_empty() {
-                    term.writeln("");
-                    // term.writeln(&format!("You entered {} characters '{}'", line.len(), line));
-                    line.clear();
-                    cursor_col = 0;
-                }
-                prompt(&term);
-            }
-            KEY_BACKSPACE => {
-                if cursor_col > 0 {
-                    term.write("\u{0008} \u{0008}");
-                    line.pop();
-                    cursor_col -= 1;
-                }
-            }
-            KEY_LEFT_ARROW => {
-                if cursor_col > 0 {
-                    term.write(CURSOR_LEFT);
-                    cursor_col -= 1;
-                }
-            }
-            KEY_RIGHT_ARROW => {
-                if cursor_col < line.len() {
-                    term.write(CURSOR_RIGHT);
-                    cursor_col += 1;
-                }
-            }
-            KEY_L if event.ctrl_key() => term.clear(),
-            KEY_C if event.ctrl_key() => {
-                prompt(&term);
-                line.clear();
-                cursor_col = 0;
-            }
-            _ => {
-                if !event.alt_key() && !event.alt_key() && !event.ctrl_key() && !event.meta_key() {
-                    term.write(&event.key());
-                    line.push_str(&e.key());
-                    cursor_col += 1;
-                }
-            }
-        }
-    }
-
-    terminal.on_key(callback.as_ref().unchecked_ref());
-
-    callback.forget();
 
     let addon = FitAddon::new();
     terminal.load_addon(addon.clone().dyn_into::<FitAddon>().unwrap().into());
     addon.fit();
     terminal.focus();
-    WebRepl { terminal }
+    WebRepl { terminal, defs, shell_state }
   }
+
+  pub fn handle_event(&mut self, e: OnKeyEvent) {
+    let mut shell_state = self.shell_state.lock().unwrap();
+    let mut cursor_col = shell_state.cursor_col;
+    let mut line = shell_state.line.clone();
+    let term: Terminal = self.terminal.clone().dyn_into().unwrap();
+    let event = e.dom_event();
+    match event.key_code() {
+      KEY_ENTER => {
+        if !line.is_empty() {
+          term.writeln("");
+          self.handle_line(Ok(line.clone())).unwrap();
+          line.clear();
+          cursor_col = 0;
+        }
+        prompt(&term);
+      }
+      KEY_BACKSPACE => {
+        if cursor_col > 0 {
+          term.write("\u{0008} \u{0008}");
+          line.pop();
+          cursor_col -= 1;
+        }
+      }
+      KEY_LEFT_ARROW => {
+        if cursor_col > 0 {
+          term.write(CURSOR_LEFT);
+          cursor_col -= 1;
+        }
+      }
+      KEY_RIGHT_ARROW => {
+        if cursor_col < line.len() {
+          term.write(CURSOR_RIGHT);
+          cursor_col += 1;
+        }
+      }
+      KEY_L if event.ctrl_key() => term.clear(),
+      KEY_C if event.ctrl_key() => {
+        prompt(&term);
+        line.clear();
+        cursor_col = 0;
+      }
+      _ => {
+        if !event.alt_key() && !event.alt_key() && !event.ctrl_key() && !event.meta_key() {
+          term.write(&event.key());
+          line.push_str(&e.key());
+          cursor_col += 1;
+        }
+      }
+    }
+    *shell_state = ShellState { cursor_col, line }
+  }
+
 }
 
 impl Repl for WebRepl {
   fn readline(&mut self, _prompt: &str) -> Result<String, ReplError> {
-    
+
+    Ok(self.shell_state.lock().unwrap().clone().line)
   }
 
-  fn get_defs(&mut self) -> Arc<Mutex<Defs>> {
+  fn get_defs(&self) -> Arc<Mutex<Defs>> {
     self.defs.clone()
   }
   
   fn println(&self, s: String) {
-    self.terminal.writeln(s);
+    self.terminal.writeln(s.as_str());
   }
+
   fn load_history(&mut self) {
     // TODO
   }
-  fn add_history_entry(&mut self, s: &str) {
+
+  fn add_history_entry(&self, s: &str) {
     // TODO
   }
+
   fn save_history(&mut self) {
     // TODO
   }
@@ -171,9 +186,16 @@ impl Repl for WebRepl {
 pub fn main() -> Result<(), JsValue> {
     utils::set_panic_hook();
 
-    let repl = WebRepl::new();
-    let terminal = repl.terminal;
+    let mut repl = WebRepl::new();
 
+    // let term: Terminal = terminal.clone().dyn_into().unwrap();
+    let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
+
+    let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| repl.handle_event(e)) as Box<dyn FnMut(_)>);
+
+    terminal.on_key(callback.as_ref().unchecked_ref());
+
+    callback.forget();
 
     Ok(())
 }
