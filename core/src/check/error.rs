@@ -1,10 +1,8 @@
-use std::{
-  error::Error,
-  fmt,
-};
+use std::fmt;
 
 use crate::{
   check::ctx::*,
+  literal::LitType,
   position::Pos,
   term::Term,
   uses::Uses,
@@ -23,6 +21,7 @@ pub enum CheckError {
   DatSlfMismatch(Pos, ErrCtx, Term, Term),
   AppFunMismatch(Pos, ErrCtx, Term, Term),
   CseDatMismatch(Pos, ErrCtx, Term, Term),
+  NonInductiveLitType(Pos, ErrCtx, LitType),
   GenericError(Pos, ErrCtx, String),
 }
 
@@ -137,6 +136,21 @@ impl fmt::Display for CheckError {
         }
         writeln!(f, "• Checked: {}", dat)?;
         writeln!(f, "• Against: {}", typ)?;
+        Ok(())
+      }
+      CheckError::NonInductiveLitType(pos, ctx, typ) => {
+        writeln!(
+          f,
+          "{} is not an inductive literal {}",
+          typ,
+          pretty_pos(*pos)
+        )?;
+        if !ctx.is_empty() {
+          writeln!(f, "• Context:")?;
+          for (n, uses, typ) in ctx {
+            writeln!(f, "  - {} {}: {}", uses, n, typ)?;
+          }
+        }
         Ok(())
       }
       CheckError::DatSlfMismatch(pos, ctx, trm, typ) => {

@@ -8,13 +8,11 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
-  literal::{
-    LitType,
-    Literal,
-  },
+  literal::Literal,
   position::Pos,
   term::Term,
   uses::*,
+  yatima,
 };
 
 use im::{
@@ -26,7 +24,6 @@ use libipld::Cid;
 
 use core::ptr::NonNull;
 use std::collections::HashSet;
-use std::mem;
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -98,7 +95,7 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
 }
 
 pub fn check(
-  rec: &(String, Cid, Cid),
+  rec: &Option<(String, Cid, Cid)>,
   defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
@@ -124,8 +121,9 @@ pub fn check(
           bod_ctx.push((all_var.nam.to_string(), *lam_uses, dom));
           check(rec, defs, &mut bod_ctx, Uses::Once, lam_bod, &mut img)?;
           let (_, rest, _) = bod_ctx.last().unwrap();
-          // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
-          // otherwise the variable was not used enough
+          // Have to check whether the rest 'contains' zero (i.e., zero is less
+          // than or equal to the rest), otherwise the variable was
+          // not used enough
           if !Uses::lte(Uses::None, *rest) {
             Err(CheckError::QuantityTooLittle(
               *pos,
@@ -162,7 +160,13 @@ pub fn check(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              DAG::from_term_inner(term, ctx.len() as u64, Vector::new(), None, Some(rec.clone())),
+              DAG::from_term_inner(
+                term,
+                ctx.len() as u64,
+                Vector::new(),
+                None,
+                rec.clone(),
+              ),
             )
           }
           else {
@@ -187,13 +191,11 @@ pub fn check(
         }
       }
     }
-    Term::Let(pos, _, _, _, _) => {
-      Err(CheckError::GenericError(
-        *pos,
-        error_context(&ctx),
-        "TODO: Let typecheck".to_string(),
-      ))
-    }
+    Term::Let(pos, ..) => Err(CheckError::GenericError(
+      *pos,
+      error_context(&ctx),
+      "TODO: Let typecheck".to_string(),
+    )),
     _ => {
       let depth = ctx.len();
       // TODO Should we clone ctx?
@@ -219,7 +221,7 @@ pub fn check(
 }
 
 pub fn infer(
-  rec: &(String, Cid, Cid),
+  rec: &Option<(String, Cid, Cid)>,
   defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
@@ -227,12 +229,16 @@ pub fn infer(
 ) -> Result<DAG, CheckError> {
   match term {
     Term::Rec(_) => {
-      let (nam, exp, _) = rec;
-      if let Some(def) = defs.defs.get(exp) {
-        Ok(DAG::from_term(&def.typ_))
+      if let Some((nam, exp, _)) = rec {
+        if let Some(def) = defs.defs.get(exp) {
+          Ok(DAG::from_term(&def.typ_))
+        }
+        else {
+          panic!("undefined runtime reference: {}, {}", nam, exp);
+        }
       }
       else {
-        panic!("undefined runtime reference: {}, {}", nam, exp);
+        panic!("undefined recursion");
       }
     }
     Term::Var(pos, nam, idx) => {
@@ -252,7 +258,8 @@ pub fn infer(
           nam.clone(),
           bind.1,
           uses,
-        )})?;
+        )
+      })?;
       let bind = &mut ctx[dep];
       bind.1 = subtract_use;
       let typ = unsafe {
@@ -272,8 +279,7 @@ pub fn infer(
     }
     Term::App(pos, fun_arg) => {
       let (fun, arg) = &**fun_arg;
-      let mut fun_typ =
-        infer(rec, defs, ctx, uses, fun)?;
+      let mut fun_typ = infer(rec, defs, ctx, uses, fun)?;
       fun_typ.whnf(defs);
       match fun_typ.head {
         DAGPtr::All(link) => {
@@ -284,7 +290,13 @@ pub fn infer(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              DAG::from_term_inner(arg, ctx.len() as u64, Vector::new(), None, Some(rec.clone())),
+              DAG::from_term_inner(
+                arg,
+                ctx.len() as u64,
+                Vector::new(),
+                None,
+                rec.clone(),
+              ),
             )
           }
           else {
@@ -305,8 +317,7 @@ pub fn infer(
     }
     Term::Cse(pos, exp) => {
       let exp = &**exp;
-      let mut exp_typ =
-        infer(rec, defs, ctx, uses, exp)?;
+      let mut exp_typ = infer(rec, defs, ctx, uses, exp)?;
       exp_typ.whnf(defs);
       match exp_typ.head {
         DAGPtr::Slf(link) => {
@@ -314,7 +325,13 @@ pub fn infer(
           let mut map = if var.parents.is_some() {
             HashMap::unit(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              DAG::from_term_inner(exp, ctx.len() as u64, Vector::new(), None, Some(rec.clone())),
+              DAG::from_term_inner(
+                exp,
+                ctx.len() as u64,
+                Vector::new(),
+                None,
+                rec.clone(),
+              ),
             )
           }
           else {
@@ -328,14 +345,18 @@ pub fn infer(
         DAGPtr::LTy(link) => {
           let LTy { lty, .. } = unsafe { &mut *link.as_ptr() };
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
-          let induction = DAG::from_term_inner(
-            &lty.induction(exp.clone()),
-            0,
-            Vector::new(),
-            Some(root),
-            None,
-          );
-          Ok(DAG::new(induction))
+          match lty.induction(exp.clone()) {
+            None => Err(CheckError::NonInductiveLitType(
+              *pos,
+              error_context(&ctx),
+              *lty,
+            )),
+            Some(ind) => {
+              let induction =
+                DAG::from_term_inner(&ind, 0, Vector::new(), Some(root), None);
+              Ok(DAG::new(induction))
+            }
+          }
         }
         _ => Err(CheckError::CseDatMismatch(
           *pos,
@@ -349,7 +370,13 @@ pub fn infer(
       let (dom, img) = &**dom_img;
       let mut typ = DAG::from_term(&Term::Typ(Pos::None));
       check(rec, defs, ctx, Uses::None, dom, &mut typ)?;
-      let mut dom_dag = DAG::from_term_inner(dom, ctx.len() as u64, Vector::new(), None, Some(rec.clone()));
+      let mut dom_dag = DAG::from_term_inner(
+        dom,
+        ctx.len() as u64,
+        Vector::new(),
+        None,
+        rec.clone(),
+      );
       ctx.push((nam.to_string(), Uses::None, &mut dom_dag));
       check(rec, defs, ctx, Uses::None, img, &mut typ)?;
       ctx.pop();
@@ -359,7 +386,13 @@ pub fn infer(
     Term::Slf(_, nam, bod) => {
       let bod = &**bod;
       let mut typ = DAG::from_term(&Term::Typ(Pos::None));
-      let mut term_dag = DAG::from_term_inner(term, ctx.len() as u64, Vector::new(), None, Some(rec.clone()));
+      let mut term_dag = DAG::from_term_inner(
+        term,
+        ctx.len() as u64,
+        Vector::new(),
+        None,
+        rec.clone(),
+      );
       ctx.push((nam.to_string(), Uses::None, &mut term_dag));
       check(rec, defs, ctx, Uses::None, bod, &mut typ)?;
       ctx.pop();
@@ -372,28 +405,27 @@ pub fn infer(
     }
     Term::Ann(_, typ_exp) => {
       let (typ, exp) = &**typ_exp;
-      let mut typ_dag = DAG::new(
-        DAG::from_term_inner(typ, ctx.len() as u64, Vector::new(), None, Some(rec.clone())) 
-      );
+      let root = alloc_val(DLL::singleton(ParentPtr::Root));
+      let mut typ_dag = DAG::new(DAG::from_term_inner(
+        typ,
+        ctx.len() as u64,
+        Vector::new(),
+        Some(root),
+        rec.clone(),
+      ));
       check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
       Ok(typ_dag)
     }
-    Term::Let(_, _, _, _, _) => {
+    Term::Let(..) => {
       panic!("TODO: Let inference")
     }
-    Term::Lit(_, lit) => {
-      Ok(DAG::from_term(&infer_lit(lit.to_owned())))
-    }
-    Term::LTy(_, lty) => {
-      Ok(DAG::from_term(&infer_lty(*lty)))
-    }
-    Term::Opr(_, opr) => {
-      Ok(DAG::from_term(&opr.type_of()))
-    }
-    Term::Lam(_, _, _) => {
+    Term::Lit(_, lit) => Ok(DAG::from_term(&infer_lit(lit.to_owned()))),
+    Term::LTy(..) => Ok(DAG::from_term(&yatima!("Type"))),
+    Term::Opr(_, opr) => Ok(DAG::from_term(&opr.type_of())),
+    Term::Lam(..) => {
       Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx)))
     }
-    Term::Dat(_, _) => {
+    Term::Dat(..) => {
       Err(CheckError::UntypedData(term.pos(), error_context(&ctx)))
     }
   }
@@ -401,37 +433,28 @@ pub fn infer(
 
 pub fn infer_lit(lit: Literal) -> Term {
   match lit {
-    Literal::Nat(_) => Term::LTy(Pos::None, LitType::Nat),
-    Literal::Int(_) => Term::LTy(Pos::None, LitType::Int),
-    Literal::Bytes(_) => Term::LTy(Pos::None, LitType::Bytes),
-    Literal::Text(_) => Term::LTy(Pos::None, LitType::Text),
-    Literal::Char(_) => Term::LTy(Pos::None, LitType::Char),
-    Literal::Bool(_) => Term::LTy(Pos::None, LitType::Bool),
-    Literal::U8(_) => Term::LTy(Pos::None, LitType::U8),
-    Literal::U16(_) => Term::LTy(Pos::None, LitType::U16),
-    Literal::U32(_) => Term::LTy(Pos::None, LitType::U32),
-    Literal::U64(_) => Term::LTy(Pos::None, LitType::U64),
-    Literal::U128(_) => Term::LTy(Pos::None, LitType::U128),
-    Literal::I8(_) => Term::LTy(Pos::None, LitType::I8),
-    Literal::I16(_) => Term::LTy(Pos::None, LitType::I16),
-    Literal::I32(_) => Term::LTy(Pos::None, LitType::I32),
-    Literal::I64(_) => Term::LTy(Pos::None, LitType::I64),
-    Literal::I128(_) => Term::LTy(Pos::None, LitType::I128),
-  }
-}
-
-#[allow(clippy::match_single_binding)]
-pub fn infer_lty(lty: LitType) -> Term {
-  match lty {
-    _ => Term::Typ(Pos::None),
+    Literal::Nat(_) => yatima!("#Nat"),
+    Literal::Int(_) => yatima!("#Int"),
+    Literal::Bits(_) => yatima!("#Bits"),
+    Literal::Bytes(_) => yatima!("#Bytes"),
+    Literal::Text(_) => yatima!("#Text"),
+    Literal::Char(_) => yatima!("#Char"),
+    Literal::Bool(_) => yatima!("#Bool"),
+    Literal::U8(_) => yatima!("#U8"),
+    Literal::U16(_) => yatima!("#U16"),
+    Literal::U32(_) => yatima!("#U32"),
+    Literal::U64(_) => yatima!("#U64"),
+    Literal::U128(_) => yatima!("#U128"),
+    Literal::I8(_) => yatima!("#I8"),
+    Literal::I16(_) => yatima!("#I16"),
+    Literal::I32(_) => yatima!("#I32"),
+    Literal::I64(_) => yatima!("#I64"),
+    Literal::I128(_) => yatima!("#I128"),
   }
 }
 
 pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
-  // TODO add a safer version
-  let typ_dag = unsafe {
-    infer(mem::zeroed(), &defs, &mut vec![].into(), Uses::Once, &term)?
-  };
+  let typ_dag = infer(&None, &defs, &mut vec![].into(), Uses::Once, &term)?;
   let typ = DAG::to_term(&typ_dag, true);
   typ_dag.free();
   Ok(typ)
@@ -444,7 +467,7 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let (d, _, a) = def.embed();
   let def_cid = d.cid();
   let ast_cid = a.cid();
-  let rec = (name.to_owned(), def_cid, ast_cid);
+  let rec = Some((name.to_owned(), def_cid, ast_cid));
   let mut typ = DAG::from_term(&def.typ_);
   check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
   typ.free();

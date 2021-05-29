@@ -48,10 +48,7 @@ use std::{
 use cid::Cid;
 use libipld::ipld::Ipld;
 
-use im::{
-  // HashMap,
-  HashSet,
-};
+use im::HashSet;
 
 use nom::{
   bytes::complete::tag,

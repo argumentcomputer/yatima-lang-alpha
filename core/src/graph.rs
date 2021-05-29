@@ -14,7 +14,7 @@ use crate::{
     LitType,
     Literal,
   },
-  primop::PrimOp,
+  prim::Op,
   uses::Uses,
 };
 use core::ptr::NonNull;
@@ -37,7 +37,7 @@ pub enum Node {
   Ann,
   Lit { lit: Literal },
   LTy { lty: LitType },
-  Opr { opr: PrimOp },
+  Opr { opr: Op },
 }
 
 impl fmt::Display for Node {

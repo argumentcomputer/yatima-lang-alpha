@@ -1,18 +1,23 @@
-use std::sync::{Arc, Mutex};
+use std::{
+  rc::Rc,
+  sync::{Arc, Mutex},
+};
 use yatima_utils::{
-  file::parse,
   repl::{
     Repl,
-    run_repl,
     error::ReplError,
-  }
+  },
+  store::Store,
 };
 use yatima_core::{
   defs::Defs,
 };
 // use wasm_bindgen_futures::JsFuture;
 
-use crate::utils;
+use crate::{
+  store::WebStore,
+  utils,
+};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use xterm_js_rs::addons::fit::FitAddon;
@@ -51,6 +56,7 @@ struct WebRepl {
   terminal: Terminal,
   defs: Arc<Mutex<Defs>>,
   shell_state: Arc<Mutex<ShellState>>,
+  store: Rc<WebStore>,
 }
 
 #[derive(Debug,Clone)]
@@ -85,7 +91,9 @@ impl WebRepl {
         .get_element_by_id("terminal")
         .unwrap();
 
-    terminal.writeln("Supported keys in this example: <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> <Ctrl-C> <Ctrl-L>");
+    terminal.writeln("Yatima REPL");
+    terminal.writeln("Supported keys in this example:");
+    terminal.writeln(" <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> <Ctrl-C> <Ctrl-L>");
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
@@ -98,13 +106,17 @@ impl WebRepl {
     terminal.load_addon(addon.clone().dyn_into::<FitAddon>().unwrap().into());
     addon.fit();
     terminal.focus();
-    WebRepl { terminal, defs, shell_state }
+    let store = Rc::new(WebStore::new());
+    WebRepl { terminal, defs, shell_state, store }
   }
 
   pub fn handle_event(&mut self, e: OnKeyEvent) {
-    let mut shell_state = self.shell_state.lock().unwrap();
-    let mut cursor_col = shell_state.cursor_col;
+    let shell_state = self.shell_state.lock().unwrap();
+    let mut cursor_col = shell_state.cursor_col.clone();
     let mut line = shell_state.line.clone();
+
+    // We are done reading from the shell_state
+    drop(shell_state);
     let term: Terminal = self.terminal.clone().dyn_into().unwrap();
     let event = e.dom_event();
     match event.key_code() {
@@ -153,6 +165,7 @@ impl WebRepl {
         }
       }
     }
+    let mut shell_state = self.shell_state.lock().unwrap();
     *shell_state = ShellState { cursor_col, line }
   }
 
@@ -167,6 +180,10 @@ impl Repl for WebRepl {
   fn get_defs(&self) -> Arc<Mutex<Defs>> {
     self.defs.clone()
   }
+
+  fn get_store(&self) -> Rc<dyn Store> {
+    self.store.clone()
+  }
   
   fn println(&self, s: String) {
     self.terminal.writeln(s.as_str());
@@ -176,7 +193,7 @@ impl Repl for WebRepl {
     // TODO
   }
 
-  fn add_history_entry(&self, s: &str) {
+  fn add_history_entry(&mut self, s: &str) {
     // TODO
   }
 

@@ -1,5 +1,8 @@
-use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
+use std::{
+  io::{self, Write},
+  sync::{Arc, Mutex},
+  rc::Rc,
+};
 use rustyline::{
   error::ReadlineError,
   Cmd,
@@ -12,16 +15,21 @@ use rustyline::{
 use yatima_core::{
   defs::Defs,
 };
-use yatima_utils::repl::{
-  run_repl,
-  Repl,
-  error::ReplError
+use yatima_utils::{
+  store::Store,
+  repl::{
+    run_repl,
+    Repl,
+    error::ReplError
+  }
 };
+use crate::file::store::FileStore;
 
 
 struct RustyLineRepl {
   rl: Editor<()>,
   defs: Arc<Mutex<Defs>>,
+  store: Rc<FileStore>,
 }
 
 impl RustyLineRepl {
@@ -30,9 +38,11 @@ impl RustyLineRepl {
     let mut rl = Editor::<()>::with_config(config);
     rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
     rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
+    let store = Rc::new(FileStore {});
     RustyLineRepl {
       rl: rl,
-      defs: Arc::new(Mutex::new(Defs::new()))
+      defs: Arc::new(Mutex::new(Defs::new())),
+      store: store,
     }
   }
 }
@@ -58,7 +68,7 @@ impl Repl for RustyLineRepl {
     }
   }
 
-  fn add_history_entry(&self, s: &str) {
+  fn add_history_entry(&mut self, s: &str) {
     self.rl.add_history_entry(s);
   }
 
@@ -68,6 +78,10 @@ impl Repl for RustyLineRepl {
 
   fn get_defs(&self) -> Arc<Mutex<Defs>> {
     self.defs.clone()
+  }
+
+  fn get_store(&self) -> Rc<dyn Store> {
+    self.store.clone()
   }
 }
 

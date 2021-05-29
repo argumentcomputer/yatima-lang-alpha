@@ -2082,7 +2082,6 @@ name = "yatima_core"
 version = "0.1.0"
 dependencies = [
  "base-x",
- "bit-vec",
  "cid",
  "im",
  "libipld",
@@ -2123,8 +2122,10 @@ dependencies = [
 name = "yatima_web"
 version = "0.1.0"
 dependencies = [
+ "cid",
  "console_error_panic_hook",
  "js-sys",
+ "libipld",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

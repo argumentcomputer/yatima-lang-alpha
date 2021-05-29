@@ -1,7 +1,10 @@
 pub mod command;
 pub mod error;
 
-use std::sync::{Arc, Mutex};
+use std::{
+  rc::Rc,
+  sync::{Arc, Mutex},
+};
 use nom::Err;
 use yatima_core::{
   check::{
@@ -15,6 +18,10 @@ use yatima_core::{
     term::input_cid,
   },
 };
+use crate::{
+  file,
+  store::Store,
+};
 
 use command::{
     Command
@@ -25,12 +32,14 @@ pub trait Repl {
     fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
     fn println(&self, s: String);
     fn load_history(&mut self);
-    fn add_history_entry(&self, s: &str);
+    fn add_history_entry(&mut self, s: &str);
     fn save_history(&mut self);
     fn get_defs(&self) -> Arc<Mutex<Defs>>;
-    fn handle_line(&self, readline: Result<String, ReplError>) -> Result<(),()> {
+    fn get_store(&self) -> Rc<dyn Store>;
+    fn handle_line(&mut self, readline: Result<String, ReplError>) -> Result<(),()> {
       let mutex_defs = self.get_defs();
       let mut defs = mutex_defs.lock().unwrap();
+      let store = self.get_store();
       match readline {
         Ok(line) => {
           self.add_history_entry(line.as_str());
@@ -41,6 +50,17 @@ pub trait Repl {
           match res {
             Ok((_, command)) => {
               match command {
+                Command::Load(name) => {
+                  let root = std::env::current_dir().unwrap();
+                  let mut path = root.clone();
+                  for n in name.split('.') {
+                    path.push(n);
+                  }
+                  path.set_extension("ya");
+                  if let Ok(ds) = file::check_all(path, store) {
+                    *defs = ds;
+                  }
+                }
                 Command::Eval(term) => {
                   let mut dag = DAG::from_term(&term);
                   dag.norm(&defs);
@@ -111,8 +131,6 @@ pub trait Repl {
 }
 
 pub fn run_repl(rl: &mut dyn Repl) {
-
-  let defs = Defs::new();
   rl.load_history();
   loop {
     let readline = rl.readline("⅄ ");

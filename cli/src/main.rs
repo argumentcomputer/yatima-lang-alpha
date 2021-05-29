@@ -70,7 +70,7 @@ async fn main() -> std::io::Result<()> {
     Cli::Check { path } => {
       let root = std::env::current_dir()?;
       let store = Rc::new(FileStore {});
-      let env = file::parse::PackageEnv::new(root, path, store.clone());
+      let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
       let (_, p, ds) = file::parse::parse_file(env);
       let cid = store.put(p.to_ipld());
       // let _ipld_cid =
@@ -119,6 +119,7 @@ async fn main() -> std::io::Result<()> {
           }
         }
       }
+      file::check_all(path, store)?;
       Ok(())
     }
     Cli::Run { path } => {

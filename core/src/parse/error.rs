@@ -6,7 +6,6 @@ use crate::{
   term::{
     LitType,
     Literal,
-    PrimOp,
   },
 };
 
@@ -43,7 +42,23 @@ pub enum ParseErrorKind {
   ReservedSyntax(String),
   LiteralLacksWhitespaceTermination(Literal),
   LitTypeLacksWhitespaceTermination(LitType),
-  PrimOpLacksWhitespaceTermination(PrimOp),
+  UnknownNatOp(String),
+  UnknownIntOp(String),
+  UnknownBitsOp(String),
+  UnknownBytesOp(String),
+  UnknownBoolOp(String),
+  UnknownTextOp(String),
+  UnknownCharOp(String),
+  UnknownU8Op(String),
+  UnknownU16Op(String),
+  UnknownU32Op(String),
+  UnknownU64Op(String),
+  UnknownU128Op(String),
+  UnknownI8Op(String),
+  UnknownI16Op(String),
+  UnknownI32Op(String),
+  UnknownI64Op(String),
+  UnknownI128Op(String),
   InvalidSymbol(String),
   Nom(ErrorKind),
 }
@@ -98,13 +113,17 @@ impl<'a> fmt::Display for ParseErrorKind {
       Self::LitTypeLacksWhitespaceTermination(x) => {
         write!(f, "Literal type {} must be terminated by whitespace or eof", x)
       }
-      Self::PrimOpLacksWhitespaceTermination(x) => {
-        write!(
-          f,
-          "Built-in primitive operation {} must be terminated by whitespace \
-           or eof",
-          x
-        )
+      Self::UnknownNatOp(x) => {
+        write!(f, "Unknown primitive Nat operation #Nat.{}", x)
+      }
+      Self::UnknownIntOp(x) => {
+        write!(f, "Unknown primitive Int operation #Int.{}", x)
+      }
+      Self::UnknownBytesOp(x) => {
+        write!(f, "Unknown primitive Bytes operation #Bytes.{}", x)
+      }
+      Self::UnknownTextOp(x) => {
+        write!(f, "Unknown primitive Nat operation #Text.{}", x)
       }
       _ => write!(f, "internal parser error"),
     }

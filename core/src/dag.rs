@@ -9,7 +9,7 @@ use crate::{
     Literal,
   },
   position::Pos,
-  primop::PrimOp,
+  prim::Op,
   term::Term,
   uses::Uses,
 };
@@ -199,7 +199,7 @@ pub struct LTy {
 
 #[repr(C)]
 pub struct Opr {
-  pub opr: PrimOp,
+  pub opr: Op,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -643,8 +643,7 @@ impl DAG {
   ) -> Term {
     match node {
       DAGPtr::Var(link) => {
-        let Var { nam, dep: var_depth, rec, .. } =
-          unsafe { link.as_ref() };
+        let Var { nam, dep: var_depth, rec, .. } = unsafe { link.as_ref() };
         if *rec && re_rec {
           Term::Rec(Pos::None)
         }
@@ -655,9 +654,7 @@ impl DAG {
           Term::Var(Pos::None, nam.clone(), *var_depth)
         }
       }
-      DAGPtr::Typ(_) => {
-        Term::Typ(Pos::None)
-      }
+      DAGPtr::Typ(_) => Term::Typ(Pos::None),
       DAGPtr::LTy(link) => {
         let LTy { lty, .. } = unsafe { link.as_ref() };
         Term::LTy(Pos::None, *lty)
@@ -672,7 +669,7 @@ impl DAG {
       }
       DAGPtr::Ref(link) => {
         let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
-        if *rec {
+        if *rec && re_rec {
           Term::Rec(Pos::None)
         }
         else {
@@ -818,8 +815,7 @@ impl DAG {
     match tree {
       Term::Rec(_) => match rec_ref {
         Some((nam, exp, ast)) => {
-          let ref_ =
-            alloc_val(Ref { nam, rec: true, exp, ast, parents });
+          let ref_ = alloc_val(Ref { nam, rec: true, exp, ast, parents });
           DAGPtr::Ref(ref_)
         }
         None => {
@@ -842,7 +838,7 @@ impl DAG {
           *val
         }
         None => {
-          if depth < 1+idx {
+          if depth < 1 + idx {
             panic!("Negative index found.")
           }
           let var = alloc_val(Var {
@@ -856,15 +852,11 @@ impl DAG {
         }
       },
       Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
-      Term::LTy(_, lty) => {
-        DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents }))
-      }
+      Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
       Term::Lit(_, lit) => {
         DAGPtr::Lit(alloc_val(Lit { lit: lit.clone(), parents }))
       }
-      Term::Opr(_, opr) => {
-        DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents }))
-      }
+      Term::Opr(_, opr) => DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents })),
       Term::Ref(_, nam, exp, ast) => DAGPtr::Ref(alloc_val(Ref {
         nam: nam.clone(),
         rec: false,
@@ -928,16 +920,10 @@ impl DAG {
       },
       Term::All(_, uses, nam, dom_img) => unsafe {
         let (dom, img) = (**dom_img).clone();
-        let all =
-          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
+        let all = alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
-        let lam = alloc_lam(
-          nam.clone(),
-          0,
-          None,
-          mem::zeroed(),
-          NonNull::new(img_ref),
-        );
+        let lam =
+          alloc_lam(nam.clone(), 0, None, mem::zeroed(), NonNull::new(img_ref));
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
         let mut img_ctx = ctx.clone();
         let dom = DAG::from_term_inner(
@@ -1090,13 +1076,8 @@ impl DAG {
       },
       DAGPtr::Lam(link) => unsafe {
         let Lam { var, bod, .. } = &mut *link.as_ptr();
-        let lam = alloc_lam(
-          var.nam.clone(),
-          var.dep,
-          None,
-          mem::zeroed(),
-          parents,
-        );
+        let lam =
+          alloc_lam(var.nam.clone(), var.dep, None, mem::zeroed(), parents);
         let Lam { var: new_var, bod: new_bod, bod_ref, .. } =
           &mut *lam.as_ptr();
         map.insert(
@@ -1108,13 +1089,8 @@ impl DAG {
       },
       DAGPtr::Slf(link) => unsafe {
         let Slf { var, bod, .. } = &mut *link.as_ptr();
-        let slf = alloc_slf(
-          var.nam.clone(),
-          var.dep,
-          None,
-          mem::zeroed(),
-          parents,
-        );
+        let slf =
+          alloc_slf(var.nam.clone(), var.dep, None, mem::zeroed(), parents);
         let Slf { var: new_var, bod: new_bod, bod_ref, .. } =
           &mut *slf.as_ptr();
         map.insert(
@@ -1149,8 +1125,7 @@ impl DAG {
       },
       DAGPtr::All(link) => unsafe {
         let All { uses, dom, img, .. } = &mut *link.as_ptr();
-        let all =
-          alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
+        let all = alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom: new_dom, dom_ref, img: new_img, img_ref, .. } =
           &mut *all.as_ptr();
         *new_dom = DAG::from_subdag(*dom, map, NonNull::new(dom_ref));
@@ -1220,7 +1195,7 @@ impl DAG {
       DAGPtr::Typ(_) => {
         let node = alloc_val(Typ { parents });
         DAGPtr::Typ(node)
-      }, // _ => panic!("TODO"),
+      } // _ => panic!("TODO"),
     };
     // Map `node` to `new_node`
     map.insert(node, new_node);
