@@ -57,16 +57,16 @@ use nom::{
   IResult,
 };
 
-// use std::{
-//   cell::RefCell,
-//   rc::Rc,
-// };
+use std::{
+  cell::RefCell,
+  rc::Rc,
+};
 
 #[derive(Debug, Clone)]
 pub struct PackageEnv {
   root: PathBuf,
   path: PathBuf,
-  open: HashSet<PathBuf>,
+  open: Rc<RefCell<HashSet<PathBuf>>>,
   /* sources: Rc<RefCell<HashMap<Cid, PathBuf>>>,
    * done: Rc<RefCell<HashMap<PathBuf, Cid>>>, */
 }
@@ -77,7 +77,7 @@ impl PackageEnv {
     Self {
       root,
       path,
-      open: HashSet::new(),
+      open: Rc::new(RefCell::new(HashSet::new())),
       /*    sources: Rc::new(RefCell::new(HashMap::new())),
        *    done: Rc::new(RefCell::new(HashMap::new())), */
     }
@@ -182,8 +182,8 @@ pub fn parse_import(
         path.push(n);
       }
       path.set_extension("ya");
-      let mut open = env.open.clone();
-      let has_path = open.insert(path.clone());
+      let open = env.open.clone();
+      let has_path = open.borrow_mut().insert(path.clone());
       if !has_path {
         Err(Err::Error(FileError::new(i, FileErrorKind::ImportCycle(path))))
       }

@@ -21,9 +21,11 @@ use crate::{
   term::*,
 };
 
-use std::convert::TryFrom;
-
-use std::collections::VecDeque;
+use std::{
+  collections::VecDeque,
+  convert::TryFrom,
+  rc::Rc,
+};
 
 use nom::{
   bytes::complete::tag,
@@ -96,7 +98,7 @@ pub fn parse_entry(
         input,
         defs.to_owned(),
         Some(nam.clone()),
-        VecDeque::new(),
+        Rc::new(VecDeque::new()),
         VecDeque::new(),
         nam.clone(),
         false,
