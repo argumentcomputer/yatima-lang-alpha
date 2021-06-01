@@ -75,7 +75,7 @@ pub fn main() -> rustyline::Result<()> {
             Command::Define(boxed) => {
               let (n, def, _) = *boxed;
               let mut tmp_defs = defs.clone();
-              tmp_defs.insert(Name::from(n.clone()), def);
+              tmp_defs.insert(n.clone(), def);
               let res = check_def(&tmp_defs, &n);
               match res {
                 Ok(res) => {

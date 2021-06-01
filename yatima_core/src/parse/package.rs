@@ -73,12 +73,7 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
   let alias = alias.unwrap_or_else(|| Name::from(""));
   let (i, with) = terminated(parse_with, parse_space)(i)?;
   let (i, from) = terminated(parse_link, parse_space)(i)?;
-  Ok((i, Import {
-    cid: from,
-    name: Name::from(name),
-    alias: Name::from(alias),
-    with: with.iter().cloned().map(Name::from).collect(),
-  }))
+  Ok((i, Import { cid: from, name, alias, with }))
 }
 
 pub fn parse_entry(
@@ -89,7 +84,7 @@ pub fn parse_entry(
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
-    if defs.names.get(&Name::from(nam.clone())).is_some() {
+    if defs.names.get(&nam.clone()).is_some() {
       Err(Err::Error(ParseError::new(
         from,
         ParseErrorKind::TopLevelRedefinition(nam),
@@ -100,7 +95,7 @@ pub fn parse_entry(
       let (upto, (typ_, term)) = parse_bound_expression(
         input,
         defs.to_owned(),
-        Some(Name::from(nam.clone())),
+        Some(nam.clone()),
         Vector::new(),
         Vector::new(),
         nam.clone(),
@@ -130,8 +125,8 @@ pub fn parse_defs(
       }
       else {
         let (i2, (name, def, _)) = parse_entry(input, defs.clone())(i)?;
-        ind.push((Name::from(name.clone()), def.def_cid));
-        defs.insert(Name::from(name), def);
+        ind.push((name.clone(), def.def_cid));
+        defs.insert(name, def);
         i = i2;
       }
     }

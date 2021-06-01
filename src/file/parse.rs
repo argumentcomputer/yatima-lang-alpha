@@ -174,19 +174,7 @@ pub fn parse_import(
         |v| Ok((i, v)),
       )?;
       let with: Vec<Name> = with.unwrap_or_else(|| defs.names());
-      Ok((
-        i,
-        (
-          from,
-          Import {
-            cid: from,
-            name: Name::from(name),
-            alias: Name::from(alias),
-            with,
-          },
-          defs,
-        ),
-      ))
+      Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
     }
     else {
       let mut path = env.root.clone();
@@ -289,7 +277,7 @@ pub fn parse_package(
       }
     }
     let pos = Pos::from_upto(input, from, upto);
-    let package = Package { pos, name: Name::from(name), imports, index };
+    let package = Package { pos, name, imports, index };
     let pack_cid = store::put(package.to_ipld());
     Ok((from, (pack_cid, package, defs)))
   }

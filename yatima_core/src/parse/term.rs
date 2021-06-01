@@ -229,16 +229,13 @@ pub fn parse_var(
       _ => false,
     };
     if let Some((idx, _)) = ctx.iter().enumerate().find(|(_, x)| **x == nam) {
-      Ok((upto, Term::Var(pos, Name::from(nam.clone()), idx as u64)))
+      Ok((upto, Term::Var(pos, nam.clone(), idx as u64)))
     }
     else if is_rec_name {
       Ok((upto, Term::Rec(pos)))
     }
-    else if let Some(def) = defs.get(Name::from(nam.clone())) {
-      Ok((
-        upto,
-        Term::Ref(pos, Name::from(nam.clone()), def.def_cid, def.ast_cid),
-      ))
+    else if let Some(def) = defs.get(nam.clone()) {
+      Ok((upto, Term::Ref(pos, nam.clone(), def.def_cid, def.ast_cid)))
     }
     else {
       Err(Err::Error(ParseError::new(
@@ -278,7 +275,7 @@ pub fn parse_lam(
     let trm = ns
       .iter()
       .rev()
-      .fold(bod, |acc, n| Term::Lam(pos, Name::from(n.clone()), Box::new(acc)));
+      .fold(bod, |acc, n| Term::Lam(pos, n.clone(), Box::new(acc)));
     Ok((upto, trm))
   }
 }
@@ -474,9 +471,10 @@ pub fn parse_all(
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    let trm = bs.into_iter().rev().fold(bod, |acc, (u, n, t)| {
-      Term::All(pos, u, Name::from(n), Box::new((t, acc)))
-    });
+    let trm = bs
+      .into_iter()
+      .rev()
+      .fold(bod, |acc, (u, n, t)| Term::All(pos, u, n, Box::new((t, acc))));
     Ok((upto, trm))
   }
 }
@@ -512,7 +510,7 @@ pub fn parse_self(
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Slf(pos, Name::from(n), Box::new(bod))))
+    Ok((upto, Term::Slf(pos, n, Box::new(bod))))
   }
 }
 
@@ -619,12 +617,14 @@ pub fn parse_bound_expression(
       quasi.clone(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    let trm = bs.iter().rev().fold(trm, |acc, (_, n, _)| {
-      Term::Lam(pos, Name::from(n.clone()), Box::new(acc))
-    });
-    let typ = bs.into_iter().rev().fold(typ, |acc, (u, n, t)| {
-      Term::All(pos, u, Name::from(n), Box::new((t, acc)))
-    });
+    let trm = bs
+      .iter()
+      .rev()
+      .fold(trm, |acc, (_, n, _)| Term::Lam(pos, n.clone(), Box::new(acc)));
+    let typ = bs
+      .into_iter()
+      .rev()
+      .fold(typ, |acc, (u, n, t)| Term::All(pos, u, n, Box::new((t, acc))));
     Ok((upto, (typ, trm)))
   }
 }
@@ -665,10 +665,7 @@ pub fn parse_let(
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((
-      upto,
-      Term::Let(pos, letrec, uses, Name::from(nam), Box::new((typ, exp, bod))),
-    ))
+    Ok((upto, Term::Let(pos, letrec, uses, nam, Box::new((typ, exp, bod)))))
   }
 }
 
