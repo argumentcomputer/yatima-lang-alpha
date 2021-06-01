@@ -25,7 +25,7 @@ use std::{
   rc::Rc,
 };
 
-use im::Vector;
+use std::collections::VecDeque;
 
 use nom::{
   bytes::complete::tag,
@@ -98,8 +98,8 @@ pub fn parse_entry(
         input,
         defs.to_owned(),
         Some(Rc::new(nam.clone())),
-        Vector::new(),
-        Vector::new(),
+        VecDeque::new(),
+        VecDeque::new(),
         nam.clone(),
         false,
       )(i)?;

@@ -7,7 +7,7 @@ use crate::{
   upcopy::*,
 };
 
-use im::Vector;
+use std::collections::VecDeque;
 
 enum Single {
   Lam(Var),
@@ -304,7 +304,7 @@ impl DAG {
                   let expand = DAG::from_term_inner(
                     expand,
                     0,
-                    Vector::new(),
+                    VecDeque::new(),
                     *parents,
                     None,
                   );

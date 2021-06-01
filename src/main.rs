@@ -7,12 +7,6 @@ use yatima::{
   ipfs,
   repl,
 };
-use yatima_core::{
-  check::error::CheckError,
-  position::Pos,
-};
-
-use libipld::Ipld;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]

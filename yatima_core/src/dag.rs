@@ -15,12 +15,12 @@ use crate::{
 };
 
 use core::ptr::NonNull;
-use im::{
-  HashMap,
-  Vector,
-};
 use std::{
-  collections::HashSet,
+  collections::{
+    BTreeSet,
+    HashMap,
+    VecDeque,
+  },
   fmt,
   mem,
 };
@@ -772,7 +772,7 @@ impl DAG {
 
   pub fn from_term(tree: &Term) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(DAG::from_term_inner(tree, 0, Vector::new(), Some(root), None))
+    DAG::new(DAG::from_term_inner(tree, 0, VecDeque::new(), Some(root), None))
   }
 
   pub fn from_def(def: &Def, name: String) -> Self {
@@ -783,7 +783,7 @@ impl DAG {
     DAG::new(DAG::from_term_inner(
       &def.term,
       0,
-      Vector::new(),
+      VecDeque::new(),
       Some(root),
       Some((name, def_cid, ast_cid)),
     ))
@@ -799,7 +799,7 @@ impl DAG {
     DAG::from_term_inner(
       &def.term,
       0,
-      Vector::new(),
+      VecDeque::new(),
       parents,
       Some((name, def_cid, ast_cid)),
     )
@@ -808,7 +808,7 @@ impl DAG {
   pub fn from_term_inner(
     tree: &Term,
     depth: u64,
-    mut ctx: Vector<DAGPtr>,
+    mut ctx: VecDeque<DAGPtr>,
     parents: Option<NonNull<Parents>>,
     rec_ref: Option<(String, Cid, Cid)>,
   ) -> DAGPtr {
@@ -1248,7 +1248,7 @@ impl fmt::Debug for DAG {
         _ => String::from("[]"),
       }
     }
-    fn go(term: DAGPtr, set: &mut HashSet<usize>) -> String {
+    fn go(term: DAGPtr, set: &mut BTreeSet<usize>) -> String {
       match term {
         DAGPtr::Var(link) => {
           let Var { nam, parents, binder, dep, .. } = unsafe { link.as_ref() };
@@ -1455,7 +1455,7 @@ impl fmt::Debug for DAG {
         }
       }
     }
-    write!(f, "{}", go(self.head, &mut HashSet::new()))
+    write!(f, "{}", go(self.head, &mut BTreeSet::new()))
   }
 }
 

@@ -38,6 +38,7 @@ use crate::file::{
 };
 
 use std::{
+  collections::HashSet,
   ffi::OsString,
   fs,
   path::PathBuf,
@@ -45,8 +46,6 @@ use std::{
 
 use cid::Cid;
 use libipld::ipld::Ipld;
-
-use im::HashSet;
 
 use nom::{
   bytes::complete::tag,
@@ -183,7 +182,7 @@ pub fn parse_import(
       path.set_extension("ya");
       let mut open = env.open.clone();
       let has_path = open.insert(path.clone());
-      if has_path.is_some() {
+      if has_path {
         Err(Err::Error(FileError::new(i, FileErrorKind::ImportCycle(path))))
       }
       else {

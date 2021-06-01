@@ -180,7 +180,7 @@ pub mod tests {
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
-    let term = arbitrary_term(g, true, test_defs(), im::Vector::new());
+    let term = arbitrary_term(g, true, test_defs(), im::VecDeque::new());
     Def::make(Pos::None, typ_, term)
   }
 

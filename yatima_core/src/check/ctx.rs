@@ -4,9 +4,9 @@ use crate::{
   uses::*,
 };
 
-use im::{
+use std::collections::{
   HashMap,
-  Vector,
+  VecDeque,
 };
 
 // Optimization: use of `*mut DAGPtr` instead of `DAG`. The context does not
@@ -50,10 +50,10 @@ pub fn lam_rule(uses: Uses, use_ctx: &mut Ctx, use_ctx2: &Ctx) {
   }
 }
 
-pub type ErrCtx = Vector<(String, Uses, Term)>;
+pub type ErrCtx = VecDeque<(String, Uses, Term)>;
 
 pub fn error_context(ctx: &Ctx) -> ErrCtx {
-  let mut res: ErrCtx = Vector::new();
+  let mut res: ErrCtx = VecDeque::new();
   for (n, uses, ptr) in ctx {
     let dagptr = unsafe { **ptr };
     let mut map = HashMap::new();

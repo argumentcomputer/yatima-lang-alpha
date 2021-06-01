@@ -21,7 +21,7 @@ use crate::file::{
   error::FileError,
 };
 
-use im::Vector;
+use std::collections::VecDeque;
 
 use libipld::Cid;
 use nom::{
@@ -52,8 +52,8 @@ pub fn parse_eval(
       input,
       defs.clone(),
       None,
-      Vector::new(),
-      Vector::new(),
+      VecDeque::new(),
+      VecDeque::new(),
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Eval(Box::new(trm))))
@@ -70,8 +70,8 @@ pub fn parse_type(
       input,
       defs.clone(),
       None,
-      Vector::new(),
-      Vector::new(),
+      VecDeque::new(),
+      VecDeque::new(),
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Type(Box::new(trm))))

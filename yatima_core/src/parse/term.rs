@@ -31,7 +31,6 @@ use multihash::{
 
 use crate::parse::span::Span;
 
-use im::Vector;
 use nom::{
   branch::alt,
   bytes::complete::{
@@ -66,9 +65,10 @@ use nom::{
   Err,
   IResult,
 };
+use std::collections::VecDeque;
 
-pub fn reserved_symbols() -> Vector<String> {
-  Vector::from(vec![
+pub fn reserved_symbols() -> VecDeque<String> {
+  VecDeque::from(vec![
     String::from("//"),
     String::from("λ"),
     String::from("lambda"),
@@ -191,8 +191,8 @@ pub fn is_valid_symbol_string(s: &str) -> bool {
 }
 
 pub fn parse_antiquote(
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (upto, nam) =
@@ -220,7 +220,7 @@ pub fn parse_var(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  ctx: VecDeque<String>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (upto, nam) = context("local or global reference", parse_name)(from)?;
@@ -254,8 +254,8 @@ pub fn parse_lam(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
@@ -297,8 +297,8 @@ pub fn parse_binder_full(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
@@ -328,8 +328,8 @@ pub fn parse_binder_short(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
   move |i: Span| {
@@ -350,8 +350,8 @@ pub fn parse_binder(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
   nam_opt: bool,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
@@ -390,8 +390,8 @@ pub fn parse_binders(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
   nam_opt: bool,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
 {
@@ -449,8 +449,8 @@ pub fn parse_all(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
@@ -500,8 +500,8 @@ pub fn parse_self(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = nom::character::complete::char('@')(from)?;
@@ -525,8 +525,8 @@ pub fn parse_case(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("case")(from)?;
@@ -547,8 +547,8 @@ pub fn parse_data(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("data")(from)?;
@@ -573,8 +573,8 @@ pub fn parse_bound_expression(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
   nam: String,
   letrec: bool,
 ) -> impl Fn(Span) -> IResult<Span, (Term, Term), ParseError<Span>> {
@@ -640,8 +640,8 @@ pub fn parse_let(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, letrec) =
@@ -763,8 +763,8 @@ pub fn parse_expression(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, trm) =
@@ -810,8 +810,8 @@ pub fn parse_apps(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i2, _) = parse_space(from)?;
@@ -851,8 +851,8 @@ pub fn parse_term(
   input: Cid,
   defs: Defs,
   rec: Option<Rc<String>>,
-  ctx: Vector<String>,
-  quasi: Vector<Term>,
+  ctx: VecDeque<String>,
+  quasi: VecDeque<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |i: Span| {
     context(
@@ -918,16 +918,18 @@ pub fn input_cid(i: &str) -> Cid {
 }
 
 pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), defs, None, Vector::new(), Vector::new())(
+  parse_expression(input_cid(i), defs, None, VecDeque::new(), VecDeque::new())(
     Span::new(i),
   )
 }
 pub fn parse_quasi(
   i: &str,
   defs: Defs,
-  quasi: Vector<Term>,
+  quasi: VecDeque<Term>,
 ) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), defs, None, Vector::new(), quasi)(Span::new(i))
+  parse_expression(input_cid(i), defs, None, VecDeque::new(), quasi)(Span::new(
+    i,
+  ))
 }
 
 #[macro_export]
@@ -938,7 +940,7 @@ macro_rules! yatima {
   ($i:literal, $($q: expr),*) => {{
     let mut quasi = Vec::new();
     $(quasi.push($q);)*
-    crate::parse::term::parse_quasi($i, crate::defs::Defs::new(), im::Vector::from(quasi)).unwrap().1
+    crate::parse::term::parse_quasi($i, crate::defs::Defs::new(), std::collections::VecDeque::from(quasi)).unwrap().1
   }}
 }
 
@@ -950,9 +952,13 @@ pub mod tests {
   #[test]
   fn test_parse_apps() {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-      parse_apps(input_cid(i), Defs::new(), None, Vector::new(), Vector::new())(
-        Span::new(i),
-      )
+      parse_apps(
+        input_cid(i),
+        Defs::new(),
+        None,
+        VecDeque::new(),
+        VecDeque::new(),
+      )(Span::new(i))
     }
     let res = test("0d1");
     assert!(res.is_ok());
@@ -969,8 +975,8 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Vector::new(),
-        Vector::new(),
+        VecDeque::new(),
+        VecDeque::new(),
       )(Span::new(i))
     }
     let res = test("(Type :: Type)");
@@ -999,8 +1005,8 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Vector::new(),
-        Vector::new(),
+        VecDeque::new(),
+        VecDeque::new(),
         nam_opt,
       )(Span::new(i))
     }
@@ -1011,8 +1017,8 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Vector::new(),
-        Vector::new(),
+        VecDeque::new(),
+        VecDeque::new(),
       )(Span::new(i))
     }
     let res = test_full("(a b c: Type)");
@@ -1046,8 +1052,8 @@ pub mod tests {
       input_cid(&i),
       test_defs(),
       None,
-      Vector::new(),
-      Vector::new(),
+      VecDeque::new(),
+      VecDeque::new(),
     )(Span::new(&i))
     {
       Ok((_, y)) => x == y,

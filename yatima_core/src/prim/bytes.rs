@@ -135,7 +135,7 @@ impl BytesOp {
         x.map(|x| U8(*x))
       }
       (Self::Tail, Bytes(xs)) => {
-        let xs = xs[0..xs.len()-1].to_vec();
+        let xs = xs[0..xs.len() - 1].to_vec();
         Some(Bytes(xs))
       }
       _ => None,
@@ -192,7 +192,12 @@ impl BytesOp {
     }
   }
 
-  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
+  pub fn apply3(
+    self,
+    x: &Literal,
+    y: &Literal,
+    z: &Literal,
+  ) -> Option<Literal> {
     use Literal::*;
     match (self, x, y, z) {
       (Self::Insert, Nat(idx), U8(y), Bytes(xs)) => {

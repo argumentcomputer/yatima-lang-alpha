@@ -1,7 +1,6 @@
 use libipld::ipld::Ipld;
 use num_bigint::BigUint;
 use std::fmt;
-use std::cmp::min;
 
 use crate::{
   ipld_error::IpldError,
@@ -10,10 +9,7 @@ use crate::{
   yatima,
 };
 
-use core::convert::{
-  TryFrom,
-  TryInto,
-};
+use core::convert::TryFrom;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum BitsOp {
@@ -138,7 +134,7 @@ impl BitsOp {
         x.map(|x| Bool(*x))
       }
       (Self::Tail, Bits(xs)) => {
-        let xs = xs[0..xs.len()-1].to_vec();
+        let xs = xs[0..xs.len() - 1].to_vec();
         Some(Bits(xs))
       }
       (Self::ToBytes, Bits(xs)) => Some(Literal::Bytes(bits_to_bytes(xs).1)),
@@ -192,7 +188,12 @@ impl BitsOp {
     }
   }
 
-  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
+  pub fn apply3(
+    self,
+    x: &Literal,
+    y: &Literal,
+    z: &Literal,
+  ) -> Option<Literal> {
     use Literal::*;
     match (self, x, y, z) {
       (Self::Insert, Nat(idx), Bool(y), Bits(xs)) => {
@@ -250,10 +251,10 @@ pub fn bits_to_bytes(bits: &Vec<bool>) -> (usize, Vec<u8>) {
   let len = bits.len();
   let mut res = Vec::new();
   let mut idx = 0;
-  while len >= idx+8 {
-    let byte = bits_to_byte(&bits[idx..idx+8]);
+  while len >= idx + 8 {
+    let byte = bits_to_byte(&bits[idx..idx + 8]);
     res.push(byte);
-    idx = idx+8;
+    idx = idx + 8;
   }
   if len > idx {
     let byte = bits_to_byte(&bits[idx..]);
