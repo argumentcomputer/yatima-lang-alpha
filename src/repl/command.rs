@@ -3,6 +3,7 @@ use yatima_core::{
     Def,
     Defs,
   },
+  name::Name,
   package::Entry,
   parse::{
     package::parse_entry,
@@ -36,9 +37,9 @@ pub enum Command {
   Type(Box<Term>),
   Browse,
   // Help,
-  Define(Box<(String, Def, Entry)>),
+  Define(Box<(Name, Def, Entry)>),
   // Type,
-  Load(String),
+  Load(Name),
   // Import,
   Quit,
 }

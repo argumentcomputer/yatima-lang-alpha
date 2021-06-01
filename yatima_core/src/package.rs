@@ -1,6 +1,7 @@
 use crate::{
   ipld_error::IpldError,
   meta::Meta,
+  name::Name,
   position::Pos,
 };
 
@@ -15,12 +16,10 @@ use multihash::{
   MultihashDigest,
 };
 
-use std::rc::Rc;
-
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
   pub pos: Pos,
-  pub name: Rc<str>,
+  pub name: Name,
   pub imports: Vec<Import>,
   pub index: Index,
 }
@@ -28,13 +27,13 @@ pub struct Package {
 #[derive(PartialEq, Clone, Debug)]
 pub struct Import {
   pub cid: Cid,
-  pub name: Rc<str>,
-  pub alias: Rc<str>,
-  pub with: Vec<Rc<str>>,
+  pub name: Name,
+  pub alias: Name,
+  pub with: Vec<Name>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Index(pub Vec<(Rc<str>, Cid)>);
+pub struct Index(pub Vec<(Name, Cid)>);
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Entry {
@@ -107,12 +106,12 @@ impl Index {
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => {
-        let mut res: Vec<(Rc<str>, Cid)> = Vec::new();
+        let mut res: Vec<(Name, Cid)> = Vec::new();
         for x in xs {
           match x {
             Ipld::List(xs) => match xs.as_slice() {
               [Ipld::String(n), Ipld::Link(cid)] => {
-                res.push((Rc::from(n.clone()), *cid));
+                res.push((Name::from(n.clone()), *cid));
               }
               xs => {
                 return Err(IpldError::IndexEntry(Ipld::List(xs.to_owned())));
@@ -129,7 +128,7 @@ impl Index {
     }
   }
 
-  pub fn keys(&self) -> Vec<Rc<str>> {
+  pub fn keys(&self) -> Vec<Name> {
     let mut res = Vec::new();
     for (n, _) in &self.0 {
       res.push(n.clone())
@@ -166,9 +165,9 @@ impl Import {
           }
           Ok(Self {
             cid: *cid,
-            name: Rc::from(name.clone()),
-            alias: Rc::from(alias.clone()),
-            with: res.iter().cloned().map(Rc::from).collect(),
+            name: Name::from(name.clone()),
+            alias: Name::from(alias.clone()),
+            with: res.iter().cloned().map(Name::from).collect(),
           })
         }
         xs => Err(IpldError::Import(Ipld::List(xs.to_owned()))),
@@ -178,17 +177,17 @@ impl Import {
   }
 }
 
-pub fn import_alias(name: Rc<str>, import: &Import) -> Rc<str> {
+pub fn import_alias(name: Name, import: &Import) -> Name {
   if import.with.iter().any(|x| *x == name) {
     if import.alias.is_empty() {
       name
     }
     else {
-      Rc::from(format!("{}.{}", import.alias, name))
+      Name::from(format!("{}.{}", import.alias, name))
     }
   }
   else {
-    Rc::from(format!("{}.{}", import.name, name))
+    Name::from(format!("{}.{}", import.name, name))
   }
 }
 
@@ -213,7 +212,7 @@ impl Package {
             imports.push(i);
           }
           let index = Index::from_ipld(index)?;
-          Ok(Package { pos, name: Rc::from(name.clone()), imports, index })
+          Ok(Package { pos, name: Name::from(name.clone()), imports, index })
         }
         xs => Err(IpldError::Package(Ipld::List(xs.to_owned()))),
       },
@@ -255,8 +254,7 @@ pub mod tests {
   impl Arbitrary for Import {
     fn arbitrary(g: &mut Gen) -> Self {
       let vec: Vec<()> = Arbitrary::arbitrary(g);
-      let vec: Vec<Rc<str>> =
-        vec.into_iter().map(|_| arbitrary_name(g)).collect();
+      let vec: Vec<Name> = vec.into_iter().map(|_| arbitrary_name(g)).collect();
       Self {
         name: "Test".to_string(),
         cid: arbitrary_cid(g),

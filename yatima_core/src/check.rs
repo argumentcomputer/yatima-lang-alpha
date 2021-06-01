@@ -9,6 +9,7 @@ use crate::{
   defs::Defs,
   dll::*,
   literal::Literal,
+  name::Name,
   position::Pos,
   term::Term,
   uses::*,
@@ -23,10 +24,7 @@ use im::{
 use libipld::Cid;
 
 use core::ptr::NonNull;
-use std::{
-  collections::HashSet,
-  rc::Rc,
-};
+use std::collections::HashSet;
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -98,7 +96,7 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
 }
 
 pub fn check(
-  rec: &Option<(Rc<str>, Cid, Cid)>,
+  rec: &Option<(Name, Cid, Cid)>,
   defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
@@ -224,7 +222,7 @@ pub fn check(
 }
 
 pub fn infer(
-  rec: &Option<(Rc<str>, Cid, Cid)>,
+  rec: &Option<(Name, Cid, Cid)>,
   defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
@@ -464,13 +462,13 @@ pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
 }
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
-  let def = defs.get(Rc::from(name)).ok_or_else(|| {
+  let def = defs.get(Name::from(name)).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;
   let (d, _, a) = def.embed();
   let def_cid = d.cid();
   let ast_cid = a.cid();
-  let rec = Some((Rc::from(name), def_cid, ast_cid));
+  let rec = Some((Name::from(name), def_cid, ast_cid));
   let mut typ = DAG::from_term(&def.typ_);
   check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
   typ.free();

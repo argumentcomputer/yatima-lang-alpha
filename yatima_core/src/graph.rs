@@ -14,6 +14,7 @@ use crate::{
     LitType,
     Literal,
   },
+  name::Name,
   prim::Op,
   uses::Uses,
 };
@@ -21,21 +22,18 @@ use core::ptr::NonNull;
 use im::HashMap;
 use libipld::Cid;
 
-use std::{
-  fmt,
-  rc::Rc,
-};
+use std::fmt;
 
 pub enum Node {
-  Var { name: Rc<str>, rec: bool, dep: u64 },
-  Lam { name: Rc<str> },
+  Var { name: Name, rec: bool, dep: u64 },
+  Lam { name: Name },
   App,
   All { uses: Uses },
-  Slf { name: Rc<str> },
+  Slf { name: Name },
   Dat,
   Cse,
-  Ref { name: Rc<str>, rec: bool, exp: Cid, ast: Cid },
-  Let { uses: Uses, name: Rc<str> },
+  Ref { name: Name, rec: bool, exp: Cid, ast: Cid },
+  Let { uses: Uses, name: Name },
   Typ,
   Ann,
   Lit { lit: Literal },

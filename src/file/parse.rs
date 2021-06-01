@@ -5,6 +5,7 @@ use yatima_core::{
     Def,
     Defs,
   },
+  name::Name,
   package::{
     import_alias,
     Entry,
@@ -41,7 +42,6 @@ use std::{
   ffi::OsString,
   fs,
   path::PathBuf,
-  rc::Rc,
 };
 
 use cid::Cid;
@@ -153,7 +153,7 @@ pub fn parse_import(
     let (i, _) = parse_space(i).map_err(error::convert)?;
     let (i, alias) =
       opt(terminated(parse_alias, parse_space))(i).map_err(error::convert)?;
-    let alias = alias.unwrap_or_else(|| String::from(""));
+    let alias = alias.unwrap_or_else(|| Name::from(""));
     let (i, with) =
       opt(terminated(parse_with, parse_space))(i).map_err(error::convert)?;
     let (i, from) =
@@ -173,17 +173,15 @@ pub fn parse_import(
         |e| Err(Err::Error(FileError::new(i, e))),
         |v| Ok((i, v)),
       )?;
-      let with: Vec<Rc<str>> = with
-        .map(|x| x.iter().cloned().map(Rc::from).collect())
-        .unwrap_or_else(|| defs.names());
+      let with: Vec<Name> = with.unwrap_or_else(|| defs.names());
       Ok((
         i,
         (
           from,
           Import {
             cid: from,
-            name: Rc::from(name),
-            alias: Rc::from(alias),
+            name: Name::from(name),
+            alias: Name::from(alias),
             with,
           },
           defs,
@@ -210,22 +208,8 @@ pub fn parse_import(
            * done: env.done.clone(), */
         };
         let (from, _, defs) = parse_file(env);
-        let with = with
-          .map(|x| x.iter().cloned().map(Rc::from).collect())
-          .unwrap_or_else(|| defs.names());
-        Ok((
-          i,
-          (
-            from,
-            Import {
-              cid: from,
-              name: Rc::from(name),
-              alias: Rc::from(alias),
-              with,
-            },
-            defs,
-          ),
-        ))
+        let with = with.unwrap_or_else(|| defs.names());
+        Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
       }
     }
   }
@@ -305,7 +289,7 @@ pub fn parse_package(
       }
     }
     let pos = Pos::from_upto(input, from, upto);
-    let package = Package { pos, name: Rc::from(name), imports, index };
+    let package = Package { pos, name: Name::from(name), imports, index };
     let pack_cid = store::put(package.to_ipld());
     Ok((from, (pack_cid, package, defs)))
   }

@@ -1,5 +1,6 @@
 use crate::{
   defs::Defs,
+  name::Name,
   parse::{
     error::{
       throw_err,
@@ -16,8 +17,6 @@ use crate::{
     Uses,
   },
 };
-
-use std::rc::Rc;
 
 use cid::Cid;
 use libipld::{
@@ -110,7 +109,7 @@ pub fn parse_space1(i: Span) -> IResult<Span, Vec<Span>, ParseError<Span>> {
   Ok((i, com))
 }
 
-pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
+pub fn parse_name(from: Span) -> IResult<Span, Name, ParseError<Span>> {
   let (i, s) = take_till1(|x| {
     char::is_whitespace(x)
       | (x == ':')
@@ -133,7 +132,7 @@ pub fn parse_name(from: Span) -> IResult<Span, String, ParseError<Span>> {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(s))))
   }
   else {
-    Ok((i, s))
+    Ok((i, Name::from(s)))
   }
 }
 
@@ -191,7 +190,7 @@ pub fn is_valid_symbol_string(s: &str) -> bool {
 }
 
 pub fn parse_antiquote(
-  ctx: Vector<String>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -208,7 +207,7 @@ pub fn parse_antiquote(
       Err(Err::Error(ParseError::new(
         upto,
         ParseErrorKind::UndefinedReference(
-          format!("#${}", nam.to_string()),
+          Name::from(format!("#${}", nam.to_string())),
           ctx.to_owned(),
         ),
       )))
@@ -219,29 +218,26 @@ pub fn parse_antiquote(
 pub fn parse_var(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (upto, nam) = context("local or global reference", parse_name)(from)?;
     let pos = Pos::from_upto(input, from, upto);
     let is_rec_name = match rec.clone() {
-      Some(rec_ref) => {
-        let rec_name = rec_ref.as_ref();
-        nam == *rec_name
-      }
+      Some(rec_ref) => nam == rec_ref,
       _ => false,
     };
     if let Some((idx, _)) = ctx.iter().enumerate().find(|(_, x)| **x == nam) {
-      Ok((upto, Term::Var(pos, Rc::from(nam.clone()), idx as u64)))
+      Ok((upto, Term::Var(pos, Name::from(nam.clone()), idx as u64)))
     }
     else if is_rec_name {
       Ok((upto, Term::Rec(pos)))
     }
-    else if let Some(def) = defs.get(Rc::from(nam.clone())) {
+    else if let Some(def) = defs.get(Name::from(nam.clone())) {
       Ok((
         upto,
-        Term::Ref(pos, Rc::from(nam.clone()), def.def_cid, def.ast_cid),
+        Term::Ref(pos, Name::from(nam.clone()), def.def_cid, def.ast_cid),
       ))
     }
     else {
@@ -256,8 +252,8 @@ pub fn parse_var(
 pub fn parse_lam(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -282,7 +278,7 @@ pub fn parse_lam(
     let trm = ns
       .iter()
       .rev()
-      .fold(bod, |acc, n| Term::Lam(pos, Rc::from(n.clone()), Box::new(acc)));
+      .fold(bod, |acc, n| Term::Lam(pos, Name::from(n.clone()), Box::new(acc)));
     Ok((upto, trm))
   }
 }
@@ -299,11 +295,10 @@ pub fn parse_uses(i: Span) -> IResult<Span, Uses, ParseError<Span>> {
 pub fn parse_binder_full(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
-) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
     let (i, _) = parse_space(i)?;
@@ -330,11 +325,10 @@ pub fn parse_binder_full(
 pub fn parse_binder_short(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
-) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     map(
       parse_term(
@@ -344,7 +338,7 @@ pub fn parse_binder_short(
         ctx.to_owned(),
         quasi.to_owned(),
       ),
-      |t| vec![(Uses::Many, String::from(""), t)],
+      |t| vec![(Uses::Many, Name::from(""), t)],
     )(i)
   }
 }
@@ -352,12 +346,11 @@ pub fn parse_binder_short(
 pub fn parse_binder(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
   nam_opt: bool,
-) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
-{
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     if nam_opt {
       alt((
@@ -392,11 +385,11 @@ pub fn parse_binder(
 pub fn parse_binders(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
   nam_opt: bool,
-) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>>
+) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
     let mut ctx = ctx.to_owned();
@@ -451,8 +444,8 @@ pub fn parse_binders(
 pub fn parse_all(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -482,7 +475,7 @@ pub fn parse_all(
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = bs.into_iter().rev().fold(bod, |acc, (u, n, t)| {
-      Term::All(pos, u, Rc::from(n), Box::new((t, acc)))
+      Term::All(pos, u, Name::from(n), Box::new((t, acc)))
     });
     Ok((upto, trm))
   }
@@ -501,8 +494,8 @@ pub fn parse_type(
 pub fn parse_self(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -519,15 +512,15 @@ pub fn parse_self(
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Slf(pos, Rc::from(n), Box::new(bod))))
+    Ok((upto, Term::Slf(pos, Name::from(n), Box::new(bod))))
   }
 }
 
 pub fn parse_case(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -548,8 +541,8 @@ pub fn parse_case(
 pub fn parse_data(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -574,10 +567,10 @@ pub fn parse_data(
 pub fn parse_bound_expression(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
-  nam: String,
+  nam: Name,
   letrec: bool,
 ) -> impl Fn(Span) -> IResult<Span, (Term, Term), ParseError<Span>> {
   move |from: Span| {
@@ -627,10 +620,10 @@ pub fn parse_bound_expression(
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = bs.iter().rev().fold(trm, |acc, (_, n, _)| {
-      Term::Lam(pos, Rc::from(n.clone()), Box::new(acc))
+      Term::Lam(pos, Name::from(n.clone()), Box::new(acc))
     });
     let typ = bs.into_iter().rev().fold(typ, |acc, (u, n, t)| {
-      Term::All(pos, u, Rc::from(n), Box::new((t, acc)))
+      Term::All(pos, u, Name::from(n), Box::new((t, acc)))
     });
     Ok((upto, (typ, trm)))
   }
@@ -639,8 +632,8 @@ pub fn parse_bound_expression(
 pub fn parse_let(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -674,7 +667,7 @@ pub fn parse_let(
     let pos = Pos::from_upto(input, from, upto);
     Ok((
       upto,
-      Term::Let(pos, letrec, uses, Rc::from(nam), Box::new((typ, exp, bod))),
+      Term::Let(pos, letrec, uses, Name::from(nam), Box::new((typ, exp, bod))),
     ))
   }
 }
@@ -765,8 +758,8 @@ pub fn parse_lit(
 pub fn parse_expression(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -812,8 +805,8 @@ pub fn parse_app_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
 pub fn parse_apps(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
@@ -853,8 +846,8 @@ pub fn parse_apps(
 pub fn parse_term(
   input: Cid,
   defs: Defs,
-  rec: Option<Rc<String>>,
-  ctx: Vector<String>,
+  rec: Option<Name>,
+  ctx: Vector<Name>,
   quasi: Vector<Term>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |i: Span| {
@@ -997,7 +990,7 @@ pub mod tests {
     fn test(
       nam_opt: bool,
       i: &str,
-    ) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>> {
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
       parse_binders(
         input_cid(i),
         Defs::new(),
@@ -1009,7 +1002,7 @@ pub mod tests {
     }
     fn test_full(
       i: &str,
-    ) -> IResult<Span, Vec<(Uses, String, Term)>, ParseError<Span>> {
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
       parse_binder_full(
         input_cid(i),
         Defs::new(),

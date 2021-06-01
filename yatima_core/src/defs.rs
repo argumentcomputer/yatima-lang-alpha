@@ -1,6 +1,7 @@
 use crate::{
   anon::Anon,
   embed_error::EmbedError,
+  name::Name,
   package::{
     import_alias,
     Entry,
@@ -14,10 +15,7 @@ use cid::Cid;
 
 use im::HashMap;
 
-use std::{
-  fmt,
-  rc::Rc,
-};
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -41,7 +39,7 @@ impl PartialEq for Def {
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
   pub defs: HashMap<Cid, Def>,
-  pub names: HashMap<Rc<str>, Cid>,
+  pub names: HashMap<Name, Cid>,
 }
 
 impl Def {
@@ -102,7 +100,7 @@ impl Def {
 impl Defs {
   pub fn new() -> Self { Defs { defs: HashMap::new(), names: HashMap::new() } }
 
-  pub fn names(&self) -> Vec<Rc<str>> {
+  pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
     for (n, _) in &self.names {
       res.push(n.clone())
@@ -110,7 +108,7 @@ impl Defs {
     res
   }
 
-  pub fn named_defs(&self) -> Vec<(Rc<str>, Def)> {
+  pub fn named_defs(&self) -> Vec<(Name, Def)> {
     let mut res = Vec::new();
     for (n, cid) in &self.names {
       res.push((n.clone(), self.defs.get(cid).unwrap().clone()))
@@ -118,12 +116,12 @@ impl Defs {
     res
   }
 
-  pub fn insert(&mut self, name: Rc<str>, def: Def) -> Option<Def> {
+  pub fn insert(&mut self, name: Name, def: Def) -> Option<Def> {
     self.names.insert(name, def.def_cid);
     self.defs.insert(def.def_cid, def)
   }
 
-  pub fn get(&self, name: Rc<str>) -> Option<&Def> {
+  pub fn get(&self, name: Name) -> Option<&Def> {
     let def_cid = self.names.get(&name)?;
     self.defs.get(&def_cid)
   }

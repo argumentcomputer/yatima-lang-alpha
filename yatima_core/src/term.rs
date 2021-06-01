@@ -6,6 +6,7 @@ pub use crate::{
     Literal,
   },
   meta::Meta,
+  name::Name,
   position::Pos,
   prim::Op,
   uses::Uses,
@@ -13,22 +14,19 @@ pub use crate::{
 
 use cid::Cid;
 
-use std::{
-  fmt,
-  rc::Rc,
-};
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub enum Term {
-  Var(Pos, Rc<str>, u64),
-  Lam(Pos, Rc<str>, Box<Term>),
+  Var(Pos, Name, u64),
+  Lam(Pos, Name, Box<Term>),
   App(Pos, Box<(Term, Term)>),
-  All(Pos, Uses, Rc<str>, Box<(Term, Term)>),
-  Slf(Pos, Rc<str>, Box<Term>),
+  All(Pos, Uses, Name, Box<(Term, Term)>),
+  Slf(Pos, Name, Box<Term>),
   Dat(Pos, Box<Term>),
   Cse(Pos, Box<Term>),
-  Ref(Pos, Rc<str>, Cid, Cid),
-  Let(Pos, bool, Uses, Rc<str>, Box<(Term, Term, Term)>),
+  Ref(Pos, Name, Cid, Cid),
+  Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
   Typ(Pos),
   Ann(Pos, Box<(Term, Term)>),
   Lit(Pos, Literal),
@@ -274,7 +272,7 @@ impl Term {
           *pos,
           *rec,
           *uses,
-          Rc::from(name.clone()),
+          Name::from(name.clone()),
           Box::new((typ, exp, bod)),
         ))
       }

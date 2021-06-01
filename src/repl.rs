@@ -21,13 +21,12 @@ use yatima_core::{
   },
   dag::DAG,
   defs::Defs,
+  name::Name,
   parse::{
     span::Span,
     term::input_cid,
   },
 };
-
-use std::rc::Rc;
 
 use crate::file;
 
@@ -76,12 +75,12 @@ pub fn main() -> rustyline::Result<()> {
             Command::Define(boxed) => {
               let (n, def, _) = *boxed;
               let mut tmp_defs = defs.clone();
-              tmp_defs.insert(Rc::from(n.clone()), def);
+              tmp_defs.insert(Name::from(n.clone()), def);
               let res = check_def(&tmp_defs, &n);
               match res {
                 Ok(res) => {
                   defs = tmp_defs;
-                  println!("{} : {}", n, res.pretty(Some(&n)))
+                  println!("{} : {}", n, res.pretty(Some(&n.to_string())))
                 }
                 Err(e) => println!("Error: {}", e),
               }

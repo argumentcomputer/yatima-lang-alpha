@@ -1,7 +1,4 @@
-use std::{
-  path::PathBuf,
-  rc::Rc,
-};
+use std::path::PathBuf;
 
 use structopt::StructOpt;
 
@@ -9,6 +6,7 @@ use yatima::{
   file,
   ipfs,
   repl,
+  Name,
 };
 
 #[derive(Debug, StructOpt)]
@@ -60,7 +58,7 @@ async fn main() -> std::io::Result<()> {
       let _cid = file::store::put(p.to_ipld());
       let _ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      let def = defs.get(Rc::from("main")).expect(&format!(
+      let def = defs.get(Name::from("main")).expect(&format!(
         "No `main` expression in package {} from file {:?}",
         p.name, path
       ));
