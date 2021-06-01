@@ -21,6 +21,7 @@ use yatima_core::{
   },
   dag::DAG,
   defs::Defs,
+  name::Name,
   parse::{
     span::Span,
     term::input_cid,
@@ -79,14 +80,14 @@ pub fn main() -> rustyline::Result<()> {
               match res {
                 Ok(res) => {
                   defs = tmp_defs;
-                  println!("{} : {}", n, res.pretty(Some(&n)))
+                  println!("{} : {}", n, res.pretty(Some(&n.to_string())))
                 }
                 Err(e) => println!("Error: {}", e),
               }
             }
             Command::Browse => {
               for (n, d) in defs.named_defs() {
-                println!("{}", d.pretty(n))
+                println!("{}", d.pretty(n.to_string()))
               }
             }
             Command::Quit => {

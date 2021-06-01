@@ -51,8 +51,9 @@ impl std::ops::Sub for Uses {
   }
 }
 
-// Division-remainder for multiplicities is as follows: if x and y are multiplicities, then x/y and x%y are such that
-// x = y*(x/y) + x%y in such a way that x/y and x%y are maximal, with x/y taking precedence.
+// Division-remainder for multiplicities is as follows: if x and y are
+// multiplicities, then x/y and x%y are such that x = y*(x/y) + x%y in such a
+// way that x/y and x%y are maximal, with x/y taking precedence.
 impl std::ops::Div for Uses {
   type Output = Self;
 

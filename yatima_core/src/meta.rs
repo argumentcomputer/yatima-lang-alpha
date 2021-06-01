@@ -1,5 +1,6 @@
 use crate::{
   ipld_error::IpldError,
+  name::Name,
   position::Pos,
 };
 use cid::Cid;
@@ -7,15 +8,15 @@ use libipld::ipld::Ipld;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Meta {
-  Var(Pos, String),
-  Lam(Pos, String, Box<Meta>),
+  Var(Pos, Name),
+  Lam(Pos, Name, Box<Meta>),
   App(Pos, Box<(Meta, Meta)>),
-  All(Pos, String, Box<(Meta, Meta)>),
-  Slf(Pos, String, Box<Meta>),
+  All(Pos, Name, Box<(Meta, Meta)>),
+  Slf(Pos, Name, Box<Meta>),
   Dat(Pos, Box<Meta>),
   Cse(Pos, Box<Meta>),
-  Ref(Pos, String, Cid),
-  Let(Pos, String, Box<(Meta, Meta, Meta)>),
+  Ref(Pos, Name, Cid),
+  Let(Pos, Name, Box<(Meta, Meta, Meta)>),
   Typ(Pos),
   Ann(Pos, Box<(Meta, Meta)>),
   Lit(Pos),
@@ -30,12 +31,12 @@ impl Meta {
       Self::Var(pos, nam) => Ipld::List(vec![
         Ipld::Integer(0),
         pos.to_ipld(),
-        Ipld::String(nam.clone()),
+        Ipld::String(nam.to_string()),
       ]),
       Self::Lam(pos, nam, bod) => Ipld::List(vec![
         Ipld::Integer(1),
         pos.to_ipld(),
-        Ipld::String(nam.clone()),
+        Ipld::String(nam.to_string()),
         bod.to_ipld(),
       ]),
       Self::App(pos, fun_arg) => {
@@ -52,7 +53,7 @@ impl Meta {
         Ipld::List(vec![
           Ipld::Integer(3),
           pos.to_ipld(),
-          Ipld::String(nam.clone()),
+          Ipld::String(nam.to_string()),
           dom.to_ipld(),
           img.to_ipld(),
         ])
@@ -60,7 +61,7 @@ impl Meta {
       Self::Slf(pos, nam, bod) => Ipld::List(vec![
         Ipld::Integer(4),
         pos.to_ipld(),
-        Ipld::String(nam.clone()),
+        Ipld::String(nam.to_string()),
         bod.to_ipld(),
       ]),
       Self::Dat(pos, bod) => {
@@ -72,7 +73,7 @@ impl Meta {
       Self::Ref(pos, nam, cid) => Ipld::List(vec![
         Ipld::Integer(7),
         pos.to_ipld(),
-        Ipld::String(nam.clone()),
+        Ipld::String(nam.to_string()),
         Ipld::Link(*cid),
       ]),
       Self::Let(pos, nam, typ_exp_bod) => {
@@ -80,7 +81,7 @@ impl Meta {
         Ipld::List(vec![
           Ipld::Integer(8),
           pos.to_ipld(),
-          Ipld::String(nam.clone()),
+          Ipld::String(nam.to_string()),
           typ.to_ipld(),
           exp.to_ipld(),
           bod.to_ipld(),
@@ -108,12 +109,12 @@ impl Meta {
       Ipld::List(xs) => match xs.as_slice() {
         [Ipld::Integer(0), pos, Ipld::String(nam)] => {
           let pos = Pos::from_ipld(pos)?;
-          Ok(Meta::Var(pos, nam.clone()))
+          Ok(Meta::Var(pos, Name::from(nam.clone())))
         }
         [Ipld::Integer(1), pos, Ipld::String(nam), bod] => {
           let pos = Pos::from_ipld(pos)?;
           let bod = Meta::from_ipld(bod)?;
-          Ok(Meta::Lam(pos, nam.clone(), Box::new(bod)))
+          Ok(Meta::Lam(pos, Name::from(nam.clone()), Box::new(bod)))
         }
         [Ipld::Integer(2), pos, fun, arg] => {
           let pos = Pos::from_ipld(pos)?;
@@ -125,12 +126,12 @@ impl Meta {
           let pos = Pos::from_ipld(pos)?;
           let dom = Meta::from_ipld(dom)?;
           let img = Meta::from_ipld(img)?;
-          Ok(Meta::All(pos, nam.clone(), Box::new((dom, img))))
+          Ok(Meta::All(pos, Name::from(nam.clone()), Box::new((dom, img))))
         }
         [Ipld::Integer(4), pos, Ipld::String(nam), bod] => {
           let pos = Pos::from_ipld(pos)?;
           let bod = Meta::from_ipld(bod)?;
-          Ok(Meta::Slf(pos, nam.clone(), Box::new(bod)))
+          Ok(Meta::Slf(pos, Name::from(nam.clone()), Box::new(bod)))
         }
         [Ipld::Integer(5), pos, bod] => {
           let pos = Pos::from_ipld(pos)?;
@@ -144,14 +145,14 @@ impl Meta {
         }
         [Ipld::Integer(7), pos, Ipld::String(nam), Ipld::Link(cid)] => {
           let pos = Pos::from_ipld(pos)?;
-          Ok(Meta::Ref(pos, nam.clone(), *cid))
+          Ok(Meta::Ref(pos, Name::from(nam.clone()), *cid))
         }
         [Ipld::Integer(8), pos, Ipld::String(nam), typ, exp, bod] => {
           let pos = Pos::from_ipld(pos)?;
           let typ = Meta::from_ipld(typ)?;
           let exp = Meta::from_ipld(exp)?;
           let bod = Meta::from_ipld(bod)?;
-          Ok(Meta::Let(pos, nam.clone(), Box::new((typ, exp, bod))))
+          Ok(Meta::Let(pos, Name::from(nam.clone()), Box::new((typ, exp, bod))))
         }
         [Ipld::Integer(9), pos] => {
           let pos = Pos::from_ipld(pos)?;

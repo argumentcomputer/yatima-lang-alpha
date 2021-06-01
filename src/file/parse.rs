@@ -5,6 +5,7 @@ use yatima_core::{
     Def,
     Defs,
   },
+  name::Name,
   package::{
     import_alias,
     Entry,
@@ -152,7 +153,7 @@ pub fn parse_import(
     let (i, _) = parse_space(i).map_err(error::convert)?;
     let (i, alias) =
       opt(terminated(parse_alias, parse_space))(i).map_err(error::convert)?;
-    let alias = alias.unwrap_or_else(|| String::from(""));
+    let alias = alias.unwrap_or_else(|| Name::from(""));
     let (i, with) =
       opt(terminated(parse_with, parse_space))(i).map_err(error::convert)?;
     let (i, from) =
@@ -172,7 +173,7 @@ pub fn parse_import(
         |e| Err(Err::Error(FileError::new(i, e))),
         |v| Ok((i, v)),
       )?;
-      let with: Vec<String> = with.unwrap_or_else(|| defs.names());
+      let with: Vec<Name> = with.unwrap_or_else(|| defs.names());
       Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
     }
     else {
@@ -218,16 +219,16 @@ pub fn parse_imports(
         _ => {
           let (i2, (from, imp, imp_defs)) = parse_import(env.clone())(i)?;
           for (def_name, _) in &imp_defs.names {
-            let imp_def = imp_defs.get(def_name).unwrap();
+            let imp_def = imp_defs.get(def_name.clone()).unwrap();
             let def_name = import_alias(def_name.clone(), &imp);
-            if let Some(def) = defs.get(&def_name) {
+            if let Some(def) = defs.get(def_name.clone()) {
               if imp_def.def_cid != def.def_cid {
                 return Err(Err::Error(FileError::new(
                   i,
                   FileErrorKind::ImportCollision(
-                    imp.name.clone(),
+                    imp.name.to_string(),
                     from,
-                    def_name.clone(),
+                    def_name.to_string(),
                   ),
                 )));
               }

@@ -3,6 +3,7 @@ use crate::{
     Def,
     Defs,
   },
+  name::Name,
   package::{
     Entry,
     Import,
@@ -20,10 +21,7 @@ use crate::{
   term::*,
 };
 
-use std::{
-  convert::TryFrom,
-  rc::Rc,
-};
+use std::convert::TryFrom;
 
 use im::Vector;
 
@@ -49,14 +47,14 @@ pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {
   }
 }
 
-pub fn parse_alias(i: Span) -> IResult<Span, String, ParseError<Span>> {
+pub fn parse_alias(i: Span) -> IResult<Span, Name, ParseError<Span>> {
   let (i, _) = tag("as")(i)?;
   let (i, _) = parse_space(i)?;
   let (i, a) = parse_name(i)?;
   Ok((i, a))
 }
 
-pub fn parse_with(i: Span) -> IResult<Span, Vec<String>, ParseError<Span>> {
+pub fn parse_with(i: Span) -> IResult<Span, Vec<Name>, ParseError<Span>> {
   let (i, _) = tag("(")(i)?;
   let (i, ns) = separated_list0(
     terminated(tag(","), parse_space),
@@ -72,7 +70,7 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
   let (i, name) = parse_name(i)?;
   let (i, _) = parse_space(i)?;
   let (i, alias) = opt(terminated(parse_alias, parse_space))(i)?;
-  let alias = alias.unwrap_or_else(|| String::from(""));
+  let alias = alias.unwrap_or_else(|| Name::from(""));
   let (i, with) = terminated(parse_with, parse_space)(i)?;
   let (i, from) = terminated(parse_link, parse_space)(i)?;
   Ok((i, Import { cid: from, name, alias, with }))
@@ -81,12 +79,12 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
 pub fn parse_entry(
   input: Cid,
   defs: Defs,
-) -> impl Fn(Span) -> IResult<Span, (String, Def, Entry), ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, (Name, Def, Entry), ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
-    if defs.names.get(&nam).is_some() {
+    if defs.names.get(&nam.clone()).is_some() {
       Err(Err::Error(ParseError::new(
         from,
         ParseErrorKind::TopLevelRedefinition(nam),
@@ -97,7 +95,7 @@ pub fn parse_entry(
       let (upto, (typ_, term)) = parse_bound_expression(
         input,
         defs.to_owned(),
-        Some(Rc::new(nam.clone())),
+        Some(nam.clone()),
         Vector::new(),
         Vector::new(),
         nam.clone(),
@@ -116,7 +114,7 @@ pub fn parse_defs(
 ) -> impl Fn(Span) -> IResult<Span, (Defs, Index), ParseError<Span>> {
   move |i: Span| {
     let mut defs: Defs = import_defs.clone();
-    let mut ind: Vec<(String, Cid)> = Vec::new();
+    let mut ind: Vec<(Name, Cid)> = Vec::new();
     let mut i = i;
     loop {
       let (i2, _) = parse_space(i)?;

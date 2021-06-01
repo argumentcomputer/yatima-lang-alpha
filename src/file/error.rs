@@ -2,6 +2,7 @@ use libipld::Cid;
 use yatima_core::{
   self,
   ipld_error::IpldError,
+  name::Name,
   parse::{
     self,
     span::Span,
@@ -28,7 +29,7 @@ use std::path::PathBuf;
 pub enum FileErrorKind {
   CoreError(parse::error::ParseErrorKind),
   UnknownLink(Cid),
-  MisnamedPackage(String),
+  MisnamedPackage(Name),
   MalformedPath,
   ImportCollision(String, Cid, String),
   MisnamedImport(String, Cid, String),
