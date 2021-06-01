@@ -16,9 +16,9 @@ use crate::{
   yatima,
 };
 
-use im::{
+use std::collections::{
   HashMap,
-  Vector,
+  VecDeque,
 };
 
 use libipld::Cid;
@@ -158,21 +158,19 @@ pub fn check(
         DAGPtr::Slf(slf_link) => {
           let Slf { var, bod: slf_bod, .. } =
             unsafe { &mut *slf_link.as_ptr() };
-          let mut map = if var.parents.is_some() {
-            HashMap::unit(
+          let mut map = HashMap::new();
+          if var.parents.is_some() {
+            map.insert(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               DAG::from_term_inner(
                 term,
                 ctx.len() as u64,
-                Vector::new(),
+                VecDeque::new(),
                 None,
                 rec.clone(),
               ),
-            )
+            );
           }
-          else {
-            HashMap::new()
-          };
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let mut new_bod =
             DAG::new(DAG::from_subdag(*slf_bod, &mut map, Some(root)));
@@ -288,21 +286,19 @@ pub fn infer(
             unsafe { &mut *link.as_ptr() };
           let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
           check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
-          let mut map = if var.parents.is_some() {
-            HashMap::unit(
+          let mut map = HashMap::new();
+          if var.parents.is_some() {
+            map.insert(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               DAG::from_term_inner(
                 arg,
                 ctx.len() as u64,
-                Vector::new(),
+                VecDeque::new(),
                 None,
                 rec.clone(),
               ),
-            )
+            );
           }
-          else {
-            HashMap::new()
-          };
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let new_img = DAG::from_subdag(*img, &mut map, Some(root));
           fun_typ.free();
@@ -323,21 +319,19 @@ pub fn infer(
       match exp_typ.head {
         DAGPtr::Slf(link) => {
           let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
-          let mut map = if var.parents.is_some() {
-            HashMap::unit(
+          let mut map = HashMap::new();
+          if var.parents.is_some() {
+            map.insert(
               DAGPtr::Var(NonNull::new(var).unwrap()),
               DAG::from_term_inner(
                 exp,
                 ctx.len() as u64,
-                Vector::new(),
+                VecDeque::new(),
                 None,
                 rec.clone(),
               ),
-            )
+            );
           }
-          else {
-            HashMap::new()
-          };
           let root = alloc_val(DLL::singleton(ParentPtr::Root));
           let new_bod = DAG::from_subdag(*bod, &mut map, Some(root));
           exp_typ.free();
@@ -353,8 +347,13 @@ pub fn infer(
               *lty,
             )),
             Some(ind) => {
-              let induction =
-                DAG::from_term_inner(&ind, 0, Vector::new(), Some(root), None);
+              let induction = DAG::from_term_inner(
+                &ind,
+                0,
+                VecDeque::new(),
+                Some(root),
+                None,
+              );
               Ok(DAG::new(induction))
             }
           }
@@ -374,7 +373,7 @@ pub fn infer(
       let mut dom_dag = DAG::from_term_inner(
         dom,
         ctx.len() as u64,
-        Vector::new(),
+        VecDeque::new(),
         None,
         rec.clone(),
       );
@@ -390,7 +389,7 @@ pub fn infer(
       let mut term_dag = DAG::from_term_inner(
         term,
         ctx.len() as u64,
-        Vector::new(),
+        VecDeque::new(),
         None,
         rec.clone(),
       );
@@ -410,7 +409,7 @@ pub fn infer(
       let mut typ_dag = DAG::new(DAG::from_term_inner(
         typ,
         ctx.len() as u64,
-        Vector::new(),
+        VecDeque::new(),
         Some(root),
         rec.clone(),
       ));

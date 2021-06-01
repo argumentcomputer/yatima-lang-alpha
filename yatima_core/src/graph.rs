@@ -19,8 +19,8 @@ use crate::{
   uses::Uses,
 };
 use core::ptr::NonNull;
-use im::HashMap;
 use libipld::Cid;
+use std::collections::HashMap;
 
 use std::fmt;
 

@@ -10,7 +10,6 @@ use crate::{
   },
 };
 
-use im::Vector;
 use nom::{
   error::ErrorKind,
   AsBytes,
@@ -20,6 +19,7 @@ use nom::{
 };
 use std::{
   cmp::Ordering,
+  collections::VecDeque,
   fmt,
   fmt::Write,
   num::ParseIntError,
@@ -28,7 +28,7 @@ use std::{
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseErrorKind {
-  UndefinedReference(Name, Vector<Name>),
+  UndefinedReference(Name, VecDeque<Name>),
   TopLevelRedefinition(Name),
   UnknownLiteralType(String),
   InvalidBaseEncoding(base::LitBase),

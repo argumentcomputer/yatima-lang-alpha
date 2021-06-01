@@ -21,7 +21,6 @@ use yatima_core::{
   },
   dag::DAG,
   defs::Defs,
-  name::Name,
   parse::{
     span::Span,
     term::input_cid,

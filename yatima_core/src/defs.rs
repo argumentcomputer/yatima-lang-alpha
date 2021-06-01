@@ -13,7 +13,7 @@ use crate::{
 
 use cid::Cid;
 
-use im::HashMap;
+use std::collections::HashMap;
 
 use std::fmt;
 
@@ -127,16 +127,15 @@ impl Defs {
   }
 
   pub fn merge(self, other: Defs, import: &Import) -> Self {
-    Defs {
-      defs: self.defs.union(other.defs),
-      names: self.names.union(
-        other
-          .names
-          .into_iter()
-          .map(|(k, v)| (import_alias(k, import), v))
-          .collect(),
-      ),
+    let mut defs = self.defs;
+    for (k, v) in other.defs {
+      defs.insert(k, v);
     }
+    let mut names = self.names;
+    for (k, v) in other.names {
+      names.insert(import_alias(k, import), v);
+    }
+    Defs { defs, names }
   }
 }
 
