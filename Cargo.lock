@@ -959,6 +959,16 @@ dependencies = [
 
 [[package]]
 name = "nom_locate"
+version = "3.0.0"
+source = "git+https://github.com/yatima-inc/nom_locate#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
+dependencies = [
+ "bytecount",
+ "memchr",
+ "nom",
+]
+
+[[package]]
+name = "nom_locate"
 version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "302954611858a07e00f85110b4ea61859dea77d63f109bd60ab7b8eb533bbacb"
@@ -1377,10 +1387,10 @@ dependencies = [
 [[package]]
 name = "ropey"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0f3ef16589fdbb3e8fbce3dca944c08e61f39c7f16064b21a257d68ea911a83"
+source = "git+https://github.com/yatima-inc/ropey#a963a69cd748846ad5810413817178ce28501acd"
 dependencies = [
  "smallvec",
+ "sp-std",
 ]
 
 [[package]]
@@ -1548,6 +1558,12 @@ dependencies = [
  "libc",
  "winapi",
 ]
+
+[[package]]
+name = "sp-std"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35391ea974fa5ee869cb094d5b437688fbf3d8127d64d1b9fed5822a1ed39b12"
 
 [[package]]
 name = "static_assertions"
@@ -2008,7 +2024,7 @@ dependencies = [
  "multibase 0.9.1",
  "multihash",
  "nom",
- "nom_locate",
+ "nom_locate 3.0.1",
  "quickcheck",
  "quickcheck_macros",
  "rand",
@@ -2032,11 +2048,12 @@ dependencies = [
  "multibase 0.9.1",
  "multihash",
  "nom",
- "nom_locate",
+ "nom_locate 3.0.0",
  "num-bigint",
  "petgraph",
  "quickcheck",
  "quickcheck_macros",
  "rand",
  "ropey",
+ "sp-std",
 ]
