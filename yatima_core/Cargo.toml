@@ -15,7 +15,7 @@ multihash = {version = "0.13.2", default-features = false, features = ["secure-h
 num-bigint = {version = "0.3", default-features = false}
 nom = {version = "6", default-features = false, features = ["alloc"]}
 base-x = {version = "0.2.8", default-features = false}
-multibase = {git = "https://github.com/yatima-inc/rust-multibase"}
+multibase = {version = "0.9.1", default-features = false}
 nom_locate = {git = "https://github.com/yatima-inc/nom_locate"}
 ropey = {git = "https://github.com/yatima-inc/ropey"}
 
