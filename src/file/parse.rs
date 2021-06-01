@@ -184,7 +184,7 @@ pub fn parse_import(
       path.set_extension("ya");
       let mut open = env.open.clone();
       let has_path = open.insert(path.clone());
-      if has_path {
+      if !has_path {
         Err(Err::Error(FileError::new(i, FileErrorKind::ImportCycle(path))))
       }
       else {
