@@ -1,5 +1,7 @@
-use crate::ipld_error::IpldError;
-use crate::parse::span::Span;
+use crate::{
+  ipld_error::IpldError,
+  parse::span::Span,
+};
 
 use cid::Cid;
 use libipld::ipld::Ipld;
@@ -30,22 +32,25 @@ impl Position {
   pub fn range(self, input: String) -> String {
     let mut res = String::new();
     let gutter = format!("{}", self.upto_line).len();
-    let pad = format!("{: >gutter$}", self.from_line, gutter = gutter)
-       .len() + 3 + self.from_column as usize;
+    let pad = format!("{: >gutter$}", self.from_line, gutter = gutter).len()
+      + 3
+      + self.from_column as usize;
     res.push_str(&format!("{}▼\n", " ".to_owned().repeat(pad)));
     for (line_number, line) in input.lines().enumerate() {
-      if ((line_number as u64 + 1) >= self.from_line) &&
-         ((line_number as u64 + 1) <= self.upto_line) {
-        res.push_str(
-          &format!("{: >gutter$} | {}\n",
+      if ((line_number as u64 + 1) >= self.from_line)
+        && ((line_number as u64 + 1) <= self.upto_line)
+      {
+        res.push_str(&format!(
+          "{: >gutter$} | {}\n",
           line_number + 1,
           line,
-          gutter = gutter)
-        );
+          gutter = gutter
+        ));
       }
     }
-    let pad = format!("{: >gutter$}", self.upto_line, gutter = gutter)
-      .len() + 3 + self.upto_column as usize;
+    let pad = format!("{: >gutter$}", self.upto_line, gutter = gutter).len()
+      + 3
+      + self.upto_column as usize;
     res.push_str(&format!("{}▲", " ".to_owned().repeat(pad)));
     res
   }
@@ -112,7 +117,6 @@ impl Position {
       xs => Err(IpldError::Position(xs.to_owned())),
     }
   }
-
 }
 
 impl Pos {
@@ -132,6 +136,7 @@ impl Pos {
       }
     }
   }
+
   pub fn from_upto(input: Cid, from: Span, upto: Span) -> Self {
     Pos::Some(Position::from_upto(input, from, upto))
   }
@@ -179,7 +184,7 @@ pub mod tests {
     fn arbitrary(g: &mut Gen) -> Self {
       let x: bool = Arbitrary::arbitrary(g);
       if x { Self::None } else { Self::Some(Arbitrary::arbitrary(g)) }
-   }
+    }
   }
 
   #[quickcheck]

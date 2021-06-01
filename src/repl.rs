@@ -27,6 +27,8 @@ use yatima_core::{
   },
 };
 
+use std::rc::Rc;
+
 use crate::file;
 
 pub fn main() -> rustyline::Result<()> {
@@ -74,7 +76,7 @@ pub fn main() -> rustyline::Result<()> {
             Command::Define(boxed) => {
               let (n, def, _) = *boxed;
               let mut tmp_defs = defs.clone();
-              tmp_defs.insert(n.clone(), def);
+              tmp_defs.insert(Rc::from(n.clone()), def);
               let res = check_def(&tmp_defs, &n);
               match res {
                 Ok(res) => {
@@ -86,7 +88,7 @@ pub fn main() -> rustyline::Result<()> {
             }
             Command::Browse => {
               for (n, d) in defs.named_defs() {
-                println!("{}", d.pretty(n))
+                println!("{}", d.pretty(n.to_string()))
               }
             }
             Command::Quit => {

@@ -41,6 +41,7 @@ use std::{
   ffi::OsString,
   fs,
   path::PathBuf,
+  rc::Rc,
 };
 
 use cid::Cid;
@@ -172,8 +173,22 @@ pub fn parse_import(
         |e| Err(Err::Error(FileError::new(i, e))),
         |v| Ok((i, v)),
       )?;
-      let with: Vec<String> = with.unwrap_or_else(|| defs.names());
-      Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
+      let with: Vec<Rc<str>> = with
+        .map(|x| x.iter().cloned().map(Rc::from).collect())
+        .unwrap_or_else(|| defs.names());
+      Ok((
+        i,
+        (
+          from,
+          Import {
+            cid: from,
+            name: Rc::from(name),
+            alias: Rc::from(alias),
+            with,
+          },
+          defs,
+        ),
+      ))
     }
     else {
       let mut path = env.root.clone();
@@ -195,8 +210,22 @@ pub fn parse_import(
            * done: env.done.clone(), */
         };
         let (from, _, defs) = parse_file(env);
-        let with = with.unwrap_or_else(|| defs.names());
-        Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
+        let with = with
+          .map(|x| x.iter().cloned().map(Rc::from).collect())
+          .unwrap_or_else(|| defs.names());
+        Ok((
+          i,
+          (
+            from,
+            Import {
+              cid: from,
+              name: Rc::from(name),
+              alias: Rc::from(alias),
+              with,
+            },
+            defs,
+          ),
+        ))
       }
     }
   }
@@ -218,16 +247,16 @@ pub fn parse_imports(
         _ => {
           let (i2, (from, imp, imp_defs)) = parse_import(env.clone())(i)?;
           for (def_name, _) in &imp_defs.names {
-            let imp_def = imp_defs.get(def_name).unwrap();
+            let imp_def = imp_defs.get(def_name.clone()).unwrap();
             let def_name = import_alias(def_name.clone(), &imp);
-            if let Some(def) = defs.get(&def_name) {
+            if let Some(def) = defs.get(def_name.clone()) {
               if imp_def.def_cid != def.def_cid {
                 return Err(Err::Error(FileError::new(
                   i,
                   FileErrorKind::ImportCollision(
-                    imp.name.clone(),
+                    imp.name.to_string(),
                     from,
-                    def_name.clone(),
+                    def_name.to_string(),
                   ),
                 )));
               }
@@ -276,7 +305,7 @@ pub fn parse_package(
       }
     }
     let pos = Pos::from_upto(input, from, upto);
-    let package = Package { pos, name, imports, index };
+    let package = Package { pos, name: Rc::from(name), imports, index };
     let pack_cid = store::put(package.to_ipld());
     Ok((from, (pack_cid, package, defs)))
   }

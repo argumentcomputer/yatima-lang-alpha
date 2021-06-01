@@ -75,7 +75,12 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
   let alias = alias.unwrap_or_else(|| String::from(""));
   let (i, with) = terminated(parse_with, parse_space)(i)?;
   let (i, from) = terminated(parse_link, parse_space)(i)?;
-  Ok((i, Import { cid: from, name, alias, with }))
+  Ok((i, Import {
+    cid: from,
+    name: Rc::from(name),
+    alias: Rc::from(alias),
+    with: with.iter().cloned().map(Rc::from).collect(),
+  }))
 }
 
 pub fn parse_entry(
@@ -86,7 +91,7 @@ pub fn parse_entry(
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
-    if defs.names.get(&nam).is_some() {
+    if defs.names.get(&Rc::from(nam.clone())).is_some() {
       Err(Err::Error(ParseError::new(
         from,
         ParseErrorKind::TopLevelRedefinition(nam),
@@ -116,7 +121,7 @@ pub fn parse_defs(
 ) -> impl Fn(Span) -> IResult<Span, (Defs, Index), ParseError<Span>> {
   move |i: Span| {
     let mut defs: Defs = import_defs.clone();
-    let mut ind: Vec<(String, Cid)> = Vec::new();
+    let mut ind: Vec<(Rc<str>, Cid)> = Vec::new();
     let mut i = i;
     loop {
       let (i2, _) = parse_space(i)?;
@@ -127,8 +132,8 @@ pub fn parse_defs(
       }
       else {
         let (i2, (name, def, _)) = parse_entry(input, defs.clone())(i)?;
-        ind.push((name.clone(), def.def_cid));
-        defs.insert(name, def);
+        ind.push((Rc::from(name.clone()), def.def_cid));
+        defs.insert(Rc::from(name), def);
         i = i2;
       }
     }

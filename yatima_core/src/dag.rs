@@ -23,6 +23,7 @@ use std::{
   collections::HashSet,
   fmt,
   mem,
+  rc::Rc,
 };
 
 use libipld::Cid;
@@ -85,7 +86,7 @@ pub enum BinderPtr {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct Var {
-  pub nam: String,
+  pub nam: Rc<str>,
   // The field `rec` is only used to preserve the Term <-> DAG isomorphism for
   // open Terms
   pub rec: bool,
@@ -173,7 +174,7 @@ pub struct Let {
 
 #[repr(C)]
 pub struct Ref {
-  pub nam: String,
+  pub nam: Rc<str>,
   pub rec: bool,
   pub exp: Cid,
   pub ast: Cid,
@@ -211,7 +212,7 @@ pub fn alloc_val<T>(val: T) -> NonNull<T> {
 
 #[inline]
 pub fn alloc_lam(
-  var_nam: String,
+  var_nam: Rc<str>,
   var_dep: u64,
   var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
@@ -238,7 +239,7 @@ pub fn alloc_lam(
 
 #[inline]
 pub fn alloc_slf(
-  var_nam: String,
+  var_nam: Rc<str>,
   var_dep: u64,
   var_parents: Option<NonNull<Parents>>,
   bod: DAGPtr,
@@ -355,7 +356,7 @@ pub fn alloc_ann(
 #[inline]
 #[allow(clippy::too_many_arguments)]
 pub fn alloc_let(
-  var_nam: String,
+  var_nam: Rc<str>,
   var_dep: u64,
   var_parents: Option<NonNull<Parents>>,
   uses: Uses,
@@ -775,7 +776,7 @@ impl DAG {
     DAG::new(DAG::from_term_inner(tree, 0, Vector::new(), Some(root), None))
   }
 
-  pub fn from_def(def: &Def, name: String) -> Self {
+  pub fn from_def(def: &Def, name: Rc<str>) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
     let (d, _, a) = def.embed();
     let def_cid = d.cid();
@@ -791,7 +792,7 @@ impl DAG {
 
   pub fn from_ref(
     def: &Def,
-    name: String,
+    name: Rc<str>,
     def_cid: Cid,
     ast_cid: Cid,
     parents: Option<NonNull<Parents>>,
@@ -810,7 +811,7 @@ impl DAG {
     depth: u64,
     mut ctx: Vector<DAGPtr>,
     parents: Option<NonNull<Parents>>,
-    rec_ref: Option<(String, Cid, Cid)>,
+    rec_ref: Option<(Rc<str>, Cid, Cid)>,
   ) -> DAGPtr {
     match tree {
       Term::Rec(_) => match rec_ref {
@@ -820,7 +821,7 @@ impl DAG {
         }
         None => {
           let var = alloc_val(Var {
-            nam: "#^".to_owned(),
+            nam: Rc::from("#^"),
             rec: true,
             dep: depth,
             binder: BinderPtr::Free,

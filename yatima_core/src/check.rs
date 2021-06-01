@@ -23,7 +23,10 @@ use im::{
 use libipld::Cid;
 
 use core::ptr::NonNull;
-use std::collections::HashSet;
+use std::{
+  collections::HashSet,
+  rc::Rc,
+};
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -95,7 +98,7 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
 }
 
 pub fn check(
-  rec: &Option<(String, Cid, Cid)>,
+  rec: &Option<(Rc<str>, Cid, Cid)>,
   defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
@@ -128,7 +131,7 @@ pub fn check(
             Err(CheckError::QuantityTooLittle(
               *pos,
               error_context(&bod_ctx),
-              all_var.nam.clone(),
+              all_var.nam.to_string(),
               *lam_uses,
               *rest,
             ))
@@ -221,7 +224,7 @@ pub fn check(
 }
 
 pub fn infer(
-  rec: &Option<(String, Cid, Cid)>,
+  rec: &Option<(Rc<str>, Cid, Cid)>,
   defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
@@ -247,7 +250,7 @@ pub fn infer(
         CheckError::UnboundVariable(
           *pos,
           error_context(&ctx),
-          nam.clone(),
+          nam.to_string(),
           dep as u64,
         )
       })?;
@@ -255,7 +258,7 @@ pub fn infer(
         CheckError::QuantityTooMuch(
           *pos,
           error_context(&ctx),
-          nam.clone(),
+          nam.to_string(),
           bind.1,
           uses,
         )
@@ -273,7 +276,7 @@ pub fn infer(
       let def = defs
         .defs
         .get(def_link)
-        .ok_or_else(|| CheckError::UndefinedReference(*pos, nam.clone()))?;
+        .ok_or_else(|| CheckError::UndefinedReference(*pos, nam.to_string()))?;
       let typ = DAG::from_term(&def.typ_);
       Ok(typ)
     }
@@ -461,13 +464,13 @@ pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
 }
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
-  let def = defs.get(&name.to_string()).ok_or_else(|| {
+  let def = defs.get(Rc::from(name)).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;
   let (d, _, a) = def.embed();
   let def_cid = d.cid();
   let ast_cid = a.cid();
-  let rec = Some((name.to_owned(), def_cid, ast_cid));
+  let rec = Some((Rc::from(name), def_cid, ast_cid));
   let mut typ = DAG::from_term(&def.typ_);
   check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
   typ.free();

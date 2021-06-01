@@ -15,10 +15,12 @@ use multihash::{
   MultihashDigest,
 };
 
+use std::rc::Rc;
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
   pub pos: Pos,
-  pub name: String,
+  pub name: Rc<str>,
   pub imports: Vec<Import>,
   pub index: Index,
 }
@@ -26,13 +28,13 @@ pub struct Package {
 #[derive(PartialEq, Clone, Debug)]
 pub struct Import {
   pub cid: Cid,
-  pub name: String,
-  pub alias: String,
-  pub with: Vec<String>,
+  pub name: Rc<str>,
+  pub alias: Rc<str>,
+  pub with: Vec<Rc<str>>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Index(pub Vec<(String, Cid)>);
+pub struct Index(pub Vec<(Rc<str>, Cid)>);
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Entry {
@@ -95,7 +97,9 @@ impl Index {
       self
         .0
         .iter()
-        .map(|(k, v)| Ipld::List(vec![Ipld::String(k.clone()), Ipld::Link(*v)]))
+        .map(|(k, v)| {
+          Ipld::List(vec![Ipld::String(k.to_string()), Ipld::Link(*v)])
+        })
         .collect(),
     )
   }
@@ -103,12 +107,12 @@ impl Index {
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => {
-        let mut res: Vec<(String, Cid)> = Vec::new();
+        let mut res: Vec<(Rc<str>, Cid)> = Vec::new();
         for x in xs {
           match x {
             Ipld::List(xs) => match xs.as_slice() {
               [Ipld::String(n), Ipld::Link(cid)] => {
-                res.push((n.clone(), *cid));
+                res.push((Rc::from(n.clone()), *cid));
               }
               xs => {
                 return Err(IpldError::IndexEntry(Ipld::List(xs.to_owned())));
@@ -125,7 +129,7 @@ impl Index {
     }
   }
 
-  pub fn keys(&self) -> Vec<String> {
+  pub fn keys(&self) -> Vec<Rc<str>> {
     let mut res = Vec::new();
     for (n, _) in &self.0 {
       res.push(n.clone())
@@ -138,9 +142,11 @@ impl Import {
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
       Ipld::Link(self.cid),
-      Ipld::String(self.name.clone()),
-      Ipld::String(self.alias.clone()),
-      Ipld::List(self.with.iter().map(|x| Ipld::String(x.clone())).collect()),
+      Ipld::String(self.name.to_string()),
+      Ipld::String(self.alias.to_string()),
+      Ipld::List(
+        self.with.iter().map(|x| Ipld::String(x.to_string())).collect(),
+      ),
     ])
   }
 
@@ -160,9 +166,9 @@ impl Import {
           }
           Ok(Self {
             cid: *cid,
-            name: name.clone(),
-            alias: alias.clone(),
-            with: res,
+            name: Rc::from(name.clone()),
+            alias: Rc::from(alias.clone()),
+            with: res.iter().cloned().map(Rc::from).collect(),
           })
         }
         xs => Err(IpldError::Import(Ipld::List(xs.to_owned()))),
@@ -172,12 +178,17 @@ impl Import {
   }
 }
 
-pub fn import_alias(name: String, import: &Import) -> String {
+pub fn import_alias(name: Rc<str>, import: &Import) -> Rc<str> {
   if import.with.iter().any(|x| *x == name) {
-    if import.alias == "" { name } else { format!("{}.{}", import.alias, name) }
+    if import.alias.is_empty() {
+      name
+    }
+    else {
+      Rc::from(format!("{}.{}", import.alias, name))
+    }
   }
   else {
-    format!("{}.{}", import.name, name)
+    Rc::from(format!("{}.{}", import.name, name))
   }
 }
 
@@ -185,7 +196,7 @@ impl Package {
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
       self.pos.to_ipld(),
-      Ipld::String(self.name.clone()),
+      Ipld::String(self.name.to_string()),
       Ipld::List(self.imports.iter().map(Import::to_ipld).collect()),
       self.index.to_ipld(),
     ])
@@ -202,7 +213,7 @@ impl Package {
             imports.push(i);
           }
           let index = Index::from_ipld(index)?;
-          Ok(Package { pos, name: name.clone(), imports, index })
+          Ok(Package { pos, name: Rc::from(name.clone()), imports, index })
         }
         xs => Err(IpldError::Package(Ipld::List(xs.to_owned()))),
       },
@@ -244,7 +255,7 @@ pub mod tests {
   impl Arbitrary for Import {
     fn arbitrary(g: &mut Gen) -> Self {
       let vec: Vec<()> = Arbitrary::arbitrary(g);
-      let vec: Vec<String> =
+      let vec: Vec<Rc<str>> =
         vec.into_iter().map(|_| arbitrary_name(g)).collect();
       Self {
         name: "Test".to_string(),

@@ -21,18 +21,21 @@ use core::ptr::NonNull;
 use im::HashMap;
 use libipld::Cid;
 
-use std::fmt;
+use std::{
+  fmt,
+  rc::Rc,
+};
 
 pub enum Node {
-  Var { name: String, rec: bool, dep: u64 },
-  Lam { name: String },
+  Var { name: Rc<str>, rec: bool, dep: u64 },
+  Lam { name: Rc<str> },
   App,
   All { uses: Uses },
-  Slf { name: String },
+  Slf { name: Rc<str> },
   Dat,
   Cse,
-  Ref { name: String, rec: bool, exp: Cid, ast: Cid },
-  Let { uses: Uses, name: String },
+  Ref { name: Rc<str>, rec: bool, exp: Cid, ast: Cid },
+  Let { uses: Uses, name: Rc<str> },
   Typ,
   Ann,
   Lit { lit: Literal },
