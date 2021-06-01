@@ -15,6 +15,7 @@ use cid::Cid;
 use im::HashMap;
 
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -38,7 +39,7 @@ impl PartialEq for Def {
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
   pub defs: HashMap<Cid, Def>,
-  pub names: HashMap<String, Cid>,
+  pub names: HashMap<Rc<str>, Cid>,
 }
 
 impl Def {
@@ -99,7 +100,7 @@ impl Def {
 impl Defs {
   pub fn new() -> Self { Defs { defs: HashMap::new(), names: HashMap::new() } }
 
-  pub fn names(&self) -> Vec<String> {
+  pub fn names(&self) -> Vec<Rc<str>> {
     let mut res = Vec::new();
     for (n, _) in &self.names {
       res.push(n.clone())
@@ -107,7 +108,7 @@ impl Defs {
     res
   }
 
-  pub fn named_defs(&self) -> Vec<(String, Def)> {
+  pub fn named_defs(&self) -> Vec<(Rc<str>, Def)> {
     let mut res = Vec::new();
     for (n, cid) in &self.names {
       res.push((n.clone(), self.defs.get(cid).unwrap().clone()))
@@ -115,13 +116,13 @@ impl Defs {
     res
   }
 
-  pub fn insert(&mut self, name: String, def: Def) -> Option<Def> {
+  pub fn insert(&mut self, name: Rc<str>, def: Def) -> Option<Def> {
     self.names.insert(name, def.def_cid);
     self.defs.insert(def.def_cid, def)
   }
 
-  pub fn get(&self, name: &String) -> Option<&Def> {
-    let def_cid = self.names.get(name)?;
+  pub fn get(&self, name: Rc<str>) -> Option<&Def> {
+    let def_cid = self.names.get(&name)?;
     self.defs.get(&def_cid)
   }
 
@@ -157,8 +158,8 @@ impl fmt::Display for Defs {
         f,
         "def {} : {} = {}",
         k.clone(),
-        def.typ_.pretty(Some(&k.clone())),
-        def.term.pretty(Some(&k.clone())),
+        def.typ_.pretty(Some(&k.to_string())),
+        def.term.pretty(Some(&k.to_string())),
       )?;
       writeln!(f)?;
     }

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use structopt::StructOpt;
 
@@ -63,7 +64,7 @@ async fn main() -> std::io::Result<()> {
       let _cid = file::store::put(p.to_ipld());
       let _ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      let def = defs.get(&"main".to_string()).expect(&format!(
+      let def = defs.get(Rc::from("main")).expect(&format!(
         "No `main` expression in package {} from file {:?}",
         p.name, path
       ));

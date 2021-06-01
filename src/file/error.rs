@@ -12,7 +12,7 @@ use std::{
   cmp::Ordering,
   fmt,
   fmt::Write,
-  string::String,
+  rc::Rc
 };
 
 use nom::{
@@ -28,10 +28,10 @@ use std::path::PathBuf;
 pub enum FileErrorKind {
   CoreError(parse::error::ParseErrorKind),
   UnknownLink(Cid),
-  MisnamedPackage(String),
+  MisnamedPackage(Rc<str>),
   MalformedPath,
-  ImportCollision(String, Cid, String),
-  MisnamedImport(String, Cid, String),
+  ImportCollision(Rc<str>, Cid, Rc<str>),
+  MisnamedImport(Rc<str>, Cid, Rc<str>),
   ImportCycle(PathBuf),
   IpldError(IpldError),
   EmbedError(Box<yatima_core::embed_error::EmbedError>),

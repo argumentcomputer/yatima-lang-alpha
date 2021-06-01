@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc::Rc;
 
 use crate::{
   check::ctx::*,
@@ -10,19 +11,19 @@ use crate::{
 
 #[derive(Debug)]
 pub enum CheckError {
-  UndefinedReference(Pos, String),
-  UnboundVariable(Pos, ErrCtx, String, u64),
+  UndefinedReference(Pos, Rc<str>),
+  UnboundVariable(Pos, ErrCtx, Rc<str>, u64),
   UntypedLambda(Pos, ErrCtx),
   UntypedData(Pos, ErrCtx),
-  QuantityTooLittle(Pos, ErrCtx, String, Uses, Uses),
-  QuantityTooMuch(Pos, ErrCtx, String, Uses, Uses),
+  QuantityTooLittle(Pos, ErrCtx, Rc<str>, Uses, Uses),
+  QuantityTooMuch(Pos, ErrCtx, Rc<str>, Uses, Uses),
   TypeMismatch(Pos, ErrCtx, Term, Term),
   LamAllMismatch(Pos, ErrCtx, Term, Term),
   DatSlfMismatch(Pos, ErrCtx, Term, Term),
   AppFunMismatch(Pos, ErrCtx, Term, Term),
   CseDatMismatch(Pos, ErrCtx, Term, Term),
   NonInductiveLitType(Pos, ErrCtx, LitType),
-  GenericError(Pos, ErrCtx, String),
+  GenericError(Pos, ErrCtx, Rc<str>),
 }
 
 impl CheckError {

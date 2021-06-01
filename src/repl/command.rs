@@ -21,6 +21,8 @@ use crate::file::{
   error::FileError,
 };
 
+use std::rc::Rc;
+
 use im::Vector;
 
 use libipld::Cid;
@@ -36,9 +38,9 @@ pub enum Command {
   Type(Box<Term>),
   Browse,
   // Help,
-  Define(Box<(String, Def, Entry)>),
+  Define(Box<(Rc<str>, Def, Entry)>),
   // Type,
-  Load(String),
+  Load(Rc<str>),
   // Import,
   Quit,
 }
