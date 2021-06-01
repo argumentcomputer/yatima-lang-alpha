@@ -8,17 +8,21 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cid = "0.6.1"
-multihash = "0.13.2"
-multibase = "0.9.1"
+#No_std compatible
+sp-std = {version = "3", default-features = false}
+cid = {version = "0.6.1", default-features = false}
+multihash = {version = "0.13.2", default-features = false, features = ["secure-hashes"]}
+num-bigint = {version = "0.3", default-features = false}
+nom = {version = "6", default-features = false, features = ["alloc"]}
+base-x = {version = "0.2.8", default-features = false}
+multibase = {git = "https://github.com/yatima-inc/rust-multibase"}
+nom_locate = {git = "https://github.com/yatima-inc/nom_locate"}
+ropey = {git = "https://github.com/yatima-inc/ropey"}
+
+#Still require std
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
 im  = "15.0.0"
-num-bigint = "0.3.1"
-nom = "6.0.1"
-nom_locate = "3.0.0"
-base-x = "0.2.8"
 petgraph = "0.5.1"
-ropey = "1.2.0"
 
 [dev-dependencies]
 quickcheck = "1.0.3"
