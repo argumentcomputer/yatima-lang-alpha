@@ -5,6 +5,10 @@ version = "0.1.0"
 authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
 edition = "2018"
 
+[[bin]]
+name = "yatima"
+path = "src/main.rs"
+
 [dependencies]
 yatima_core = { path = "../core"}
 yatima_utils = { path = "../utils"}
