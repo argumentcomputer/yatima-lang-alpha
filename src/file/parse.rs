@@ -67,8 +67,7 @@ pub struct PackageEnv {
   path: PathBuf,
   open: Rc<RefCell<HashSet<PathBuf>>>,
   done: Rc<RefCell<HashMap<PathBuf, Cid>>>,
-  /* sources: Rc<RefCell<HashMap<Cid, PathBuf>>>,
-   * done: Rc<RefCell<HashMap<PathBuf, Cid>>>, */
+  // sources: Rc<RefCell<HashMap<Cid, PathBuf>>>,
 }
 
 impl PackageEnv {
@@ -78,8 +77,7 @@ impl PackageEnv {
       root,
       path,
       open: Rc::new(RefCell::new(HashSet::new())),
-      done: Rc::new(RefCell::new(HashMap::new())), /*    sources: Rc::new(RefCell::new(HashMap::new())),
-                                                    *    done: Rc::new(RefCell::new(HashMap::new())), */
+      done: Rc::new(RefCell::new(HashMap::new())), 
     }
   }
 
@@ -107,11 +105,6 @@ impl PackageEnv {
   // pub fn insert_source(&self, cid: Cid, path: PathBuf) {
   //  let mut sources = self.sources.borrow_mut();
   //  sources.insert(cid, path);
-  //}
-
-  // pub fn insert_done(&self, path: PathBuf, cid: Cid) {
-  //  let mut done = self.done.borrow_mut();
-  //  done.insert(path, cid);
   //}
 }
 
@@ -186,7 +179,7 @@ pub fn parse_import(
     }
     path.set_extension("ya");
 
-    let from = from.or_else(|| env.get_done_cid(&path.clone()));
+    //let from = from.or_else(|| env.get_done_cid(&path.clone()));
     if let Some(from) = from {
       use FileErrorKind::*;
       let (_, pack) = store::get(from).map_or_else(
@@ -206,13 +199,20 @@ pub fn parse_import(
     }
     else {
       let has_path = env.insert_open(path.clone());
-      if has_path {
+      if !has_path {
         Err(Err::Error(FileError::new(
           i,
           FileErrorKind::ImportCycle(path.clone()),
         )))
       }
       else {
+        let env = PackageEnv {
+          root: env.root.clone(),
+          path: path.clone(),
+          open: env.open.clone(),
+          done: env.done.clone(),
+        };
+        println!("env: {:?}", env);
         let (from, _, defs) = parse_file(env.clone());
         env.remove_open(path.clone());
         env.insert_done(path, from);
