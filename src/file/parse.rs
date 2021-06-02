@@ -38,16 +38,8 @@ use crate::file::{
   store,
 };
 
-use std::{
-  ffi::OsString,
-  fs,
-  path::PathBuf,
-};
-
 use cid::Cid;
 use libipld::ipld::Ipld;
-
-use std::collections::HashSet;
 
 use nom::{
   bytes::complete::tag,
@@ -59,6 +51,13 @@ use nom::{
 
 use std::{
   cell::RefCell,
+  collections::{
+    HashMap,
+    HashSet,
+  },
+  ffi::OsString,
+  fs,
+  path::PathBuf,
   rc::Rc,
 };
 
@@ -67,6 +66,7 @@ pub struct PackageEnv {
   root: PathBuf,
   path: PathBuf,
   open: Rc<RefCell<HashSet<PathBuf>>>,
+  done: Rc<RefCell<HashMap<PathBuf, Cid>>>,
   /* sources: Rc<RefCell<HashMap<Cid, PathBuf>>>,
    * done: Rc<RefCell<HashMap<PathBuf, Cid>>>, */
 }
@@ -78,9 +78,30 @@ impl PackageEnv {
       root,
       path,
       open: Rc::new(RefCell::new(HashSet::new())),
-      /*    sources: Rc::new(RefCell::new(HashMap::new())),
-       *    done: Rc::new(RefCell::new(HashMap::new())), */
+      done: Rc::new(RefCell::new(HashMap::new())), /*    sources: Rc::new(RefCell::new(HashMap::new())),
+                                                    *    done: Rc::new(RefCell::new(HashMap::new())), */
     }
+  }
+
+  pub fn insert_open(&self, path: PathBuf) -> bool {
+    let mut open = self.open.borrow_mut();
+    open.insert(path)
+  }
+
+  pub fn remove_open(&self, path: PathBuf) -> bool {
+    let mut open = self.open.borrow_mut();
+    open.remove(&path)
+  }
+
+  pub fn insert_done(&self, path: PathBuf, cid: Cid) -> Option<Cid> {
+    let mut done = self.done.borrow_mut();
+    done.insert(path, cid)
+  }
+
+  pub fn get_done_cid(&self, path: &PathBuf) -> Option<Cid> {
+    let done = self.done.borrow();
+    let cid = done.get(path);
+    cid.cloned()
   }
 
   // pub fn insert_source(&self, cid: Cid, path: PathBuf) {
@@ -159,6 +180,13 @@ pub fn parse_import(
     let (i, from) =
       opt(terminated(parse_link, parse_space))(i).map_err(error::convert)?;
 
+    let mut path = env.root.clone();
+    for n in name.split('.') {
+      path.push(n);
+    }
+    path.set_extension("ya");
+
+    let from = from.or_else(|| env.get_done_cid(&path.clone()));
     if let Some(from) = from {
       use FileErrorKind::*;
       let (_, pack) = store::get(from).map_or_else(
@@ -177,25 +205,17 @@ pub fn parse_import(
       Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
     }
     else {
-      let mut path = env.root.clone();
-      for n in name.split('.') {
-        path.push(n);
-      }
-      path.set_extension("ya");
-      let open = env.open.clone();
-      let has_path = open.borrow_mut().insert(path.clone());
-      if !has_path {
-        Err(Err::Error(FileError::new(i, FileErrorKind::ImportCycle(path))))
+      let has_path = env.insert_open(path.clone());
+      if has_path {
+        Err(Err::Error(FileError::new(
+          i,
+          FileErrorKind::ImportCycle(path.clone()),
+        )))
       }
       else {
-        let env = PackageEnv {
-          root: env.root.clone(),
-          path,
-          open,
-          /* sources: env.sources.clone(),
-           * done: env.done.clone(), */
-        };
-        let (from, _, defs) = parse_file(env);
+        let (from, _, defs) = parse_file(env.clone());
+        env.remove_open(path.clone());
+        env.insert_done(path, from);
         let with = with.unwrap_or_else(|| defs.names());
         Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
       }
