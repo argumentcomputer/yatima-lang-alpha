@@ -956,7 +956,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        VecDeque::new(),
+        Rc::new(VecDeque::new()),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -975,7 +975,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        VecDeque::new(),
+        Rc::new(VecDeque::new()),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1005,7 +1005,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        VecDeque::new(),
+        Rc::new(VecDeque::new()),
         VecDeque::new(),
         nam_opt,
       )(Span::new(i))
@@ -1017,7 +1017,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        VecDeque::new(),
+        Rc::new(VecDeque::new()),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1028,8 +1028,8 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, String::from(""), Typ(Pos::None)),
-          (Uses::Many, String::from(""), Typ(Pos::None)),
+          (Uses::Many, Name::from(""), Typ(Pos::None)),
+          (Uses::Many, Name::from(""), Typ(Pos::None)),
         ]
     );
     let res = test(true, "(A: Type) (a b c: A)");
@@ -1037,10 +1037,10 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, String::from("A"), Typ(Pos::None)),
-          (Uses::Many, String::from("a"), Var(Pos::None, String::from("A"), 0)),
-          (Uses::Many, String::from("b"), Var(Pos::None, String::from("A"), 1)),
-          (Uses::Many, String::from("c"), Var(Pos::None, String::from("A"), 2)),
+          (Uses::Many, Name::from("A"), Typ(Pos::None)),
+          (Uses::Many, Name::from("a"), Var(Pos::None, Name::from("A"), 0)),
+          (Uses::Many, Name::from("b"), Var(Pos::None, Name::from("A"), 1)),
+          (Uses::Many, Name::from("c"), Var(Pos::None, Name::from("A"), 2)),
         ]
     );
   }
@@ -1052,7 +1052,7 @@ pub mod tests {
       input_cid(&i),
       test_defs(),
       None,
-      VecDeque::new(),
+      Rc::new(VecDeque::new()),
       VecDeque::new(),
     )(Span::new(&i))
     {

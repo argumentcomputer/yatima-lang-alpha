@@ -256,7 +256,7 @@ pub mod tests {
       let vec: Vec<()> = Arbitrary::arbitrary(g);
       let vec: Vec<Name> = vec.into_iter().map(|_| arbitrary_name(g)).collect();
       Self {
-        name: "Test".to_string(),
+        name: Name::from("Test"),
         cid: arbitrary_cid(g),
         alias: arbitrary_name(g),
         with: vec,

@@ -1500,7 +1500,7 @@ pub mod test {
 
   #[quickcheck]
   fn dag_def_iso(x: Def) -> bool {
-    let y = DAG::to_term(&DAG::from_def(&x, "test".to_owned()), true);
+    let y = DAG::to_term(&DAG::from_def(&x, Name::from("test")), true);
     x.term == y
   }
 }
