@@ -1,14 +1,6 @@
 use crate::ipld_error::IpldError;
 use cid::Cid;
-use libipld::{
-  cbor::DagCborCodec,
-  codec::Codec,
-  ipld::Ipld,
-};
-use multihash::{
-  Code,
-  MultihashDigest,
-};
+use libipld::ipld::Ipld;
 
 use crate::{
   literal::{
@@ -93,12 +85,7 @@ impl Anon {
     }
   }
 
-  pub fn cid(&self) -> Cid {
-    Cid::new_v1(
-      0x71,
-      Code::Blake2b256.digest(&DagCborCodec.encode(&self.to_ipld()).unwrap()),
-    )
-  }
+  pub fn cid(&self) -> Cid { crate::cid::cid(&self.to_ipld()) }
 
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
@@ -160,6 +147,7 @@ impl Anon {
           let opr = Op::from_ipld(&opr)?;
           Ok(Self::Opr(opr))
         }
+        [Ipld::Integer(14)] => Ok(Self::Rec),
         xs => Err(IpldError::Anon(Ipld::List(xs.to_owned()))),
       },
       xs => Err(IpldError::Anon(xs.to_owned())),

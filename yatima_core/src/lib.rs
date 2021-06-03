@@ -8,6 +8,7 @@ extern crate rand;
 
 pub mod anon;
 pub mod check;
+pub mod cid;
 pub mod dag;
 pub mod defs;
 pub mod dll;

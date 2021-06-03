@@ -1,4 +1,4 @@
-use crate::file::store::cid;
+use yatima_core::cid::cid;
 use libipld::{
   cbor::DagCborCodec,
   codec::Codec,

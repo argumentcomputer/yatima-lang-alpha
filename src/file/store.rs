@@ -6,10 +6,6 @@ use libipld::{
   codec::Codec,
   ipld::Ipld,
 };
-use multihash::{
-  Code,
-  MultihashDigest,
-};
 use std::{
   fs,
   path::{
@@ -66,9 +62,6 @@ pub fn hashspace_directory() -> PathBuf {
   PathBuf::from(path)
 }
 
-pub fn cid(x: &Ipld) -> Cid {
-  Cid::new_v1(0x71, Code::Blake2b256.digest(&DagCborCodec.encode(x).unwrap()))
-}
 
 pub fn get(link: Cid) -> Option<Ipld> {
   let dir = hashspace_directory();
@@ -81,7 +74,7 @@ pub fn get(link: Cid) -> Option<Ipld> {
 
 pub fn put(expr: Ipld) -> Cid {
   let dir = hashspace_directory();
-  let link = cid(&expr);
+  let link = yatima_core::cid::cid(&expr);
   let path = dir.as_path().join(Path::new(&link.to_string()));
   fs::write(path, DagCborCodec.encode(&expr).unwrap()).unwrap_or_else(|_| {
     panic!(

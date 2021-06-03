@@ -13,7 +13,7 @@ use crate::{
 
 use cid::Cid;
 
-use im::HashMap;
+use std::collections::HashMap;
 
 use std::fmt;
 
@@ -121,22 +121,21 @@ impl Defs {
     self.defs.insert(def.def_cid, def)
   }
 
-  pub fn get(&self, name: Name) -> Option<&Def> {
-    let def_cid = self.names.get(&name)?;
+  pub fn get(&self, name: &Name) -> Option<&Def> {
+    let def_cid = self.names.get(name)?;
     self.defs.get(&def_cid)
   }
 
   pub fn merge(self, other: Defs, import: &Import) -> Self {
-    Defs {
-      defs: self.defs.union(other.defs),
-      names: self.names.union(
-        other
-          .names
-          .into_iter()
-          .map(|(k, v)| (import_alias(k, import), v))
-          .collect(),
-      ),
+    let mut defs = self.defs;
+    for (k, v) in other.defs {
+      defs.insert(k, v);
     }
+    let mut names = self.names;
+    for (k, v) in other.names {
+      names.insert(import_alias(k, import), v);
+    }
+    Defs { defs, names }
   }
 }
 
@@ -181,7 +180,8 @@ pub mod tests {
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
-    let term = arbitrary_term(g, true, test_defs(), im::Vector::new());
+    let term =
+      arbitrary_term(g, true, test_defs(), std::collections::VecDeque::new());
     Def::make(Pos::None, typ_, term)
   }
 
