@@ -1,4 +1,6 @@
 target
+dist
+node_modules
 */Cargo.lock
 */target/*
 .direnv

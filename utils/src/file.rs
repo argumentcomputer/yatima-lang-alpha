@@ -1,20 +1,26 @@
 use libipld::Ipld;
-use std::path::PathBuf;
+use std::{
+  rc::Rc,
+  path::PathBuf,
+};
 use yatima_core::{
   check::error::CheckError,
   defs::Defs,
   position::Pos,
 };
 
+use crate::store::{
+  Store,
+};
+
 pub mod error;
 pub mod parse;
-pub mod store;
 
-pub fn check_all(path: PathBuf) -> std::io::Result<Defs> {
+pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
   let root = std::env::current_dir()?;
-  let env = parse::PackageEnv::new(root, path);
+  let env = parse::PackageEnv::new(root, path, store.clone());
   let (_, p, ds) = parse::parse_file(env);
-  let cid = store::put(p.to_ipld());
+  let cid = store.put(p.to_ipld());
   // let _ipld_cid =
   //  ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
   println!("Checking package {} at {}", p.name, cid);
@@ -33,7 +39,7 @@ pub fn check_all(path: PathBuf) -> std::io::Result<Defs> {
           let def = ds.get(n).unwrap();
           println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string())));
           if let Pos::Some(pos) = err.pos() {
-            if let Some(Ipld::String(input)) = store::get(pos.input) {
+            if let Some(Ipld::String(input)) = store.get(pos.input) {
               println!("{}", pos.range(input))
             }
           }
@@ -53,7 +59,7 @@ pub fn check_all(path: PathBuf) -> std::io::Result<Defs> {
         let def = ds.get(n).unwrap();
         println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string())));
         if let Pos::Some(pos) = err.pos() {
-          if let Some(Ipld::String(input)) = store::get(pos.input) {
+          if let Some(Ipld::String(input)) = store.get(pos.input) {
             println!("{}", pos.range(input))
           }
         }

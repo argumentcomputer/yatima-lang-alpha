@@ -1,7 +1,7 @@
 use directories_next::ProjectDirs;
 
-use cid::Cid;
 use libipld::{
+  cid::Cid,
   cbor::DagCborCodec,
   codec::Codec,
   ipld::Ipld,
@@ -12,6 +12,9 @@ use std::{
     Path,
     PathBuf,
   },
+};
+use yatima_utils::store::{
+  Store,
 };
 
 pub fn hashspace_directory() -> PathBuf {
@@ -62,7 +65,6 @@ pub fn hashspace_directory() -> PathBuf {
   PathBuf::from(path)
 }
 
-
 pub fn get(link: Cid) -> Option<Ipld> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
@@ -85,4 +87,23 @@ pub fn put(expr: Ipld) -> Cid {
     link)
   });
   link
+}
+
+#[derive(Debug, Clone)]
+pub struct FileStore {}
+
+impl FileStore {
+  pub fn new() -> Self {
+    FileStore {}
+  }
+}
+
+impl Store for FileStore {
+  fn get(&self, link: Cid) -> Option<Ipld> {
+    get(link)    
+  }
+
+  fn put(&self, expr: Ipld) -> Cid {
+    put(expr)
+  }
 }

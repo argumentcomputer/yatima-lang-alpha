@@ -28,18 +28,21 @@ use yatima_core::{
   },
   position::Pos,
 };
-
-use crate::file::{
-  error,
-  error::{
-    FileError,
-    FileErrorKind,
+use crate::{
+  file::{
+    error,
+    error::{
+      FileError,
+      FileErrorKind,
+    },
   },
-  store,
+  store::Store,
 };
 
-use cid::Cid;
-use libipld::ipld::Ipld;
+use libipld::{
+  ipld::Ipld,
+  cid::Cid,
+};
 
 use nom::{
   bytes::complete::tag,
@@ -65,6 +68,7 @@ use std::{
 pub struct PackageEnv {
   root: PathBuf,
   path: PathBuf,
+  store: Rc<dyn Store>,
   open: Rc<RefCell<HashSet<PathBuf>>>,
   done: Rc<RefCell<HashMap<PathBuf, Cid>>>,
   // sources: Rc<RefCell<HashMap<Cid, PathBuf>>>,
@@ -72,10 +76,11 @@ pub struct PackageEnv {
 
 impl PackageEnv {
   #[must_use]
-  pub fn new(root: PathBuf, path: PathBuf) -> Self {
+  pub fn new(root: PathBuf, path: PathBuf, store: Rc<dyn Store>) -> Self {
     Self {
       root,
       path,
+      store: store.clone(),
       open: Rc::new(RefCell::new(HashSet::new())),
       done: Rc::new(RefCell::new(HashMap::new())),
     }
@@ -111,7 +116,12 @@ impl PackageEnv {
 pub fn parse_file(env: PackageEnv) -> (Cid, Package, Defs) {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).expect("file not found");
-  let input_cid = store::put(Ipld::String(txt.clone()));
+  parse_text(txt, env)
+}
+
+pub fn parse_text(txt: String, env: PackageEnv) -> (Cid, Package, Defs) {
+  let path = env.path.clone();
+  let input_cid = env.store.put(Ipld::String(txt.clone()));
   // env.insert_source(input_cid, path.clone());
   match parse_package(input_cid, env)(Span::new(&txt)) {
     Ok((_, p)) => p,
@@ -129,13 +139,13 @@ pub fn parse_file(env: PackageEnv) -> (Cid, Package, Defs) {
   }
 }
 
-pub fn entry_to_def(d: Entry) -> Result<Def, FileErrorKind> {
+pub fn entry_to_def(d: Entry, store: Rc<dyn Store>) -> Result<Def, FileErrorKind> {
   use FileErrorKind::*;
-  let type_ipld: Ipld = store::get(d.type_anon)
+  let type_ipld: Ipld = store.get(d.type_anon)
     .map_or_else(|| Err(UnknownLink(d.type_anon)), Ok)?;
   let type_anon: Anon =
     Anon::from_ipld(&type_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
-  let term_ipld: Ipld = store::get(d.term_anon)
+  let term_ipld: Ipld = store.get(d.term_anon)
     .map_or_else(|| Err(UnknownLink(d.term_anon)), Ok)?;
   let term_anon =
     Anon::from_ipld(&term_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
@@ -143,15 +153,15 @@ pub fn entry_to_def(d: Entry) -> Result<Def, FileErrorKind> {
     .map_or_else(|e| Err(EmbedError(Box::new(e))), Ok)
 }
 
-pub fn index_to_defs(i: &Index) -> Result<Defs, FileErrorKind> {
+pub fn index_to_defs(i: &Index, env: PackageEnv) -> Result<Defs, FileErrorKind> {
   use FileErrorKind::*;
   let mut defs = Defs::new();
   for (n, cid) in &i.0 {
     let entry_ipld: Ipld =
-      store::get(*cid).map_or_else(|| Err(UnknownLink(*cid)), Ok)?;
+      env.store.get(*cid).map_or_else(|| Err(UnknownLink(*cid)), Ok)?;
     let entry: Entry =
       Entry::from_ipld(&entry_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
-    let def = entry_to_def(entry)?;
+    let def = entry_to_def(entry, env.store.clone())?;
     defs.insert(n.clone(), def);
   }
   Ok(defs)
@@ -185,7 +195,7 @@ pub fn parse_import(
     };
     if let Some(from) = from {
       use FileErrorKind::*;
-      let (_, pack) = store::get(from).map_or_else(
+      let (_, pack) = env.store.get(from).map_or_else(
         || Err(Err::Error(FileError::new(i, UnknownLink(from)))),
         |v| Ok((i, v)),
       )?;
@@ -193,7 +203,7 @@ pub fn parse_import(
         |e| Err(Err::Error(FileError::new(i, IpldError(e)))),
         |v| Ok((i, v)),
       )?;
-      let (_, defs) = index_to_defs(&pack.index).map_or_else(
+      let (_, defs) = index_to_defs(&pack.index, env.clone()).map_or_else(
         |e| Err(Err::Error(FileError::new(i, e))),
         |v| Ok((i, v)),
       )?;
@@ -214,6 +224,7 @@ pub fn parse_import(
           path: import_path.clone(),
           open: env.open.clone(),
           done: env.done.clone(),
+          store: env.store.clone(),
         };
         let (from, _, defs) = parse_file(env.clone());
         env.remove_open(import_path.clone());
@@ -291,16 +302,16 @@ pub fn parse_package(
     for (n, _) in index.0.iter() {
       let d = defs.get(n).unwrap();
       let (entry, typ, trm) = d.clone().embed();
-      store::put(typ.to_ipld());
-      store::put(trm.to_ipld());
-      let entry_cid = store::put(entry.to_ipld());
+      env.store.put(typ.to_ipld());
+      env.store.put(trm.to_ipld());
+      let entry_cid = env.store.put(entry.to_ipld());
       if entry_cid != d.def_cid {
         panic!("def cid error, expected {}, got {}", d.def_cid, entry_cid)
       }
     }
     let pos = Pos::from_upto(input, from, upto);
     let package = Package { pos, name, imports, index };
-    let pack_cid = store::put(package.to_ipld());
+    let pack_cid = env.store.put(package.to_ipld());
     Ok((from, (pack_cid, package, defs)))
   }
 }
