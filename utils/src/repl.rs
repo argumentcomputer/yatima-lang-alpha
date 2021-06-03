@@ -81,14 +81,14 @@ pub trait Repl {
                   match res {
                     Ok(res) => {
                       *defs = tmp_defs;
-                      self.println(format!("{} : {}", n, res.pretty(Some(&n))))
+                      self.println(format!("{} : {}", n, res.pretty(Some(&n.to_string()))))
                     }
                     Err(e) => self.println(format!("Error: {}", e)),
                   }
                 }
                 Command::Browse => {
                   for (n, d) in defs.named_defs() {
-                    self.println(format!("{}", d.pretty(n)))
+                    self.println(format!("{}", d.pretty(n.to_string())))
                   }
                 }
                 Command::Quit => {
