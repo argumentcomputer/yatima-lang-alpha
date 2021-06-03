@@ -6,6 +6,7 @@ pub use crate::{
     Literal,
   },
   meta::Meta,
+  name::Name,
   position::Pos,
   prim::Op,
   uses::Uses,
@@ -17,15 +18,15 @@ use std::fmt;
 
 #[derive(Clone, Debug)]
 pub enum Term {
-  Var(Pos, String, u64),
-  Lam(Pos, String, Box<Term>),
+  Var(Pos, Name, u64),
+  Lam(Pos, Name, Box<Term>),
   App(Pos, Box<(Term, Term)>),
-  All(Pos, Uses, String, Box<(Term, Term)>),
-  Slf(Pos, String, Box<Term>),
+  All(Pos, Uses, Name, Box<(Term, Term)>),
+  Slf(Pos, Name, Box<Term>),
   Dat(Pos, Box<Term>),
   Cse(Pos, Box<Term>),
-  Ref(Pos, String, Cid, Cid),
-  Let(Pos, bool, Uses, String, Box<(Term, Term, Term)>),
+  Ref(Pos, Name, Cid, Cid),
+  Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
   Typ(Pos),
   Ann(Pos, Box<(Term, Term)>),
   Lit(Pos, Literal),
@@ -71,16 +72,16 @@ impl PartialEq for Term {
 impl Term {
   pub fn pos(&self) -> Pos {
     match self {
-      Term::Var(pos, _, _) => *pos,
-      Term::Ref(pos, _, _, _) => *pos,
-      Term::Lam(pos, _, _) => *pos,
+      Term::Var(pos, ..) => *pos,
+      Term::Ref(pos, ..) => *pos,
+      Term::Lam(pos, ..) => *pos,
       Term::App(pos, _) => *pos,
       Term::Ann(pos, _) => *pos,
-      Term::All(pos, _, _, _) => *pos,
-      Term::Slf(pos, _, _) => *pos,
+      Term::All(pos, ..) => *pos,
+      Term::Slf(pos, ..) => *pos,
       Term::Dat(pos, _) => *pos,
       Term::Cse(pos, _) => *pos,
-      Term::Let(pos, _, _, _, _) => *pos,
+      Term::Let(pos, ..) => *pos,
       Term::Typ(pos) => *pos,
       Term::LTy(pos, _) => *pos,
       Term::Lit(pos, _) => *pos,
@@ -88,7 +89,6 @@ impl Term {
       Term::Rec(pos) => *pos,
     }
   }
-
 
   pub fn shift(self, inc: u64, dep: u64) -> Self {
     match self {
@@ -272,7 +272,7 @@ impl Term {
           *pos,
           *rec,
           *uses,
-          name.clone(),
+          Name::from(name.clone()),
           Box::new((typ, exp, bod)),
         ))
       }

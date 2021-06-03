@@ -14,3 +14,5 @@ extern crate yatima_core;
 pub mod ipfs;
 pub mod repl;
 pub mod file;
+
+pub use yatima_core::name::Name;

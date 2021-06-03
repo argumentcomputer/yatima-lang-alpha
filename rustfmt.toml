@@ -1,0 +1,53 @@
+# General
+version                       = "Two"
+edition                       = "2018"
+unstable_features             = true
+newline_style                 = "Unix"
+
+# Tabs
+hard_tabs = false
+tab_spaces = 2
+
+# Layout
+blank_lines_upper_bound       = 1
+brace_style                   = "PreferSameLine"
+condense_wildcard_suffixes    = true
+control_brace_style           = "ClosingNextLine"
+overflow_delimited_expr       = true
+binop_separator               = "Front"
+format_strings                = true
+reorder_impl_items            = true
+use_field_init_shorthand      = true
+struct_field_align_threshold  = 0
+enum_discrim_align_threshold  = 0
+
+# Width
+use_small_heuristics          = "Max"
+max_width                     = 80
+comment_width                 = 80
+
+# Comments
+wrap_comments                 = true
+normalize_comments            = true
+format_code_in_doc_comments   = true
+
+# Single line
+empty_item_single_line        = true
+struct_lit_single_line        = true
+fn_single_line                = true
+where_single_line             = true
+
+# Imports
+imports_indent                = "Block"
+imports_layout                = "Vertical"
+imports_granularity           = "Crate"
+reorder_imports               = true
+
+# Modules
+reorder_modules               = true
+
+# Attributes
+merge_derives = true
+normalize_doc_attributes = true
+
+
