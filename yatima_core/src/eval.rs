@@ -8,7 +8,7 @@ use crate::{
 };
 
 use std::mem;
-use im::Vector;
+use im::HashMap;
 
 enum Single {
   Lam(Var),
@@ -338,7 +338,7 @@ impl DAG {
                   let expand = DAG::from_term_inner(
                     expand,
                     0,
-                    Vector::new(),
+                    HashMap::new(),
                     *parents,
                     None,
                   );

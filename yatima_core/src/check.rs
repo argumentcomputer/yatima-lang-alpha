@@ -17,13 +17,13 @@ use crate::{
 
 use im::{
   HashMap,
-  Vector,
 };
 
 use libipld::Cid;
 
 use core::ptr::NonNull;
 use std::collections::HashSet;
+use std::mem;
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -163,7 +163,7 @@ pub fn check(
               DAG::from_term_inner(
                 term,
                 ctx.len() as u64,
-                Vector::new(),
+                HashMap::new(),
                 None,
                 rec.clone(),
               ),
@@ -288,7 +288,7 @@ pub fn infer(
               DAG::from_term_inner(
                 arg,
                 ctx.len() as u64,
-                Vector::new(),
+                HashMap::new(),
                 None,
                 rec.clone(),
               ),
@@ -323,7 +323,7 @@ pub fn infer(
               DAG::from_term_inner(
                 exp,
                 ctx.len() as u64,
-                Vector::new(),
+                HashMap::new(),
                 None,
                 rec.clone(),
               ),
@@ -348,7 +348,7 @@ pub fn infer(
             )),
             Some(ind) => {
               let induction =
-                DAG::from_term_inner(&ind, 0, Vector::new(), Some(root), None);
+                DAG::from_term_inner(&ind, 0, HashMap::new(), Some(root), None);
               Ok(DAG::new(induction))
             }
           }
@@ -368,7 +368,7 @@ pub fn infer(
       let mut dom_dag = DAG::from_term_inner(
         dom,
         ctx.len() as u64,
-        Vector::new(),
+        HashMap::new(),
         None,
         rec.clone(),
       );
@@ -384,7 +384,7 @@ pub fn infer(
       let mut term_dag = DAG::from_term_inner(
         term,
         ctx.len() as u64,
-        Vector::new(),
+        HashMap::new(),
         None,
         rec.clone(),
       );
@@ -404,7 +404,7 @@ pub fn infer(
       let mut typ_dag = DAG::new(DAG::from_term_inner(
         typ,
         ctx.len() as u64,
-        Vector::new(),
+        HashMap::new(),
         Some(root),
         rec.clone(),
       ));
@@ -414,11 +414,11 @@ pub fn infer(
     Term::Let(pos, false, exp_uses, nam, typ_exp_bod) => {
       let (exp_typ, exp, bod) = &**typ_exp_bod;
       let exp_dag = &mut DAG::new(
-        DAG::from_term_inner(exp, ctx.len() as u64, Vector::new(), None, rec.clone())
+        DAG::from_term_inner(exp, ctx.len() as u64, HashMap::new(), None, rec.clone())
       );
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let exp_typ_dag = &mut DAG::new(
-        DAG::from_term_inner(exp_typ, ctx.len() as u64, Vector::new(), Some(root), rec.clone())
+        DAG::from_term_inner(exp_typ, ctx.len() as u64, HashMap::new(), Some(root), rec.clone())
       );
       check(rec, defs, ctx, *exp_uses * uses, exp, exp_typ_dag)?;
       let rest_ctx = div_ctx(uses, ctx);
@@ -444,12 +444,50 @@ pub fn infer(
         Ok(bod_typ)
       }
     }
-    Term::Let(pos, true, _, _, _) => {
-      Err(CheckError::GenericError(
-        *pos,
-        error_context(&ctx),
-        "TODO: Letrec inference".to_string(),
-      ))
+    Term::Let(pos, true, exp_uses, nam, typ_exp_bod) => unsafe {
+      let (exp_typ, exp, bod) = &**typ_exp_bod;
+      // Allocates exp as a DAG, must be rootless
+      let fix = alloc_fix(nam.clone(), 0, mem::zeroed(), None);
+      let Fix { var: fix_var, bod_ref: fix_bod_ref, .. } = &mut *fix.as_ptr();
+      let exp_dag = &mut DAG::new(DAG::from_term_inner(
+        exp,
+        ctx.len() as u64 + 1,
+        HashMap::unit(ctx.len(), DAGPtr::Var(NonNull::new_unchecked(fix_var))),
+        NonNull::new(fix_bod_ref), rec.clone()));
+      // Allocates exp_typ as a DAG, must be rooted
+      let root = alloc_val(DLL::singleton(ParentPtr::Root));
+      let exp_typ_dag = &mut DAG::new(
+        DAG::from_term_inner(exp_typ, ctx.len() as u64, HashMap::new(), Some(root), rec.clone())
+      );
+      // Check exp, noting it is a recursive definition
+      let rest_ctx = div_ctx(Uses::Many, ctx);
+      ctx.push((nam.to_string(), Uses::Many, &mut exp_typ_dag.head));
+      check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag); // TODO better error message
+      ctx.pop();
+      // Check bod
+      add_ctx(ctx, rest_ctx);
+      let rest_ctx = div_ctx(uses, ctx);
+      ctx.push((nam.to_string(), *exp_uses, &mut exp_typ_dag.head));
+      let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
+      let (_, rest, _) = ctx.last().unwrap();
+      // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
+      // otherwise the variable was not used enough
+      if !Uses::lte(Uses::None, *rest) {
+        Err(CheckError::QuantityTooLittle(
+          *pos,
+          error_context(ctx),
+          nam.clone(),
+          *exp_uses,
+          *rest,
+        ))
+      }
+      else {
+        ctx.pop();
+        DAG::new(exp_typ_dag.head).free();
+        add_mul_ctx(uses, ctx, rest_ctx);
+        bod_typ.subst(ctx.len() as u64, exp_dag.head);
+        Ok(bod_typ)
+      }
     }
     Term::Lit(_, lit) => Ok(DAG::from_term(&infer_lit(lit.to_owned()))),
     Term::LTy(..) => Ok(DAG::from_term(&yatima!("Type"))),

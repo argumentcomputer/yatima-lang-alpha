@@ -17,7 +17,6 @@ use crate::{
 use core::ptr::NonNull;
 use im::{
   HashMap,
-  Vector,
 };
 use std::{
   collections::HashSet,
@@ -791,15 +790,25 @@ impl DAG {
         let nam = var.nam.clone();
         let typ_map = &mut map.clone();
         let exp_map = &mut map.clone();
+        let mut exp_depth = depth;
+        let (rec, exp) = match exp {
+          DAGPtr::Fix(link) => unsafe {
+            let Fix { var, bod, .. } = &mut *link.as_ptr();
+            exp_map.insert(var, depth);
+            exp_depth += 1;
+            (true, bod)
+          }
+          _ => (false, exp)
+        };
         map.insert(var, depth);
         Term::Let(
           Pos::None,
-          false,
+          rec,
           *uses,
           nam,
           Box::new((
             DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
-            DAG::dag_ptr_to_term(exp, exp_map, depth, re_rec),
+            DAG::dag_ptr_to_term(exp, exp_map, exp_depth, re_rec),
             DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec),
           )),
         )
@@ -814,7 +823,7 @@ impl DAG {
 
   pub fn from_term(tree: &Term) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(DAG::from_term_inner(tree, 0, Vector::new(), Some(root), None))
+    DAG::new(DAG::from_term_inner(tree, 0, HashMap::new(), Some(root), None))
   }
 
   pub fn from_def(def: &Def, name: String) -> Self {
@@ -825,7 +834,7 @@ impl DAG {
     DAG::new(DAG::from_term_inner(
       &def.term,
       0,
-      Vector::new(),
+      HashMap::new(),
       Some(root),
       Some((name, def_cid, ast_cid)),
     ))
@@ -841,7 +850,7 @@ impl DAG {
     DAG::from_term_inner(
       &def.term,
       0,
-      Vector::new(),
+      HashMap::new(),
       parents,
       Some((name, def_cid, ast_cid)),
     )
@@ -850,7 +859,7 @@ impl DAG {
   pub fn from_term_inner(
     tree: &Term,
     depth: u64,
-    mut ctx: Vector<DAGPtr>,
+    mut ctx: HashMap<usize, DAGPtr>,
     parents: Option<NonNull<Parents>>,
     rec_ref: Option<(String, Cid, Cid)>,
   ) -> DAGPtr {
@@ -871,28 +880,31 @@ impl DAG {
           DAGPtr::Var(var)
         }
       },
-      Term::Var(_, name, idx) => match ctx.get(*idx as usize) {
-        Some(val) => {
-          if let Some(parents) = parents {
-            DLL::concat(parents, get_parents(*val));
-            set_parents(*val, Some(parents));
+      Term::Var(_, name, idx) => {
+        let dep = (depth - 1 - *idx) as usize;
+        match ctx.get(&dep) {
+          Some(val) => {
+            if let Some(parents) = parents {
+              DLL::concat(parents, get_parents(*val));
+              set_parents(*val, Some(parents));
+            }
+            *val
           }
-          *val
-        }
-        None => {
-          if depth < 1 + idx {
-            panic!("Negative index found.")
+          None => {
+            if depth < 1 + idx {
+              panic!("Negative index found.")
+            }
+            let var = alloc_val(Var {
+              nam: name.clone(),
+              rec: false,
+              dep: depth - 1 - idx,
+              binder: BinderPtr::Free,
+              parents,
+            });
+            DAGPtr::Var(var)
           }
-          let var = alloc_val(Var {
-            nam: name.clone(),
-            rec: false,
-            dep: depth - 1 - idx,
-            binder: BinderPtr::Free,
-            parents,
-          });
-          DAGPtr::Var(var)
         }
-      },
+      }
       Term::Typ(_) => DAGPtr::Typ(alloc_val(Typ { parents })),
       Term::LTy(_, lty) => DAGPtr::LTy(alloc_val(LTy { lty: *lty, parents })),
       Term::Lit(_, lit) => {
@@ -907,9 +919,10 @@ impl DAG {
         parents,
       })),
       Term::Lam(_, nam, bod) => unsafe {
+        let pos = ctx.len();
         let lam = alloc_lam(nam.clone(), 0, mem::zeroed(), parents);
         let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
-        ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
+        ctx.insert(pos, DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
           &**bod,
           depth + 1,
@@ -921,9 +934,10 @@ impl DAG {
         DAGPtr::Lam(lam)
       },
       Term::Slf(_, nam, bod) => unsafe {
+        let pos = ctx.len();
         let slf = alloc_slf(nam.clone(), 0, mem::zeroed(), parents);
         let Slf { var, bod_ref, .. } = &mut *slf.as_ptr();
-        ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
+        ctx.insert(pos, DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
           &**bod,
           depth + 1,
@@ -961,6 +975,7 @@ impl DAG {
         DAGPtr::Cse(cse)
       },
       Term::All(_, uses, nam, dom_img) => unsafe {
+        let pos = ctx.len();
         let (dom, img) = &**dom_img;
         let all = alloc_all(*uses, mem::zeroed(), NonNull::dangling(), parents);
         let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
@@ -975,7 +990,7 @@ impl DAG {
           NonNull::new(dom_ref),
           rec_ref.clone(),
         );
-        img_ctx.push_front(DAGPtr::Var(NonNull::new(var).unwrap()));
+        img_ctx.insert(pos, DAGPtr::Var(NonNull::new(var).unwrap()));
         let img = DAG::from_term_inner(
           img,
           depth + 1,
@@ -1033,6 +1048,7 @@ impl DAG {
         DAGPtr::Ann(ann)
       },
       Term::Let(_, rec, uses, nam, typ_exp_bod) => unsafe {
+        let pos = ctx.len();
         let (typ, exp, bod) = &**typ_exp_bod;
         // Allocates the `Let` node and a `Lam` node for `bod`
         let let_ = alloc_let(
@@ -1049,7 +1065,7 @@ impl DAG {
         // Sets up the context for `typ` and `bod` conversion
         let typ_ctx = ctx.clone();
         let mut bod_ctx = ctx.clone();
-        bod_ctx.push_front(DAGPtr::Var(NonNull::new(lam_var).unwrap()));
+        bod_ctx.insert(pos, DAGPtr::Var(NonNull::new(lam_var).unwrap()));
         // Convert `typ` and `bod` to DAG and add it to the newly created `Let` node
         let typ = DAG::from_term_inner(
           typ,
@@ -1073,7 +1089,7 @@ impl DAG {
           let fix =
             alloc_fix(nam.clone(), 0, mem::zeroed(), NonNull::new(exp_ref));
           let Fix { var: fix_var, bod_ref: fix_bod_ref, .. } = &mut *fix.as_ptr();
-          ctx.push_front(DAGPtr::Var(NonNull::new(fix_var).unwrap()));
+          ctx.insert(pos, DAGPtr::Var(NonNull::new(fix_var).unwrap()));
           let exp = DAG::from_term_inner(
             exp,
             depth + 1,

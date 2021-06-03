@@ -27,6 +27,14 @@ pub fn add_mul_ctx(uses: Uses, use_ctx: &mut Ctx, use_ctx2: Ctx) {
 }
 
 #[inline]
+pub fn add_ctx(use_ctx: &mut Ctx, use_ctx2: Ctx) {
+  #[allow(clippy::needless_range_loop)]
+  for i in 0..use_ctx.len() {
+    use_ctx[i].1 = use_ctx[i].1 + use_ctx2[i].1
+  }
+}
+
+#[inline]
 pub fn mul_ctx(uses: Uses, use_ctx: &mut Ctx) {
   #[allow(clippy::needless_range_loop)]
   for i in 0..use_ctx.len() {
