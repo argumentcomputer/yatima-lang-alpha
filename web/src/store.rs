@@ -4,8 +4,9 @@ use libipld::{
   codec::Codec,
   ipld::Ipld,
 };
+use yatima_core::cid::cid;
 use yatima_utils::{
-  store::{Store, cid},
+  store::{Store},
 };
 
 
