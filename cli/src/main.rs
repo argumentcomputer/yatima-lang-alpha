@@ -4,7 +4,6 @@ use std::{
 };
 
 use structopt::StructOpt;
-
 use yatima_utils::{
   file,
   store::Store,
@@ -32,6 +31,11 @@ enum Cli {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
+  Show {
+    input: String,
+    #[structopt(name = "type", default_value = "raw", long, short)]
+    typ_: String,
+  },
   Run {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
@@ -47,9 +51,39 @@ async fn main() -> std::io::Result<()> {
       repl::main();
       Ok(())
     }
+    Cli::Show { input, typ_ } => {
+      use yatima_core::parse;
+      let store = Rc::new(FileStore::new());
+      let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
+        .expect("valid cid");
+      let ipld = store.get(cid).expect(&format!("cannot find {}", cid));
+      match typ_.as_str() {
+        "package" => {
+          let pack = yatima_core::package::Package::from_ipld(&ipld)
+            .expect("package ipld");
+          println!("{:?}", pack);
+        }
+        "entry" => {
+          let entry =
+            yatima_core::package::Entry::from_ipld(&ipld).expect("entry ipld");
+          println!("{:?}", entry);
+          let def = file::parse::entry_to_def(entry, store).expect("valid def");
+          println!("{}", def);
+        }
+        "anon" => {
+          let pack =
+            yatima_core::anon::Anon::from_ipld(&ipld).expect("anon ipld");
+          println!("{:?}", pack);
+        }
+        _ => {
+          println!("{:?}", ipld);
+        }
+      };
+      Ok(())
+    }
     Cli::Parse { no_ipfs, path } => {
       let root = std::env::current_dir()?;
-      let store = Rc::new(FileStore {});
+      let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path, store.clone());
       let (cid, p, d) = file::parse::parse_file(env);
       store.put(p.to_ipld());
@@ -77,7 +111,7 @@ async fn main() -> std::io::Result<()> {
       let _cid = store.put(p.to_ipld());
       let _ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      let def = defs.get(Name::from("main")).expect(&format!(
+      let def = defs.get(&Name::from("main")).expect(&format!(
         "No `main` expression in package {} from file {:?}",
         p.name, path
       ));

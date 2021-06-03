@@ -1,5 +1,5 @@
-use cid::Cid;
 use libipld::{
+  cid::Cid,
   cbor::DagCborCodec,
   codec::Codec,
   ipld::Ipld,

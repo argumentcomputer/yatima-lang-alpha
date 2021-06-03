@@ -13,7 +13,6 @@ cid = "0.6.1"
 multihash = "0.13.2"
 multibase = "0.9.1"
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
-im  = "15.0.0"
 num-bigint = "0.3.1"
 nom = "6.0.1"
 nom_locate = "3.0.0"

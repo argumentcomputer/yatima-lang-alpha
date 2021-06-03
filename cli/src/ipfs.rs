@@ -1,4 +1,4 @@
-use yatima_utils::store::{cid};
+use yatima_core::cid::cid;
 use libipld::{
   cbor::DagCborCodec,
   codec::Codec,

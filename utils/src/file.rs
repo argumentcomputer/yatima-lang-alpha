@@ -36,7 +36,7 @@ pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
           println!("✕ {}: {}", n, e);
         }
         Err(err) => {
-          let def = ds.get(n.clone()).unwrap();
+          let def = ds.get(n).unwrap();
           println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string())));
           if let Pos::Some(pos) = err.pos() {
             if let Some(Ipld::String(input)) = store.get(pos.input) {
@@ -56,7 +56,7 @@ pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
         println!("✕ {}: {}", n, e);
       }
       Err(err) => {
-        let def = ds.get(n.clone()).unwrap();
+        let def = ds.get(n).unwrap();
         println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string())));
         if let Pos::Some(pos) = err.pos() {
           if let Some(Ipld::String(input)) = store.get(pos.input) {
