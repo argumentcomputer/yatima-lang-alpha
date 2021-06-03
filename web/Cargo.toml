@@ -12,10 +12,10 @@ default = ["console_error_panic_hook"]
 [dependencies]
 yatima_core = { path = "../core" }
 yatima_utils = { path = "../utils" }
-cid = ">= 0.6.0"
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"
+base64 = "0.13.0"
 wasm-bindgen-futures = "0.4.22"
 xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit"] }
 console_error_panic_hook = { version = "0.1.6", optional = true }

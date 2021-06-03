@@ -1,12 +1,6 @@
-use cid::Cid;
 use libipld::{
-  cbor::DagCborCodec,
-  codec::Codec,
   ipld::Ipld,
-};
-use multihash::{
-  Code,
-  MultihashDigest,
+  cid::Cid,
 };
 
 /// This trait describes the interations with
