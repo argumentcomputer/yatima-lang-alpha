@@ -121,8 +121,8 @@ impl Defs {
     self.defs.insert(def.def_cid, def)
   }
 
-  pub fn get(&self, name: Name) -> Option<&Def> {
-    let def_cid = self.names.get(&name)?;
+  pub fn get(&self, name: &Name) -> Option<&Def> {
+    let def_cid = self.names.get(name)?;
     self.defs.get(&def_cid)
   }
 
@@ -180,7 +180,8 @@ pub mod tests {
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
-    let term = arbitrary_term(g, true, test_defs(), std::collections::VecDeque::new());
+    let term =
+      arbitrary_term(g, true, test_defs(), std::collections::VecDeque::new());
     Def::make(Pos::None, typ_, term)
   }
 

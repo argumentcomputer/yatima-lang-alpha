@@ -218,7 +218,7 @@ impl Term {
         Ok(Self::Var(*pos, nam.clone(), *idx))
       }
       (Anon::Ref(ast), Meta::Ref(pos, nam, def)) => {
-        Ok(Self::Ref(*pos, nam.clone(), *ast, *def))
+        Ok(Self::Ref(*pos, nam.clone(), *def, *ast))
       }
       (Anon::Lit(lit), Meta::Lit(pos)) => Ok(Self::Lit(*pos, lit.clone())),
       (Anon::LTy(lty), Meta::LTy(pos)) => Ok(Self::LTy(*pos, *lty)),
@@ -411,7 +411,13 @@ pub mod tests {
     Term::*,
     *,
   };
-  use crate::defs::Defs;
+  use crate::{
+    defs::{
+      Def,
+      Defs,
+    },
+    yatima,
+  };
   use quickcheck::{
     Arbitrary,
     Gen,
@@ -450,15 +456,26 @@ pub mod tests {
   }
 
   pub fn test_defs() -> Defs {
-    // let inp = "(\"def\" \"id\" \"\" (\"forall\" \"ω\" \"A\" \"Type\" \"A\")
-    //           (\"lambda\" \"x\" \"x\"))";
-    // let d =
-    //  Def::decode(HashMap::new(), hashexpr::parse(inp).unwrap().1).unwrap();
-    // let (d, _, t) = d.embed();
-    // let mut refs = HashMap::new();
-    // refs.insert(String::from("id"), (d.encode().link(), t.encode().link()));
-    // refs
-    Defs::new()
+    let mut defs = Defs::new();
+    let (id, _) = Def::make(
+      Pos::None,
+      yatima!("∀ (A: Type) (x: A) -> A"),
+      yatima!("λ A x => x"),
+    );
+    let (fst, _) = Def::make(
+      Pos::None,
+      yatima!("∀ (A: Type) (x y: A) -> A"),
+      yatima!("λ A x y => x"),
+    );
+    let (snd, _) = Def::make(
+      Pos::None,
+      yatima!("∀ (A: Type) (x y: A) -> A"),
+      yatima!("λ A x y => y"),
+    );
+    defs.insert(Name::from("id"), id);
+    defs.insert(Name::from("fst"), fst);
+    defs.insert(Name::from("snd"), snd);
+    defs
   }
 
   fn arbitrary_ref(
@@ -467,19 +484,25 @@ pub mod tests {
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
-      let mut ref_iter = defs.names.iter().filter(|(n, _)| !ctx.contains(n));
-      let len = ref_iter.by_ref().count();
+      let refs: Vec<(Name, Cid)> = defs
+        .names
+        .clone()
+        .into_iter()
+        .filter(|(n, _)| !ctx.contains(n))
+        .collect();
+      println!("refs {:?}", refs);
+      let len = refs.len();
+      println!("len {}", len);
       if len == 0 {
         return Term::Typ(Pos::None);
       }
-      let gen = rng.gen_range(0..len);
-      match ref_iter.nth(gen) {
-        Some((n, _)) => {
-          let def = defs.get(n.clone()).unwrap();
-          Ref(Pos::None, n.clone(), def.def_cid, def.ast_cid)
-        }
-        None => Term::Typ(Pos::None),
-      }
+      let gen = rng.gen_range(0..(len - 1));
+      println!("gen {:?}", gen);
+      let (n, _) = refs[gen].clone();
+      let def = defs.get(&n).unwrap();
+      let ref_ = Ref(Pos::None, n.clone(), def.def_cid, def.ast_cid);
+      println!("ref {}", ref_);
+      ref_
     })
   }
 
@@ -653,6 +676,7 @@ pub mod tests {
       arbitrary_term(g, false, test_defs(), VecDeque::new())
     }
   }
+
   #[quickcheck]
   fn term_embed_unembed(x: Term) -> bool {
     let (a, m) = x.clone().embed();

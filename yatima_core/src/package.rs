@@ -6,15 +6,7 @@ use crate::{
 };
 
 use cid::Cid;
-use libipld::{
-  cbor::DagCborCodec,
-  codec::Codec,
-  ipld::Ipld,
-};
-use multihash::{
-  Code,
-  MultihashDigest,
-};
+use libipld::ipld::Ipld;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
@@ -83,10 +75,7 @@ impl Entry {
   }
 
   pub fn cid(&self) -> Cid {
-    Cid::new_v1(
-      0x71,
-      Code::Blake2b256.digest(&DagCborCodec.encode(&self.to_ipld()).unwrap()),
-    )
+    crate::cid::cid(&self.to_ipld())
   }
 }
 
@@ -218,6 +207,9 @@ impl Package {
       },
       xs => Err(IpldError::Package(xs.to_owned())),
     }
+  }
+  pub fn cid(&self) -> Cid {
+    crate::cid::cid(&self.to_ipld())
   }
 }
 

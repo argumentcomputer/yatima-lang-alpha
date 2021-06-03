@@ -77,7 +77,7 @@ impl PackageEnv {
       root,
       path,
       open: Rc::new(RefCell::new(HashSet::new())),
-      done: Rc::new(RefCell::new(HashMap::new())), 
+      done: Rc::new(RefCell::new(HashMap::new())),
     }
   }
 
@@ -173,13 +173,16 @@ pub fn parse_import(
     let (i, from) =
       opt(terminated(parse_link, parse_space))(i).map_err(error::convert)?;
 
-    let mut path = env.root.clone();
+    let mut import_path = env.root.clone();
     for n in name.split('.') {
-      path.push(n);
+      import_path.push(n);
     }
-    path.set_extension("ya");
+    import_path.set_extension("ya");
 
-    //let from = from.or_else(|| env.get_done_cid(&path.clone()));
+    let from = match from {
+      Some(cid) => Some(cid),
+      None => env.get_done_cid(&import_path.clone()),
+    };
     if let Some(from) = from {
       use FileErrorKind::*;
       let (_, pack) = store::get(from).map_or_else(
@@ -198,24 +201,23 @@ pub fn parse_import(
       Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
     }
     else {
-      let has_path = env.insert_open(path.clone());
+      let has_path = env.insert_open(import_path.clone());
       if !has_path {
         Err(Err::Error(FileError::new(
           i,
-          FileErrorKind::ImportCycle(path.clone()),
+          FileErrorKind::ImportCycle(import_path.clone()),
         )))
       }
       else {
         let env = PackageEnv {
           root: env.root.clone(),
-          path: path.clone(),
+          path: import_path.clone(),
           open: env.open.clone(),
           done: env.done.clone(),
         };
-        println!("env: {:?}", env);
         let (from, _, defs) = parse_file(env.clone());
-        env.remove_open(path.clone());
-        env.insert_done(path, from);
+        env.remove_open(import_path.clone());
+        env.insert_done(import_path, from);
         let with = with.unwrap_or_else(|| defs.names());
         Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
       }
@@ -239,9 +241,9 @@ pub fn parse_imports(
         _ => {
           let (i2, (from, imp, imp_defs)) = parse_import(env.clone())(i)?;
           for (def_name, _) in &imp_defs.names {
-            let imp_def = imp_defs.get(def_name.clone()).unwrap();
+            let imp_def = imp_defs.get(def_name).unwrap();
             let def_name = import_alias(def_name.clone(), &imp);
-            if let Some(def) = defs.get(def_name.clone()) {
+            if let Some(def) = defs.get(&def_name) {
               if imp_def.def_cid != def.def_cid {
                 return Err(Err::Error(FileError::new(
                   i,
@@ -272,7 +274,6 @@ pub fn parse_package(
     let (i, _) = tag("package")(i)?;
     let (i, _) = parse_space(i).map_err(error::convert)?;
     let (i, name) = parse_name(i).map_err(error::convert)?;
-    // println!("name {}", name);
     let file_name = env.path.file_name().ok_or_else(|| {
       Err::Error(FileError::new(i, FileErrorKind::MalformedPath))
     })?;
@@ -287,13 +288,14 @@ pub fn parse_package(
     let (i, _) = parse_space(i).map_err(error::convert)?;
     let (upto, (defs, index)) =
       parse_defs(input, defs)(i).map_err(error::convert)?;
-    for (_, d) in &defs.defs {
-      let (def, typ, trm) = d.embed();
+    for (n, _) in index.0.iter() {
+      let d = defs.get(n).unwrap();
+      let (entry, typ, trm) = d.clone().embed();
       store::put(typ.to_ipld());
       store::put(trm.to_ipld());
-      let def_cid = store::put(def.to_ipld());
-      if def_cid != d.def_cid {
-        panic!("def cid error, expected {}, got {}", d.def_cid, def_cid)
+      let entry_cid = store::put(entry.to_ipld());
+      if entry_cid != d.def_cid {
+        panic!("def cid error, expected {}, got {}", d.def_cid, entry_cid)
       }
     }
     let pos = Pos::from_upto(input, from, upto);

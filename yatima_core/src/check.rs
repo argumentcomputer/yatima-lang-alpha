@@ -461,7 +461,7 @@ pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
 }
 
 pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
-  let def = defs.get(Name::from(name)).ok_or_else(|| {
+  let def = defs.get(&Name::from(name)).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;
   let (d, _, a) = def.embed();

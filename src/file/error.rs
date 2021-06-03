@@ -81,10 +81,10 @@ impl<'a> fmt::Display for FileErrorKind {
         write!(f, "malformed path")
       }
       Self::EmbedError(e) => {
-        write!(f, "Error reading from local store: {:?}", e)
+        write!(f, "Embed Error reading from local store: {:?}", e)
       }
       Self::IpldError(e) => {
-        write!(f, "Error reading from local store: {:?}", e)
+        write!(f, "Ipld Error reading from local store: {:?}", e)
       }
       Self::ImportCycle(path) => {
         write!(
