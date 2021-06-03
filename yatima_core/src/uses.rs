@@ -1,5 +1,5 @@
 use crate::ipld_error::IpldError;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]

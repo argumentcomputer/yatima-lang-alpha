@@ -2,7 +2,12 @@
 name = "yatima_core"
 description = "The core evaluation, typechecking and content-addressing infrastructure of the Yatima Language"
 version = "0.1.0"
-authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
+authors = [
+    "John C. Burnham <john@yatima.io>",
+    "Anders C. Sørby <anders@yatima.io>",
+    "Gabriel Barreto <gabriel@yatima.io>",
+    "Samuel Burnham <samuel@yatima.io>",
+]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,7 +16,7 @@ edition = "2018"
 cid = "0.6.1"
 multihash = "0.13.2"
 multibase = "0.9.1"
-libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
+sp-ipld = { path = "../sp_ipld" }
 num-bigint = "0.3.1"
 nom = "6.0.1"
 nom_locate = "3.0.0"

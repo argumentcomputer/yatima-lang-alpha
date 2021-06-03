@@ -1,4 +1,4 @@
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use std::{
   convert::TryFrom,

@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use libipld::cid::Cid;
 use structopt::StructOpt;
 use yatima::{
   file,

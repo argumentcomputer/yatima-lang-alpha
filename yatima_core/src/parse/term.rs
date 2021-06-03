@@ -19,13 +19,13 @@ use crate::{
 };
 
 use cid::Cid;
-use libipld::{
-  cbor::DagCborCodec,
-  codec::Codec,
-};
 use multihash::{
   Code,
   MultihashDigest,
+};
+use sp_ipld::{
+  Codec,
+  DagCborCodec,
 };
 use std::rc::Rc;
 
@@ -909,7 +909,7 @@ pub fn parse_term(
 pub fn input_cid(i: &str) -> Cid {
   Cid::new_v1(
     0x55,
-    Code::Blake2b256.digest(&DagCborCodec.encode(&i.to_owned()).unwrap()),
+    Code::Blake2b256.digest(DagCborCodec.encode(&i.to_owned()).unwrap().into_inner().as_ref()),
   )
 }
 

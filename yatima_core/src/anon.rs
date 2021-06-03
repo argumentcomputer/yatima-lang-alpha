@@ -1,6 +1,6 @@
 use crate::ipld_error::IpldError;
 use cid::Cid;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use crate::{
   literal::{

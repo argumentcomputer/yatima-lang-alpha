@@ -32,7 +32,7 @@ use crate::{
   },
 };
 
-use libipld::Cid;
+use cid::Cid;
 
 use crate::parse::span::Span;
 

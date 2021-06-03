@@ -10,4 +10,3 @@ sp-std = { version = "3", default-features = false }
 cid = "0.6.1"
 byteorder = { version = "1", default-features = false }
 
-[workspace]

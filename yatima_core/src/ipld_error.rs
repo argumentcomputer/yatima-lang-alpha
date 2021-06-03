@@ -1,4 +1,4 @@
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 use std::num::TryFromIntError;
 
 #[derive(PartialEq, Debug, Clone)]

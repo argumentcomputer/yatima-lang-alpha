@@ -21,7 +21,7 @@ use std::collections::{
   VecDeque,
 };
 
-use libipld::Cid;
+use cid::Cid;
 
 use core::ptr::NonNull;
 use std::collections::HashSet;

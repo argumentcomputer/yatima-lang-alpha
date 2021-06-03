@@ -6,7 +6,7 @@ use crate::{
 };
 
 use cid::Cid;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
@@ -74,9 +74,7 @@ impl Entry {
     }
   }
 
-  pub fn cid(&self) -> Cid {
-    crate::cid::cid(&self.to_ipld())
-  }
+  pub fn cid(&self) -> Cid { crate::cid::cid(&self.to_ipld()) }
 }
 
 impl Index {
@@ -208,9 +206,8 @@ impl Package {
       xs => Err(IpldError::Package(xs.to_owned())),
     }
   }
-  pub fn cid(&self) -> Cid {
-    crate::cid::cid(&self.to_ipld())
-  }
+
+  pub fn cid(&self) -> Cid { crate::cid::cid(&self.to_ipld()) }
 }
 
 #[cfg(test)]

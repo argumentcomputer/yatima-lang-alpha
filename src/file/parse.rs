@@ -39,7 +39,7 @@ use crate::file::{
 };
 
 use cid::Cid;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use nom::{
   bytes::complete::tag,

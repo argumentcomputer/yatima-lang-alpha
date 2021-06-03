@@ -1,4 +1,4 @@
-use libipld::Ipld;
+use sp_ipld::Ipld;
 use std::path::PathBuf;
 use yatima_core::{
   check::error::CheckError,

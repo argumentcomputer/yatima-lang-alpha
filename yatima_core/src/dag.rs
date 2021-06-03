@@ -26,7 +26,7 @@ use std::{
   mem,
 };
 
-use libipld::Cid;
+use cid::Cid;
 
 pub struct DAG {
   pub head: DAGPtr,
