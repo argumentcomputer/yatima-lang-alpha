@@ -462,7 +462,7 @@ pub fn infer(
       // Check exp, noting it is a recursive definition
       let rest_ctx = div_ctx(Uses::Many, ctx);
       ctx.push((nam.to_string(), Uses::Many, &mut exp_typ_dag.head));
-      check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag); // TODO better error message
+      check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag)?; // TODO better error message
       ctx.pop();
       // Check bod
       add_ctx(ctx, rest_ctx);
