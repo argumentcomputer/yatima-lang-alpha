@@ -2,10 +2,10 @@ use directories_next::ProjectDirs;
 
 use cid::Cid;
 use sp_ipld::{
+  ByteCursor,
   Codec,
   DagCborCodec,
   Ipld,
-  ByteCursor,
 };
 use std::{
   fs,

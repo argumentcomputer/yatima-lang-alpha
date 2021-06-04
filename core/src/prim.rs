@@ -222,7 +222,12 @@ impl Op {
     }
   }
 
-  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
+  pub fn apply3(
+    self,
+    x: &Literal,
+    y: &Literal,
+    z: &Literal,
+  ) -> Option<Literal> {
     match self {
       Self::Bytes(op) => op.apply3(x, y, z),
       Self::Bits(op) => op.apply3(x, y, z),
