@@ -1,6 +1,6 @@
-use sp_ipld::Ipld;
 use num_bigint::BigUint;
 use ropey::Rope;
+use sp_ipld::Ipld;
 use std::fmt;
 
 use crate::{

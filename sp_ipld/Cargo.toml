@@ -7,6 +7,11 @@ edition = "2018"
 
 [dependencies]
 sp-std = { version = "3", default-features = false }
-cid = "0.6.1"
+cid =  "0.7.0"
 byteorder = { version = "1", default-features = false }
 
+[dev-dependencies]
+quickcheck = "1.0.3"
+rand = "0.8.3"
+quickcheck_macros = "1.0.0"
+libipld = { version = "0.12.0", features = ["dag-cbor"] }

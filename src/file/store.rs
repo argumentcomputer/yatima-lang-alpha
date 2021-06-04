@@ -2,10 +2,10 @@ use directories_next::ProjectDirs;
 
 use cid::Cid;
 use sp_ipld::{
-  DagCborCodec,
-  Codec,
-  Ipld,
   ByteCursor,
+  Codec,
+  DagCborCodec,
+  Ipld,
 };
 use std::{
   fs,
@@ -63,13 +63,13 @@ pub fn hashspace_directory() -> PathBuf {
   PathBuf::from(path)
 }
 
-
 pub fn get(link: Cid) -> Option<Ipld> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file: Vec<u8> = fs::read(path).ok()?;
   // println!("file {:?}", file);
-  let res: Ipld = DagCborCodec.decode(ByteCursor::new(file)).expect("valid cbor bytes");
+  let res: Ipld =
+    DagCborCodec.decode(ByteCursor::new(file)).expect("valid cbor bytes");
   Some(res)
 }
 
@@ -77,13 +77,14 @@ pub fn put(expr: Ipld) -> Cid {
   let dir = hashspace_directory();
   let link = yatima_core::cid::cid(&expr);
   let path = dir.as_path().join(Path::new(&link.to_string()));
-  fs::write(path, DagCborCodec.encode(&expr).unwrap().into_inner()).unwrap_or_else(|_| {
-    panic!(
+  fs::write(path, DagCborCodec.encode(&expr).unwrap().into_inner())
+    .unwrap_or_else(|_| {
+      panic!(
     "Error: cannot write to hashspace path {}. \
      Please open an issue at \
      \"https://github.com/yatima-inc/yatima/issues\" \
      if you see this message",
     link)
-  });
+    });
   link
 }

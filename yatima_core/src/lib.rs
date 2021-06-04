@@ -30,7 +30,7 @@ pub mod uses;
 
 #[cfg(test)]
 pub mod tests {
-  use libipld::Cid;
+  use cid::Cid;
   use multihash::{
     Code,
     MultihashDigest,

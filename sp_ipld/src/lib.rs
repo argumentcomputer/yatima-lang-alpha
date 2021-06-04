@@ -1,7 +1,15 @@
-#![no_std]
-
 extern crate alloc;
 extern crate sp_std;
+
+#[cfg(test)]
+extern crate quickcheck;
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;
+#[cfg(test)]
+extern crate libipld;
+#[cfg(test)]
+extern crate rand;
 
 use core::{
   any::type_name,
@@ -162,6 +170,7 @@ pub enum SeekFrom {
   Current(i64),
 }
 
+#[derive(Clone, Debug)]
 pub struct ByteCursor {
   inner: Vec<u8>,
   pos: u64,
@@ -182,34 +191,34 @@ impl ByteCursor {
 
   pub fn set_position(&mut self, pos: u64) { self.pos = pos }
 
-  pub fn read(&mut self, to: &mut [u8]) -> usize {
+  pub fn read(&mut self, buf: &mut [u8]) -> usize {
     let from = &mut self.fill_buf();
-    let amt = cmp::min(to.len(), from.len());
+    let amt = cmp::min(buf.len(), from.len());
     let (a, b) = from.split_at(amt);
     if amt == 1 {
-      to[0] = a[0];
+      buf[0] = a[0];
     }
     else {
-      to[..amt].copy_from_slice(a);
+      buf[..amt].copy_from_slice(a);
     }
     *from = b;
     self.pos += amt as u64;
     amt
   }
 
-  pub fn read_exact(&mut self, to: &mut [u8]) -> Result<(), String> {
-    let n = to.len();
+  pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), String> {
+    let n = buf.len();
     let from = &mut self.fill_buf();
-    if to.len() > from.len() {
+    if buf.len() > from.len() {
       return Err("failed to fill whole buffer".to_owned());
     }
-    let (a, b) = from.split_at(to.len());
+    let (a, b) = from.split_at(buf.len());
 
-    if to.len() == 1 {
-      to[0] = a[0];
+    if buf.len() == 1 {
+      buf[0] = a[0];
     }
     else {
-      to.copy_from_slice(a);
+      buf.copy_from_slice(a);
     }
 
     *from = b;
@@ -218,9 +227,8 @@ impl ByteCursor {
   }
 
   pub fn fill_buf(&mut self) -> &[u8] {
-    let x: &[u8] = self.inner.as_ref();
-    let amt = cmp::min(self.pos, x.len() as u64);
-    &x[(amt as usize)..]
+    let amt = cmp::min(self.pos, self.inner.len() as u64);
+    &self.inner[(amt as usize)..]
   }
 
   fn seek(&mut self, style: SeekFrom) -> Result<u64, String> {
@@ -1374,13 +1382,13 @@ impl Encode<DagCborCodec> for i128 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
     if *self < 0 {
       if -(*self + 1) > u64::max_value() as i128 {
-        return Err("Number larger than i128.".to_owned());
+        return Err("Number larger than u64.".to_owned());
       }
       write_u64(w, 1, -(*self + 1) as u64)?;
     }
     else {
       if *self > u64::max_value() as i128 {
-        return Err("Number larger than i128.".to_owned());
+        return Err("Number larger than u64.".to_owned());
       }
       write_u64(w, 0, *self as u64)?;
     }
@@ -1429,7 +1437,15 @@ impl<K: Encode<DagCborCodec>, T: Encode<DagCborCodec> + 'static>
 {
   fn encode(&self, c: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
     write_u64(w, 5, self.len() as u64)?;
-    for (k, v) in self {
+    let mut vec: Vec<_> = self.into_iter().collect();
+    vec.sort_unstable_by(|&(k1, _), &(k2, _)| {
+      let mut bc1 = ByteCursor::new(Vec::new());
+      let _ = k1.encode(c, &mut bc1);
+      let mut bc2 = ByteCursor::new(Vec::new());
+      let _ = k2.encode(c, &mut bc2);
+      bc1.into_inner().cmp(&bc2.into_inner())
+    });
+    for (k, v) in vec {
       k.encode(c, w)?;
       v.encode(c, w)?;
     }
@@ -1512,4 +1528,170 @@ impl<
     self.3.encode(c, w)?;
     Ok(())
   }
+}
+
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+  #[macro_use]
+  use quickcheck::{
+    quickcheck,
+    Arbitrary,
+    TestResult,
+    Gen,
+  };
+
+  impl Arbitrary for Ipld {
+    fn arbitrary(g: &mut Gen) -> Self {
+      let choice = g.choose(&[0, 1, 2, 3, 4, 5, 6, 7]);
+      match choice {
+        Some(0) => Ipld::Bool(Arbitrary::arbitrary(g)),
+        Some(1) => Ipld::Integer(Arbitrary::arbitrary(g)),
+        Some(2) => Ipld::Float(Arbitrary::arbitrary(g)),
+        Some(3) => Ipld::Bytes(Arbitrary::arbitrary(g)),
+        Some(4) => Ipld::String(Arbitrary::arbitrary(g)),
+        Some(5) => Ipld::List(Arbitrary::arbitrary(&mut Gen::new(5))),
+        Some(6) => Ipld::StringMap(Arbitrary::arbitrary(&mut Gen::new(5))),
+        Some(7) => Ipld::Link(arbitrary_link(g)),
+        _ => Ipld::Null,
+      }
+    }
+  }
+
+  #[derive(Debug, Clone)]
+  pub struct ACid(pub Cid);
+
+  impl Arbitrary for ACid {
+    fn arbitrary(g: &mut Gen) -> Self { ACid(arbitrary_link(g)) }
+  }
+
+  fn to_libipld(x: Ipld) -> libipld::Ipld {
+    match x {
+      Ipld::Null => libipld::Ipld::Null,
+      Ipld::Bool(b) => libipld::Ipld::Bool(b),
+      Ipld::Integer(i) => libipld::Ipld::Integer(i),
+      Ipld::Float(f) => libipld::Ipld::Float(f),
+      Ipld::Bytes(bs) => libipld::Ipld::Bytes(bs),
+      Ipld::String(s) => libipld::Ipld::String(s),
+      Ipld::List(xs) => {
+        libipld::Ipld::List(xs.iter().map(|x| to_libipld(x.clone())).collect())
+      }
+      Ipld::StringMap(xs) => libipld::Ipld::StringMap(
+        xs.iter().map(|(x, y)| (x.clone(), to_libipld(y.clone()))).collect(),
+      ),
+      Ipld::Link(l) => libipld::Ipld::Link(l),
+    }
+  }
+
+  fn arbitrary_link_maybe(g: &mut Gen) -> Option<Cid> {
+    let x: Vec<u8> = Arbitrary::arbitrary(g);
+    Cid::try_from(x).ok()
+  }
+
+  fn arbitrary_link(g: &mut Gen) -> Cid {
+    arbitrary_link_maybe(g).unwrap_or_else(|| arbitrary_link(g))
+  }
+
+  fn encode_equivalent(value1: Ipld) -> bool {
+    let res1 = DagCborCodec.encode(&value1.clone());
+    use libipld::codec::Codec;
+    let res2 = libipld::cbor::DagCborCodec.encode(&to_libipld(value1));
+    match (res1, res2) {
+      (Ok(vec1), Ok(vec2)) => vec1.into_inner() == vec2,
+      (Err(_), Err(_)) => true,
+      _ => false,
+    }
+  }
+
+  fn encode_decode_id<T: DagCbor + PartialEq<T> + Clone>(value: T) -> bool {
+    let mut bc = ByteCursor::new(Vec::new());
+    match Encode::encode(&value.clone(), DagCborCodec, &mut bc) {
+      Ok(()) => {
+        bc.set_position(0);
+        match Decode::decode(DagCborCodec, &mut bc) {
+          Ok(new_value) => return value == new_value,
+          Err(e) => eprintln!("Error occurred during decoding: {}", e),
+        }
+      }
+      Err(e) => eprintln!("Error occurred during encoding: {}", e),
+    }
+    false
+  }
+
+  #[quickcheck]
+  pub fn ee_null() -> bool { encode_equivalent(Ipld::Null) }
+
+  #[quickcheck]
+  pub fn ee_bool(x: bool) -> bool { encode_equivalent(Ipld::Bool(x)) }
+
+  #[quickcheck]
+  pub fn ee_integer(x: i128) -> bool { encode_equivalent(Ipld::Integer(x)) }
+
+  #[quickcheck]
+  pub fn ee_float(x: f64) -> bool { encode_equivalent(Ipld::Float(x)) }
+
+  #[quickcheck]
+  pub fn ee_bytes(x: Vec<u8>) -> bool { encode_equivalent(Ipld::Bytes(x)) }
+
+  #[quickcheck]
+  pub fn ee_string(x: String) -> bool { encode_equivalent(Ipld::String(x)) }
+
+  // overflows stack
+  // #[quickcheck]
+  // pub fn ee_list(x: Vec<Ipld>) -> bool { encode_equivalent(Ipld::List(x)) }
+
+  // overflows stack
+  // #[quickcheck]
+  // pub fn ee_string_map(x: BTreeMap<String, Ipld>) -> bool {
+  // encode_equivalent(Ipld::StringMap(x))
+  // }
+
+  #[quickcheck]
+  pub fn ee_link(x: ACid) -> bool { encode_equivalent(Ipld::Link(x.0)) }
+
+  #[quickcheck]
+  pub fn edid_null() -> bool { encode_decode_id(Ipld::Null) }
+
+  #[quickcheck]
+  pub fn edid_bool(x: bool) -> bool { encode_decode_id(Ipld::Bool(x)) }
+
+  // overflows stack
+  // #[quickcheck]
+  // pub fn edid_integer(x: i128) -> TestResult {
+  // if (x > u64::MAX as i128) || (-x > u64::MAX as i128) {
+  // TestResult::discard()
+  // }
+  // else {
+  // if encode_decode_id(Ipld::Integer(x)) {
+  // TestResult::passed()
+  // }
+  // else {
+  // TestResult::failed()
+  // }
+  // }
+  // }
+
+  // overflows stack
+  // #[quickcheck]
+  // pub fn edid_float(x: f64) -> bool { encode_decode_id(Ipld::Float(x)) }
+
+  #[quickcheck]
+  pub fn edid_bytes(x: Vec<u8>) -> bool { encode_decode_id(Ipld::Bytes(x)) }
+
+  #[quickcheck]
+  pub fn edid_string(x: String) -> bool { encode_decode_id(Ipld::String(x)) }
+
+  // overflows stack
+  // #[quickcheck]
+  // pub fn edid_list(x: Vec<Ipld>) -> bool { encode_decode_id(Ipld::List(x)) }
+
+  // overflows stack
+  // #[quickcheck]
+  // pub fn edid_string_map(x: BTreeMap<String, Ipld>) -> bool {
+  //   encode_decode_id(Ipld::StringMap(x))
+  // }
+
+  // errors with unknown cbor tag
+  // #[quickcheck]
+  // pub fn edid_link(x: ACid) -> bool { encode_decode_id(Ipld::Link(x.0)) }
 }
