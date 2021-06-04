@@ -24,9 +24,9 @@
   },
   "devDependencies": {
     "copy-webpack-plugin": "^5.0.0",
-    "css-loader": "^3.5.3",
-    "postcss": ">=8.2.10",
+    "css-loader": "^5.2.6",
     "file-loader": "^6.0.0",
+    "postcss": ">=8.2.10",
     "style-loader": "^1.2.1",
     "webpack": "^4.29.3",
     "webpack-cli": "^3.1.0",
