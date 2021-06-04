@@ -211,21 +211,18 @@ impl Op {
       Self::U16(op) => op.apply2(x, y),
       Self::U32(op) => op.apply2(x, y),
       Self::U64(op) => op.apply2(x, y),
-      Self::U128(op) => op.apply2(x, y),
+      // TODO These break wasm and wasm-pack
+      // Self::U128(op) => op.apply2(x, y),
       Self::I8(op) => op.apply2(x, y),
       Self::I16(op) => op.apply2(x, y),
       Self::I32(op) => op.apply2(x, y),
       Self::I64(op) => op.apply2(x, y),
-      Self::I128(op) => op.apply2(x, y),
+      // Self::I128(op) => op.apply2(x, y),
+      _ => None,
     }
   }
 
-  pub fn apply3(
-    self,
-    x: &Literal,
-    y: &Literal,
-    z: &Literal,
-  ) -> Option<Literal> {
+  pub fn apply3(self, x: &Literal, y: &Literal, z: &Literal) -> Option<Literal> {
     match self {
       Self::Bytes(op) => op.apply3(x, y, z),
       Self::Bits(op) => op.apply3(x, y, z),

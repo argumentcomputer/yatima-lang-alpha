@@ -48,6 +48,7 @@ pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {
   Ok(ipld)
 }
 
+#[cfg(test)]
 mod tests {
 
   #[tokio::test]
