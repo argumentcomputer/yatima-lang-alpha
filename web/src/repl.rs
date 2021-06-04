@@ -1,6 +1,7 @@
 use std::{
   rc::Rc,
   sync::{Arc, Mutex},
+  path::PathBuf,
 };
 use yatima_utils::{
   repl::{
@@ -8,6 +9,10 @@ use yatima_utils::{
     error::ReplError,
   },
   store::Store,
+  file::parse::{
+    PackageEnv,
+    self,
+  },
 };
 use yatima_core::{
   defs::Defs,
@@ -16,7 +21,7 @@ use yatima_core::{
 
 use crate::{
   store::WebStore,
-  utils,
+  utils::{self, log},
 };
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -47,6 +52,7 @@ struct WebRepl {
   defs: Arc<Mutex<Defs>>,
   shell_state: Arc<Mutex<ShellState>>,
   store: Rc<WebStore>,
+  history: Vec<String>,
 }
 
 #[derive(Debug,Clone)]
@@ -97,7 +103,7 @@ impl WebRepl {
     addon.fit();
     terminal.focus();
     let store = Rc::new(WebStore::new());
-    WebRepl { terminal, defs, shell_state, store }
+    WebRepl { terminal, defs, shell_state, store, history: Vec::new() }
   }
 
   pub fn handle_event(&mut self, e: OnKeyEvent) {
@@ -155,6 +161,7 @@ impl WebRepl {
         }
       }
     }
+    self.save_history();
     let mut shell_state = self.shell_state.lock().unwrap();
     *shell_state = ShellState { cursor_col, line }
   }
@@ -180,15 +187,32 @@ impl Repl for WebRepl {
   }
 
   fn load_history(&mut self) {
-    // TODO
+    let window = web_sys::window().expect("should have a window in this context");
+    let storage = window.local_storage().expect("should have local storage").unwrap();
+    if let Ok(Some(text)) = storage.get("history.txt") {
+      let split: Vec<&str> = text.split("\n").collect();
+      for s in split {
+      self.history.push(s.to_owned());
+      }
+      log("History loaded");
+    } else {
+      log("Could not load history");
+    }
   }
 
   fn add_history_entry(&mut self, s: &str) {
-    // TODO
+    self.history.push(s.to_owned());
   }
 
   fn save_history(&mut self) {
-    // TODO
+    let window = web_sys::window().expect("should have a window in this context");
+    let storage = window.local_storage().expect("should have local storage").unwrap();
+    let history = self.history.join("\n");
+    if let Ok(()) = storage.set("history.txt", &history) {
+      log("History saved");
+    } else {
+      log("Could not save history");
+    }
   }
 }
 
@@ -197,8 +221,8 @@ pub fn main() -> Result<(), JsValue> {
     utils::set_panic_hook();
 
     let mut repl = WebRepl::new();
+    repl.load_history();
 
-    // let term: Terminal = terminal.clone().dyn_into().unwrap();
     let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
 
     let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| repl.handle_event(e)) as Box<dyn FnMut(_)>);
@@ -211,23 +235,9 @@ pub fn main() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn run_repl_line(line: &str) {
-}
-
-#[wasm_bindgen]
 pub fn parse_source(source: &str) {
-  // alert(&format!("Parsing:\n{}", source));
-  // let hashspace =
-  //   hashspace::Hashspace::with_hosts(vec!["localhost:8000".to_string()]);
-  // let store = FileStore {};
-  // let env = file::parse::PackageEnv::new(root, path, store);
-
-  // let (_, p, ..) = parse::parse_text(&source, env);
-  // log(&format!(
-  //   "Package parsed:\n{}",
-  //   p
-  //   // hashspace::HashspaceImplWrapper::wrap(&hashspace, &p)
-  // ));
-
-  // Ok(JsValue::from_serde(&p.to_string()).unwrap())
+      let store = Rc::new(WebStore::new());
+      let env = PackageEnv::new(PathBuf::new(), PathBuf::new(), store.clone());
+      let (cid, p, _d) = parse::parse_text(source.to_owned(), env);
+      log(&format!("parsed {} {:#?}", cid, p));
 }

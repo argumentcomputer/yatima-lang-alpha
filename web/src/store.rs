@@ -64,8 +64,6 @@ impl Store for WebStore {
       Err(_) => log("Failed to put to local_storage"),
     }
 
-    // TODO
-
     link
   }
 }
