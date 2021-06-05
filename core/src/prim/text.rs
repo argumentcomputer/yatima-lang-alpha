@@ -10,7 +10,10 @@ use crate::{
   yatima,
 };
 
-use core::convert::TryFrom;
+use core::convert::{
+  TryFrom,
+  TryInto,
+};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum TextOp {
@@ -113,6 +116,9 @@ impl TextOp {
       Self::Drop => yatima!("∀ #Nat #Text -> #Text"),
       Self::Eql => yatima!("∀ #Text #Text -> #Bool"),
       Self::Lte => yatima!("∀ #Text #Text -> #Bool"),
+      Self::Lth => yatima!("∀ #Text #Text -> #Bool"),
+      Self::Gte => yatima!("∀ #Text #Text -> #Bool"),
+      Self::Gth => yatima!("∀ #Text #Text -> #Bool"),
       Self::Char => yatima!("∀ #Nat #Text -> #Char"),
       Self::Byte => yatima!("∀ #Nat #Text -> #U8"),
       Self::Line => yatima!("∀ #Nat #Text -> #Text"),
@@ -120,9 +126,9 @@ impl TextOp {
       Self::ByteAtChar => yatima!("∀ #Nat #Text -> #Nat"),
       Self::LineAtByte => yatima!("∀ #Nat #Text -> #Nat"),
       Self::LineAtChar => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::LineStartChar => yatima!("∀ #Nat #Text -> #Text"),
-      Self::LineStartByte => yatima!("∀ #Nat #Text -> #Text"),
-      _ => todo!(),
+      Self::LineStartChar => yatima!("∀ #Nat #Text -> #Nat"),
+      Self::LineStartByte => yatima!("∀ #Nat #Text -> #Nat"),
+      Self::ToBytes => yatima!("∀ #Text -> #Bytes"),
     }
   }
 
@@ -250,6 +256,77 @@ impl TextOp {
       (Self::Lth, Text(xs), Text(ys)) => Some(Bool(xs < ys)),
       (Self::Gte, Text(xs), Text(ys)) => Some(Bool(xs >= ys)),
       (Self::Gth, Text(xs), Text(ys)) => Some(Bool(xs > ys)),
+      (Self::Char, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_chars() { Some(Char(ys.char(idx))) } else { None }
+      }
+      (Self::Byte, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_chars() { Some(U8(ys.byte(idx))) } else { None }
+      }
+      (Self::Line, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_chars() {
+          Some(Text(ys.line(idx).into()))
+        }
+        else {
+          None
+        }
+      }
+      (Self::CharAtByte, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_bytes() {
+          Some(Nat(ys.byte_to_char(idx).into()))
+        }
+        else {
+          None
+        }
+      }
+      (Self::ByteAtChar, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_chars() {
+          Some(Nat(ys.char_to_byte(idx).into()))
+        }
+        else {
+          None
+        }
+      }
+      (Self::LineAtChar, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_chars() {
+          Some(Nat(ys.char_to_line(idx).into()))
+        }
+        else {
+          None
+        }
+      }
+      (Self::LineAtByte, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_bytes() {
+          Some(Nat(ys.byte_to_line(idx).into()))
+        }
+        else {
+          None
+        }
+      }
+      (Self::LineStartChar, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_lines() {
+          Some(Nat(ys.line_to_char(idx).into()))
+        }
+        else {
+          None
+        }
+      }
+      (Self::LineStartByte, Nat(idx), Text(ys)) => {
+        let idx: usize = idx.clone().try_into().ok()?;
+        if idx < ys.len_lines() {
+          Some(Nat(ys.line_to_byte(idx).into()))
+        }
+        else {
+          None
+        }
+      }
       _ => None,
     }
   }
