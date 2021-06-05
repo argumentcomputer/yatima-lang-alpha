@@ -17,7 +17,7 @@
     "webpack"
   ],
   "dependencies": {
-    "example": "file:./pkg",
+    "yatima-web": "file:./pkg",
     "ipfs-core": "^0.7.0",
     "xterm": "^4.5.0",
     "xterm-addon-fit": "^0.3.0"
@@ -30,6 +30,6 @@
     "style-loader": "^1.2.1",
     "webpack": "^4.29.3",
     "webpack-cli": "^3.1.0",
-    "webpack-dev-server": "^3.1.5"
+    "webpack-dev-server": "^3.11.2"
   }
 }

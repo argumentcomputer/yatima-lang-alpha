@@ -5,3 +5,6 @@ members = [
   "utils",
   "web"
 ]
+
+[profile.dev]
+debug = 2

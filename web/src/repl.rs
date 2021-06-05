@@ -41,11 +41,16 @@ const KEY_ENTER: u32 = 13;
 const KEY_BACKSPACE: u32 = 8;
 const KEY_LEFT_ARROW: u32 = 37;
 const KEY_RIGHT_ARROW: u32 = 39;
+const KEY_UP_ARROW: u32 = 38;
+const KEY_DOWN_ARROW: u32 = 40;
 const KEY_C: u32 = 67;
+const KEY_V: u32 = 118;
 const KEY_L: u32 = 76;
 
 const CURSOR_LEFT: &str = "\x1b[D";
 const CURSOR_RIGHT: &str = "\x1b[C";
+const CURSOR_UP: &str = "\x1b[A";
+const CURSOR_DOWN: &str = "\x1b[B";
 
 struct WebRepl {
   terminal: Terminal,
@@ -147,7 +152,25 @@ impl WebRepl {
           cursor_col += 1;
         }
       }
+      KEY_UP_ARROW => {
+        if cursor_col < line.len() {
+          term.write(CURSOR_UP);
+        }
+      }
+      KEY_DOWN_ARROW => {
+        if cursor_col < line.len() {
+          term.write(CURSOR_DOWN);
+        }
+      }
       KEY_L if event.ctrl_key() => term.clear(),
+      KEY_V if event.ctrl_key() && event.shift_key() => {
+        prompt(&term);
+        line.clear();
+      }
+      KEY_C if event.ctrl_key() && event.shift_key() => {
+        prompt(&term);
+        line.clear();
+      }
       KEY_C if event.ctrl_key() => {
         prompt(&term);
         line.clear();
@@ -155,9 +178,10 @@ impl WebRepl {
       }
       _ => {
         if !event.alt_key() && !event.alt_key() && !event.ctrl_key() && !event.meta_key() {
-          term.write(&event.key());
-          line.push_str(&e.key());
-          cursor_col += 1;
+          let s = &event.key();
+          term.write(s);
+          line.push_str(s);
+          cursor_col += s.len();
         }
       }
     }

@@ -20,7 +20,7 @@ use yatima_core::{
 };
 use crate::{
   file,
-  store::Store,
+  store::{self, Store},
 };
 
 use command::{
@@ -28,14 +28,34 @@ use command::{
 };
 use error::ReplError;
 
+/// Read evaluate print loop - REPL
+/// A common interface for both the CLI REPL and the web REPL.
+/// The design is currently based on rustyline.
 pub trait Repl {
+    /// Prompt and wait for the next line input.
+    /// Not used in the web interface.
     fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
+
+    /// Print results to the interface suited for this implementation.
     fn println(&self, s: String);
+
+    /// Load the command history
     fn load_history(&mut self);
+
+    /// Add a new entry to the command history
     fn add_history_entry(&mut self, s: &str);
+
+    /// Save the history
     fn save_history(&mut self);
+
+    /// Get a thread safe mutable pointer to the current definitions
     fn get_defs(&self) -> Arc<Mutex<Defs>>;
+
+    /// Get store for this Repl
     fn get_store(&self) -> Rc<dyn Store>;
+
+    /// Run a single line of input from the user
+    /// This will mutably update the shell_state
     fn handle_line(&mut self, readline: Result<String, ReplError>) -> Result<(),()> {
       let mutex_defs = self.get_defs();
       let mut defs = mutex_defs.lock().unwrap();
@@ -51,6 +71,7 @@ pub trait Repl {
             Ok((_, command)) => {
               match command {
                 Command::Load(name) => {
+                  // TODO make web compatible
                   let root = std::env::current_dir().unwrap();
                   let mut path = root.clone();
                   for n in name.split('.') {
@@ -59,12 +80,28 @@ pub trait Repl {
                   path.set_extension("ya");
                   if let Ok(ds) = file::check_all(path, store) {
                     *defs = ds;
+                    Ok(())
+                  } else {
+                    Err(())
                   }
                 }
+                Command::Show { typ_, link } => {
+                  match store::show(store, link, typ_) {
+                    Ok(s) => {
+                      self.println(format!("{}", s));
+                      Ok(())
+                    },
+                    Err(s) => {
+                      self.println(format!("{}", s));
+                      Err(())
+                    }
+                  }
+                },
                 Command::Eval(term) => {
                   let mut dag = DAG::from_term(&term);
                   dag.norm(&defs);
                   self.println(format!("{}", dag));
+                  Ok(())
                 }
                 Command::Type(term) => {
                   let res = infer_term(&defs, *term);
@@ -72,6 +109,7 @@ pub trait Repl {
                     Ok(term) => self.println(format!("{}", term)),
                     Err(e) => self.println(format!("Error: {}", e)),
                   }
+                  Ok(())
                 }
                 Command::Define(boxed) => {
                   let (n, def, _) = *boxed;
@@ -85,18 +123,19 @@ pub trait Repl {
                     }
                     Err(e) => self.println(format!("Error: {}", e)),
                   }
+                  Ok(())
                 }
                 Command::Browse => {
                   for (n, d) in defs.named_defs() {
                     self.println(format!("{}", d.pretty(n.to_string())))
                   }
+                  Ok(())
                 }
                 Command::Quit => {
                   self.println(format!("Goodbye."));
-                  return Err(());
+                  Ok(())
                 }
-              };
-              Ok(())
+              }
             },
             Err(e) => {
               match e {

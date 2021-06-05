@@ -6,7 +6,10 @@ use std::{
 use structopt::StructOpt;
 use yatima_utils::{
   file,
-  store::Store,
+  store::{
+    show,
+    Store,
+  },
 };
 use yatima_cli::{
   ipfs,
@@ -14,6 +17,7 @@ use yatima_cli::{
   file::store::FileStore,
 };
 use yatima_core::{
+  parse,
   name::Name,
 };
 
@@ -52,34 +56,19 @@ async fn main() -> std::io::Result<()> {
       Ok(())
     }
     Cli::Show { input, typ_ } => {
-      use yatima_core::parse;
+      let (_, link) = parse::package::parse_link(parse::span::Span::new(&input))
+        .expect("Invalid links");
       let store = Rc::new(FileStore::new());
-      let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
-        .expect("valid cid");
-      let ipld = store.get(cid).expect(&format!("cannot find {}", cid));
-      match typ_.as_str() {
-        "package" => {
-          let pack = yatima_core::package::Package::from_ipld(&ipld)
-            .expect("package ipld");
-          println!("{:?}", pack);
+      match show(store, link, typ_) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        },
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
         }
-        "entry" => {
-          let entry =
-            yatima_core::package::Entry::from_ipld(&ipld).expect("entry ipld");
-          println!("{:?}", entry);
-          let def = file::parse::entry_to_def(entry, store).expect("valid def");
-          println!("{}", def);
-        }
-        "anon" => {
-          let pack =
-            yatima_core::anon::Anon::from_ipld(&ipld).expect("anon ipld");
-          println!("{:?}", pack);
-        }
-        _ => {
-          println!("{:?}", ipld);
-        }
-      };
-      Ok(())
+      }
     }
     Cli::Parse { no_ipfs, path } => {
       let root = std::env::current_dir()?;

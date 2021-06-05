@@ -39,3 +39,9 @@ pub enum IpldError {
   ImportEntry(Ipld),
   Package(Ipld),
 }
+
+impl From<IpldError> for String {
+  fn from(e: IpldError) -> String {
+    format!("{:?}", e)
+  }
+}

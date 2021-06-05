@@ -6,9 +6,17 @@ use yatima_core::{
   name::Name,
   package::Entry,
   parse::{
-    package::parse_entry,
+    package::{
+      parse_entry,
+      parse_link,
+    },
+    error::{
+      ParseError,
+      ParseErrorKind,
+    },
     span::Span,
     term::{
+      is_valid_symbol_string,
       parse_expression,
       parse_name,
       parse_space1,
@@ -30,8 +38,12 @@ use std::{
 use libipld::Cid;
 use nom::{
   self,
+  Err,
   branch::alt,
-  bytes::complete::tag,
+  bytes::complete::{
+    tag,
+    take_till1,
+  },
   IResult,
 };
 
@@ -41,6 +53,7 @@ pub enum Command {
   Browse,
   // Help,
   Define(Box<(Name, Def, Entry)>),
+  Show { typ_ : String, link: Cid },
   // Type,
   Load(Name),
   // Import,
@@ -119,6 +132,33 @@ pub fn parse_load() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
   }
 }
 
+pub fn parse_word(from: Span) -> IResult<Span, String, ParseError<Span>>
+{
+  let (i, s) = take_till1(|x| {
+    char::is_whitespace(x)
+  })(from)?;
+  let s: String = String::from(s.fragment().to_owned());
+
+  if !is_valid_symbol_string(&s) {
+    Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(s))))
+  } else {
+    Ok((i, s))
+  }
+}
+
+
+pub fn parse_show() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
+{
+  move |i: Span| {
+    let (i, _) = alt((tag(":show"), tag(":s")))(i)?;
+    let (i, _) = parse_space1(i).map_err(error::convert)?;
+    let (i, typ_) = parse_word(i).map_err(error::convert)?;
+    let (i, _) = parse_space1(i).map_err(error::convert)?;
+    let (i, link) = parse_link(i).map_err(error::convert)?;
+    Ok((i, Command::Show { link, typ_ }))
+  }
+}
+
 pub fn parse_command(
   input: Cid,
   defs: Defs,
@@ -128,6 +168,7 @@ pub fn parse_command(
       parse_quit(),
       parse_browse(),
       parse_load(),
+      parse_show(),
       parse_type(input, defs.clone()),
       parse_define(input, defs.clone()),
       parse_eval(input, defs.clone()),
