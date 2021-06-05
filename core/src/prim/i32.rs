@@ -145,8 +145,8 @@ impl I32Op {
 
   pub fn type_of(self) -> Term {
     match self {
-      Self::Abs => yatima!("#I32 -> #U8"),
-      Self::Sgn => yatima!("#I32 -> #Bool"),
+      Self::Abs => yatima!("∀ #I32 -> #U8"),
+      Self::Sgn => yatima!("∀ #I32 -> #Bool"),
       Self::Max => yatima!("#I32"),
       Self::Min => yatima!("#I32"),
       Self::Eql => yatima!("∀ #I32 #I32 -> #Bool"),
