@@ -1,23 +1,19 @@
+use crate::utils::log;
+use base64;
 use libipld::{
-  cid::Cid,
   cbor::DagCborCodec,
+  cid::Cid,
   codec::Codec,
   ipld::Ipld,
 };
-use crate::{
-  utils::log,
-};
-use yatima_core::cid::cid;
-use yatima_utils::{
-  store::{Store},
-};
+use wasm_bindgen::prelude::*;
 use web_sys::{
   self,
-  Window,
   Storage,
+  Window,
 };
-use base64;
-use wasm_bindgen::prelude::*;
+use yatima_core::cid::cid;
+use yatima_utils::store::Store;
 
 #[derive(Debug, Clone)]
 pub struct WebStore {
@@ -44,26 +40,23 @@ extern "C" {
 
 impl WebStore {
   pub fn new() -> Self {
-    let window = web_sys::window().expect("should have a window in this context");
-    let storage = window.local_storage().expect("should have local storage").unwrap();
+    let window =
+      web_sys::window().expect("should have a window in this context");
+    let storage =
+      window.local_storage().expect("should have local storage").unwrap();
     let ipfs = create().into();
 
-    WebStore {
-      window,
-      storage,
-      ipfs,
-    }
+    WebStore { window, storage, ipfs }
   }
 }
 
 impl Store for WebStore {
   fn get(&self, link: Cid) -> Option<Ipld> {
-
     match self.storage.get(&link.to_string()) {
       Ok(Some(s)) => {
         let bin = base64::decode(s).expect("invalid base64");
         Some(DagCborCodec.decode(&bin).expect("invalid cbor bytes"))
-      },
+      }
       _ => {
         self.ipfs.get(&link.to_string());
         log(&format!("Failed to get {}", link));
@@ -84,4 +77,3 @@ impl Store for WebStore {
     link
   }
 }
-

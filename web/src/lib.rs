@@ -1,6 +1,6 @@
 pub mod repl;
-pub mod utils;
 pub mod store;
+pub mod utils;
 
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]

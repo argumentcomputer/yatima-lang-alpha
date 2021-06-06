@@ -17,7 +17,7 @@ wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"
 base64 = "0.13.0"
 wasm-bindgen-futures = "0.4.22"
-xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit"] }
+xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
 console_error_panic_hook = { version = "0.1.6", optional = true }
 
 [dependencies.web-sys]

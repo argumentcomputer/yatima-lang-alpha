@@ -1,38 +1,53 @@
 use std::{
-  rc::Rc,
-  sync::{Arc, Mutex},
   path::PathBuf,
+  rc::Rc,
+  sync::{
+    Arc,
+    Mutex,
+  },
 };
+use yatima_core::defs::Defs;
 use yatima_utils::{
+  file::parse::{
+    self,
+    PackageEnv,
+  },
   repl::{
-    Repl,
     error::ReplError,
+    Repl,
   },
   store::Store,
-  file::parse::{
-    PackageEnv,
-    self,
-  },
-};
-use yatima_core::{
-  defs::Defs,
 };
 // use wasm_bindgen_futures::JsFuture;
 
 use crate::{
   store::WebStore,
-  utils::{self, log},
+  utils::{
+    self,
+    log,
+  },
 };
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use xterm_js_rs::addons::fit::FitAddon;
-use xterm_js_rs::{OnKeyEvent, Terminal, TerminalOptions, Theme};
+use wasm_bindgen::{
+  prelude::*,
+  JsCast,
+};
+use xterm_js_rs::{
+  addons::{
+    fit::FitAddon,
+    search::SearchAddon,
+    web_links::WebLinksAddon,
+  },
+  OnKeyEvent,
+  Terminal,
+  TerminalOptions,
+  Theme,
+};
 
 const PROMPT: &str = "⅄ ";
 
 fn prompt(term: &Terminal) {
-    term.writeln("");
-    term.write(PROMPT);
+  term.writeln("");
+  term.write(PROMPT);
 }
 
 // Keyboard keys
@@ -44,7 +59,7 @@ const KEY_RIGHT_ARROW: u32 = 39;
 const KEY_UP_ARROW: u32 = 38;
 const KEY_DOWN_ARROW: u32 = 40;
 const KEY_C: u32 = 67;
-const KEY_V: u32 = 118;
+const KEY_V: u32 = 86;
 const KEY_L: u32 = 76;
 
 const CURSOR_LEFT: &str = "\x1b[D";
@@ -60,7 +75,7 @@ struct WebRepl {
   history: Vec<String>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct ShellState {
   line: String,
   cursor_col: usize,
@@ -68,33 +83,33 @@ struct ShellState {
 
 impl WebRepl {
   pub fn new() -> Self {
-
     let defs = Arc::new(Mutex::new(Defs::new()));
     let terminal: Terminal = Terminal::new(
-        TerminalOptions::new()
-            .with_rows(50)
-            .with_cursor_blink(true)
-            .with_cursor_width(10)
-            .with_font_size(20)
-            .with_draw_bold_text_in_bright_colors(true)
-            .with_right_click_selects_word(true)
-            .with_theme(
-                Theme::new()
-                    .with_foreground("#98FB98")
-                    .with_background("#000000"),
-            ),
+      TerminalOptions::new()
+        .with_rows(50)
+        .with_cursor_blink(true)
+        .with_cursor_width(10)
+        .with_font_size(20)
+        .with_draw_bold_text_in_bright_colors(true)
+        .with_right_click_selects_word(true)
+        .with_theme(
+          Theme::new().with_foreground("#98FB98").with_background("#000000"),
+        ),
     );
 
     let elem = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .get_element_by_id("terminal")
-        .unwrap();
+      .unwrap()
+      .document()
+      .unwrap()
+      .get_element_by_id("terminal")
+      .unwrap();
 
     terminal.writeln("Yatima REPL");
     terminal.writeln("Supported keys in this example:");
-    terminal.writeln(" <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> <Ctrl-C> <Ctrl-L>");
+    terminal.writeln(
+      " <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> \
+       <Ctrl-C> <Ctrl-L>",
+    );
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
@@ -102,10 +117,19 @@ impl WebRepl {
     let cursor_col = 0;
     let shell_state = Arc::new(Mutex::new(ShellState { line, cursor_col }));
 
+    let fit_addon = FitAddon::new();
+    terminal
+      .load_addon(fit_addon.clone().dyn_into::<FitAddon>().unwrap().into());
+    let search_addon = SearchAddon::new();
+    terminal.load_addon(
+      search_addon.clone().dyn_into::<SearchAddon>().unwrap().into(),
+    );
+    let web_links_addon = WebLinksAddon::new(None, None, None);
+    terminal.load_addon(
+      web_links_addon.clone().dyn_into::<WebLinksAddon>().unwrap().into(),
+    );
 
-    let addon = FitAddon::new();
-    terminal.load_addon(addon.clone().dyn_into::<FitAddon>().unwrap().into());
-    addon.fit();
+    fit_addon.fit();
     terminal.focus();
     let store = Rc::new(WebStore::new());
     WebRepl { terminal, defs, shell_state, store, history: Vec::new() }
@@ -163,9 +187,11 @@ impl WebRepl {
         }
       }
       KEY_L if event.ctrl_key() => term.clear(),
-      KEY_V if event.ctrl_key() && event.shift_key() => {
-        prompt(&term);
-        line.clear();
+      KEY_V if event.ctrl_key() => {
+        // prompt(&term);
+        // line.clear();
+        log("click v");
+        term.paste("hello");
       }
       KEY_C if event.ctrl_key() && event.shift_key() => {
         prompt(&term);
@@ -177,7 +203,11 @@ impl WebRepl {
         cursor_col = 0;
       }
       _ => {
-        if !event.alt_key() && !event.alt_key() && !event.ctrl_key() && !event.meta_key() {
+        if !event.alt_key()
+          && !event.alt_key()
+          && !event.ctrl_key()
+          && !event.meta_key()
+        {
           let s = &event.key();
           term.write(s);
           line.push_str(s);
@@ -189,52 +219,48 @@ impl WebRepl {
     let mut shell_state = self.shell_state.lock().unwrap();
     *shell_state = ShellState { cursor_col, line }
   }
-
 }
 
 impl Repl for WebRepl {
   fn readline(&mut self, _prompt: &str) -> Result<String, ReplError> {
-
     Ok(self.shell_state.lock().unwrap().clone().line)
   }
 
-  fn get_defs(&self) -> Arc<Mutex<Defs>> {
-    self.defs.clone()
-  }
+  fn get_defs(&self) -> Arc<Mutex<Defs>> { self.defs.clone() }
 
-  fn get_store(&self) -> Rc<dyn Store> {
-    self.store.clone()
-  }
-  
-  fn println(&self, s: String) {
-    self.terminal.writeln(s.as_str());
-  }
+  fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
+
+  fn println(&self, s: String) { self.terminal.writeln(s.as_str()); }
 
   fn load_history(&mut self) {
-    let window = web_sys::window().expect("should have a window in this context");
-    let storage = window.local_storage().expect("should have local storage").unwrap();
+    let window =
+      web_sys::window().expect("should have a window in this context");
+    let storage =
+      window.local_storage().expect("should have local storage").unwrap();
     if let Ok(Some(text)) = storage.get("history.txt") {
       let split: Vec<&str> = text.split("\n").collect();
       for s in split {
-      self.history.push(s.to_owned());
+        self.history.push(s.to_owned());
       }
       log("History loaded");
-    } else {
+    }
+    else {
       log("Could not load history");
     }
   }
 
-  fn add_history_entry(&mut self, s: &str) {
-    self.history.push(s.to_owned());
-  }
+  fn add_history_entry(&mut self, s: &str) { self.history.push(s.to_owned()); }
 
   fn save_history(&mut self) {
-    let window = web_sys::window().expect("should have a window in this context");
-    let storage = window.local_storage().expect("should have local storage").unwrap();
+    let window =
+      web_sys::window().expect("should have a window in this context");
+    let storage =
+      window.local_storage().expect("should have local storage").unwrap();
     let history = self.history.join("\n");
     if let Ok(()) = storage.set("history.txt", &history) {
       log("History saved");
-    } else {
+    }
+    else {
       log("Could not save history");
     }
   }
@@ -242,26 +268,29 @@ impl Repl for WebRepl {
 
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
-    utils::set_panic_hook();
+  utils::set_panic_hook();
 
-    let mut repl = WebRepl::new();
-    repl.load_history();
+  let mut repl = WebRepl::new();
+  repl.load_history();
 
-    let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
+  let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
 
-    let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| repl.handle_event(e)) as Box<dyn FnMut(_)>);
+  let callback =
+    Closure::wrap(
+      Box::new(move |e: OnKeyEvent| repl.handle_event(e)) as Box<dyn FnMut(_)>
+    );
 
-    terminal.on_key(callback.as_ref().unchecked_ref());
+  terminal.on_key(callback.as_ref().unchecked_ref());
 
-    callback.forget();
+  callback.forget();
 
-    Ok(())
+  Ok(())
 }
 
 #[wasm_bindgen]
 pub fn parse_source(source: &str) {
-      let store = Rc::new(WebStore::new());
-      let env = PackageEnv::new(PathBuf::new(), PathBuf::new(), store.clone());
-      let (cid, p, _d) = parse::parse_text(source.to_owned(), env);
-      log(&format!("parsed {} {:#?}", cid, p));
+  let store = Rc::new(WebStore::new());
+  let env = PackageEnv::new(PathBuf::new(), PathBuf::new(), store.clone());
+  let (cid, p, _d) = parse::parse_text(source.to_owned(), env);
+  log(&format!("parsed {} {:#?}", cid, p));
 }
