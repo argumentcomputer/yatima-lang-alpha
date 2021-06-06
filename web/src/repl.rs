@@ -5,6 +5,7 @@ use std::{
     Arc,
     Mutex,
   },
+  collections::VecDeque,
 };
 use yatima_core::defs::Defs;
 use yatima_utils::{
@@ -37,6 +38,7 @@ use xterm_js_rs::{
     search::SearchAddon,
     web_links::WebLinksAddon,
   },
+  Event,
   OnKeyEvent,
   Terminal,
   TerminalOptions,
@@ -62,23 +64,44 @@ const KEY_C: u32 = 67;
 const KEY_V: u32 = 86;
 const KEY_L: u32 = 76;
 
+const CLEAR_LINE: &str = "\x1b[2K";
 const CURSOR_LEFT: &str = "\x1b[D";
 const CURSOR_RIGHT: &str = "\x1b[C";
-const CURSOR_UP: &str = "\x1b[A";
-const CURSOR_DOWN: &str = "\x1b[B";
+// const CURSOR_UP: &str = "\x1b[A";
+// const CURSOR_DOWN: &str = "\x1b[B";
+
+fn set_column(term: &Terminal, col: u32) {
+  term.write(&format!("\x1b[{}G", col));
+}
+
+fn clear_line(term: &Terminal) {
+  term.write(CLEAR_LINE);
+  set_column(&term, 0);
+}
 
 struct WebRepl {
   terminal: Terminal,
   defs: Arc<Mutex<Defs>>,
   shell_state: Arc<Mutex<ShellState>>,
   store: Rc<WebStore>,
-  history: Vec<String>,
+  history: VecDeque<String>,
 }
 
 #[derive(Debug, Clone)]
 struct ShellState {
   line: String,
   cursor_col: usize,
+  history_index: usize,
+}
+
+impl Default for ShellState {
+  fn default() -> Self {
+    ShellState {
+      line: String::new(),
+      cursor_col: 0,
+      history_index: 0,
+    }
+  }
 }
 
 impl WebRepl {
@@ -113,9 +136,7 @@ impl WebRepl {
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
-    let line = String::new();
-    let cursor_col = 0;
-    let shell_state = Arc::new(Mutex::new(ShellState { line, cursor_col }));
+    let shell_state = Arc::new(Mutex::new(ShellState::default()));
 
     let fit_addon = FitAddon::new();
     terminal
@@ -132,12 +153,13 @@ impl WebRepl {
     fit_addon.fit();
     terminal.focus();
     let store = Rc::new(WebStore::new());
-    WebRepl { terminal, defs, shell_state, store, history: Vec::new() }
+    WebRepl { terminal, defs, shell_state, store, history: VecDeque::new() }
   }
 
   pub fn handle_event(&mut self, e: OnKeyEvent) {
     let shell_state = self.shell_state.lock().unwrap();
     let mut cursor_col = shell_state.cursor_col.clone();
+    let mut history_index = shell_state.history_index.clone();
     let mut line = shell_state.line.clone();
 
     // We are done reading from the shell_state
@@ -154,6 +176,7 @@ impl WebRepl {
           }
           line.clear();
           cursor_col = 0;
+          history_index = 0;
         }
         prompt(&term);
       }
@@ -177,13 +200,27 @@ impl WebRepl {
         }
       }
       KEY_UP_ARROW => {
-        if cursor_col < line.len() {
-          term.write(CURSOR_UP);
+        if history_index < self.history.len() - 1 {
+          history_index += 1;
+          if let Some(l) = self.history.get(history_index) {
+            line = l.clone();
+            clear_line(&term);
+            term.write(PROMPT);
+            term.write(&line);
+            cursor_col = line.len();
+          }
         }
       }
       KEY_DOWN_ARROW => {
-        if cursor_col < line.len() {
-          term.write(CURSOR_DOWN);
+        if history_index > 0 {
+          history_index -= 1;
+          if let Some(l) = self.history.get(history_index) {
+            line = l.clone();
+            clear_line(&term);
+            term.write(PROMPT);
+            term.write(&line);
+            cursor_col = line.len();
+          }
         }
       }
       KEY_L if event.ctrl_key() => term.clear(),
@@ -212,12 +249,14 @@ impl WebRepl {
           term.write(s);
           line.push_str(s);
           cursor_col += s.len();
+          self.history.pop_front();
+          self.history.push_front(line.clone());
         }
       }
     }
     self.save_history();
     let mut shell_state = self.shell_state.lock().unwrap();
-    *shell_state = ShellState { cursor_col, line }
+    *shell_state = ShellState { cursor_col, line, history_index }
   }
 }
 
@@ -240,8 +279,10 @@ impl Repl for WebRepl {
     if let Ok(Some(text)) = storage.get("history.txt") {
       let split: Vec<&str> = text.split("\n").collect();
       for s in split {
-        self.history.push(s.to_owned());
+        self.history.push_front(s.to_owned());
       }
+      // Blank line is the current line
+      self.history.push_front("".to_owned());
       log("History loaded");
     }
     else {
@@ -249,14 +290,16 @@ impl Repl for WebRepl {
     }
   }
 
-  fn add_history_entry(&mut self, s: &str) { self.history.push(s.to_owned()); }
+  fn add_history_entry(&mut self, s: &str) { self.history.push_front(s.to_owned()); }
 
   fn save_history(&mut self) {
     let window =
       web_sys::window().expect("should have a window in this context");
     let storage =
       window.local_storage().expect("should have local storage").unwrap();
-    let history = self.history.join("\n");
+
+    let v: Vec<String> = self.history.clone().into();
+    let history = v.join("\n");
     if let Ok(()) = storage.set("history.txt", &history) {
       log("History saved");
     }
@@ -283,6 +326,19 @@ pub fn main() -> Result<(), JsValue> {
   terminal.on_key(callback.as_ref().unchecked_ref());
 
   callback.forget();
+
+  let data_callback =
+    Closure::wrap(
+      Box::new(move |data: Event| {
+        log("got data");
+        // log(data);
+        repl;
+      }) as Box<dyn FnMut(_)>
+    );
+
+  terminal.on_data(data_callback.as_ref().unchecked_ref());
+
+  data_callback.forget();
 
   Ok(())
 }
