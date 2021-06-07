@@ -18,7 +18,7 @@ let
   };
 
   # tell nix-build to ignore the `target` directory
-  src = builtins.filterSource
+  project = builtins.filterSource
     (path: type: type != "directory" || builtins.baseNameOf path != "target")
     ./.;
 in
@@ -26,7 +26,7 @@ naersk.buildPackage {
   buildInputs = with pkgs; [ openssl pkg-config ];
   PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
-  inherit src;
+  src = "${project}";
   remapPathPrefix =
     true; # remove nix store references for a smaller output package
 }
