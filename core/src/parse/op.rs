@@ -12,7 +12,6 @@ use crate::{
     bool::BoolOp,
     bytes::BytesOp,
     char::CharOp,
-    i128::I128Op,
     i16::I16Op,
     i32::I32Op,
     i64::I64Op,
@@ -20,7 +19,6 @@ use crate::{
     int::IntOp,
     nat::NatOp,
     text::TextOp,
-    u128::U128Op,
     u16::U16Op,
     u32::U32Op,
     u64::U64Op,
@@ -176,17 +174,18 @@ pub fn parse_u64_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
   }
 }
 
-pub fn parse_u128_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
-  move |from: Span| {
-    let (i, name) = parse_name(from)?;
-    match U128Op::from_symbol(&name) {
-      Some(op) => Ok((i, Op::U128(op))),
-      None => {
-        Err(Err::Error(ParseError::new(i, ParseErrorKind::UnknownU128Op(name))))
-      }
-    }
-  }
-}
+// pub fn parse_u128_op() -> impl Fn(Span) -> IResult<Span, Op,
+// ParseError<Span>> {  move |from: Span| {
+//    let (i, name) = parse_name(from)?;
+//    match U128Op::from_symbol(&name) {
+//      Some(op) => Ok((i, Op::U128(op))),
+//      None => {
+//        Err(Err::Error(ParseError::new(i,
+// ParseErrorKind::UnknownU128Op(name))))      }
+//    }
+//  }
+//}
+
 pub fn parse_i8_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
   move |from: Span| {
     let (i, name) = parse_name(from)?;
@@ -198,6 +197,7 @@ pub fn parse_i8_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
     }
   }
 }
+
 pub fn parse_i16_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
   move |from: Span| {
     let (i, name) = parse_name(from)?;
@@ -209,6 +209,7 @@ pub fn parse_i16_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
     }
   }
 }
+
 pub fn parse_i32_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
   move |from: Span| {
     let (i, name) = parse_name(from)?;
@@ -220,6 +221,7 @@ pub fn parse_i32_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
     }
   }
 }
+
 pub fn parse_i64_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
   move |from: Span| {
     let (i, name) = parse_name(from)?;
@@ -231,17 +233,18 @@ pub fn parse_i64_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
     }
   }
 }
-pub fn parse_i128_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
-  move |from: Span| {
-    let (i, name) = parse_name(from)?;
-    match I128Op::from_symbol(&name) {
-      Some(op) => Ok((i, Op::I128(op))),
-      None => {
-        Err(Err::Error(ParseError::new(i, ParseErrorKind::UnknownI128Op(name))))
-      }
-    }
-  }
-}
+
+// pub fn parse_i128_op() -> impl Fn(Span) -> IResult<Span, Op,
+// ParseError<Span>> {  move |from: Span| {
+//    let (i, name) = parse_name(from)?;
+//    match I128Op::from_symbol(&name) {
+//      Some(op) => Ok((i, Op::I128(op))),
+//      None => {
+//        Err(Err::Error(ParseError::new(i,
+// ParseErrorKind::UnknownI128Op(name))))      }
+//    }
+//  }
+//}
 
 pub fn parse_opr(
   input: Cid,
@@ -259,12 +262,12 @@ pub fn parse_opr(
       preceded(tag("#U16."), parse_u16_op()),
       preceded(tag("#U32."), parse_u32_op()),
       preceded(tag("#U64."), parse_u64_op()),
-      preceded(tag("#U128."), parse_u128_op()),
+      // preceded(tag("#U128."), parse_u128_op()),
       preceded(tag("#I8."), parse_i8_op()),
       preceded(tag("#I16."), parse_i16_op()),
       preceded(tag("#I32."), parse_i32_op()),
       preceded(tag("#I64."), parse_i64_op()),
-      preceded(tag("#I128."), parse_i128_op()),
+      // preceded(tag("#I128."), parse_i128_op()),
     ))(from)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Opr(pos, op)))
