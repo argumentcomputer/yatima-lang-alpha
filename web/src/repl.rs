@@ -116,7 +116,11 @@ impl Repl for WebRepl {
 
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
-  fn println(&self, s: String) { self.terminal.writeln(s.as_str()); }
+  fn println(&self, s: String) { 
+    // The term needs \r to move the cursor back to the start of the line
+    let m = s.replace("\n", "\r");
+    self.terminal.writeln(m.as_str());
+  }
 
   fn load_history(&mut self) {
     let window =
@@ -376,6 +380,7 @@ impl WebRepl {
       } 
       RETURN | LINEFEED | "\n" | "\r" => {
         if !ss.line.is_empty() {
+          self.println("".to_owned());
           match self.handle_line(Ok(ss.line.clone())) {
             Ok(()) => term.writeln("Ok"),
             Err(()) => term.writeln("Error"),
