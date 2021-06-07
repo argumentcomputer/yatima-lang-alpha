@@ -205,7 +205,7 @@ problem on its own, but there are some ways in a programming language can help:
 5. Integrate with decentralized technologies to remove, as much as possible,
    social barriers and frictions. Having centralized services like
    most modern package managers raises the question "Who controls the package server?" 
-   The famous [leftpad incident](https://qz.com/646467/how-one-programmer-broke-the-internet-by-deleting-a-tiny-piece-of-code/from)
+   The famous [leftpad incident](https://qz.com/646467/how-one-programmer-broke-the-internet-by-deleting-a-tiny-piece-of-code)
    is commonly presented as a build system issue (which it absolutely is), but
    less frequently discussed is that what precipitated the incident was how the
    `npm` administrators transfered ownership of a package from an individual
