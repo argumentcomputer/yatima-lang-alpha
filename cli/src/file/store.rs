@@ -100,7 +100,7 @@ impl FileStore {
 
 impl Store for FileStore {
   fn get(&self, link: Cid) -> Option<Ipld> {
-    get(link)    
+    get(link)
   }
 
   fn put(&self, expr: Ipld) -> Cid {

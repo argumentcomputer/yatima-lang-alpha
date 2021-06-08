@@ -88,7 +88,7 @@ async fn main() -> std::io::Result<()> {
       let (cid, p, d) = file::parse::parse_file(env);
       store.put(p.to_ipld());
 
-      let ipld_cid = 
+      let ipld_cid =
         if !no_ipfs {
           ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
         } else {
