@@ -1,0 +1,14 @@
+name: "Cargo CI"
+on:
+  pull_request:
+  push:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2.3.4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+    - uses: Swatinem/rust-cache@v1
+    - run: cargo test --all
