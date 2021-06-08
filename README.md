@@ -121,7 +121,7 @@ cargo test --all
 To install the yatima binary:
 
 ```bash
-cargo install --path .
+cargo install --path cli
 ```
 
 # Usage Instructions:
