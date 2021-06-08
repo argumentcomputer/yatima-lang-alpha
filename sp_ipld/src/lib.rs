@@ -1132,7 +1132,7 @@ impl SkipOne for DagCborCodec {
     let major = read_u8(r)?;
     match major {
       // Major type 0: an unsigned integer
-      0x00..=0x17 | 0x20..=0x37 | 0xe0..=0xf7 => {}
+      0x00..=0x17 | 0x20..=0x37 | 0xf4..=0xf7 => {}
       0x18 | 0x38 | 0xf8 => {
         r.seek(&SeekFrom::Current(1))?;
       }
@@ -1438,16 +1438,18 @@ impl Encode<DagCborCodec> for String {
 impl Encode<DagCborCodec> for i128 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
     if *self < 0 {
-      if let Ok(small) = u64::try_from(-(*self + 1)) {
-        write_u64(w, 1, small)?;
-        return Ok(());
+      if -(*self + 1) > u64::max_value() as i128 {
+        return Err("Number larger than i128.".to_owned());
       }
+      write_u64(w, 1, -(*self + 1) as u64)?;
     }
-    else if let Ok(small) = u64::try_from(*self) {
-      write_u64(w, 0, small)?;
-      return Ok(());
+    else {
+      if *self > u64::max_value() as i128 {
+        return Err("Number larger than i128.".to_owned());
+      }
+      write_u64(w, 0, *self as u64)?;
     }
-    Err("Number larger than i128.".to_owned())
+    Ok(())
   }
 }
 
@@ -1595,21 +1597,91 @@ pub mod tests {
     TestResult,
     Gen,
   };
+  use crate::rand::Rng;
+  use libipld::multihash::{
+    Code,
+    MultihashDigest,
+  };
+
+  pub fn arbitrary_cid(g: &mut Gen) -> Cid {
+    let mut bytes: [u8; 32] = [0; 32];
+    for x in bytes.iter_mut() {
+      *x = Arbitrary::arbitrary(g);
+    }
+    Cid::new_v1(0x55, Code::Blake2b256.digest(&bytes))
+  }
+
+  pub fn frequency<T, F: Fn(&mut Gen) -> T>(
+    g: &mut Gen,
+    gens: Vec<(i64, F)>,
+  ) -> T {
+    if gens.iter().any(|(v, _)| *v < 0) {
+      panic!("Negative weight");
+    }
+    let sum: i64 = gens.iter().map(|x| x.0).sum();
+    let mut rng = rand::thread_rng();
+    let mut weight: i64 = rng.gen_range(1..=sum);
+    // let mut weight: i64 = g.rng.gen_range(1, sum);
+    for gen in gens {
+      if weight - gen.0 <= 0 {
+        return gen.1(g);
+      }
+      else {
+        weight -= gen.0;
+      }
+    }
+    panic!("Calculation error for weight = {}", weight);
+  }
+
+  fn arbitrary_null() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |_: &mut Gen| Ipld::Null)
+  }
+
+  fn arbitrary_bool() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::Bool(Arbitrary::arbitrary(g)))
+  }
+
+  fn arbitrary_link() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::Link(arbitrary_cid(g)))
+  }
+
+  fn arbitrary_integer() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::Integer(Arbitrary::arbitrary(g)))
+  }
+
+  fn arbitrary_string() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::String(Arbitrary::arbitrary(g)))
+  }
+
+  fn arbitrary_bytes() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::Bytes(Arbitrary::arbitrary(g)))
+  }
+
+  fn arbitrary_float() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::Float(Arbitrary::arbitrary(g)))
+  }
+
+  fn arbitrary_list() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::List(Arbitrary::arbitrary(g)))
+  }
+
+  fn arbitrary_stringmap() -> Box<dyn Fn(&mut Gen) -> Ipld> {
+    Box::new(move |g: &mut Gen| Ipld::StringMap(Arbitrary::arbitrary(g)))
+  }
 
   impl Arbitrary for Ipld {
     fn arbitrary(g: &mut Gen) -> Self {
-      let choice = g.choose(&[0, 1, 2, 3, 4, 5, 6, 7]);
-      match choice {
-        Some(0) => Ipld::Bool(Arbitrary::arbitrary(g)),
-        Some(1) => Ipld::Integer(Arbitrary::arbitrary(g)),
-        Some(2) => Ipld::Float(Arbitrary::arbitrary(g)),
-        Some(3) => Ipld::Bytes(Arbitrary::arbitrary(g)),
-        Some(4) => Ipld::String(Arbitrary::arbitrary(g)),
-        Some(5) => Ipld::List(Arbitrary::arbitrary(&mut Gen::new(5))),
-        Some(6) => Ipld::StringMap(Arbitrary::arbitrary(&mut Gen::new(5))),
-        Some(7) => Ipld::Link(arbitrary_link(g)),
-        _ => Ipld::Null,
-      }
+      frequency(g, vec![
+        (100, arbitrary_null()),
+        (100, arbitrary_bool()),
+        (100, arbitrary_link()),
+        (100, arbitrary_integer()),
+        (100, arbitrary_string()),
+        (100, arbitrary_bytes()),
+        (100, arbitrary_float()),
+        (1, arbitrary_list()),
+        (1, arbitrary_stringmap()),
+      ])
     }
   }
 
@@ -1617,7 +1689,7 @@ pub mod tests {
   pub struct ACid(pub Cid);
 
   impl Arbitrary for ACid {
-    fn arbitrary(g: &mut Gen) -> Self { ACid(arbitrary_link(g)) }
+    fn arbitrary(g: &mut Gen) -> Self { ACid(arbitrary_cid(g)) }
   }
 
   fn to_libipld(x: Ipld) -> libipld::Ipld {
@@ -1636,15 +1708,6 @@ pub mod tests {
       ),
       Ipld::Link(l) => libipld::Ipld::Link(l),
     }
-  }
-
-  fn arbitrary_link_maybe(g: &mut Gen) -> Option<Cid> {
-    let x: Vec<u8> = Arbitrary::arbitrary(g);
-    Cid::try_from(x).ok()
-  }
-
-  fn arbitrary_link(g: &mut Gen) -> Cid {
-    arbitrary_link_maybe(g).unwrap_or_else(|| arbitrary_link(g))
   }
 
   fn encode_equivalent(value1: Ipld) -> bool {
@@ -1692,13 +1755,13 @@ pub mod tests {
   pub fn ee_string(x: String) -> bool { encode_equivalent(Ipld::String(x)) }
 
   // overflows stack
-  // #[quickcheck]
-  // pub fn ee_list(x: Vec<Ipld>) -> bool { encode_equivalent(Ipld::List(x)) }
+  #[quickcheck]
+  pub fn ee_list(x: Vec<Ipld>) -> bool { encode_equivalent(Ipld::List(x)) }
 
-  // overflows stack
+  // fails on weird unicode values
   // #[quickcheck]
-  // pub fn ee_string_map(x: BTreeMap<String, Ipld>) -> bool {
-  // encode_equivalent(Ipld::StringMap(x))
+  //  pub fn ee_string_map(x: BTreeMap<String, Ipld>) -> bool {
+  //  encode_equivalent(Ipld::StringMap(x))
   // }
 
   #[quickcheck]
@@ -1710,23 +1773,13 @@ pub mod tests {
   #[quickcheck]
   pub fn edid_bool(x: bool) -> bool { encode_decode_id(Ipld::Bool(x)) }
 
-  // overflows stack
-  // #[quickcheck]
-  // pub fn edid_integer(x: i128) -> TestResult {
-  // if (x > u64::MAX as i128) || (-x > u64::MAX as i128) {
-  // TestResult::discard()
-  // }
-  // else {
-  // if encode_decode_id(Ipld::Integer(x)) {
-  // TestResult::passed()
-  // }
-  // else {
-  // TestResult::failed()
-  // }
-  // }
-  // }
+  #[quickcheck]
+  pub fn edid_integer(x: u64, sign: bool) -> bool {
+    let number = if sign { x as i128 } else { -(x as i128 - 1) };
+    encode_decode_id(Ipld::Integer(number))
+  }
 
-  // overflows stack
+  // times out/runs for over 60 seconds
   // #[quickcheck]
   // pub fn edid_float(x: f64) -> bool { encode_decode_id(Ipld::Float(x)) }
 
@@ -1736,11 +1789,9 @@ pub mod tests {
   #[quickcheck]
   pub fn edid_string(x: String) -> bool { encode_decode_id(Ipld::String(x)) }
 
-  // overflows stack
+  // fails on `Vec<Float(inf)>`
   // #[quickcheck]
-  // pub fn edid_list(x: Vec<Ipld>) -> bool {
-  //   encode_decode_id(Ipld::List(x))
-  // }
+  // pub fn edid_list(x: Vec<Ipld>) -> bool { encode_decode_id(Ipld::List(x)) }
 
   // overflows stack
   // #[quickcheck]
@@ -1748,7 +1799,6 @@ pub mod tests {
   //   encode_decode_id(Ipld::StringMap(x))
   // }
 
-  // errors with unknown cbor tag
-  // #[quickcheck]
-  // pub fn edid_link(x: ACid) -> bool { encode_decode_id(Ipld::Link(x.0)) }
+  #[quickcheck]
+  pub fn edid_link(x: ACid) -> bool { encode_decode_id(Ipld::Link(x.0)) }
 }
