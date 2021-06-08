@@ -107,6 +107,12 @@ yatima hashspace server
 
 ### With cargo
 
+Yatima requires nightly Rust:
+
+```bash
+rustup default nightly
+```
+
 To build yatima:
 
 ```bash
@@ -151,18 +157,18 @@ The living memory of your parents and grandparents extends into the past
 *before* computers. These machines are shockingly new, and as a species we
 really have no idea what they're for yet. We're in the middle of an epochal
 transformation whose nearest precedent is the invention of *writing*.
-There are a lot of prognostications of what that means for our future; lots 
-of different, and sometimes contradictory, visions of how computing is going 
-to continue to shape our minds, our bodies, and our relationships with one 
+There are a lot of prognostications of what that means for our future; lots
+of different, and sometimes contradictory, visions of how computing is going
+to continue to shape our minds, our bodies, and our relationships with one
 another.
 
 Yatima, as a project, has an opinionated view of that future. We think computing
 should belong to individual users rather than corporations or states. A
-programming language is an empowering medium of *individual* expression, 
+programming language is an empowering medium of *individual* expression,
 where the user encounters, and extends their mind through, a computing machine.
-We believe "Programmer" shouldn't be a job description, anymore than "scribe" 
-is a job description in a world with near-universal literacy. Computing belongs 
-to everyone, and computer programming should therefore be maximally accesible 
+We believe "Programmer" shouldn't be a job description, anymore than "scribe"
+is a job description in a world with near-universal literacy. Computing belongs
+to everyone, and computer programming should therefore be maximally accesible
 to everyone.
 
 Currently, it's not: There are about 5 billion internet users worldwide, but
@@ -170,7 +176,7 @@ only an estimated 25 million software developers. That's a "Programming Literacy
 rate" of less than 1%. Furthermore, that population is not demographically
 representative. It skews heavily toward men, the Global North, and those from
 privileged socioeconomic or ethnic backgrounds. This is a disgrace.
-It is if we live in some absurd dystopia where only people with green eyes 
+It is if we live in some absurd dystopia where only people with green eyes
 play music.
 
 A new programming language isn't going to be some panacea that solves that
@@ -194,8 +200,8 @@ problem on its own, but there are some ways in a programming language can help:
    care of the detail-work. And computing is much easier when you have a clear
    notion of the theory of what you're doing.
 
-3. Be portable in execution. Run locally, in the browser, on mobile, in a 
-   distributed process. People shouldn't have to worry about the details of 
+3. Be portable in execution. Run locally, in the browser, on mobile, in a
+   distributed process. People shouldn't have to worry about the details of
    *where* they want to do something, only *what* they want to do.
 
 4. Be portable in semantics. Pure semantics and reproducible builds let people
@@ -204,7 +210,7 @@ problem on its own, but there are some ways in a programming language can help:
 
 5. Integrate with decentralized technologies to remove, as much as possible,
    social barriers and frictions. Having centralized services like
-   most modern package managers raises the question "Who controls the package server?" 
+   most modern package managers raises the question "Who controls the package server?"
    The famous [leftpad incident](https://qz.com/646467/how-one-programmer-broke-the-internet-by-deleting-a-tiny-piece-of-code)
    is commonly presented as a build system issue (which it absolutely is), but
    less frequently discussed is that what precipitated the incident was how the
@@ -222,5 +228,5 @@ love their mathematical computing machines, as natural extensions of
 themselves. A future where users have autonomy and privacy over their own
 systems and their own data. A future where reliable, type-checked,
 formally-verified software is the norm, so you can rely on software engineering
-with the same quotidian confidence you have for civil engineering whenever you 
+with the same quotidian confidence you have for civil engineering whenever you
 drive your car over a bridge.
