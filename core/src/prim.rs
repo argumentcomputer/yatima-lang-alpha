@@ -290,8 +290,8 @@ pub mod tests {
         11 => Self::I8(I8Op::arbitrary(g)),
         12 => Self::I16(I16Op::arbitrary(g)),
         13 => Self::I32(I32Op::arbitrary(g)),
-        14 => Self::I64(I64Op::arbitrary(g)),
-        _ => Self::I128(I128Op::arbitrary(g)),
+        _ => Self::I64(I64Op::arbitrary(g)),
+        // _ => Self::I128(I128Op::arbitrary(g)),
       }
     }
   }
