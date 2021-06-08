@@ -504,7 +504,7 @@ impl DAG {
   }
 }
 
-#[cfg(test)]
+//#[cfg(test)]
 pub mod test {
   use super::DAG;
   use crate::{
