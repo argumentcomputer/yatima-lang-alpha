@@ -11,12 +11,6 @@ extern crate libipld;
 #[cfg(test)]
 extern crate rand;
 
-use core::{
-  any::type_name,
-  cmp,
-  convert::TryInto,
-};
-
 use alloc::{
   borrow::ToOwned,
   boxed::Box,
@@ -34,8 +28,14 @@ use byteorder::{
 };
 use cid::Cid;
 use sp_std::{
+  any::type_name,
+  cmp,
   collections::btree_map::BTreeMap,
-  convert::TryFrom,
+  convert::{
+    TryFrom,
+    TryInto,
+  },
+  mem,
   ops::Deref,
   vec::Vec,
 };
@@ -94,6 +94,10 @@ pub trait Codec:
   + Sized
   + TryFrom<u64, Error = UnsupportedCodec>
   + Into<u64> {
+  /// # Errors
+  ///
+  /// Will return `Err` if there was a problem encoding the object into a
+  /// `ByteCursor`
   fn encode<T: Encode<Self> + ?Sized>(
     &self,
     obj: &T,
@@ -103,6 +107,10 @@ pub trait Codec:
     Ok(buf)
   }
 
+  /// # Errors
+  ///
+  /// Will return `Err` if there was a problem decoding the `ByteCursor` into an
+  /// object
   fn decode<T: Decode<Self>>(
     &self,
     mut bytes: ByteCursor,
@@ -110,6 +118,9 @@ pub trait Codec:
     T::decode(*self, &mut bytes)
   }
 
+  /// # Errors
+  ///
+  /// TODO
   fn references<T: References<Self>, E: Extend<Cid>>(
     &self,
     mut bytes: ByteCursor,
@@ -120,6 +131,9 @@ pub trait Codec:
 }
 
 pub trait Encode<C: Codec> {
+  /// # Errors
+  ///
+  /// Will return `Err` if there was a problem during encoding
   fn encode(&self, c: C, w: &mut ByteCursor) -> Result<(), String>;
 }
 
@@ -130,10 +144,16 @@ impl<C: Codec, T: Encode<C>> Encode<C> for &T {
 }
 
 pub trait Decode<C: Codec>: Sized {
+  /// # Errors
+  ///
+  /// Will return `Err` if there was a problem during decoding
   fn decode(c: C, r: &mut ByteCursor) -> Result<Self, String>;
 }
 
 pub trait References<C: Codec>: Sized {
+  /// # Errors
+  ///
+  /// TODO
   fn references<E: Extend<Cid>>(
     c: C,
     r: &mut ByteCursor,
@@ -142,6 +162,9 @@ pub trait References<C: Codec>: Sized {
 }
 
 pub trait SkipOne: Codec {
+  /// # Errors
+  ///
+  /// Will return `Err` if there was a problem during skipping
   fn skip(&self, r: &mut ByteCursor) -> Result<(), String>;
 }
 
@@ -177,16 +200,18 @@ pub struct ByteCursor {
 }
 
 impl ByteCursor {
-  pub const fn new(inner: Vec<u8>) -> ByteCursor {
-    ByteCursor { pos: 0, inner }
-  }
+  #[must_use]
+  pub const fn new(inner: Vec<u8>) -> Self { Self { pos: 0, inner } }
 
+  #[must_use]
   pub fn into_inner(self) -> Vec<u8> { self.inner }
 
+  #[must_use]
   pub const fn get_ref(&self) -> &Vec<u8> { &self.inner }
 
   pub fn get_mut(&mut self) -> &mut Vec<u8> { &mut self.inner }
 
+  #[must_use]
   pub const fn position(&self) -> u64 { self.pos }
 
   pub fn set_position(&mut self, pos: u64) { self.pos = pos }
@@ -206,6 +231,9 @@ impl ByteCursor {
     amt
   }
 
+  /// # Errors
+  ///
+  /// Will return `Err` if the buffer is longer than the available bytes to read
   pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), String> {
     let n = buf.len();
     let from = &mut self.fill_buf();
@@ -228,14 +256,18 @@ impl ByteCursor {
 
   pub fn fill_buf(&mut self) -> &[u8] {
     let amt = cmp::min(self.pos, self.inner.len() as u64);
-    &self.inner[(amt as usize)..]
+    &self.inner[(amt as usize)..] // may truncate
   }
 
-  fn seek(&mut self, style: SeekFrom) -> Result<u64, String> {
+  /// # Errors
+  ///
+  /// Will return `Err` if one tries to seek to a negative or overflowing
+  /// position
+  pub fn seek(&mut self, style: &SeekFrom) -> Result<u64, String> {
     let (base_pos, offset) = match style {
       SeekFrom::Start(n) => {
-        self.pos = n;
-        return Ok(n);
+        self.pos = *n;
+        return Ok(*n);
       }
       SeekFrom::End(n) => {
         let x: &[u8] = self.inner.as_ref();
@@ -243,11 +275,11 @@ impl ByteCursor {
       }
       SeekFrom::Current(n) => (self.pos, n),
     };
-    let new_pos = if offset >= 0 {
-      base_pos.checked_add(offset as u64)
+    let new_pos = if *offset >= 0 {
+      base_pos.checked_add(*offset as u64) // may lose sign
     }
     else {
-      base_pos.checked_sub((offset.wrapping_neg()) as u64)
+      base_pos.checked_sub((offset.wrapping_neg()) as u64) // may lose sign
     };
     match new_pos {
       Some(n) => {
@@ -260,7 +292,11 @@ impl ByteCursor {
     }
   }
 
-  fn write(&mut self, buf: &[u8]) -> Result<usize, String> {
+  /// # Errors
+  ///
+  /// Will return `Err` if the cursor position exceeds maximum possible vector
+  /// length
+  pub fn write(&mut self, buf: &[u8]) -> Result<usize, String> {
     let vec = &mut self.inner;
     let pos: usize = self.pos.try_into().map_err(|_| {
       "cursor position exceeds maximum possible vector length".to_owned()
@@ -279,7 +315,11 @@ impl ByteCursor {
     Ok(buf.len())
   }
 
-  fn write_all(&mut self, mut buf: &[u8]) -> Result<(), String> {
+  /// # Errors
+  ///
+  /// Will return `Err` if the cursor position exceeds maximum possible vector
+  /// length or we failed to write whole buffer
+  pub fn write_all(&mut self, mut buf: &[u8]) -> Result<(), String> {
     while !buf.is_empty() {
       match self.write(buf) {
         Ok(0) => {
@@ -293,56 +333,88 @@ impl ByteCursor {
   }
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than 1 available bytes to
+/// read
 pub fn read_u8(r: &mut ByteCursor) -> Result<u8, String> {
   let mut buf = [0; 1];
   r.read_exact(&mut buf)?;
   Ok(buf[0])
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than 2 available bytes to
+/// read
 pub fn read_u16(r: &mut ByteCursor) -> Result<u16, String> {
   let mut buf = [0; 2];
   r.read_exact(&mut buf)?;
   Ok(BigEndian::read_u16(&buf))
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than 4 available bytes to
+/// read
 pub fn read_u32(r: &mut ByteCursor) -> Result<u32, String> {
   let mut buf = [0; 4];
   r.read_exact(&mut buf)?;
   Ok(BigEndian::read_u32(&buf))
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than 8 available bytes to
+/// read
 pub fn read_u64(r: &mut ByteCursor) -> Result<u64, String> {
   let mut buf = [0; 8];
   r.read_exact(&mut buf)?;
   Ok(BigEndian::read_u64(&buf))
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than 4 available bytes to
+/// read
 pub fn read_f32(r: &mut ByteCursor) -> Result<f32, String> {
   let mut buf = [0; 4];
   r.read_exact(&mut buf)?;
   Ok(BigEndian::read_f32(&buf))
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than 8 available bytes to
+/// read
 pub fn read_f64(r: &mut ByteCursor) -> Result<f64, String> {
   let mut buf = [0; 8];
   r.read_exact(&mut buf)?;
   Ok(BigEndian::read_f64(&buf))
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than `len` available bytes to
+/// read
 pub fn read_bytes(r: &mut ByteCursor, len: usize) -> Result<Vec<u8>, String> {
   let mut buf = vec![0; len];
   r.read_exact(&mut buf)?;
   Ok(buf)
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` has less than `len` available bytes to
+/// read or the bytes read are not valid UTF-8
 pub fn read_str(r: &mut ByteCursor, len: usize) -> Result<String, String> {
   let bytes = read_bytes(r, len)?;
-  Ok(
-    String::from_utf8(bytes)
-      .map_err(|_| "Error converting to UTF-8".to_owned())?,
-  )
+  String::from_utf8(bytes).map_err(|_| "Error converting to UTF-8".to_owned())
 }
 
+/// # Errors
+///
+/// Will return `Err` if there were any errors decoding `len` objects
 pub fn read_list<T: Decode<DagCborCodec>>(
   r: &mut ByteCursor,
   len: usize,
@@ -354,6 +426,10 @@ pub fn read_list<T: Decode<DagCborCodec>>(
   Ok(list)
 }
 
+/// # Errors
+///
+/// Will return `Err` if there were errors reading the major value, seeking
+/// back, or decoding the component objects
 pub fn read_list_il<T: Decode<DagCborCodec>>(
   r: &mut ByteCursor,
 ) -> Result<Vec<T>, String> {
@@ -363,13 +439,17 @@ pub fn read_list_il<T: Decode<DagCborCodec>>(
     if major == 0xff {
       break;
     }
-    r.seek(SeekFrom::Current(-1))?;
+    r.seek(&SeekFrom::Current(-1))?;
     let value = T::decode(DagCborCodec, r)?;
     list.push(value);
   }
   Ok(list)
 }
 
+/// # Errors
+///
+/// Will return `Err` if there were any errors decoding `len` key-value pairs of
+/// objects
 pub fn read_map<K: Decode<DagCborCodec> + Ord, T: Decode<DagCborCodec>>(
   r: &mut ByteCursor,
   len: usize,
@@ -383,6 +463,10 @@ pub fn read_map<K: Decode<DagCborCodec> + Ord, T: Decode<DagCborCodec>>(
   Ok(map)
 }
 
+/// # Errors
+///
+/// Will return `Err` if there was an error reading the major value, seeking
+/// backward, or decoding the component key-value pairs of objects
 pub fn read_map_il<K: Decode<DagCborCodec> + Ord, T: Decode<DagCborCodec>>(
   r: &mut ByteCursor,
 ) -> Result<BTreeMap<K, T>, String> {
@@ -392,7 +476,7 @@ pub fn read_map_il<K: Decode<DagCborCodec> + Ord, T: Decode<DagCborCodec>>(
     if major == 0xff {
       break;
     }
-    r.seek(SeekFrom::Current(-1))?;
+    r.seek(&SeekFrom::Current(-1))?;
     let key = K::decode(DagCborCodec, r)?;
     let value = T::decode(DagCborCodec, r)?;
     map.insert(key, value);
@@ -400,6 +484,11 @@ pub fn read_map_il<K: Decode<DagCborCodec> + Ord, T: Decode<DagCborCodec>>(
   Ok(map)
 }
 
+/// # Errors
+///
+/// Will return `Err` if the `ByteCursor` is not long enough, the cbor tag is
+/// not `0x58`, the len is `0`, `bytes[0]` is not `0`, or if the bytes are not a
+/// valid Cid
 pub fn read_link(r: &mut ByteCursor) -> Result<Cid, String> {
   let ty = read_u8(r)?;
   if ty != 0x58 {
@@ -416,9 +505,13 @@ pub fn read_link(r: &mut ByteCursor) -> Result<Cid, String> {
 
   // skip the first byte per
   // https://github.com/ipld/specs/blob/master/block-layer/codecs/dag-cbor.md#links
-  Ok(Cid::try_from(&bytes[1..]).map_err(|x| x.to_string())?)
+  Cid::try_from(&bytes[1..]).map_err(|x| x.to_string())
 }
 
+/// # Errors
+///
+/// Will return `Err` if the major value is unknown or decoding a usize which is
+/// greater than `u64::MAX`
 pub fn read_len(r: &mut ByteCursor, major: u8) -> Result<usize, String> {
   Ok(match major {
     0x00..=0x17 => major as usize,
@@ -430,7 +523,7 @@ pub fn read_len(r: &mut ByteCursor, major: u8) -> Result<usize, String> {
       if len > usize::max_value() as u64 {
         return Err("Length out of range when decoding usize.".to_owned());
       }
-      len as usize
+      len as usize // may truncate
     }
     major => {
       return Err(format!(
@@ -479,8 +572,8 @@ impl Decode<DagCborCodec> for u16 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x00..=0x17 => major as u16,
-      0x18 => read_u8(r)? as u16,
+      0x00..=0x17 => Self::from(major),
+      0x18 => Self::from(read_u8(r)?),
       0x19 => read_u16(r)?,
       _ => {
         return Err(format!(
@@ -497,9 +590,9 @@ impl Decode<DagCborCodec> for u32 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x00..=0x17 => major as u32,
-      0x18 => read_u8(r)? as u32,
-      0x19 => read_u16(r)? as u32,
+      0x00..=0x17 => Self::from(major),
+      0x18 => Self::from(read_u8(r)?),
+      0x19 => Self::from(read_u16(r)?),
       0x1a => read_u32(r)?,
       _ => {
         return Err(format!(
@@ -516,10 +609,10 @@ impl Decode<DagCborCodec> for u64 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x00..=0x17 => major as u64,
-      0x18 => read_u8(r)? as u64,
-      0x19 => read_u16(r)? as u64,
-      0x1a => read_u32(r)? as u64,
+      0x00..=0x17 => Self::from(major),
+      0x18 => Self::from(read_u8(r)?),
+      0x19 => Self::from(read_u16(r)?),
+      0x1a => Self::from(read_u32(r)?),
       0x1b => read_u64(r)?,
       _ => {
         return Err(format!(
@@ -536,8 +629,8 @@ impl Decode<DagCborCodec> for i8 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x20..=0x37 => -1 - (major - 0x20) as i8,
-      0x38 => -1 - read_u8(r)? as i8,
+      0x20..=0x37 => -1 - (major - 0x20) as Self, // may wrap
+      0x38 => -1 - read_u8(r)? as Self,           // may wrap
       _ => {
         return Err(format!(
           "Unexpected cbor code `0x{}` when decoding i8.",
@@ -553,9 +646,9 @@ impl Decode<DagCborCodec> for i16 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x20..=0x37 => -1 - (major - 0x20) as i16,
-      0x38 => -1 - read_u8(r)? as i16,
-      0x39 => -1 - read_u16(r)? as i16,
+      0x20..=0x37 => -1 - Self::from(major - 0x20),
+      0x38 => -1 - Self::from(read_u8(r)?),
+      0x39 => -1 - read_u16(r)? as Self, // may wrap
       _ => {
         return Err(format!(
           "Unexpected cbor code `0x{}` when decoding i16.",
@@ -571,10 +664,10 @@ impl Decode<DagCborCodec> for i32 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x20..=0x37 => -1 - (major - 0x20) as i32,
-      0x38 => -1 - read_u8(r)? as i32,
-      0x39 => -1 - read_u16(r)? as i32,
-      0x3a => -1 - read_u32(r)? as i32,
+      0x20..=0x37 => -1 - Self::from(major - 0x20),
+      0x38 => -1 - Self::from(read_u8(r)?),
+      0x39 => -1 - Self::from(read_u16(r)?),
+      0x3a => -1 - read_u32(r)? as Self, // may wrap
       _ => {
         return Err(format!(
           "Unexpected cbor code `0x{}` when decoding i32.",
@@ -590,11 +683,11 @@ impl Decode<DagCborCodec> for i64 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0x20..=0x37 => -1 - (major - 0x20) as i64,
-      0x38 => -1 - read_u8(r)? as i64,
-      0x39 => -1 - read_u16(r)? as i64,
-      0x3a => -1 - read_u32(r)? as i64,
-      0x3b => -1 - read_u64(r)? as i64,
+      0x20..=0x37 => -1 - Self::from(major - 0x20),
+      0x38 => -1 - Self::from(read_u8(r)?),
+      0x39 => -1 - Self::from(read_u16(r)?),
+      0x3a => -1 - Self::from(read_u32(r)?),
+      0x3b => -1 - read_u64(r)? as Self, // may wrap
       _ => {
         return Err(format!(
           "Unexpected cbor code `0x{}` when decoding i64.",
@@ -626,7 +719,7 @@ impl Decode<DagCborCodec> for f64 {
   fn decode(_: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0xfa => read_f32(r)? as f64,
+      0xfa => Self::from(read_f32(r)?),
       0xfb => read_f64(r)?,
       _ => {
         return Err(format!(
@@ -695,10 +788,9 @@ impl<T: Decode<DagCborCodec>> Decode<DagCborCodec> for Option<T> {
   fn decode(c: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
     let major = read_u8(r)?;
     let result = match major {
-      0xf6 => None,
-      0xf7 => None,
+      0xf6 | 0xf7 => None,
       _ => {
-        r.seek(SeekFrom::Current(-1))?;
+        r.seek(&SeekFrom::Current(-1))?;
         Some(T::decode(c, r)?)
       }
     };
@@ -756,18 +848,18 @@ impl Decode<DagCborCodec> for Ipld {
     let major = read_u8(r)?;
     let ipld = match major {
       // Major type 0: an unsigned integer
-      0x00..=0x17 => Self::Integer(major as i128),
-      0x18 => Self::Integer(read_u8(r)? as i128),
-      0x19 => Self::Integer(read_u16(r)? as i128),
-      0x1a => Self::Integer(read_u32(r)? as i128),
-      0x1b => Self::Integer(read_u64(r)? as i128),
+      0x00..=0x17 => Self::Integer(i128::from(major)),
+      0x18 => Self::Integer(i128::from(read_u8(r)?)),
+      0x19 => Self::Integer(i128::from(read_u16(r)?)),
+      0x1a => Self::Integer(i128::from(read_u32(r)?)),
+      0x1b => Self::Integer(i128::from(read_u64(r)?)),
 
       // Major type 1: a negative integer
-      0x20..=0x37 => Self::Integer(-1 - (major - 0x20) as i128),
-      0x38 => Self::Integer(-1 - read_u8(r)? as i128),
-      0x39 => Self::Integer(-1 - read_u16(r)? as i128),
-      0x3a => Self::Integer(-1 - read_u32(r)? as i128),
-      0x3b => Self::Integer(-1 - read_u64(r)? as i128),
+      0x20..=0x37 => Self::Integer(-1 - i128::from(major - 0x20)),
+      0x38 => Self::Integer(-1 - i128::from(read_u8(r)?)),
+      0x39 => Self::Integer(-1 - i128::from(read_u16(r)?)),
+      0x3a => Self::Integer(-1 - i128::from(read_u32(r)?)),
+      0x3b => Self::Integer(-1 - i128::from(read_u64(r)?)),
 
       // Major type 2: a byte string
       0x40..=0x5b => {
@@ -804,8 +896,8 @@ impl Decode<DagCborCodec> for Ipld {
 
       // Major type 5: a map of pairs of data items (indefinite length)
       0xbf => {
-        let pos = r.seek(SeekFrom::Current(0))?;
-        r.seek(SeekFrom::Start(pos))?;
+        let pos = r.seek(&SeekFrom::Current(0))?;
+        r.seek(&SeekFrom::Start(pos))?;
         Self::StringMap(read_map_il(r)?)
       }
 
@@ -824,9 +916,8 @@ impl Decode<DagCborCodec> for Ipld {
       // need no content
       0xf4 => Self::Bool(false),
       0xf5 => Self::Bool(true),
-      0xf6 => Self::Null,
-      0xf7 => Self::Null,
-      0xfa => Self::Float(read_f32(r)? as f64),
+      0xf6 | 0xf7 => Self::Null,
+      0xfa => Self::Float(f64::from(read_f32(r)?)),
       0xfb => Self::Float(read_f64(r)?),
       _ => {
         return Err(format!(
@@ -847,46 +938,31 @@ impl References<DagCborCodec> for Ipld {
   ) -> Result<(), String> {
     let major = read_u8(r)?;
     match major {
-      // Major type 0: an unsigned integer
-      0x00..=0x17 => {}
-      0x18 => {
-        r.seek(SeekFrom::Current(1))?;
-      }
-      0x19 => {
-        r.seek(SeekFrom::Current(2))?;
-      }
-      0x1a => {
-        r.seek(SeekFrom::Current(4))?;
-      }
-      0x1b => {
-        r.seek(SeekFrom::Current(8))?;
-      }
+      0x00..=0x17 | 0x20..=0x37 | 0xf4..=0xf7 => {}
 
-      // Major type 1: a negative integer
-      0x20..=0x37 => {}
-      0x38 => {
-        r.seek(SeekFrom::Current(1))?;
+      0x18 | 0x38 | 0xf8 => {
+        r.seek(&SeekFrom::Current(1))?;
       }
-      0x39 => {
-        r.seek(SeekFrom::Current(2))?;
+      0x19 | 0x39 | 0xf9 => {
+        r.seek(&SeekFrom::Current(2))?;
       }
-      0x3a => {
-        r.seek(SeekFrom::Current(4))?;
+      0x1a | 0x3a | 0xfa => {
+        r.seek(&SeekFrom::Current(4))?;
       }
-      0x3b => {
-        r.seek(SeekFrom::Current(8))?;
+      0x1b | 0x3b | 0xfb => {
+        r.seek(&SeekFrom::Current(8))?;
       }
 
       // Major type 2: a byte string
       0x40..=0x5b => {
         let len = read_len(r, major - 0x40)?;
-        r.seek(SeekFrom::Current(len as _))?;
+        r.seek(&SeekFrom::Current(len as _))?;
       }
 
       // Major type 3: a text string
       0x60..=0x7b => {
         let len = read_len(r, major - 0x60)?;
-        r.seek(SeekFrom::Current(len as _))?;
+        r.seek(&SeekFrom::Current(len as _))?;
       }
 
       // Major type 4: an array of data items
@@ -903,7 +979,7 @@ impl References<DagCborCodec> for Ipld {
         if major == 0xff {
           break;
         }
-        r.seek(SeekFrom::Current(-1))?;
+        r.seek(&SeekFrom::Current(-1))?;
         <Self as References<DagCborCodec>>::references(c, r, set)?;
       },
 
@@ -922,7 +998,7 @@ impl References<DagCborCodec> for Ipld {
         if major == 0xff {
           break;
         }
-        r.seek(SeekFrom::Current(-1))?;
+        r.seek(&SeekFrom::Current(-1))?;
         <Self as References<DagCborCodec>>::references(c, r, set)?;
         <Self as References<DagCborCodec>>::references(c, r, set)?;
       },
@@ -938,21 +1014,6 @@ impl References<DagCborCodec> for Ipld {
         }
       }
 
-      // Major type 7: floating-point numbers and other simple data types that
-      // need no content
-      0xf4..=0xf7 => {}
-      0xf8 => {
-        r.seek(SeekFrom::Current(1))?;
-      }
-      0xf9 => {
-        r.seek(SeekFrom::Current(2))?;
-      }
-      0xfa => {
-        r.seek(SeekFrom::Current(4))?;
-      }
-      0xfb => {
-        r.seek(SeekFrom::Current(8))?;
-      }
       major => {
         return Err(format!(
           "Unexpected cbor code `0x{}` when decoding Ipld.",
@@ -966,7 +1027,7 @@ impl References<DagCborCodec> for Ipld {
 
 impl<T: Decode<DagCborCodec>> Decode<DagCborCodec> for Arc<T> {
   fn decode(c: DagCborCodec, r: &mut ByteCursor) -> Result<Self, String> {
-    Ok(Arc::new(T::decode(c, r)?))
+    Ok(Self::new(T::decode(c, r)?))
   }
 }
 
@@ -1071,45 +1132,30 @@ impl SkipOne for DagCborCodec {
     let major = read_u8(r)?;
     match major {
       // Major type 0: an unsigned integer
-      0x00..=0x17 => {}
-      0x18 => {
-        r.seek(SeekFrom::Current(1))?;
+      0x00..=0x17 | 0x20..=0x37 | 0xe0..=0xf7 => {}
+      0x18 | 0x38 | 0xf8 => {
+        r.seek(&SeekFrom::Current(1))?;
       }
-      0x19 => {
-        r.seek(SeekFrom::Current(2))?;
+      0x19 | 0x39 | 0xf9 => {
+        r.seek(&SeekFrom::Current(2))?;
       }
-      0x1a => {
-        r.seek(SeekFrom::Current(4))?;
+      0x1a | 0x3a | 0xfa => {
+        r.seek(&SeekFrom::Current(4))?;
       }
-      0x1b => {
-        r.seek(SeekFrom::Current(8))?;
-      }
-
-      // Major type 1: a negative integer
-      0x20..=0x37 => {}
-      0x38 => {
-        r.seek(SeekFrom::Current(1))?;
-      }
-      0x39 => {
-        r.seek(SeekFrom::Current(2))?;
-      }
-      0x3a => {
-        r.seek(SeekFrom::Current(4))?;
-      }
-      0x3b => {
-        r.seek(SeekFrom::Current(8))?;
+      0x1b | 0x3b | 0xfb => {
+        r.seek(&SeekFrom::Current(8))?;
       }
 
       // Major type 2: a byte string
       0x40..=0x5b => {
         let len = read_len(r, major - 0x40)?;
-        r.seek(SeekFrom::Current(len as _))?;
+        r.seek(&SeekFrom::Current(len as _))?;
       }
 
       // Major type 3: a text string
       0x60..=0x7b => {
         let len = read_len(r, major - 0x60)?;
-        r.seek(SeekFrom::Current(len as _))?;
+        r.seek(&SeekFrom::Current(len as _))?;
       }
 
       // Major type 4: an array of data items
@@ -1126,7 +1172,7 @@ impl SkipOne for DagCborCodec {
         if major == 0xff {
           break;
         }
-        r.seek(SeekFrom::Current(-1))?;
+        r.seek(&SeekFrom::Current(-1))?;
         self.skip(r)?;
       },
 
@@ -1145,7 +1191,7 @@ impl SkipOne for DagCborCodec {
         if major == 0xff {
           break;
         }
-        r.seek(SeekFrom::Current(-1))?;
+        r.seek(&SeekFrom::Current(-1))?;
         self.skip(r)?;
         self.skip(r)?;
       },
@@ -1156,21 +1202,6 @@ impl SkipOne for DagCborCodec {
         self.skip(r)?;
       }
 
-      // Major type 7: floating-point numbers and other simple data types that
-      // need no content
-      0xf4..=0xf7 => {}
-      0xf8 => {
-        r.seek(SeekFrom::Current(1))?;
-      }
-      0xf9 => {
-        r.seek(SeekFrom::Current(2))?;
-      }
-      0xfa => {
-        r.seek(SeekFrom::Current(4))?;
-      }
-      0xfb => {
-        r.seek(SeekFrom::Current(8))?;
-      }
       major => {
         return Err(format!(
           "Unexpected cbor code `0x{}` when decoding Ipld.",
@@ -1182,11 +1213,19 @@ impl SkipOne for DagCborCodec {
   }
 }
 
+/// # Errors
+///
+/// Will return `Err` if the cursor position exceeds maximum possible vector
+/// length or we failed to write whole buffer
 pub fn write_null(w: &mut ByteCursor) -> Result<(), String> {
   w.write_all(&[0xf6])?;
   Ok(())
 }
 
+/// # Errors
+///
+/// Will return `Err` if the cursor position exceeds maximum possible vector
+/// length or we failed to write whole buffer
 pub fn write_u8(
   w: &mut ByteCursor,
   major: u8,
@@ -1203,13 +1242,17 @@ pub fn write_u8(
   Ok(())
 }
 
+/// # Errors
+///
+/// Will return `Err` if the cursor position exceeds maximum possible vector
+/// length or we failed to write whole buffer
 pub fn write_u16(
   w: &mut ByteCursor,
   major: u8,
   value: u16,
 ) -> Result<(), String> {
-  if value <= u16::from(u8::max_value()) {
-    write_u8(w, major, value as u8)?;
+  if let Ok(small) = u8::try_from(value) {
+    write_u8(w, major, small)?;
   }
   else {
     let mut buf = [major << 5 | 25, 0, 0];
@@ -1219,13 +1262,17 @@ pub fn write_u16(
   Ok(())
 }
 
+/// # Errors
+///
+/// Will return `Err` if the cursor position exceeds maximum possible vector
+/// length or we failed to write whole buffer
 pub fn write_u32(
   w: &mut ByteCursor,
   major: u8,
   value: u32,
 ) -> Result<(), String> {
-  if value <= u32::from(u16::max_value()) {
-    write_u16(w, major, value as u16)?;
+  if let Ok(small) = u16::try_from(value) {
+    write_u16(w, major, small)?;
   }
   else {
     let mut buf = [major << 5 | 26, 0, 0, 0, 0];
@@ -1235,13 +1282,17 @@ pub fn write_u32(
   Ok(())
 }
 
+/// # Errors
+///
+/// Will return `Err` if the cursor position exceeds maximum possible vector
+/// length or we failed to write whole buffer
 pub fn write_u64(
   w: &mut ByteCursor,
   major: u8,
   value: u64,
 ) -> Result<(), String> {
-  if value <= u64::from(u32::max_value()) {
-    write_u32(w, major, value as u32)?;
+  if let Ok(small) = u32::try_from(value) {
+    write_u32(w, major, small)?;
   }
   else {
     let mut buf = [major << 5 | 27, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -1251,6 +1302,10 @@ pub fn write_u64(
   Ok(())
 }
 
+/// # Errors
+///
+/// Will return `Err` if the cursor position exceeds maximum possible vector
+/// length or we failed to write whole buffer
 pub fn write_tag(w: &mut ByteCursor, tag: u64) -> Result<(), String> {
   write_u64(w, 6, tag)
 }
@@ -1289,25 +1344,25 @@ impl Encode<DagCborCodec> for u64 {
 
 impl Encode<DagCborCodec> for i8 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
-    write_u8(w, 1, -(*self + 1) as u8)
+    write_u8(w, 1, -(*self + 1) as u8) // may lose sign
   }
 }
 
 impl Encode<DagCborCodec> for i16 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
-    write_u16(w, 1, -(*self + 1) as u16)
+    write_u16(w, 1, -(*self + 1) as u16) // may lose sign
   }
 }
 
 impl Encode<DagCborCodec> for i32 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
-    write_u32(w, 1, -(*self + 1) as u32)
+    write_u32(w, 1, -(*self + 1) as u32) // may lose sign
   }
 }
 
 impl Encode<DagCborCodec> for i64 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
-    write_u64(w, 1, -(*self + 1) as u64)
+    write_u64(w, 1, -(*self + 1) as u64) // may lose sign
   }
 }
 
@@ -1337,11 +1392,13 @@ impl Encode<DagCborCodec> for f32 {
 impl Encode<DagCborCodec> for f64 {
   #[allow(clippy::float_cmp)]
   fn encode(&self, c: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
-    if !self.is_finite() || f64::from(*self as f32) == *self {
+    if !self.is_finite() || Self::from(*self as f32) == *self {
+      // conversion to `f32` is lossless
       let value = *self as f32;
       value.encode(c, w)?;
     }
     else {
+      // conversion to `f32` is lossy
       let mut buf = [0xfb, 0, 0, 0, 0, 0, 0, 0, 0];
       BigEndian::write_f64(&mut buf[1..], *self);
       w.write_all(&buf)?;
@@ -1381,18 +1438,16 @@ impl Encode<DagCborCodec> for String {
 impl Encode<DagCborCodec> for i128 {
   fn encode(&self, _: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
     if *self < 0 {
-      if -(*self + 1) > u64::max_value() as i128 {
-        return Err("Number larger than u64.".to_owned());
+      if let Ok(small) = u64::try_from(-(*self + 1)) {
+        write_u64(w, 1, small)?;
+        return Ok(());
       }
-      write_u64(w, 1, -(*self + 1) as u64)?;
     }
-    else {
-      if *self > u64::max_value() as i128 {
-        return Err("Number larger than u64.".to_owned());
-      }
-      write_u64(w, 0, *self as u64)?;
+    else if let Ok(small) = u64::try_from(*self) {
+      write_u64(w, 0, small)?;
+      return Ok(());
     }
-    Ok(())
+    Err("Number larger than i128.".to_owned())
   }
 }
 
@@ -1437,12 +1492,12 @@ impl<K: Encode<DagCborCodec>, T: Encode<DagCborCodec> + 'static>
 {
   fn encode(&self, c: DagCborCodec, w: &mut ByteCursor) -> Result<(), String> {
     write_u64(w, 5, self.len() as u64)?;
-    let mut vec: Vec<_> = self.into_iter().collect();
+    let mut vec: Vec<_> = self.iter().collect();
     vec.sort_unstable_by(|&(k1, _), &(k2, _)| {
       let mut bc1 = ByteCursor::new(Vec::new());
-      let _ = k1.encode(c, &mut bc1);
+      mem::drop(k1.encode(c, &mut bc1));
       let mut bc2 = ByteCursor::new(Vec::new());
-      let _ = k2.encode(c, &mut bc2);
+      mem::drop(k2.encode(c, &mut bc2));
       bc1.into_inner().cmp(&bc2.into_inner())
     });
     for (k, v) in vec {
@@ -1683,7 +1738,9 @@ pub mod tests {
 
   // overflows stack
   // #[quickcheck]
-  // pub fn edid_list(x: Vec<Ipld>) -> bool { encode_decode_id(Ipld::List(x)) }
+  // pub fn edid_list(x: Vec<Ipld>) -> bool {
+  //   encode_decode_id(Ipld::List(x))
+  // }
 
   // overflows stack
   // #[quickcheck]
