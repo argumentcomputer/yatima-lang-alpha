@@ -19,7 +19,7 @@ libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"
-nom_locate = "3.0.0"
+nom_locate = "3.0.1"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"

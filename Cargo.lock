@@ -1417,15 +1417,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ropey"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0f3ef16589fdbb3e8fbce3dca944c08e61f39c7f16064b21a257d68ea911a83"
-dependencies = [
- "smallvec",
-]
-
-[[package]]
 name = "rustyline"
 version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2134,7 +2125,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
- "ropey 1.2.0 (git+https://github.com/yatima-inc/ropey?branch=master)",
+ "ropey",
  "sp-std",
 ]
 
@@ -2153,7 +2144,7 @@ dependencies = [
  "nom_locate 3.0.1",
  "num-bigint",
  "petgraph",
- "ropey 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ropey",
  "serde",
  "serde_json",
  "yatima_core",
