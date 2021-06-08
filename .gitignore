@@ -8,3 +8,4 @@ node_modules
 result
 result-*
 .pre-commit-config.yaml
+/.vscode/
