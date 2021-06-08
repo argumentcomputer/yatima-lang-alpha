@@ -7,7 +7,7 @@ use petgraph::{
   },
 };
 
-use crate::{
+use yatima_core::{
   dag::*,
   dll::DLL,
   literal::{

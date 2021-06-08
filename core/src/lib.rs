@@ -14,7 +14,6 @@ pub mod defs;
 pub mod dll;
 pub mod embed_error;
 pub mod eval;
-pub mod graph;
 pub mod ipld_error;
 pub mod literal;
 pub mod meta;

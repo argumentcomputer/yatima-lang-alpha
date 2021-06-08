@@ -9,7 +9,6 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-#No_std compatible
 sp-std = {version = "3", default-features = false}
 cid = {version = "0.6.1", default-features = false}
 multihash = {version = "0.13.2", default-features = false, features = ["secure-hashes"]}
@@ -20,10 +19,7 @@ multibase = {version = "0.9.1", default-features = false}
 nom_locate = {git = "https://github.com/yatima-inc/nom_locate", branch = "master"}
 ropey = {git = "https://github.com/yatima-inc/ropey", branch = "master"}
 
-#Still require std
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
-im  = "15.0.0"
-petgraph = "0.5.1"
 
 [dev-dependencies]
 quickcheck = "1.0.3"
