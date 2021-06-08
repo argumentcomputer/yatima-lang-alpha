@@ -107,6 +107,12 @@ yatima hashspace server
 
 ### With cargo
 
+Yatima requires nightly Rust:
+
+```bash
+rustup default nightly
+```
+
 To build yatima:
 
 ```bash
