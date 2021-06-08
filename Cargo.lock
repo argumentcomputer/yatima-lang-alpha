@@ -1002,7 +1002,7 @@ dependencies = [
 [[package]]
 name = "nom_locate"
 version = "3.0.0"
-source = "git+https://github.com/yatima-inc/nom_locate#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
+source = "git+https://github.com/yatima-inc/nom_locate?branch=master#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
 dependencies = [
  "bytecount",
  "memchr",
@@ -1430,19 +1430,19 @@ dependencies = [
 [[package]]
 name = "ropey"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0f3ef16589fdbb3e8fbce3dca944c08e61f39c7f16064b21a257d68ea911a83"
+source = "git+https://github.com/yatima-inc/ropey?branch=master#a963a69cd748846ad5810413817178ce28501acd"
 dependencies = [
  "smallvec",
+ "sp-std",
 ]
 
 [[package]]
 name = "ropey"
 version = "1.2.0"
-source = "git+https://github.com/yatima-inc/ropey#a963a69cd748846ad5810413817178ce28501acd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0f3ef16589fdbb3e8fbce3dca944c08e61f39c7f16064b21a257d68ea911a83"
 dependencies = [
  "smallvec",
- "sp-std",
 ]
 
 [[package]]
@@ -2154,7 +2154,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
- "ropey 1.2.0 (git+https://github.com/yatima-inc/ropey)",
+ "ropey 1.2.0 (git+https://github.com/yatima-inc/ropey?branch=master)",
  "sp-std",
 ]
 

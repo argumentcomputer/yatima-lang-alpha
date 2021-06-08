@@ -17,8 +17,8 @@ num-bigint = {version = "0.3", default-features = false}
 nom = {version = "6", default-features = false, features = ["alloc"]}
 base-x = {version = "0.2.8", default-features = false}
 multibase = {version = "0.9.1", default-features = false}
-nom_locate = {git = "https://github.com/yatima-inc/nom_locate"}
-ropey = {git = "https://github.com/yatima-inc/ropey"}
+nom_locate = {git = "https://github.com/yatima-inc/nom_locate", branch = "master"}
+ropey = {git = "https://github.com/yatima-inc/ropey", branch = "master"}
 
 #Still require std
 libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
