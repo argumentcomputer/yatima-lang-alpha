@@ -10,5 +10,6 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
+    - run: rustup default nightly
     - uses: Swatinem/rust-cache@v1
     - run: cargo test --all
