@@ -1692,7 +1692,10 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
+ "reqwest",
+ "serde_json",
  "sp-std",
+ "tokio",
 ]
 
 [[package]]

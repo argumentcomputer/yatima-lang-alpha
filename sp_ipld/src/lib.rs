@@ -1594,7 +1594,6 @@ pub mod tests {
   use quickcheck::{
     quickcheck,
     Arbitrary,
-    TestResult,
     Gen,
   };
   use crate::rand::Rng;
@@ -1602,6 +1601,93 @@ pub mod tests {
     Code,
     MultihashDigest,
   };
+  use reqwest::multipart;
+  use tokio::runtime::Runtime;
+
+  pub fn cid(x: &Ipld) -> Cid {
+    Cid::new_v1(
+      0x71,
+      Code::Blake2b256
+        .digest(DagCborCodec.encode(x).unwrap().into_inner().as_ref()),
+    )
+  }
+
+  pub async fn dag_put(dag: Ipld) -> Result<String, reqwest::Error> {
+    let host = "http://127.0.0.1:5001";
+    let url = format!(
+      "{}{}?{}",
+      host,
+      "/api/v0/dag/put",
+      "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256"
+    );
+    let cbor = DagCborCodec.encode(&dag).unwrap().into_inner();
+    let client = reqwest::Client::new();
+    let form =
+      multipart::Form::new().part("file", multipart::Part::bytes(cbor));
+    let response: serde_json::Value =
+      client.post(url).multipart(form).send().await?.json().await?;
+
+    let ipfs_cid: String = response["Cid"]["/"].as_str().unwrap().to_string();
+    let local_cid: String = cid(&dag).to_string();
+
+    if ipfs_cid == local_cid {
+      Ok(ipfs_cid)
+    }
+    else {
+      panic!("CIDs are different {} != {}", ipfs_cid, local_cid);
+    }
+  }
+
+  pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {
+    let host = "http://127.0.0.1:5001";
+    let url = format!("{}{}?arg={}", host, "/api/v0/block/get", cid);
+    let client = reqwest::Client::new();
+    let response = client.get(url).send().await?.bytes().await?;
+    let ipld = DagCborCodec
+      .decode(ByteCursor::new(response.to_vec()))
+      .expect("invalid ipld cbor.");
+
+    Ok(ipld)
+  }
+
+  async fn async_ipld_ipfs(ipld: Ipld) -> bool {
+    match dag_put(ipld.clone()).await {
+      Ok(cid) => match dag_get(cid.clone()).await {
+        Ok(new_ipld) => {
+          if ipld.clone() == new_ipld.clone() {
+            true
+          }
+          else {
+            eprintln!("Cid: {}", cid);
+            eprintln!("Encoded ipld: {:?}", ipld);
+            eprintln!("Decoded ipld: {:?}", new_ipld);
+            false
+          }
+        }
+        Err(e) => {
+          eprintln!("Error during `dag_get`: {}", e);
+          false
+        }
+      },
+      Err(e) => {
+        eprintln!("Error during `dag_put`: {}", e);
+        false
+      }
+    }
+  }
+
+  fn ipld_ipfs(ipld: Ipld) -> bool {
+    match Runtime::new() {
+      Ok(runtime) => runtime.block_on(async_ipld_ipfs(ipld)),
+      Err(e) => {
+        eprintln!("Error creating runtime: {}", e);
+        false
+      }
+    }
+  }
+
+  #[quickcheck]
+  fn bool_ipfs(b: bool) -> bool { ipld_ipfs(Ipld::Bool(true)) }
 
   pub fn arbitrary_cid(g: &mut Gen) -> Cid {
     let mut bytes: [u8; 32] = [0; 32];
@@ -1678,7 +1764,6 @@ pub mod tests {
         (100, arbitrary_integer()),
         (100, arbitrary_string()),
         (100, arbitrary_bytes()),
-        (100, arbitrary_float()),
         (1, arbitrary_list()),
         (1, arbitrary_stringmap()),
       ])
@@ -1715,7 +1800,14 @@ pub mod tests {
     use libipld::codec::Codec;
     let res2 = libipld::cbor::DagCborCodec.encode(&to_libipld(value1));
     match (res1, res2) {
-      (Ok(vec1), Ok(vec2)) => vec1.into_inner() == vec2,
+      (Ok(vec1), Ok(vec2)) => {
+        let result = vec1.get_ref() == &vec2.clone();
+        if !result {
+          eprintln!("{:?}", vec1.get_ref());
+          eprintln!("{:?}", vec2.clone());
+        }
+        result
+      }
       (Err(_), Err(_)) => true,
       _ => false,
     }
@@ -1754,15 +1846,10 @@ pub mod tests {
   #[quickcheck]
   pub fn ee_string(x: String) -> bool { encode_equivalent(Ipld::String(x)) }
 
-  // overflows stack
   #[quickcheck]
   pub fn ee_list(x: Vec<Ipld>) -> bool { encode_equivalent(Ipld::List(x)) }
 
-  // fails on weird unicode values
-  // #[quickcheck]
-  //  pub fn ee_string_map(x: BTreeMap<String, Ipld>) -> bool {
-  //  encode_equivalent(Ipld::StringMap(x))
-  // }
+  // No ee_map because implementation is changed
 
   #[quickcheck]
   pub fn ee_link(x: ACid) -> bool { encode_equivalent(Ipld::Link(x.0)) }
@@ -1778,10 +1865,6 @@ pub mod tests {
     let number = if sign { x as i128 } else { -(x as i128 - 1) };
     encode_decode_id(Ipld::Integer(number))
   }
-
-  // times out/runs for over 60 seconds
-  // #[quickcheck]
-  // pub fn edid_float(x: f64) -> bool { encode_decode_id(Ipld::Float(x)) }
 
   #[quickcheck]
   pub fn edid_bytes(x: Vec<u8>) -> bool { encode_decode_id(Ipld::Bytes(x)) }
