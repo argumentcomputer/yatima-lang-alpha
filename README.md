@@ -57,7 +57,7 @@ On an implementation level:
 - The `hashexpr` content-addressing schema is an adaptation of IPFS' [Multiformats](https://multiformats.io/) and [IPLD](https://docs.ipld.io/) to align with [Rivest's Canonical S-exprssions](https://people.csail.mit.edu/rivest/Sexp.txt) rather than JSON.
 
 
-Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org) or on the [Yatima subreddit] (https://www.reddit.com/r/yatima/)
+Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org) or on the [Yatima subreddit](https://www.reddit.com/r/yatima/)
 
 ## Build Instructions:
 
