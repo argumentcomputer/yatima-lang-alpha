@@ -184,7 +184,7 @@ impl Repl for WebRepl {
   fn get_store(&self) -> Rc<dyn Store> {
     self.store.clone()
   }
-  
+
   fn println(&self, s: String) {
     self.terminal.writeln(s.as_str());
   }
