@@ -4,7 +4,7 @@ let
   # default nixpkgs
   pkgs = import sources.nixpkgs { };
 
-  # gitignore.nix 
+  # gitignore.nix
   gitignoreSource = (import sources."gitignore.nix" { inherit (pkgs) lib; }).gitignoreSource;
 
   pre-commit-hooks = (import sources."pre-commit-hooks.nix");

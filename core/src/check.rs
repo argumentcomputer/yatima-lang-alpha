@@ -349,7 +349,7 @@ pub fn infer(
             Some(ind) => {
               let induction = DAG::from_term_inner(
                 &ind,
-                0,
+                ctx.len() as u64,
                 VecDeque::new(),
                 Some(root),
                 None,

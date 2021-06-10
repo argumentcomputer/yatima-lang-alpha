@@ -53,7 +53,7 @@ pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {
 
 #[cfg(test)]
 mod tests {
-
+  #[ignore]
   #[tokio::test]
   async fn test_get_boolya() {
     let cid_val = "bafyreibw2xnwsgg2t27zym4guigko5neeostr6a5a2i6i3v3cl3mv6d5n4";

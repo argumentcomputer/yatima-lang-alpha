@@ -145,8 +145,8 @@ impl I8Op {
 
   pub fn type_of(self) -> Term {
     match self {
-      Self::Abs => yatima!("#I8 -> #U8"),
-      Self::Sgn => yatima!("#I8 -> #Bool"),
+      Self::Abs => yatima!("∀ #I8 -> #U8"),
+      Self::Sgn => yatima!("∀ #I8 -> #Bool"),
       Self::Max => yatima!("#I8"),
       Self::Min => yatima!("#I8"),
       Self::Eql => yatima!("∀ #I8 #I8 -> #Bool"),
