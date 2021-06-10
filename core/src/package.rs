@@ -6,7 +6,10 @@ use crate::{
 };
 
 use cid::Cid;
-use sp_ipld::Ipld;
+use sp_ipld::{
+  dag_cbor::cid,
+  Ipld,
+};
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
@@ -74,7 +77,7 @@ impl Entry {
     }
   }
 
-  pub fn cid(&self) -> Cid { crate::cid::cid(&self.to_ipld()) }
+  pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 }
 
 impl Index {
@@ -207,7 +210,7 @@ impl Package {
     }
   }
 
-  pub fn cid(&self) -> Cid { crate::cid::cid(&self.to_ipld()) }
+  pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 }
 
 #[cfg(test)]

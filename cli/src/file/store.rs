@@ -2,9 +2,12 @@ use directories_next::ProjectDirs;
 
 use cid::Cid;
 use sp_ipld::{
+  dag_cbor::{
+    cid,
+    DagCborCodec,
+  },
   ByteCursor,
   Codec,
-  DagCborCodec,
   Ipld,
 };
 use std::{
@@ -76,7 +79,7 @@ pub fn get(link: Cid) -> Option<Ipld> {
 
 pub fn put(expr: Ipld) -> Cid {
   let dir = hashspace_directory();
-  let link = yatima_core::cid::cid(&expr);
+  let link = cid(&expr);
   let path = dir.as_path().join(Path::new(&link.to_string()));
   fs::write(path, DagCborCodec.encode(&expr).unwrap().into_inner())
     .unwrap_or_else(|_| {

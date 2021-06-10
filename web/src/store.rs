@@ -1,10 +1,9 @@
 use cid::Cid;
 use sp_ipld::{
+  dag_cbor,
   Codec,
-  DagCborCodec,
   Ipld,
 };
-use yatima_core::cid::cid;
 use yatima_utils::store::Store;
 
 #[derive(Debug, Clone)]
@@ -22,6 +21,6 @@ impl Store for WebStore {
 
   fn put(&self, expr: Ipld) -> Cid {
     // TODO
-    cid(&Ipld::Null)
+    dag_cbor::cid(&Ipld::Null)
   }
 }

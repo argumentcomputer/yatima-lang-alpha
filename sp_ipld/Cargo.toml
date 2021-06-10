@@ -8,13 +8,14 @@ edition = "2018"
 [dependencies]
 sp-std = { version = "3", default-features = false }
 cid =  "0.6.1"
+multihash = {version = "0.13.2", default-features = false }
 byteorder = { version = "1", default-features = false }
 
 [dev-dependencies]
 quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
-libipld = { version = "0.11.0", features = ["dag-cbor"] }
+libipld = { version = "0.11.0", default-features = false, features = ["dag-cbor"] }
 tokio = { version = "1.5", features = ["rt", "macros", "rt-multi-thread"] }
 reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
 serde_json = { version = "1.0" }

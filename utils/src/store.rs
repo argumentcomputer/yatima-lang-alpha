@@ -1,13 +1,5 @@
 use cid::Cid;
-use multihash::{
-  Code,
-  MultihashDigest,
-};
-use sp_ipld::{
-  Codec,
-  DagCborCodec,
-  Ipld,
-};
+use sp_ipld::Ipld;
 
 /// This trait describes the interations with
 /// externaly stored IPLD structures.

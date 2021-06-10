@@ -24,8 +24,8 @@ use multihash::{
   MultihashDigest,
 };
 use sp_ipld::{
+  dag_cbor::DagCborCodec,
   Codec,
-  DagCborCodec,
 };
 use std::rc::Rc;
 

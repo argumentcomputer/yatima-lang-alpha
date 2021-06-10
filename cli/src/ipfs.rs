@@ -4,12 +4,14 @@ use reqwest::{
 };
 use serde_json;
 use sp_ipld::{
+  dag_cbor::{
+    cid,
+    DagCborCodec,
+  },
   ByteCursor,
   Codec,
-  DagCborCodec,
   Ipld,
 };
-use yatima_core::cid::cid;
 
 pub async fn dag_put(dag: Ipld) -> Result<String, reqwest::Error> {
   let host = "http://127.0.0.1:5001";
@@ -40,10 +42,11 @@ pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {
   let host = "http://127.0.0.1:5001";
   let url = format!("{}{}?arg={}", host, "/api/v0/block/get", cid);
   let client = reqwest::Client::new();
-  let response = client.get(url).send().await?.bytes().await?;
-  let ipld = DagCborCodec
-    .decode(ByteCursor::new(response.to_vec()))
-    .expect("invalid ipld cbor.");
+  let response = client.post(url).send().await?.bytes().await?;
+  let response = response.to_vec();
+  println!("response: {:?}", response);
+  let ipld =
+    DagCborCodec.decode(ByteCursor::new(response)).expect("invalid ipld cbor.");
 
   Ok(ipld)
 }

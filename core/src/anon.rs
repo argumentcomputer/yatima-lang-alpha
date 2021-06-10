@@ -1,6 +1,9 @@
 use crate::ipld_error::IpldError;
 use cid::Cid;
-use sp_ipld::Ipld;
+use sp_ipld::{
+  dag_cbor::cid,
+  Ipld,
+};
 
 use crate::{
   literal::{
@@ -85,7 +88,7 @@ impl Anon {
     }
   }
 
-  pub fn cid(&self) -> Cid { crate::cid::cid(&self.to_ipld()) }
+  pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
