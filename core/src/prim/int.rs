@@ -1,8 +1,8 @@
-use libipld::ipld::Ipld;
 use num_bigint::{
   BigInt,
   Sign,
 };
+use sp_ipld::Ipld;
 
 use std::fmt;
 

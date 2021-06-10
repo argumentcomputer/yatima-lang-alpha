@@ -1,5 +1,5 @@
-use libipld::ipld::Ipld;
 use num_bigint::BigUint;
+use sp_ipld::Ipld;
 
 use std::fmt;
 

@@ -2,7 +2,12 @@
 name = "yatima_core"
 description = "The core evaluation, typechecking and content-addressing infrastructure of the Yatima Language"
 version = "0.1.0"
-authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
+authors = [
+    "John C. Burnham <john@yatima.io>",
+    "Anders C. Sørby <anders@yatima.io>",
+    "Gabriel Barreto <gabriel@yatima.io>",
+    "Samuel Burnham <sam@yatima.io>",
+]
 edition = "2018"
 
 [lib]
@@ -18,8 +23,7 @@ base-x = {version = "0.2.8", default-features = false}
 multibase = {version = "0.9.1", default-features = false}
 nom_locate = {git = "https://github.com/yatima-inc/nom_locate", branch = "master"}
 ropey = {git = "https://github.com/yatima-inc/ropey", branch = "master"}
-
-libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
+sp-ipld = { path = "../sp_ipld" }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

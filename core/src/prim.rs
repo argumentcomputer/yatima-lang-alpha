@@ -18,7 +18,7 @@ pub mod u8;
 
 use std::fmt;
 
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use crate::{
   ipld_error::IpldError,

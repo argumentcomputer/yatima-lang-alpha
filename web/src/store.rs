@@ -1,22 +1,16 @@
-use libipld::{
-  cid::Cid,
-  cbor::DagCborCodec,
-  codec::Codec,
-  ipld::Ipld,
+use cid::Cid;
+use sp_ipld::{
+  dag_cbor,
+  Codec,
+  Ipld,
 };
-use yatima_core::cid::cid;
-use yatima_utils::{
-  store::{Store},
-};
-
+use yatima_utils::store::Store;
 
 #[derive(Debug, Clone)]
 pub struct WebStore {}
 
 impl WebStore {
-  pub fn new() -> Self {
-    WebStore {}
-  }
+  pub fn new() -> Self { WebStore {} }
 }
 
 impl Store for WebStore {
@@ -27,7 +21,6 @@ impl Store for WebStore {
 
   fn put(&self, expr: Ipld) -> Cid {
     // TODO
-    cid(&Ipld::Null)
+    dag_cbor::cid(&Ipld::Null)
   }
 }
-
