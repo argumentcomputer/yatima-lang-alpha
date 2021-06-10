@@ -1,3 +1,3 @@
 pub mod repl;
-pub mod utils;
 pub mod store;
+pub mod utils;

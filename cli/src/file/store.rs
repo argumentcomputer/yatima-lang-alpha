@@ -1,10 +1,14 @@
 use directories_next::ProjectDirs;
 
-use libipld::{
-  cid::Cid,
-  cbor::DagCborCodec,
-  codec::Codec,
-  ipld::Ipld,
+use cid::Cid;
+use sp_ipld::{
+  dag_cbor::{
+    cid,
+    DagCborCodec,
+  },
+  ByteCursor,
+  Codec,
+  Ipld,
 };
 use std::{
   fs,
@@ -13,9 +17,7 @@ use std::{
     PathBuf,
   },
 };
-use yatima_utils::store::{
-  Store,
-};
+use yatima_utils::store::Store;
 
 pub fn hashspace_directory() -> PathBuf {
   let proj_dir =
@@ -70,22 +72,24 @@ pub fn get(link: Cid) -> Option<Ipld> {
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file: Vec<u8> = fs::read(path).ok()?;
   // println!("file {:?}", file);
-  let res: Ipld = DagCborCodec.decode(&file).expect("valid cbor bytes");
+  let res: Ipld =
+    DagCborCodec.decode(ByteCursor::new(file)).expect("valid cbor bytes");
   Some(res)
 }
 
 pub fn put(expr: Ipld) -> Cid {
   let dir = hashspace_directory();
-  let link = yatima_core::cid::cid(&expr);
+  let link = cid(&expr);
   let path = dir.as_path().join(Path::new(&link.to_string()));
-  fs::write(path, DagCborCodec.encode(&expr).unwrap()).unwrap_or_else(|_| {
-    panic!(
+  fs::write(path, DagCborCodec.encode(&expr).unwrap().into_inner())
+    .unwrap_or_else(|_| {
+      panic!(
     "Error: cannot write to hashspace path {}. \
      Please open an issue at \
      \"https://github.com/yatima-inc/yatima/issues\" \
      if you see this message",
     link)
-  });
+    });
   link
 }
 
@@ -93,17 +97,11 @@ pub fn put(expr: Ipld) -> Cid {
 pub struct FileStore {}
 
 impl FileStore {
-  pub fn new() -> Self {
-    FileStore {}
-  }
+  pub fn new() -> Self { FileStore {} }
 }
 
 impl Store for FileStore {
-  fn get(&self, link: Cid) -> Option<Ipld> {
-    get(link)
-  }
+  fn get(&self, link: Cid) -> Option<Ipld> { get(link) }
 
-  fn put(&self, expr: Ipld) -> Cid {
-    put(expr)
-  }
+  fn put(&self, expr: Ipld) -> Cid { put(expr) }
 }

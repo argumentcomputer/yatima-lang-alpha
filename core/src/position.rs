@@ -4,7 +4,7 @@ use crate::{
 };
 
 use cid::Cid;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use std::{
   convert::TryInto,

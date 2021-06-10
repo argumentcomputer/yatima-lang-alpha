@@ -8,7 +8,6 @@ extern crate rand;
 
 pub mod anon;
 pub mod check;
-pub mod cid;
 pub mod dag;
 pub mod defs;
 pub mod dll;
@@ -30,7 +29,7 @@ pub mod uses;
 
 #[cfg(test)]
 pub mod tests {
-  use libipld::Cid;
+  use cid::Cid;
   use multihash::{
     Code,
     MultihashDigest,

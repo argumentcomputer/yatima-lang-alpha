@@ -27,7 +27,7 @@ use std::{
   rc::Rc,
 };
 
-use libipld::Cid;
+use cid::Cid;
 use nom::{
   self,
   branch::alt,

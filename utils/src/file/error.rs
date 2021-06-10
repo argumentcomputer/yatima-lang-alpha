@@ -1,4 +1,4 @@
-use libipld::Cid;
+use cid::Cid;
 use yatima_core::{
   self,
   ipld_error::IpldError,

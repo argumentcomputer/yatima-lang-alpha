@@ -1,16 +1,17 @@
 use std::{
   rc::Rc,
-  sync::{Arc, Mutex},
+  sync::{
+    Arc,
+    Mutex,
+  },
 };
+use yatima_core::defs::Defs;
 use yatima_utils::{
   repl::{
-    Repl,
     error::ReplError,
+    Repl,
   },
   store::Store,
-};
-use yatima_core::{
-  defs::Defs,
 };
 // use wasm_bindgen_futures::JsFuture;
 
@@ -18,15 +19,22 @@ use crate::{
   store::WebStore,
   utils,
 };
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use xterm_js_rs::addons::fit::FitAddon;
-use xterm_js_rs::{OnKeyEvent, Terminal, TerminalOptions, Theme};
+use wasm_bindgen::{
+  prelude::*,
+  JsCast,
+};
+use xterm_js_rs::{
+  addons::fit::FitAddon,
+  OnKeyEvent,
+  Terminal,
+  TerminalOptions,
+  Theme,
+};
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
+  #[wasm_bindgen(js_namespace = console)]
+  fn log(s: &str);
 }
 
 #[cfg(feature = "wee_alloc")]
@@ -36,8 +44,8 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 const PROMPT: &str = "⅄ ";
 
 fn prompt(term: &Terminal) {
-    term.writeln("");
-    term.write(PROMPT);
+  term.writeln("");
+  term.write(PROMPT);
 }
 
 // Keyboard keys
@@ -59,7 +67,7 @@ struct WebRepl {
   store: Rc<WebStore>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct ShellState {
   line: String,
   cursor_col: usize,
@@ -67,40 +75,39 @@ struct ShellState {
 
 impl WebRepl {
   pub fn new() -> Self {
-
     let defs = Arc::new(Mutex::new(Defs::new()));
     let terminal: Terminal = Terminal::new(
-        TerminalOptions::new()
-            .with_rows(50)
-            .with_cursor_blink(true)
-            .with_cursor_width(10)
-            .with_font_size(20)
-            .with_draw_bold_text_in_bright_colors(true)
-            .with_right_click_selects_word(true)
-            .with_theme(
-                Theme::new()
-                    .with_foreground("#98FB98")
-                    .with_background("#000000"),
-            ),
+      TerminalOptions::new()
+        .with_rows(50)
+        .with_cursor_blink(true)
+        .with_cursor_width(10)
+        .with_font_size(20)
+        .with_draw_bold_text_in_bright_colors(true)
+        .with_right_click_selects_word(true)
+        .with_theme(
+          Theme::new().with_foreground("#98FB98").with_background("#000000"),
+        ),
     );
 
     let elem = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .get_element_by_id("terminal")
-        .unwrap();
+      .unwrap()
+      .document()
+      .unwrap()
+      .get_element_by_id("terminal")
+      .unwrap();
 
     terminal.writeln("Yatima REPL");
     terminal.writeln("Supported keys in this example:");
-    terminal.writeln(" <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> <Ctrl-C> <Ctrl-L>");
+    terminal.writeln(
+      " <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> \
+       <Ctrl-C> <Ctrl-L>",
+    );
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
     let line = String::new();
     let cursor_col = 0;
     let shell_state = Arc::new(Mutex::new(ShellState { line, cursor_col }));
-
 
     let addon = FitAddon::new();
     terminal.load_addon(addon.clone().dyn_into::<FitAddon>().unwrap().into());
@@ -158,7 +165,11 @@ impl WebRepl {
         cursor_col = 0;
       }
       _ => {
-        if !event.alt_key() && !event.alt_key() && !event.ctrl_key() && !event.meta_key() {
+        if !event.alt_key()
+          && !event.alt_key()
+          && !event.ctrl_key()
+          && !event.meta_key()
+        {
           term.write(&event.key());
           line.push_str(&e.key());
           cursor_col += 1;
@@ -168,26 +179,18 @@ impl WebRepl {
     let mut shell_state = self.shell_state.lock().unwrap();
     *shell_state = ShellState { cursor_col, line }
   }
-
 }
 
 impl Repl for WebRepl {
   fn readline(&mut self, _prompt: &str) -> Result<String, ReplError> {
-
     Ok(self.shell_state.lock().unwrap().clone().line)
   }
 
-  fn get_defs(&self) -> Arc<Mutex<Defs>> {
-    self.defs.clone()
-  }
+  fn get_defs(&self) -> Arc<Mutex<Defs>> { self.defs.clone() }
 
-  fn get_store(&self) -> Rc<dyn Store> {
-    self.store.clone()
-  }
+  fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
-  fn println(&self, s: String) {
-    self.terminal.writeln(s.as_str());
-  }
+  fn println(&self, s: String) { self.terminal.writeln(s.as_str()); }
 
   fn load_history(&mut self) {
     // TODO
@@ -204,25 +207,27 @@ impl Repl for WebRepl {
 
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
-    utils::set_panic_hook();
+  utils::set_panic_hook();
 
-    let mut repl = WebRepl::new();
+  let mut repl = WebRepl::new();
 
-    // let term: Terminal = terminal.clone().dyn_into().unwrap();
-    let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
+  // let term: Terminal = terminal.clone().dyn_into().unwrap();
+  let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
 
-    let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| repl.handle_event(e)) as Box<dyn FnMut(_)>);
+  let callback =
+    Closure::wrap(
+      Box::new(move |e: OnKeyEvent| repl.handle_event(e)) as Box<dyn FnMut(_)>
+    );
 
-    terminal.on_key(callback.as_ref().unchecked_ref());
+  terminal.on_key(callback.as_ref().unchecked_ref());
 
-    callback.forget();
+  callback.forget();
 
-    Ok(())
+  Ok(())
 }
 
 #[wasm_bindgen]
-pub fn run_repl_line(line: &str) {
-}
+pub fn run_repl_line(line: &str) {}
 
 #[wasm_bindgen]
 pub fn parse_source(source: &str) {

@@ -1,20 +1,18 @@
 use std::{
-  rc::Rc,
   path::PathBuf,
+  rc::Rc,
 };
 
 use structopt::StructOpt;
+use yatima_cli::{
+  file::store::FileStore,
+  ipfs,
+  repl,
+};
+use yatima_core::name::Name;
 use yatima_utils::{
   file,
   store::Store,
-};
-use yatima_cli::{
-  ipfs,
-  repl,
-  file::store::FileStore,
-};
-use yatima_core::{
-  name::Name,
 };
 
 #[derive(Debug, StructOpt)]
@@ -88,12 +86,12 @@ async fn main() -> std::io::Result<()> {
       let (cid, p, d) = file::parse::parse_file(env);
       store.put(p.to_ipld());
 
-      let ipld_cid =
-        if !no_ipfs {
-          ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
-        } else {
-          "Not using ipfs".to_string()
-        };
+      let ipld_cid = if !no_ipfs {
+        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
+      }
+      else {
+        "Not using ipfs".to_string()
+      };
       println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
       println!("{}", d);
       Ok(())

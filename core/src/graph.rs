@@ -1,3 +1,4 @@
+use cid::Cid;
 use petgraph::{
   dot::Dot,
   graph::{
@@ -19,7 +20,6 @@ use crate::{
   uses::Uses,
 };
 use core::ptr::NonNull;
-use libipld::Cid;
 use std::collections::HashMap;
 
 use std::fmt;
