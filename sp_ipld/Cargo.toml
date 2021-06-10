@@ -15,7 +15,6 @@ byteorder = { version = "1", default-features = false }
 quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
-libipld = { version = "0.11.0", default-features = false, features = ["dag-cbor"] }
 tokio = { version = "1.5", features = ["rt", "macros", "rt-multi-thread"] }
 reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
 serde_json = { version = "1.0" }

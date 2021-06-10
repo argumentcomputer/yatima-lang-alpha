@@ -7,8 +7,6 @@ extern crate quickcheck;
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 #[cfg(test)]
-extern crate libipld;
-#[cfg(test)]
 extern crate rand;
 
 pub mod bytecursor;
