@@ -17,14 +17,17 @@ use nom::{
   IResult,
   InputLength,
 };
-use std::{
+
+use sp_std::{
   cmp::Ordering,
-  collections::VecDeque,
+  collections::vec_deque::VecDeque,
   fmt,
   fmt::Write,
   num::ParseIntError,
-  string::String,
+  vec::Vec,
 };
+
+use alloc::string::String;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseErrorKind {

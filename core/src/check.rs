@@ -16,18 +16,23 @@ use crate::{
   yatima,
 };
 
-use std::collections::{
-  HashMap,
-  VecDeque,
-};
 
 use cid::Cid;
 
 use core::ptr::NonNull;
-use std::collections::HashSet;
+
+use alloc::string::ToString;
+use sp_std::{
+  collections::{
+    vec_deque::VecDeque,
+    btree_map::BTreeMap,
+    btree_set::BTreeSet,
+  },
+  borrow::ToOwned,
+};
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
-  let mut map = HashMap::new();
+  let mut map = BTreeMap::new();
   DAG::dag_ptr_to_term(&dag, &mut map, dep, true).embed().0.cid()
 }
 
@@ -35,7 +40,7 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
   a.whnf(defs);
   b.whnf(defs);
   let mut triples = vec![(a.head, b.head, dep)];
-  let mut set: HashSet<(Cid, Cid)> = HashSet::new();
+  let mut set: BTreeSet<(Cid, Cid)> = BTreeSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
@@ -158,7 +163,7 @@ pub fn check(
         DAGPtr::Slf(slf_link) => {
           let Slf { var, bod: slf_bod, .. } =
             unsafe { &mut *slf_link.as_ptr() };
-          let mut map = HashMap::new();
+          let mut map = BTreeMap::new();
           if var.parents.is_some() {
             map.insert(
               DAGPtr::Var(NonNull::new(var).unwrap()),
@@ -286,7 +291,7 @@ pub fn infer(
             unsafe { &mut *link.as_ptr() };
           let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
           check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
-          let mut map = HashMap::new();
+          let mut map = BTreeMap::new();
           if var.parents.is_some() {
             map.insert(
               DAGPtr::Var(NonNull::new(var).unwrap()),
@@ -319,7 +324,7 @@ pub fn infer(
       match exp_typ.head {
         DAGPtr::Slf(link) => {
           let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
-          let mut map = HashMap::new();
+          let mut map = BTreeMap::new();
           if var.parents.is_some() {
             map.insert(
               DAGPtr::Var(NonNull::new(var).unwrap()),

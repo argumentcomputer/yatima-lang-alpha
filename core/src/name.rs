@@ -1,8 +1,12 @@
-use std::{
+use sp_std::{
   borrow::Borrow,
   fmt,
   ops::Deref,
   rc::Rc,
+};
+
+use alloc::{
+  string::{String, ToString},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]

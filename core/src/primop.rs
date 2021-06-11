@@ -1,5 +1,4 @@
 // use cid::Cid;
-// use std::convert::TryInto;
 
 use libipld::ipld::Ipld;
 
@@ -19,7 +18,14 @@ use num_bigint::{
   Sign,
 };
 
-use std::fmt;
+#[macro_use]
+use sp_std::{
+  fmt,
+  borrow::ToOwned,
+  vec::Vec,
+};
+
+use alloc::string::String;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum PrimOp {

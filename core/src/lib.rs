@@ -1,3 +1,7 @@
+#![no_std]
+#[macro_use]
+extern crate alloc;
+
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]
@@ -49,7 +53,7 @@ pub mod tests {
 
   pub fn frequency<T, F: Fn(&mut Gen) -> T>(
     g: &mut Gen,
-    gens: Vec<(i64, F)>,
+    gens: sp_std::vec::Vec<(i64, F)>,
   ) -> T {
     if gens.iter().any(|(v, _)| *v < 0) {
       panic!("Negative weight");

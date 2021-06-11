@@ -7,7 +7,12 @@ use crate::{
   upcopy::*,
 };
 
-use std::collections::VecDeque;
+use sp_std::{
+  collections::vec_deque::VecDeque,
+  vec::Vec,
+};
+
+use alloc::string::String;
 
 enum Single {
   Lam(Var),

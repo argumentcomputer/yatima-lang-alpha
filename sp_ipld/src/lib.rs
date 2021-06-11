@@ -110,12 +110,15 @@ pub mod tests {
     }
   }
 
+  #[ignore]
   #[quickcheck]
   fn null_ipfs() -> bool { ipld_ipfs(Ipld::Null) }
 
+  #[ignore]
   #[quickcheck]
   fn bool_ipfs(b: bool) -> bool { ipld_ipfs(Ipld::Bool(b)) }
 
+  #[ignore]
   #[quickcheck]
   fn string_ipfs(x: String) -> bool { ipld_ipfs(Ipld::String(x)) }
 
@@ -126,7 +129,8 @@ pub mod tests {
   impl Arbitrary for AInt {
     fn arbitrary(g: &mut Gen) -> Self { AInt(arbitrary_i128()(g)) }
   }
-
+  
+  #[ignore]
   #[test]
   fn integers_ipfs() {
     assert!(ipld_ipfs(Ipld::Integer(0i128)));
@@ -135,9 +139,11 @@ pub mod tests {
     assert!(ipld_ipfs(Ipld::Integer(i64::MAX as i128 + 1)));
   }
 
+  #[ignore]
   #[quickcheck]
   fn integer_ipfs(x: AInt) -> bool { ipld_ipfs(Ipld::Integer(x.0)) }
 
+  #[ignore]
   #[quickcheck]
   fn ipfs(x: Ipld) -> bool { ipld_ipfs(x) }
 }

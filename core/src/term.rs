@@ -14,7 +14,15 @@ pub use crate::{
 
 use cid::Cid;
 
-use std::fmt;
+use sp_std::{
+  fmt,
+  boxed::Box,
+  borrow::ToOwned,
+};
+
+use alloc::{
+  string::{String, ToString},
+};
 
 #[derive(Clone, Debug)]
 pub enum Term {
@@ -424,7 +432,11 @@ pub mod tests {
   };
   use rand::Rng;
 
-  use std::collections::VecDeque;
+  use sp_std::{
+    collections::vec_deque::VecDeque,
+    vec::Vec,
+    boxed::Box,
+  };
 
   use crate::{
     name::Name,

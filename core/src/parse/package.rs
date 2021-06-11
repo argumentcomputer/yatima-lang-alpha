@@ -21,10 +21,12 @@ use crate::{
   term::*,
 };
 
-use std::{
-  collections::VecDeque,
+use sp_std::{
+  collections::vec_deque::VecDeque,
   convert::TryFrom,
   rc::Rc,
+  vec::Vec,
+  borrow::ToOwned,
 };
 
 use nom::{

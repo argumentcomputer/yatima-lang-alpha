@@ -33,6 +33,10 @@ use nom::{
   IResult,
 };
 
+use sp_std::borrow::ToOwned;
+
+use alloc::string::String;
+
 pub fn parse_codepoint(from: Span) -> IResult<Span, char, ParseError<Span>> {
   let (i, _) =
     context("the character 'u' to begin a unicode codepoint", char('u'))(from)?;
@@ -46,7 +50,7 @@ pub fn parse_codepoint(from: Span) -> IResult<Span, char, ParseError<Span>> {
     context("the close brace '}' of a unicode codepoint", char('}'))(i)?;
   let s = s.fragment();
   match u32::from_str_radix(s, 16) {
-    Ok(x) => match std::char::from_u32(x) {
+    Ok(x) => match char::from_u32(x) {
       Some(c) => Ok((i, c)),
       _ => Err(Err::Error(ParseError::new(
         i,

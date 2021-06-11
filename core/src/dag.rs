@@ -16,15 +16,19 @@ use crate::{
 };
 
 use core::ptr::NonNull;
-use std::{
+
+use sp_std::{
   collections::{
-    HashMap,
-    HashSet,
-    VecDeque,
+    vec_deque::VecDeque,
+    btree_map::BTreeMap,
+    btree_set::BTreeSet,
   },
   fmt,
   mem,
+  boxed::Box,
 };
+
+use alloc::string::String;
 
 use cid::Cid;
 
@@ -33,7 +37,7 @@ pub struct DAG {
 }
 
 // A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DAGPtr {
   Var(NonNull<Var>),
   Lam(NonNull<Lam>),
@@ -638,7 +642,7 @@ impl DAG {
 
   pub fn dag_ptr_to_term(
     node: &DAGPtr,
-    map: &mut HashMap<*mut Var, u64>,
+    map: &mut BTreeMap<*mut Var, u64>,
     depth: u64,
     re_rec: bool,
   ) -> Term {
@@ -767,7 +771,7 @@ impl DAG {
   }
 
   pub fn to_term(&self, re_rec: bool) -> Term {
-    let mut map = HashMap::new();
+    let mut map = BTreeMap::new();
     DAG::dag_ptr_to_term(&self.head, &mut map, 0, re_rec)
   }
 
@@ -1039,7 +1043,7 @@ impl DAG {
 
   pub fn from_subdag(
     node: DAGPtr,
-    map: &mut HashMap<DAGPtr, DAGPtr>,
+    map: &mut BTreeMap<DAGPtr, DAGPtr>,
     parents: Option<NonNull<Parents>>,
   ) -> DAGPtr {
     // If the node is in the hash map then it was already copied,
@@ -1206,7 +1210,7 @@ impl DAG {
 
 impl Clone for DAG {
   fn clone(&self) -> Self {
-    let mut map: HashMap<DAGPtr, DAGPtr> = HashMap::new();
+    let mut map: BTreeMap<DAGPtr, DAGPtr> = BTreeMap::new();
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
     DAG::new(DAG::from_subdag(self.head, &mut map, Some(root)))
   }
@@ -1249,7 +1253,7 @@ impl fmt::Debug for DAG {
         _ => String::from("[]"),
       }
     }
-    fn go(term: DAGPtr, set: &mut HashSet<usize>) -> String {
+    fn go(term: DAGPtr, set: &mut BTreeSet<usize>) -> String {
       match term {
         DAGPtr::Var(link) => {
           let Var { nam, parents, binder, dep, .. } = unsafe { link.as_ref() };
@@ -1456,7 +1460,7 @@ impl fmt::Debug for DAG {
         }
       }
     }
-    write!(f, "{}", go(self.head, &mut HashSet::new()))
+    write!(f, "{}", go(self.head, &mut BTreeSet::new()))
   }
 }
 

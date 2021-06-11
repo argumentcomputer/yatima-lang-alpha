@@ -6,6 +6,13 @@ use crate::{
 use cid::Cid;
 use sp_ipld::Ipld;
 
+use sp_std::{
+  boxed::Box,
+  borrow::ToOwned,
+};
+
+use alloc::string::ToString;
+
 #[derive(PartialEq, Clone, Debug)]
 pub enum Meta {
   Var(Pos, Name),

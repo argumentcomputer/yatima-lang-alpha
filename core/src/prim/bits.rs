@@ -1,6 +1,12 @@
 use num_bigint::BigUint;
 use sp_ipld::Ipld;
-use std::fmt;
+use sp_std::{
+  fmt,
+  vec::Vec,
+  borrow::ToOwned,
+};
+
+use alloc::string::String;
 
 use crate::{
   ipld_error::IpldError,

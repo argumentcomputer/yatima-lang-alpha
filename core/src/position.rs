@@ -6,10 +6,13 @@ use crate::{
 use cid::Cid;
 use sp_ipld::Ipld;
 
-use std::{
+use sp_std::{
   convert::TryInto,
   fmt,
+  borrow::ToOwned,
 };
+
+use alloc::string::String;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Position {

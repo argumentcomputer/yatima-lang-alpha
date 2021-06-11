@@ -11,6 +11,15 @@ use sp_ipld::{
   Ipld,
 };
 
+use sp_std::{
+  vec::Vec,
+  borrow::ToOwned,
+};
+
+use alloc::{
+  string::{String, ToString},
+};
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
   pub pos: Pos,

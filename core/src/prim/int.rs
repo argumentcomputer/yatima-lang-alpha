@@ -4,7 +4,12 @@ use num_bigint::{
 };
 use sp_ipld::Ipld;
 
-use std::fmt;
+use sp_std::{
+  fmt,
+  borrow::ToOwned,
+};
+
+use alloc::string::String;
 
 use crate::{
   ipld_error::IpldError,

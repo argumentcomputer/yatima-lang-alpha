@@ -27,7 +27,16 @@ use sp_ipld::{
   dag_cbor::DagCborCodec,
   Codec,
 };
-use std::rc::Rc;
+use sp_std::{
+  rc::Rc,
+  vec::Vec,
+  boxed::Box,
+  borrow::ToOwned,
+};
+
+use alloc::{
+  string::{String, ToString},
+};
 
 use crate::parse::span::Span;
 
@@ -65,7 +74,7 @@ use nom::{
   Err,
   IResult,
 };
-use std::collections::VecDeque;
+use sp_std::collections::vec_deque::VecDeque;
 
 type Ctx = Rc<VecDeque<Name>>;
 
@@ -942,7 +951,7 @@ macro_rules! yatima {
   ($i:literal, $($q: expr),*) => {{
     let mut quasi = Vec::new();
     $(quasi.push($q);)*
-    crate::parse::term::parse_quasi($i, crate::defs::Defs::new(), std::collections::VecDeque::from(quasi)).unwrap().1
+    crate::parse::term::parse_quasi($i, crate::defs::Defs::new(), sp_std::collections::vec_deque::VecDeque::from(quasi)).unwrap().1
   }}
 }
 

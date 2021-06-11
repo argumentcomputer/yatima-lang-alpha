@@ -16,7 +16,12 @@ pub mod u32;
 pub mod u64;
 pub mod u8;
 
-use std::fmt;
+use sp_std::{
+  fmt,
+  borrow::ToOwned,
+};
+
+use alloc::string::String;
 
 use sp_ipld::Ipld;
 
@@ -216,7 +221,7 @@ impl Op {
       Self::I32(op) => op.apply2(x, y),
       Self::I64(op) => op.apply2(x, y),
       // Self::I128(op) => op.apply2(x, y),
-      _ => None,
+      //_ => None,
     }
   }
 
