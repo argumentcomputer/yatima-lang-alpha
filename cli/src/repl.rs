@@ -38,7 +38,7 @@ impl RustyLineRepl {
     let mut rl = Editor::<()>::with_config(config);
     rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
     rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
-    let store = Rc::new(FileStore {});
+    let store = Rc::new(FileStore::new());
     RustyLineRepl {
       rl: rl,
       defs: Arc::new(Mutex::new(Defs::new())),

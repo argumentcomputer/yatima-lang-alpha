@@ -12,6 +12,7 @@ use web_sys::{
   Storage,
   Window,
 };
+use multiaddr::Multiaddr;
 use yatima_core::cid::cid;
 use yatima_utils::store::Store;
 
@@ -35,7 +36,7 @@ extern "C" {
   pub fn add(this: &Ipfs, data: Vec<u8>);
 
   #[wasm_bindgen(method, js_name = "get")]
-  pub fn get(this: &Ipfs, link: &str);
+  pub fn get(this: &Ipfs, link: &str) -> JsValue;
 }
 
 impl WebStore {
@@ -51,15 +52,23 @@ impl WebStore {
 }
 
 impl Store for WebStore {
+  fn get_by_multiaddr(&self, addr: Multiaddr) -> Result<Ipld, String> {
+    self.ipfs.get(&addr.to_string());
+    Err("nn".to_owned())
+  }
+
+  fn load_by_name(&self, _path: Vec<&str>) -> Option<Ipld> { None }
+
   fn get(&self, link: Cid) -> Option<Ipld> {
+    log("");
     match self.storage.get(&link.to_string()) {
       Ok(Some(s)) => {
         let bin = base64::decode(s).expect("invalid base64");
         Some(DagCborCodec.decode(&bin).expect("invalid cbor bytes"))
       }
       _ => {
-        self.ipfs.get(&link.to_string());
-        log(&format!("Failed to get {}", link));
+        let res = self.ipfs.get(&link.to_string());
+        log(&format!("Failed to get {} {:?}", link, res));
         None
       }
     }

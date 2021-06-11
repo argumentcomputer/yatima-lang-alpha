@@ -88,13 +88,13 @@ async fn main() -> std::io::Result<()> {
       Ok(())
     }
     Cli::Check { path } => {
-      let store = Rc::new(FileStore {});
-      file::check_all(path, store)?;
+      let store = Rc::new(FileStore::new());
+      file::check_all_in_file(path, store)?;
       Ok(())
     }
     Cli::Run { path } => {
       let root = std::env::current_dir()?;
-      let store = Rc::new(FileStore {});
+      let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
       let (_, p, defs) = file::parse::parse_file(env);
       let _cid = store.put(p.to_ipld());

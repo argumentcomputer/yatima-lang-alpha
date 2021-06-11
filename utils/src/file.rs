@@ -1,31 +1,59 @@
 use libipld::Ipld;
 use std::{
-  rc::Rc,
+  io::{
+    self,
+    Error,
+    ErrorKind,
+  },
   path::PathBuf,
+  rc::Rc,
 };
 use yatima_core::{
   check::error::CheckError,
   defs::Defs,
+  package::Package,
   position::Pos,
 };
 
-use crate::store::{
-  Store,
-};
+use crate::store::{self, Store};
 
 pub mod error;
 pub mod parse;
 
-pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
+pub fn check_all_in_file(
+  path: PathBuf,
+  store: Rc<dyn Store>,
+) -> io::Result<Defs> {
   let root = std::env::current_dir()?;
   let env = parse::PackageEnv::new(root, path, store.clone());
   let (_, p, ds) = parse::parse_file(env);
   let cid = store.put(p.to_ipld());
-  // let _ipld_cid =
-  //  ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
   println!("Checking package {} at {}", p.name, cid);
+  check_all(p, ds, store).map_err(|e| Error::new(ErrorKind::Other, e))
+}
+
+
+pub fn check_all_in_ipld(
+  ipld: Ipld,
+  store: Rc<dyn Store>,
+) -> Result<Defs, String> {
+  // let root = std::env::current_dir()?;
+  // let env = parse::PackageEnv::new(root, path, store.clone());
+  // let (_, p, ds) = parse::parse_file(env);
+  // let cid = store.put(p.to_ipld());
+  let p = Package::from_ipld(&ipld)?;
+  let ds = store::load_package_defs(store.clone(), p.clone())?;
+  println!("Checking package {} at {}", p.name, p.cid());
+  check_all(p, ds, store)
+}
+
+pub fn check_all(
+  p: Package,
+  ds: Defs,
+  store: Rc<dyn Store>,
+) -> Result<Defs, String> {
   for i in &p.imports {
-    println!("Checking import  {} at {}", i.name, i.cid);
+    println!("Checking import {} at {}", i.name, i.cid);
     for n in &i.with {
       match yatima_core::check::check_def(
         &ds,

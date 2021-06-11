@@ -6,13 +6,13 @@ use yatima_core::{
   name::Name,
   package::Entry,
   parse::{
-    package::{
-      parse_entry,
-      parse_link,
-    },
     error::{
       ParseError,
       ParseErrorKind,
+    },
+    package::{
+      parse_entry,
+      parse_link,
     },
     span::Span,
     term::{
@@ -30,22 +30,31 @@ use crate::file::{
   error::FileError,
 };
 
+use multiaddr::Multiaddr;
 use std::{
   collections::VecDeque,
   rc::Rc,
+  convert::TryFrom,
 };
 
 use libipld::Cid;
 use nom::{
   self,
-  Err,
   branch::alt,
   bytes::complete::{
     tag,
     take_till1,
   },
+  Err,
   IResult,
 };
+
+/// A
+#[derive(Debug, Clone)]
+pub enum Reference {
+  FileName(Name),
+  Multiaddr(Multiaddr),
+}
 
 pub enum Command {
   Eval(Box<Term>),
@@ -53,9 +62,9 @@ pub enum Command {
   Browse,
   // Help,
   Define(Box<(Name, Def, Entry)>),
-  Show { typ_ : String, link: Cid },
+  Show { typ_: String, link: Cid },
   // Type,
-  Load(Name),
+  Load(Reference),
   // Import,
   Quit,
 }
@@ -122,30 +131,45 @@ pub fn parse_browse() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>
   }
 }
 
+pub fn parse_multiaddr(
+  from: Span,
+) -> IResult<Span, Multiaddr, ParseError<Span>> {
+  let (i, s) = take_till1(|x| char::is_whitespace(x))(from)?;
+  let s: String = String::from(s.fragment().to_owned());
+  match Multiaddr::try_from(s) {
+    Ok(addr) => Ok((i, addr)),
+    Err(e) => {
+      Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(e.to_string()))))
+    }
+  }
+}
+
 pub fn parse_load() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
 {
   move |i: Span| {
     let (i, _) = alt((tag(":load"), tag(":l")))(i)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
-    let (i, name) = parse_name(i).map_err(error::convert)?;
-    Ok((i, Command::Load(name)))
+    match parse_multiaddr(i).map_err(error::convert) {
+      Ok((i, addr)) => Ok((i, Command::Load(Reference::Multiaddr(addr)))),
+      Err(_e) => {
+        let (i, name) = parse_name(i).map_err(error::convert)?;
+        Ok((i, Command::Load(Reference::FileName(name))))
+      }
+    }
   }
 }
 
-pub fn parse_word(from: Span) -> IResult<Span, String, ParseError<Span>>
-{
-  let (i, s) = take_till1(|x| {
-    char::is_whitespace(x)
-  })(from)?;
+pub fn parse_word(from: Span) -> IResult<Span, String, ParseError<Span>> {
+  let (i, s) = take_till1(|x| char::is_whitespace(x))(from)?;
   let s: String = String::from(s.fragment().to_owned());
 
   if !is_valid_symbol_string(&s) {
     Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(s))))
-  } else {
+  }
+  else {
     Ok((i, s))
   }
 }
-
 
 pub fn parse_show() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
 {

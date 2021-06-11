@@ -13,6 +13,15 @@ pub fn set_panic_hook() {
 
 #[wasm_bindgen]
 extern "C" {
-  #[wasm_bindgen(js_namespace = console)]
-  pub fn log(s: &str);
+  #[wasm_bindgen(js_namespace = console, js_name = "log")]
+  pub fn js_log(s: &str);
+}
+
+/// Logs to js console when compiled with debug
+#[cfg(debug)]
+pub fn log(s: &str) { js_log(s); }
+
+#[cfg(not(debug))]
+pub fn log(_: &str) {
+  // ignore
 }
