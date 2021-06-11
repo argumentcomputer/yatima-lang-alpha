@@ -204,8 +204,8 @@ impl CharOp {
       Ipld::Integer(22) => Ok(Self::LenUTF16),
       Ipld::Integer(23) => Ok(Self::ToAsciiLowercase),
       Ipld::Integer(24) => Ok(Self::ToAsciiUppercase),
-      Ipld::Integer(25) => Ok(Self::ToAsciiLowercase),
-      Ipld::Integer(26) => Ok(Self::ToAsciiUppercase),
+      Ipld::Integer(25) => Ok(Self::ToLowercase),
+      Ipld::Integer(26) => Ok(Self::ToUppercase),
       xs => Err(IpldError::CharOp(xs.to_owned())),
     }
   }
@@ -251,17 +251,13 @@ impl CharOp {
       (Self::IsAlphanumeric, Char(x)) => Some(Bool(x.is_alphanumeric())),
       (Self::IsAscii, Char(x)) => Some(Bool(x.is_ascii())),
       (Self::IsAsciiAlphabetic, Char(x)) => Some(Bool(x.is_ascii_alphabetic())),
-      (Self::IsAsciiAlphanumeric, Char(x)) => {
-        Some(Bool(x.is_ascii_alphanumeric()))
-      }
+      (Self::IsAsciiAlphanumeric, Char(x)) => Some(Bool(x.is_ascii_alphanumeric())),
       (Self::IsAsciiControl, Char(x)) => Some(Bool(x.is_ascii_control())),
       (Self::IsAsciiDigit, Char(x)) => Some(Bool(x.is_ascii_digit())),
       (Self::IsAsciiGraphic, Char(x)) => Some(Bool(x.is_ascii_graphic())),
       (Self::IsAsciiHexDigit, Char(x)) => Some(Bool(x.is_ascii_hexdigit())),
       (Self::IsAsciiLowerCase, Char(x)) => Some(Bool(x.is_ascii_lowercase())),
-      (Self::IsAsciiPunctuation, Char(x)) => {
-        Some(Bool(x.is_ascii_punctuation()))
-      }
+      (Self::IsAsciiPunctuation, Char(x)) => Some(Bool(x.is_ascii_punctuation())),
       (Self::IsAsciiUpperCase, Char(x)) => Some(Bool(x.is_ascii_uppercase())),
       (Self::IsAsciiWhitespace, Char(x)) => Some(Bool(x.is_ascii_whitespace())),
       (Self::IsControl, Char(x)) => Some(Bool(x.is_control())),
@@ -273,12 +269,8 @@ impl CharOp {
       (Self::LenUTF16, Char(x)) => Some(Nat(x.len_utf16().into())),
       (Self::ToAsciiLowercase, Char(x)) => Some(Char(x.to_ascii_lowercase())),
       (Self::ToAsciiUppercase, Char(x)) => Some(Char(x.to_ascii_uppercase())),
-      (Self::ToLowercase, Char(x)) => {
-        Some(Text(x.to_lowercase().to_string().into()))
-      }
-      (Self::ToUppercase, Char(x)) => {
-        Some(Text(x.to_uppercase().to_string().into()))
-      }
+      (Self::ToLowercase, Char(x)) => Some(Text(x.to_lowercase().to_string().into())),
+      (Self::ToUppercase, Char(x)) => Some(Text(x.to_uppercase().to_string().into())),
       _ => None,
     }
   }
@@ -286,7 +278,12 @@ impl CharOp {
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      (Self::IsDigit, Char(x), U32(y)) => Some(Bool(x.is_digit(*y))),
+      // TODO: Hardcoding the maximum radix here is probably bad, not sure how to do it differently though.
+      (Self::IsDigit, Char(x), U32(y)) => if *y > 36 {
+        None
+      } else {
+        Some(Bool(x.is_digit(*y)))
+      },
       _ => None,
     }
   }
@@ -304,12 +301,21 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
+    TestResult
   };
   use rand::Rng;
+  use Literal::{
+    U32,
+    Char,
+    Bool,
+    Nat,
+    Text
+  };
+  use std::mem;
   impl Arbitrary for CharOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..11);
+      let gen: u32 = rng.gen_range(0..=26);
       match gen {
         0 => Self::FromU32,
         1 => Self::ToU32,
@@ -347,6 +353,179 @@ pub mod tests {
     match CharOp::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply(
+    op: CharOp,
+    a: u32,
+    b: char
+  ) -> TestResult {
+    let apply1_u32 = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        CharOp::apply1(
+          op,
+          &U32(a)
+        ) ==
+        expected
+      )
+    };
+
+    let apply1_char = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        CharOp::apply1(
+          op,
+          &Char(b)
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_char_u32 = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        CharOp::apply2(
+          op,
+          &Char(b),
+          &U32(a)
+        ) ==
+        expected
+      )
+    };
+
+    match op {
+      CharOp::FromU32 => apply1_u32(char::from_u32(a).map(Char)),
+      CharOp::ToU32 => apply1_char(Some(U32(b.into()))),
+      CharOp::IsAlphabetic => apply1_char(Some(Bool(b.is_alphabetic()))),
+      CharOp::IsAlphanumeric => apply1_char(Some(Bool(b.is_alphanumeric()))),
+      CharOp::IsAscii => apply1_char(Some(Bool(b.is_ascii()))),
+      CharOp::IsAsciiAlphabetic => apply1_char(Some(Bool(b.is_ascii_alphabetic()))),
+      CharOp::IsAsciiAlphanumeric => apply1_char(Some(Bool(b.is_ascii_alphanumeric()))),
+      CharOp::IsAsciiControl => apply1_char(Some(Bool(b.is_ascii_control()))),
+      CharOp::IsAsciiDigit => apply1_char(Some(Bool(b.is_ascii_digit()))),
+      CharOp::IsAsciiGraphic => apply1_char(Some(Bool(b.is_ascii_graphic()))),
+      CharOp::IsAsciiHexDigit => apply1_char(Some(Bool(b.is_ascii_hexdigit()))),
+      CharOp::IsAsciiLowerCase => apply1_char(Some(Bool(b.is_ascii_lowercase()))),
+      CharOp::IsAsciiPunctuation => apply1_char(Some(Bool(b.is_ascii_punctuation()))),
+      CharOp::IsAsciiUpperCase => apply1_char(Some(Bool(b.is_ascii_uppercase()))),
+      CharOp::IsAsciiWhitespace => apply1_char(Some(Bool(b.is_ascii_whitespace()))),
+      CharOp::IsControl => apply1_char(Some(Bool(b.is_control()))),
+      CharOp::IsDigit => apply2_char_u32(
+        // TODO: Hardcoding the maximum radix here is probably bad, not sure how to do it differently though.
+        if a > 36 {
+          None
+        } else {
+          Some(Bool(b.is_digit(a)))
+        }
+      ),
+      CharOp::IsLowercase => apply1_char(Some(Bool(b.is_lowercase()))),
+      CharOp::IsNumeric => apply1_char(Some(Bool(b.is_numeric()))),
+      CharOp::IsUppercase => apply1_char(Some(Bool(b.is_uppercase()))),
+      CharOp::IsWhitespace => apply1_char(Some(Bool(b.is_whitespace()))),
+      CharOp::LenUTF8 => apply1_char(Some(Nat(b.len_utf8().into()))),
+      CharOp::LenUTF16 => apply1_char(Some(Nat(b.len_utf16().into()))),
+      CharOp::ToAsciiLowercase => apply1_char(Some(Char(b.to_ascii_lowercase()))),
+      CharOp::ToAsciiUppercase => apply1_char(Some(Char(b.to_ascii_uppercase()))),
+      CharOp::ToLowercase => apply1_char(Some(Text(b.to_lowercase().to_string().into()))),
+      CharOp::ToUppercase => apply1_char(Some(Text(b.to_uppercase().to_string().into()))),
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply_none_on_invalid(
+    op: CharOp,
+    a: Literal,
+    b: u32,
+    c: char,
+    test_arg_2: bool,
+  ) -> TestResult {
+    let test_apply1_none_on_invalid = |
+      valid_arg: Literal
+    | -> TestResult {
+      if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
+        TestResult::discard()
+      } else {
+        TestResult::from_bool(
+          CharOp::apply1(
+            op,
+            &a
+          ) ==
+          None
+        )
+      }
+    };
+
+    let test_apply2_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        CharOp::apply2(
+          op,
+          &a_,
+          &b_
+        ) ==
+        None
+      );
+      if test_arg_2 {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      } else {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    match op {
+      // Arity 1, valid is U32.
+      CharOp::FromU32 => test_apply1_none_on_invalid(U32(b)),
+      // Arity 1, valid is Char.
+      CharOp::ToU32 |
+      CharOp::IsAlphabetic |
+      CharOp::IsAlphanumeric |
+      CharOp::IsAscii |
+      CharOp::IsAsciiAlphabetic |
+      CharOp::IsAsciiAlphanumeric |
+      CharOp::IsAsciiControl |
+      CharOp::IsAsciiDigit |
+      CharOp::IsAsciiGraphic |
+      CharOp::IsAsciiHexDigit |
+      CharOp::IsAsciiLowerCase |
+      CharOp::IsAsciiPunctuation |
+      CharOp::IsAsciiUpperCase |
+      CharOp::IsAsciiWhitespace |
+      CharOp::IsControl |
+      CharOp::IsLowercase |
+      CharOp::IsNumeric |
+      CharOp::IsUppercase |
+      CharOp::IsWhitespace |
+      CharOp::LenUTF8 |
+      CharOp::LenUTF16 |
+      CharOp::ToAsciiLowercase |
+      CharOp::ToAsciiUppercase |
+      CharOp::ToLowercase |
+      CharOp::ToUppercase => test_apply1_none_on_invalid(Char(c)),
+      // Arity 2, valid are Char on a and U32 on b.
+      CharOp::IsDigit => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Char(c),
+          a,
+          U32(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          U32(b),
+          Char(c),
+          a
+        )
+      },
     }
   }
 

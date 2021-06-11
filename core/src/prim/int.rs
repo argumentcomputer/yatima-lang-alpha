@@ -149,11 +149,7 @@ impl IntOp {
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
-      (Self::Sgn, Int(x)) => match x.sign() {
-        Sign::NoSign => Some(Int(BigInt::from(0i64))),
-        Sign::Plus => Some(Int(BigInt::from(1i64))),
-        Sign::Minus => Some(Int(BigInt::from(-1i64))),
-      },
+      (Self::Sgn, Int(x)) => Some(Bool(matches!(x.sign(), Sign::Plus))),
       (Self::Abs, Int(x)) => Some(Nat(x.clone().into_parts().1)),
       _ => None,
     }
@@ -165,9 +161,15 @@ impl IntOp {
     let ff = Bool(false);
     let ite = |c| if c { tt } else { ff };
     match (self, x, y) {
+      (Self::New, Bool(x), Nat(y)) => Some(Int(if *x {
+        BigInt::from(y.clone())
+      } else {
+        BigInt::from(y.clone()) * -1
+      })),
       (Self::Eql, Int(x), Int(y)) => Some(ite(x == y)),
-      (Self::Lth, Int(x), Int(y)) => Some(ite(x < y)),
       (Self::Lte, Int(x), Int(y)) => Some(ite(x <= y)),
+      (Self::Lth, Int(x), Int(y)) => Some(ite(x < y)),
+      (Self::Gte, Int(x), Int(y)) => Some(ite(x >= y)),
       (Self::Gth, Int(x), Int(y)) => Some(ite(x > y)),
       (Self::Add, Int(x), Int(y)) => Some(Int(x + y)),
       (Self::Sub, Int(x), Int(y)) => Some(Int(x - y)),
@@ -191,12 +193,23 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
+    TestResult
   };
   use rand::Rng;
+  use Literal::{
+    Int,
+    Bool,
+    Nat
+  };
+  use num_bigint::{
+    BigInt,
+    BigUint
+  };
+  use std::mem;
   impl Arbitrary for IntOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..12);
+      let gen: u32 = rng.gen_range(0..=12);
       match gen {
         0 => Self::New,
         1 => Self::Sgn,
@@ -220,6 +233,164 @@ pub mod tests {
     match IntOp::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply(
+    op: IntOp,
+    a: i64,
+    b: i64,
+    c: bool,
+    d: u64
+  ) -> TestResult {
+    let big_int = BigInt::from;
+    let big_uint = BigUint::from;
+    let apply1_int = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        IntOp::apply1(
+          op,
+          &Int(big_int(a))
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_bool_nat = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        IntOp::apply2(
+          op,
+          &Bool(c),
+          &Nat(big_uint(d))
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_int_int = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        IntOp::apply2(
+          op,
+          &Int(big_int(a)),
+          &Int(big_int(b))
+        ) ==
+        expected
+      )
+    };
+
+    match op {
+      IntOp::New => apply2_bool_nat(Some(Int(if c {
+        BigInt::from(d)
+      } else {
+        BigInt::from(d) * -1
+      }))),
+      IntOp::Sgn => apply1_int(Some(Bool(a.is_positive()))),
+      IntOp::Abs => apply1_int(Some(Nat(BigUint::from(a.unsigned_abs())))),
+      IntOp::Eql => apply2_int_int(Some(Bool(a == b))),
+      IntOp::Lte => apply2_int_int(Some(Bool(a <= b))),
+      IntOp::Lth => apply2_int_int(Some(Bool(a < b))),
+      IntOp::Gte => apply2_int_int(Some(Bool(a >= b))),
+      IntOp::Gth => apply2_int_int(Some(Bool(a > b))),
+      IntOp::Add => apply2_int_int(Some(Int(big_int(a) + big_int(b)))),
+      IntOp::Sub => apply2_int_int(Some(Int(big_int(a) - big_int(b)))),
+      IntOp::Mul => apply2_int_int(Some(Int(big_int(a) * big_int(b)))),
+      IntOp::Div => apply2_int_int(
+          if b != 0 {
+          Some(Int(big_int(a) / big_int(b)))
+        } else {
+          None
+        }
+      ),
+      IntOp::Mod => apply2_int_int(
+          if b != 0 {
+          Some(Int(big_int(a) % big_int(b)))
+        } else {
+          None
+        }
+      ),
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply_none_on_invalid(
+    op: IntOp,
+    a: Literal,
+    b: i64,
+    test_arg_2: bool,
+  ) -> TestResult {
+    let big = BigInt::from;
+    let test_apply1_none_on_invalid = |
+      valid_arg: Literal
+    | -> TestResult {
+      if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
+        TestResult::discard()
+      } else {
+        TestResult::from_bool(
+          IntOp::apply1(
+            op,
+            &a
+          ) ==
+          None
+        )
+      }
+    };
+
+    let test_apply2_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        IntOp::apply2(
+          op,
+          &a_,
+          &b_
+        ) ==
+        None
+      );
+      if test_arg_2 {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      } else {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    match op {
+      // Arity 1, valid is Int.
+      IntOp::Sgn | 
+      IntOp::Abs => test_apply1_none_on_invalid(Int(big(b))),
+      // Arity 2, valid are Int on a and b.
+      IntOp::New |
+      IntOp::Eql |
+      IntOp::Lte |
+      IntOp::Lth |
+      IntOp::Gte |
+      IntOp::Gth |
+      IntOp::Add |
+      IntOp::Sub |
+      IntOp::Mul |
+      IntOp::Div |
+      IntOp::Mod => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Int(big(b)),
+          a,
+          Int(big(b))
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Int(big(b)),
+          Int(big(b)),
+          a,
+        )
+      },
     }
   }
 

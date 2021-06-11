@@ -234,6 +234,7 @@ impl TextOp {
       (Self::LenChars, Text(xs)) => Some(Nat(xs.len_chars().into())),
       (Self::LenBytes, Text(xs)) => Some(Nat(xs.len_bytes().into())),
       (Self::LenLines, Text(xs)) => Some(Nat(xs.len_lines().into())),
+      (Self::ToBytes, Text(xs)) => Some(Bytes(xs.bytes().collect::<Vec<u8>>())),
       _ => None,
     }
   }
@@ -274,7 +275,7 @@ impl TextOp {
       }
       (Self::Line, Nat(idx), Text(ys)) => {
         let idx: usize = idx.clone().try_into().ok()?;
-        if idx < ys.len_chars() {
+        if idx < ys.len_lines() {
           Some(Text(ys.line(idx).into()))
         }
         else {
@@ -380,7 +381,7 @@ pub fn safe_remove(from: &BigUint, upto: &BigUint, mut xs: Rope) -> Rope {
   let upto = usize::try_from(upto);
   let len = xs.len_chars();
   match (from, upto) {
-    (Ok(from), Ok(upto)) if (from <= len) && (upto <= len) => {
+    (Ok(from), Ok(upto)) if (from <= len) && (upto <= len) && (upto >= from) => {
       xs.remove(from..upto);
       xs
     }
@@ -424,12 +425,24 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
+    TestResult
   };
   use rand::Rng;
+  use Literal::{
+    Text,
+    Char,
+    Nat,
+    Bool,
+    U8,
+    Bytes
+  };
+  use crate::prim::tests::TestArg3;
+  use std::mem;
+  use core::fmt::Debug;
   impl Arbitrary for TextOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..11);
+      let gen: u32 = rng.gen_range(0..=23);
       match gen {
         0 => Self::Cons,
         1 => Self::LenChars,
@@ -449,10 +462,11 @@ pub mod tests {
         15 => Self::Byte,
         16 => Self::Line,
         17 => Self::CharAtByte,
-        18 => Self::LineAtByte,
-        19 => Self::LineAtChar,
-        20 => Self::LineStartChar,
-        21 => Self::LineStartByte,
+        18 => Self::ByteAtChar,
+        19 => Self::LineAtByte,
+        20 => Self::LineAtChar,
+        21 => Self::LineStartChar,
+        22 => Self::LineStartByte,
         _ => Self::ToBytes,
       }
     }
@@ -484,5 +498,427 @@ pub mod tests {
     assert_eq!(res, (Rope::from_str("foo"), Rope::from_str("")));
     let res = safe_split(&u128::MAX.into(), rope.clone());
     assert_eq!(res, (Rope::from_str("foo"), Rope::from_str("")));
+  }
+
+  #[quickcheck]
+  fn test_apply(
+    op: TextOp,
+    a: String,
+    b: char,
+    c: String,
+    d: u64,
+    e: u64,
+  ) -> TestResult {
+    let a = Rope::from(a);
+    let c = Rope::from(c);
+    let big = BigUint::from;
+    let apply1_text = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        TextOp::apply1(
+          op,
+          &Text(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_char_text = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        TextOp::apply2(
+          op,
+          &Char(b),
+          &Text(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_text_text = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        TextOp::apply2(
+          op,
+          &Text(a.clone()),
+          &Text(c.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_nat_text = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        TextOp::apply2(
+          op,
+          &Nat(big(d)),
+          &Text(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply3_nat_text_text = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        TextOp::apply3(
+          op,
+          &Nat(big(d)),
+          &Text(a.clone()),
+          &Text(c.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply3_nat_nat_text = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        TextOp::apply3(
+          op,
+          &Nat(big(d)),
+          &Nat(big(e)),
+          &Text(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    match op {
+      TextOp::Cons => {
+        let mut cs = a.clone();
+        cs.insert_char(0, b);
+        apply2_char_text(Some(Text(cs)))
+      },
+      TextOp::LenChars => apply1_text(Some(Nat(a.len_chars().into()))),
+      TextOp::LenLines => apply1_text(Some(Nat(a.len_lines().into()))),
+      TextOp::LenBytes => apply1_text(Some(Nat(a.len_bytes().into()))),
+      TextOp::Append => {
+        let mut xs = a.clone();
+        xs.append(c.clone());
+        apply2_text_text(Some(Text(xs)))
+      },
+      TextOp::Insert => apply3_nat_text_text(Some(Text(safe_insert(&big(d), a.clone(), c.clone())))),
+      TextOp::Remove => apply3_nat_nat_text(Some(Text(safe_remove(&big(d), &big(e), a.clone())))),
+      TextOp::Take => apply2_nat_text(Some(Text(safe_split(&big(d), a.clone()).0))),
+      TextOp::Drop => apply2_nat_text(Some(Text(safe_split(&big(d), a.clone()).1))),
+      TextOp::Eql => apply2_text_text(Some(Bool(a == c))),
+      TextOp::Lte => apply2_text_text(Some(Bool(a <= c))),
+      TextOp::Lth => apply2_text_text(Some(Bool(a < c))),
+      TextOp::Gte => apply2_text_text(Some(Bool(a >= c))),
+      TextOp::Gth => apply2_text_text(Some(Bool(a > c))),
+      TextOp::Char => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_chars() {
+            apply2_nat_text(Some(Char(a.char(idx))))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::Byte => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_chars() {
+            apply2_nat_text(Some(U8(a.byte(idx))))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::Line => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_lines() {
+            apply2_nat_text(Some(Text(a.line(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::CharAtByte => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_bytes() {
+            apply2_nat_text(Some(Nat(a.byte_to_char(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::ByteAtChar => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_chars() {
+            apply2_nat_text(Some(Nat(a.char_to_byte(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::LineAtByte => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_bytes() {
+            apply2_nat_text(Some(Nat(a.byte_to_line(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::LineAtChar => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_chars() {
+            apply2_nat_text(Some(Nat(a.char_to_line(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::LineStartChar => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_lines() {
+            apply2_nat_text(Some(Nat(a.line_to_char(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::LineStartByte => {
+        let idx: Option<usize> = big(d).clone().try_into().ok();
+        match idx {
+          None => apply2_nat_text(None),
+          Some(idx) => if idx < a.len_lines() {
+            apply2_nat_text(Some(Nat(a.line_to_byte(idx).into())))
+          } else {
+            apply2_nat_text(None)
+          }
+        }
+      },
+      TextOp::ToBytes => apply1_text(Some(Bytes(a.bytes().collect::<Vec<u8>>()))),
+    }
+  }
+
+  #[derive(Debug, Clone)]
+  struct ArgsApplyNoneOnInvalid(TextOp, Literal, String, char, String, u64, u64, bool, TestArg3);
+
+  impl Arbitrary for ArgsApplyNoneOnInvalid {
+    fn arbitrary(g: &mut Gen) -> ArgsApplyNoneOnInvalid {
+      ArgsApplyNoneOnInvalid(
+        TextOp::arbitrary(g),
+        Literal::arbitrary(g),
+        String::arbitrary(g),
+        char::arbitrary(g),
+        String::arbitrary(g),
+        u64::arbitrary(g),
+        u64::arbitrary(g),
+        bool::arbitrary(g),
+        TestArg3::arbitrary(g)
+      )
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply_none_on_invalid(args: ArgsApplyNoneOnInvalid) -> TestResult {
+    let op = args.0;
+    let a = args.1;
+    let b = Rope::from(args.2);
+    let c = args.3;
+    let d = Rope::from(args.4);
+    let e = args.5;
+    let f = args.6;
+    let test_arg_2 = args.7;
+    let test_arg_3 = args.8;
+    let big = BigUint::from;
+    let test_apply1_none_on_invalid = |
+      valid_arg: Literal
+    | -> TestResult {
+      if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
+        TestResult::discard()
+      } else {
+        TestResult::from_bool(
+          TextOp::apply1(
+            op,
+            &a
+          ) ==
+          None
+        )
+      }
+    };
+
+    let test_apply2_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        TextOp::apply2(
+          op,
+          &a_,
+          &b_
+        ) ==
+        None
+      );
+      if test_arg_2 {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      } else {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    let test_apply3_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal,
+      c_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        TextOp::apply3(
+          op,
+          &a_,
+          &b_,
+          &c_
+        ) ==
+        None
+      );
+      match test_arg_3 {
+        TestArg3::A => if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        },
+        TestArg3::B => if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        },
+        TestArg3::C => if mem::discriminant(&valid_arg) == mem::discriminant(&c_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    match op {
+      // Arity 1, valid is Text.
+      TextOp::LenChars |
+      TextOp::LenBytes |
+      TextOp::LenLines |
+      TextOp::ToBytes => test_apply1_none_on_invalid(Text(b)),
+      // Arity 2, valid are Char on a and Text on b.
+      TextOp::Cons => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Char(c),
+          a,
+          Text(b.clone())
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Text(b.clone()),
+          Char(c),
+          a
+        )
+      },
+      // Arity 2, valid are Text on a and b.
+      TextOp::Append |
+      TextOp::Eql |
+      TextOp::Lte |
+      TextOp::Lth |
+      TextOp::Gte |
+      TextOp::Gth => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Text(b.clone()),
+          a,
+          Text(b.clone())
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Text(b.clone()),
+          Text(b.clone()),
+          a
+        )
+      },
+      // Arity 2, valid are Nat on a and Text on b.
+      TextOp::Take |
+      TextOp::Drop |
+      TextOp::Char |
+      TextOp::Byte |
+      TextOp::Line |
+      TextOp::CharAtByte |
+      TextOp::ByteAtChar |
+      TextOp::LineAtChar |
+      TextOp::LineAtByte |
+      TextOp::LineStartChar |
+      TextOp::LineStartByte => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Nat(big(e)),
+          a,
+          Text(b.clone())
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Text(b.clone()),
+          Nat(big(e)),
+          a
+        )
+      },
+      // Arity 3, valid are Nat on a, Text on b and Text on c.
+      TextOp::Insert => match test_arg_3 {
+        TestArg3::A => test_apply3_none_on_invalid(
+          Nat(big(e)),
+          a,
+          Text(b.clone()),
+          Text(d.clone())
+        ),
+        TestArg3::B => test_apply3_none_on_invalid(
+          Text(b.clone()),
+          Nat(big(e)),
+          a,
+          Text(b.clone())
+        ),
+        TestArg3::C => test_apply3_none_on_invalid(
+          Text(b.clone()),
+          Nat(big(e)),
+          Text(b.clone()),
+          a
+        ),
+      },
+      // Arity 3, valid are Nat on a, Nat on b and Text on c.
+      TextOp::Remove => match test_arg_3 {
+        TestArg3::A => test_apply3_none_on_invalid(
+          Nat(big(e)),
+          a,
+          Nat(big(e)),
+          Text(d.clone())
+        ),
+        TestArg3::B => test_apply3_none_on_invalid(
+          Nat(big(e)),
+          Nat(big(e)),
+          a,
+          Text(b.clone())
+        ),
+        TestArg3::C => test_apply3_none_on_invalid(
+          Text(b.clone()),
+          Nat(big(e)),
+          Nat(big(f)),
+          a
+        ),
+      },
+    }
   }
 }
