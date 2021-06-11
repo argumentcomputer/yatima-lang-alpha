@@ -129,7 +129,7 @@ pub mod tests {
   impl Arbitrary for AInt {
     fn arbitrary(g: &mut Gen) -> Self { AInt(arbitrary_i128()(g)) }
   }
-  
+
   #[ignore]
   #[test]
   fn integers_ipfs() {

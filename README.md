@@ -46,6 +46,8 @@ Yatima is a pure functional programming language implemented in Rust with the fo
   extensibility of a dynamically-typed language, without sacrificing the safety
   of static-typing.
 
+For examples of Yatima code please refer to the `introit` standard library: https://github.com/yatima-inc/introit
+
 On an implementation level:
 
 - Yatima's core reduction machine is based on the λ-DAG technique described in [Bottom-up β-reduction](https://www.ccs.neu.edu/home/wand/papers/shivers-wand-10.pdf).
@@ -55,8 +57,7 @@ On an implementation level:
 - The `hashexpr` content-addressing schema is an adaptation of IPFS' [Multiformats](https://multiformats.io/) and [IPLD](https://docs.ipld.io/) to align with [Rivest's Canonical S-exprssions](https://people.csail.mit.edu/rivest/Sexp.txt) rather than JSON.
 
 
-Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org)
-
+Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org) or on the [Yatima subreddit](https://www.reddit.com/r/yatima/)
 
 ## Build Instructions:
 

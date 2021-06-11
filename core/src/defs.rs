@@ -187,7 +187,7 @@ pub mod tests {
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term =
-      arbitrary_term(g, true, test_defs(), sp_std::collections::VecDeque::new());
+      arbitrary_term(g, true, test_defs(), sp_std::collections::vec_deque::VecDeque::new());
     Def::make(Pos::None, typ_, term)
   }
 
