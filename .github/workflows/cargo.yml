@@ -2,6 +2,8 @@ name: "Cargo CI"
 on:
   pull_request:
   push:
+    branches:
+      - main
 jobs:
   tests:
     runs-on: ubuntu-latest
