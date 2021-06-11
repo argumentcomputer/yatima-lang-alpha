@@ -1,3 +1,13 @@
+use crate::{
+  file::{
+    error,
+    error::{
+      FileError,
+      FileErrorKind,
+    },
+  },
+  store::Store,
+};
 use yatima_core::{
   self,
   anon::Anon,
@@ -28,20 +38,10 @@ use yatima_core::{
   },
   position::Pos,
 };
-use crate::{
-  file::{
-    error,
-    error::{
-      FileError,
-      FileErrorKind,
-    },
-  },
-  store::Store,
-};
 
 use libipld::{
-  ipld::Ipld,
   cid::Cid,
+  ipld::Ipld,
 };
 
 use nom::{
@@ -139,21 +139,27 @@ pub fn parse_text(txt: String, env: PackageEnv) -> (Cid, Package, Defs) {
   }
 }
 
-pub fn entry_to_def(d: Entry, store: Rc<dyn Store>) -> Result<Def, FileErrorKind> {
+pub fn entry_to_def(
+  d: Entry,
+  store: Rc<dyn Store>,
+) -> Result<Def, FileErrorKind> {
   use FileErrorKind::*;
-  let type_ipld: Ipld = store.get(d.type_anon)
-    .map_or_else(|| Err(UnknownLink(d.type_anon)), Ok)?;
+  let type_ipld: Ipld =
+    store.get(d.type_anon).map_or_else(|| Err(UnknownLink(d.type_anon)), Ok)?;
   let type_anon: Anon =
     Anon::from_ipld(&type_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
-  let term_ipld: Ipld = store.get(d.term_anon)
-    .map_or_else(|| Err(UnknownLink(d.term_anon)), Ok)?;
+  let term_ipld: Ipld =
+    store.get(d.term_anon).map_or_else(|| Err(UnknownLink(d.term_anon)), Ok)?;
   let term_anon =
     Anon::from_ipld(&term_ipld).map_or_else(|e| Err(IpldError(e)), Ok)?;
   Def::unembed(d, type_anon, term_anon)
     .map_or_else(|e| Err(EmbedError(Box::new(e))), Ok)
 }
 
-pub fn index_to_defs(i: &Index, env: PackageEnv) -> Result<Defs, FileErrorKind> {
+pub fn index_to_defs(
+  i: &Index,
+  env: PackageEnv,
+) -> Result<Defs, FileErrorKind> {
   use FileErrorKind::*;
   let mut defs = Defs::new();
   for (n, cid) in &i.0 {
@@ -226,10 +232,11 @@ pub fn parse_import(
           done: env.done.clone(),
           store: env.store.clone(),
         };
-        let (from, _, defs) = parse_file(env.clone());
+        let (from, pack, defs) = parse_file(env.clone());
         env.remove_open(import_path.clone());
         env.insert_done(import_path, from);
-        let with = with.unwrap_or_else(|| defs.names());
+        let names = pack.index.keys();
+        let with = with.unwrap_or_else(|| names);
         Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
       }
     }
