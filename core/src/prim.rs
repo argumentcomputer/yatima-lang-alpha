@@ -274,7 +274,7 @@ pub mod tests {
   impl Arbitrary for Op {
     fn arbitrary(g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..11);
+      let gen: u32 = rng.gen_range(0..13);
       match gen {
         0 => Self::Nat(NatOp::arbitrary(g)),
         1 => Self::Int(IntOp::arbitrary(g)),
@@ -286,12 +286,10 @@ pub mod tests {
         7 => Self::U16(U16Op::arbitrary(g)),
         8 => Self::U32(U32Op::arbitrary(g)),
         9 => Self::U64(U64Op::arbitrary(g)),
-        // 10 => Self::U128(U128Op::arbitrary(g)),
-        11 => Self::I8(I8Op::arbitrary(g)),
-        12 => Self::I16(I16Op::arbitrary(g)),
-        13 => Self::I32(I32Op::arbitrary(g)),
-        14 => Self::I64(I64Op::arbitrary(g)),
-        _ => Self::I128(I128Op::arbitrary(g)),
+        10 => Self::I8(I8Op::arbitrary(g)),
+        11 => Self::I16(I16Op::arbitrary(g)),
+        12 => Self::I32(I32Op::arbitrary(g)),
+        _ => Self::I64(I64Op::arbitrary(g)),
       }
     }
   }

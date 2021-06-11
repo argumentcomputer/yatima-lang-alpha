@@ -389,6 +389,51 @@ pub fn parse_binders(
   ctx: Ctx,
   quasi: VecDeque<Term>,
   nam_opt: bool,
+  terminator: &'static str,
+) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
+{
+  move |mut i: Span| {
+    let mut ctx = ctx.as_ref().clone();
+    let mut res = Vec::new();
+
+    loop {
+      match preceded(parse_space, tag(terminator))(i) {
+        Ok((i2, _)) => return Ok((i2, res)),
+        _ => {}
+      }
+      match preceded(
+        parse_space,
+        parse_binder(
+          input,
+          defs.to_owned(),
+          rec.clone(),
+          Rc::new(ctx.clone()),
+          quasi.to_owned(),
+          nam_opt,
+        ),
+      )(i)
+      {
+        Err(e) => return Err(e),
+        Ok((i2, bs)) => {
+          for (u, n, t) in bs {
+            ctx.push_front(n.to_owned());
+            res.push((u, n, t));
+          }
+          i = i2;
+        }
+      }
+    }
+  }
+}
+
+pub fn parse_binders1(
+  input: Cid,
+  defs: Defs,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: VecDeque<Term>,
+  nam_opt: bool,
+  terminator: &'static str,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
@@ -413,31 +458,17 @@ pub fn parse_binders(
         i = i1;
       }
     }
-
-    loop {
-      match preceded(
-        parse_space,
-        parse_binder(
-          input,
-          defs.to_owned(),
-          rec.clone(),
-          Rc::new(ctx.clone()),
-          quasi.to_owned(),
-          nam_opt,
-        ),
-      )(i)
-      {
-        Err(Err::Error(_)) => return Ok((i, res)),
-        Err(e) => return Err(e),
-        Ok((i2, bs)) => {
-          for (u, n, t) in bs {
-            ctx.push_front(n.to_owned());
-            res.push((u, n, t));
-          }
-          i = i2;
-        }
-      }
-    }
+    let (i, mut res2) = parse_binders(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      Rc::new(ctx.clone()),
+      quasi.to_owned(),
+      nam_opt,
+      terminator,
+    )(i)?;
+    res.append(&mut res2);
+    Ok((i, res))
   }
 }
 
@@ -451,16 +482,15 @@ pub fn parse_all(
   move |from: Span| {
     let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, bs) = parse_binders(
+    let (i, bs) = parse_binders1(
       input,
       defs.clone(),
       rec.clone(),
       ctx.clone(),
       quasi.clone(),
       true,
+      "->",
     )(i)?;
-    let (i, _) = parse_space(i)?;
-    let (i, _) = tag("->")(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.as_ref().clone();
     for (_, n, _) in bs.iter() {
@@ -575,21 +605,15 @@ pub fn parse_bound_expression(
   letrec: bool,
 ) -> impl Fn(Span) -> IResult<Span, (Term, Term), ParseError<Span>> {
   move |from: Span| {
-    let (i, bs) = alt((
-      terminated(
-        parse_binders(
-          input,
-          defs.clone(),
-          rec.clone(),
-          ctx.clone(),
-          quasi.clone(),
-          false,
-        ),
-        parse_space,
-      ),
-      success(Vec::new()),
-    ))(from)?;
-    let (i, _) = tag(":")(i)?;
+    let (i, bs) = parse_binders(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.clone(),
+      false,
+      ":",
+    )(from)?;
     let (i, _) = parse_space(i)?;
     let mut type_ctx = ctx.as_ref().clone();
     for (_, n, _) in bs.iter() {
@@ -993,6 +1017,130 @@ pub mod tests {
     let res = test("∀ (_ :Type) -> Type");
     assert!(res.is_ok());
   }
+  #[test]
+  fn test_parse_binder_full() {
+    fn test(
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binder_full(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Rc::new(VecDeque::new()),
+        VecDeque::new(),
+      )(Span::new(i))
+    }
+    let res = test("(a b c: Type)");
+    assert!(res.is_ok());
+  }
+
+  #[test]
+  fn test_parse_alls() {
+    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
+      parse_all(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Rc::new(VecDeque::new()),
+        VecDeque::new(),
+      )(Span::new(i))
+    }
+    let res = test("∀ (a b c: Type) -> Type");
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+  }
+
+  #[test]
+  fn test_parse_let() {
+    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
+      parse_let(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Rc::new(VecDeque::new()),
+        VecDeque::new(),
+      )(Span::new(i))
+    }
+    let res = test("let 0 x: Type = Type; x");
+    assert!(res.is_ok());
+    let res = test("let 0 f (x: Unknown) = Type; x");
+    println!("res: {:?}", res);
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              VecDeque::from(vec![])
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+  }
+  #[test]
+  fn test_parse_bound_expression() {
+    fn test(i: &str) -> IResult<Span, (Term, Term), ParseError<Span>> {
+      parse_bound_expression(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Rc::new(VecDeque::new()),
+        VecDeque::new(),
+        Name::from("test"),
+        false,
+      )(Span::new(i))
+    }
+    let res = test(": Type = Type");
+    assert!(res.is_ok());
+    let res = test("(x: Type): Type = Type");
+    assert!(res.is_ok());
+    let res = test("(x: Unknown): Type = Type");
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        println!("err: {:?}", err);
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              VecDeque::from(vec![])
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+  }
+  #[test]
+  fn test_parse_binders1() {
+    use Term::*;
+    fn test(
+      nam_opt: bool,
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binders(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Rc::new(VecDeque::new()),
+        VecDeque::new(),
+        nam_opt,
+        ":",
+      )(Span::new(i))
+    }
+    let res = test(true, "Type #Text:");
+    assert!(res.is_ok());
+    assert!(
+      res.unwrap().1
+        == vec![
+          (Uses::Many, Name::from(""), Typ(Pos::None)),
+          (Uses::Many, Name::from(""), LTy(Pos::None, LitType::Text)),
+        ]
+    );
+  }
 
   #[test]
   fn test_parse_binders() {
@@ -1008,22 +1156,12 @@ pub mod tests {
         Rc::new(VecDeque::new()),
         VecDeque::new(),
         nam_opt,
+        ":",
       )(Span::new(i))
     }
-    fn test_full(
-      i: &str,
-    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
-      parse_binder_full(
-        input_cid(i),
-        Defs::new(),
-        None,
-        Rc::new(VecDeque::new()),
-        VecDeque::new(),
-      )(Span::new(i))
-    }
-    let res = test_full("(a b c: Type)");
+    let res = test(true, ":");
     assert!(res.is_ok());
-    let res = test(true, "Type Type");
+    let res = test(true, "Type Type:");
     assert!(res.is_ok());
     assert!(
       res.unwrap().1
@@ -1032,7 +1170,7 @@ pub mod tests {
           (Uses::Many, Name::from(""), Typ(Pos::None)),
         ]
     );
-    let res = test(true, "(A: Type) (a b c: A)");
+    let res = test(true, "(A: Type) (a b c: A):");
     assert!(res.is_ok());
     assert!(
       res.unwrap().1
@@ -1043,6 +1181,38 @@ pub mod tests {
           (Uses::Many, Name::from("c"), Var(Pos::None, Name::from("A"), 2)),
         ]
     );
+    let res = test(true, "(A: Type) (a b c: Unknown):");
+    assert!(res.is_err());
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              VecDeque::from(vec!(Name::from("A")))
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+    let res = test(false, "(x: Unknown):");
+    assert!(res.is_err());
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              VecDeque::new(),
+            )]
+        );
+      }
+      _ => {
+        assert!(false)
+      }
+    }
   }
 
   #[quickcheck]
