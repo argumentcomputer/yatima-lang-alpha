@@ -7,9 +7,12 @@ edition = "2018"
 
 [dependencies]
 sp-std = { version = "3", default-features = false }
-cid =  "0.6.1"
-multihash = {version = "0.13.2", default-features = false }
+multihash = {version = "0.13.2", default-features = false, features = ["derive", "multihash-impl","secure-hashes"] }
 byteorder = { version = "1", default-features = false }
+unsigned-varint = { version = "0.7.0", default-features = false }
+multibase = { version = "0.9.1", optional = true }
+parity-scale-codec = { version = "2.1.1", default-features = false, features = ["derive"], optional = true }
+serde = { version = "1.0.116", optional = true }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

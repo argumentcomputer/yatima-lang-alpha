@@ -3,6 +3,7 @@ use crate::{
   codec::Encode,
   dag_cbor::DagCborCodec,
   ipld::Ipld,
+  sp_cid::Cid,
 };
 
 use alloc::{
@@ -15,7 +16,6 @@ use byteorder::{
   BigEndian,
   ByteOrder,
 };
-use cid::Cid;
 use sp_std::{
   collections::btree_map::BTreeMap,
   convert::TryFrom,

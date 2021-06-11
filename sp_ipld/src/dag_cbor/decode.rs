@@ -10,6 +10,7 @@ use crate::{
   },
   dag_cbor::DagCborCodec,
   ipld::Ipld,
+  sp_cid::Cid,
 };
 
 use alloc::{
@@ -22,11 +23,10 @@ use byteorder::{
   BigEndian,
   ByteOrder,
 };
-use cid::Cid;
+
 use sp_std::{
   any::type_name,
   collections::btree_map::BTreeMap,
-  convert::TryFrom,
   vec::Vec,
 };
 

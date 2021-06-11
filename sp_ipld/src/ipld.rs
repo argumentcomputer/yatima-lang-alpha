@@ -1,4 +1,8 @@
-use cid::Cid;
+use crate::{
+  sp_cid::Cid,
+  version::Version,
+};
+
 use sp_std::{
   self,
   collections::btree_map::BTreeMap,
@@ -26,6 +30,24 @@ pub enum Ipld {
   /// Represents a link to an Ipld node.
   Link(Cid),
 }
+
+//impl sp_std::fmt::Debug for Cid {
+//  fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+//    if f.alternate() {
+//      f.debug_struct("Cid")
+//        .field("version", &self.version())
+//        .field("codec", &self.codec())
+//        .field("hash", self.hash())
+//        .finish()
+//    } else {
+//      let output = match self.version {
+//        Version::V0 => self.to_string_v0(),
+//        Version::V1 => self.to_string_v1(),
+//      };
+//      write!(f, "Cid({})", output)
+//    }
+//  }
+//}
 
 impl sp_std::fmt::Debug for Ipld {
   fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {

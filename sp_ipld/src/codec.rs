@@ -1,6 +1,8 @@
-use crate::bytecursor::ByteCursor;
+use crate::{
+  bytecursor::ByteCursor,
+  sp_cid::Cid,
+};
 
-use cid::Cid;
 use sp_std::{
   convert::TryFrom,
   ops::Deref,

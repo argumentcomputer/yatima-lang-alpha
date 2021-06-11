@@ -6,8 +6,9 @@ use crate::{
     UnsupportedCodec,
   },
   ipld::Ipld,
+  sp_cid::Cid,
 };
-use cid::Cid;
+
 use multihash::{
   Code,
   MultihashDigest,
@@ -61,6 +62,7 @@ pub mod tests {
   };
 
   use sp_std::collections::btree_map::BTreeMap;
+  use multihash::Size as S;
 
   fn encode_decode_id<T: DagCbor + PartialEq<T> + Clone>(value: T) -> bool {
     let mut bc = ByteCursor::new(Vec::new());

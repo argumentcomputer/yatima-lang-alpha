@@ -1,3 +1,4 @@
+//#![no_std]
 extern crate alloc;
 extern crate sp_std;
 
@@ -13,10 +14,12 @@ pub mod bytecursor;
 pub mod codec;
 pub mod dag_cbor;
 pub mod ipld;
+pub mod sp_cid;
 
 pub use bytecursor::*;
 pub use codec::*;
 pub use ipld::*;
+pub use sp_cid::*;
 
 #[cfg(test)]
 pub mod tests {

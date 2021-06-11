@@ -2,7 +2,10 @@ use sp_std::{
   cmp,
   convert::TryInto,
   vec::Vec,
+  borrow::ToOwned,
 };
+
+use alloc::string::String;
 
 pub enum SeekFrom {
   Start(u64),
