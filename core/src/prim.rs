@@ -216,7 +216,6 @@ impl Op {
       Self::I32(op) => op.apply2(x, y),
       Self::I64(op) => op.apply2(x, y),
       // Self::I128(op) => op.apply2(x, y),
-      _ => None,
     }
   }
 

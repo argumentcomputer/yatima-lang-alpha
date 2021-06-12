@@ -1,8 +1,13 @@
+use cid::Cid;
+use nom::{
+  error::ParseError,
+  Finish,
+};
+use nom_locate::LocatedSpan;
 use std::{
   path::PathBuf,
   rc::Rc,
 };
-
 use structopt::StructOpt;
 use yatima_cli::{
   file::store::FileStore,
@@ -30,9 +35,8 @@ enum Cli {
     path: PathBuf,
   },
   Show {
-    input: String,
-    #[structopt(name = "type", default_value = "raw", long, short)]
-    typ_: String,
+    #[structopt(subcommand)]
+    typ: ShowType,
   },
   Run {
     #[structopt(parse(from_os_str))]
@@ -40,6 +44,38 @@ enum Cli {
   },
   Repl,
 }
+
+#[derive(Debug, StructOpt)]
+enum ShowType {
+  Package {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+  Entry {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+  Anon {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+  Raw {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+}
+
+fn parse_cid(
+  s: &str,
+) -> Result<Cid, yatima_core::parse::error::ParseError<LocatedSpan<&str>>> {
+  let result = yatima_core::parse::package::parse_link(
+    yatima_core::parse::span::Span::new(&s),
+  )
+  .finish()
+  .map(|(_, x)| x);
+  result
+}
+
 //   Test,
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -49,33 +85,50 @@ async fn main() -> std::io::Result<()> {
       repl::main();
       Ok(())
     }
-    Cli::Show { input, typ_ } => {
-      use yatima_core::parse;
+    Cli::Show { typ: ShowType::Package { input } } => {
       let store = Rc::new(FileStore::new());
-      let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
-        .expect("valid cid");
-      let ipld = store.get(cid).expect(&format!("cannot find {}", cid));
-      match typ_.as_str() {
-        "package" => {
-          let pack = yatima_core::package::Package::from_ipld(&ipld)
-            .expect("package ipld");
-          println!("{:?}", pack);
-        }
-        "entry" => {
-          let entry =
-            yatima_core::package::Entry::from_ipld(&ipld).expect("entry ipld");
-          println!("{:?}", entry);
-          let def = file::parse::entry_to_def(entry, store).expect("valid def");
-          println!("{}", def);
-        }
-        "anon" => {
-          let pack =
-            yatima_core::anon::Anon::from_ipld(&ipld).expect("anon ipld");
-          println!("{:?}", pack);
-        }
-        _ => {
-          println!("{:?}", ipld);
-        }
+      match store.get(input) {
+        Some(ipld) => match yatima_core::package::Package::from_ipld(&ipld) {
+          Ok(pack) => println!("{}", pack),
+          Err(_) => eprintln!("Expected package ipld"),
+        },
+        None => eprintln!("Found no result for cid"),
+      };
+      Ok(())
+    }
+    Cli::Show { typ: ShowType::Entry { input } } => {
+      let store = Rc::new(FileStore::new());
+      match store.get(input) {
+        Some(ipld) => match yatima_core::package::Entry::from_ipld(&ipld) {
+          Ok(entry) => {
+            println!("{}", entry);
+            match file::parse::entry_to_def(entry, store) {
+              Ok(def) => println!("{}", def),
+              Err(_) => eprintln!("expected valid def"),
+            }
+          }
+          Err(_) => eprintln!("Expected entry ipld"),
+        },
+        None => eprintln!("Found no result for cid"),
+      };
+      Ok(())
+    }
+    Cli::Show { typ: ShowType::Anon { input } } => {
+      let store = Rc::new(FileStore::new());
+      match store.get(input) {
+        Some(ipld) => match yatima_core::anon::Anon::from_ipld(&ipld) {
+          Ok(pack) => println!("{:?}", pack),
+          Err(_) => eprintln!("Expected valid anon"),
+        },
+        None => eprintln!("Found no result for cid"),
+      };
+      Ok(())
+    }
+    Cli::Show { typ: ShowType::Raw { input } } => {
+      let store = Rc::new(FileStore::new());
+      match store.get(input) {
+        Some(ipld) => println!("{:?}", ipld),
+        None => eprintln!("Found no result for cid"),
       };
       Ok(())
     }
