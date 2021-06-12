@@ -97,19 +97,23 @@ impl<S: Size> Cid<S> {
   
   ///Reader function from unsigned_varint 
   pub fn varint_read_u64(&self, r: &mut ByteCursor) -> Result<u8> {
-    let mut buf: [u8;10] = r.get_mut()[..10];
-    let mut b = varint_encode::u64(0, buf); 
+    let mut buf: [u8;10] = [0;10];
+    let slice = r.get_ref();
+    for i in 0..10 {
+      buf[i] = slice[i];
+    }
+    let mut b = varint_encode::u64(0, &mut buf); 
     for i in 0..b.len() {
       let n = r.read(&mut b[i..i+1]);
       if decode::is_last(b[i]) {
-        return Ok(decode::u64(&b[..=i]).0)
+        return Ok(decode::u8(&b[..=i]).unwrap().0)
       }
     }
-    Err(())
+    Err(Error::VarIntDecodeError)
   }
 
   ///Writer function from multihash
-  pub fn write_multihash(w: &mut ByteCursor, code: u64, size: u8, digest: &[u8]) -> Result<()> {
+  pub fn write_multihash(&self, w: &mut ByteCursor, code: u64, size: u8, digest: &[u8]) -> Result<()> {
     let mut code_buf = varint_encode::u64_buffer();
     let code = varint_encode::u64(code, &mut code_buf);
 
@@ -118,29 +122,29 @@ impl<S: Size> Cid<S> {
 
     match w.write_all(code) {
       Ok(_) => (),
-      Err(e) => Err(e),
-    }
+      Err(e) => return Err(Error::VarIntDecodeError),
+    };
     match w.write_all(size) {
       Ok(_) => (),
-      Err(e) => Err(e),
-    }
+      Err(e) => return Err(Error::VarIntDecodeError),
+    };
     match w.write_all(digest) {
       Ok(_) => (),
-      Err(e) => Err(e),
-    }
+      Err(e) => return Err(Error::VarIntDecodeError),
+    };
     Ok(())
   }
 
   /// Reads the bytes from a byte stream.
   pub fn read_bytes(&self, r: &mut ByteCursor) -> Result<Self> {
-    let version = self.varint_read_u64(&mut r);
-    let codec = self.varint_read_u64(&mut r);
+    let version = self.varint_read_u64(&mut r).unwrap();
+    let codec = self.varint_read_u64(&mut r).unwrap();
     // CIDv0 has the fixed `0x12 0x20` prefix
     if [version, codec] == [0x12, 0x20] {
       let mut digest = [0u8; 32];
       match r.read_exact(&mut digest) {
         Ok(_) => (),
-        Err(e) => return Err(e)
+        Err(e) => return Err(Error::VarIntDecodeError)
       };
       let mh = Multihash::wrap(version, &digest).expect("Digest is always 32 bytes.");
       Self::new_v0(mh)
@@ -173,7 +177,7 @@ impl<S: Size> Cid<S> {
       Ok(_) => (),
       Err(e) => return Err(Error::InvalidCidV0Codec),
     };
-    match self.write_multihash(w, self.hash.code, self.hash.size, self.hash.digest) {
+    match self.write_multihash(w, self.hash.code(), self.hash.size(), self.hash.digest()) {
       Ok(_) => (),
       Err(e) => return Err(Error::VarIntDecodeError),
     };
@@ -183,7 +187,7 @@ impl<S: Size> Cid<S> {
   /// Writes the bytes to a byte stream.
   pub fn write_bytes(&self, w: &mut ByteCursor) -> Result<()> {
     match self.version {
-      Version::V0 => match self.write_multihash(w, self.hash.code, self.hash.size, self.hash.digest) {
+      Version::V0 => match self.write_multihash(w, self.hash.code(), self.hash.size(), self.hash.digest()) {
           Ok(_) => (),
           Err(e) => return Err(Error::VarIntDecodeError),
       },
@@ -197,9 +201,9 @@ impl<S: Size> Cid<S> {
 
   /// Returns the encoded bytes of the `Cid`.
   pub fn to_bytes(&self) -> Vec<u8> {
-    let mut bytes = vec![];
+    let mut bytes = ByteCursor::new(Vec::new());
     self.write_bytes(&mut bytes).unwrap();
-    bytes
+    bytes.into_inner()
   }
   
   //#[cfg(feature = "std")]
@@ -342,7 +346,7 @@ impl<S: Size> TryFrom<&[u8]> for Cid<S> {
   type Error = Error;
   
   fn try_from(mut bytes: &[u8]) -> Result<Self> {
-    Self::read_bytes(&mut bytes)
+    Self::read_bytes(&self, &mut ByteCursor::new(bytes))
   }
 }
 
