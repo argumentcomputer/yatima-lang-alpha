@@ -40,6 +40,7 @@ use nom::{
 };
 
 use cid::Cid;
+use sp_im::ConsList;
 
 pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {
   let (upto, (_, bytes)) = parse_multibase()(from)?;
@@ -98,7 +99,7 @@ pub fn parse_entry(
         input,
         defs.to_owned(),
         Some(nam.clone()),
-        Rc::new(VecDeque::new()),
+        Rc::new(ConsList::new()),
         VecDeque::new(),
         nam.clone(),
         false,

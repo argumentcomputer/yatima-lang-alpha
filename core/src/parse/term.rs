@@ -23,6 +23,7 @@ use multihash::{
   Code,
   MultihashDigest,
 };
+use sp_im::ConsList;
 use sp_ipld::{
   dag_cbor::DagCborCodec,
   Codec,
@@ -67,7 +68,7 @@ use nom::{
 };
 use std::collections::VecDeque;
 
-type Ctx = Rc<VecDeque<Name>>;
+type Ctx = Rc<ConsList<Name>>;
 
 pub fn reserved_symbols() -> VecDeque<String> {
   VecDeque::from(vec![
@@ -265,7 +266,7 @@ pub fn parse_lam(
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.as_ref().clone();
     for n in ns.clone().into_iter() {
-      ctx2.push_front(n);
+      ctx2 = ctx2.cons(n);
     }
     let (upto, bod) = parse_expression(
       input,
@@ -407,7 +408,7 @@ pub fn parse_binders(
       Err(e) => return Err(e),
       Ok((i1, bs)) => {
         for (u, n, t) in bs {
-          ctx.push_front(n.to_owned());
+          ctx = ctx.cons(n.to_owned());
           res.push((u, n, t));
         }
         i = i1;
@@ -431,7 +432,7 @@ pub fn parse_binders(
         Err(e) => return Err(e),
         Ok((i2, bs)) => {
           for (u, n, t) in bs {
-            ctx.push_front(n.to_owned());
+            ctx = ctx.cons(n.to_owned());
             res.push((u, n, t));
           }
           i = i2;
@@ -464,7 +465,7 @@ pub fn parse_all(
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.as_ref().clone();
     for (_, n, _) in bs.iter() {
-      ctx2.push_front(n.clone());
+      ctx2 = ctx2.cons(n.clone());
     }
     let (upto, bod) = parse_expression(
       input,
@@ -504,7 +505,7 @@ pub fn parse_self(
     let (i, n) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.as_ref().clone();
-    ctx2.push_front(n.clone());
+    ctx2 = ctx2.cons(n.clone());
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
@@ -593,7 +594,7 @@ pub fn parse_bound_expression(
     let (i, _) = parse_space(i)?;
     let mut type_ctx = ctx.as_ref().clone();
     for (_, n, _) in bs.iter() {
-      type_ctx.push_front(n.clone());
+      type_ctx = type_ctx.cons(n.clone());
     }
     let (i, typ) = parse_expression(
       input,
@@ -604,10 +605,10 @@ pub fn parse_bound_expression(
     )(i)?;
     let mut term_ctx = ctx.as_ref().clone();
     if letrec {
-      term_ctx.push_front(nam.clone());
+      term_ctx = term_ctx.cons(nam.clone());
     };
     for (_, n, _) in bs.iter() {
-      term_ctx.push_front(n.clone());
+      term_ctx = term_ctx.cons(n.clone());
     }
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=")(i)?;
@@ -659,7 +660,7 @@ pub fn parse_let(
     let (i, _) = alt((tag(";"), tag("in")))(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.as_ref().clone();
-    ctx2.push_front(nam.clone());
+    ctx2 = ctx2.cons(nam.clone());
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
@@ -920,7 +921,7 @@ pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
     input_cid(i),
     defs,
     None,
-    Rc::new(VecDeque::new()),
+    Rc::new(ConsList::new()),
     VecDeque::new(),
   )(Span::new(i))
 }
@@ -929,7 +930,7 @@ pub fn parse_quasi(
   defs: Defs,
   quasi: VecDeque<Term>,
 ) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), defs, None, Rc::new(VecDeque::new()), quasi)(
+  parse_expression(input_cid(i), defs, None, Rc::new(ConsList::new()), quasi)(
     Span::new(i),
   )
 }
@@ -958,7 +959,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        Rc::new(ConsList::new()),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -977,7 +978,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        Rc::new(ConsList::new()),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1007,7 +1008,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        Rc::new(ConsList::new()),
         VecDeque::new(),
         nam_opt,
       )(Span::new(i))
@@ -1019,7 +1020,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        Rc::new(ConsList::new()),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1054,7 +1055,7 @@ pub mod tests {
       input_cid(&i),
       test_defs(),
       None,
-      Rc::new(VecDeque::new()),
+      Rc::new(ConsList::new()),
       VecDeque::new(),
     )(Span::new(&i))
     {
