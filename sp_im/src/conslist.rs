@@ -40,7 +40,7 @@ use sp_std::{
     Add,
     Deref,
   },
-  rc::Rc,
+  sync::Arc,
   vec::Vec,
 };
 
@@ -144,22 +144,22 @@ where
 /// of the length of the list at the current position, as an extra
 /// optimisation, so getting the length of a list is also O(1).
 /// Otherwise, operations are generally O(n).
-pub struct ConsList<A>(Rc<ConsListNode<A>>);
+pub struct ConsList<A>(Arc<ConsListNode<A>>);
 
 #[doc(hidden)]
 pub enum ConsListNode<A> {
-  Cons(usize, Rc<A>, ConsList<A>),
+  Cons(usize, Arc<A>, ConsList<A>),
   Nil,
 }
 
 impl<A> ConsList<A> {
   /// Construct an empty list.
-  pub fn new() -> ConsList<A> { ConsList(Rc::new(Nil)) }
+  pub fn new() -> ConsList<A> { ConsList(Arc::new(Nil)) }
 
   /// Construct a list with a single element.
   pub fn singleton<R>(v: R) -> ConsList<A>
   where R: Shared<A> {
-    ConsList(Rc::new(Cons(1, v.shared(), conslist![])))
+    ConsList(Arc::new(Cons(1, v.shared(), conslist![])))
   }
 
   /// Test whether a list is empty.
@@ -178,7 +178,7 @@ impl<A> ConsList<A> {
   /// Time: O(1)
   pub fn cons<R>(&self, car: R) -> ConsList<A>
   where R: Shared<A> {
-    ConsList(Rc::new(Cons(self.len() + 1, car.shared(), self.clone())))
+    ConsList(Arc::new(Cons(self.len() + 1, car.shared(), self.clone())))
   }
 
   /// Get the first element of a list.
@@ -186,7 +186,7 @@ impl<A> ConsList<A> {
   /// If the list is empty, `None` is returned.
   ///
   /// Time: O(1)
-  pub fn head(&self) -> Option<Rc<A>> {
+  pub fn head(&self) -> Option<Arc<A>> {
     match *self.0 {
       Cons(_, ref a, _) => Some(a.clone()),
       _ => None,
@@ -241,14 +241,14 @@ impl<A> ConsList<A> {
   /// [head]: #method.head
   /// [tail]: #method.tail
   /// [None]: https://doc.rust-lang.org/core/option/enum.Option.html#variant.None
-  pub fn uncons(&self) -> Option<(Rc<A>, ConsList<A>)> {
+  pub fn uncons(&self) -> Option<(Arc<A>, ConsList<A>)> {
     match *self.0 {
       Nil => None,
       Cons(_, ref a, ref d) => Some((a.clone(), d.clone())),
     }
   }
 
-  pub fn uncons2(&self) -> Option<(Rc<A>, Rc<A>, ConsList<A>)> {
+  pub fn uncons2(&self) -> Option<(Arc<A>, Arc<A>, ConsList<A>)> {
     self.uncons().and_then(|(a1, d)| d.uncons().map(|(a2, d)| (a1, a2, d)))
   }
 
@@ -367,7 +367,7 @@ impl<A> ConsList<A> {
     }
 
     fn ascending<A>(
-      a: &Rc<A>,
+      a: &Arc<A>,
       f: &Fn(ConsList<A>) -> ConsList<A>,
       l: &ConsList<A>,
       cmp: &Fn(&A, &A) -> Ordering,
@@ -381,7 +381,7 @@ impl<A> ConsList<A> {
     }
 
     fn descending<A>(
-      a: &Rc<A>,
+      a: &Arc<A>,
       la: &ConsList<A>,
       lb: &ConsList<A>,
       cmp: &Fn(&A, &A) -> Ordering,
@@ -412,7 +412,7 @@ impl<A> ConsList<A> {
     merge_all(&sequences(self, &cmp), &cmp)
   }
 
-  pub fn ptr_eq(&self, other: &Self) -> bool { Rc::ptr_eq(&self.0, &other.0) }
+  pub fn ptr_eq(&self, other: &Self) -> bool { Arc::ptr_eq(&self.0, &other.0) }
 
   /// Insert an item into a sorted list.
   ///
@@ -439,10 +439,10 @@ impl<A> ConsList<A> {
     self.insert_ref(item.shared())
   }
 
-  fn insert_ref(&self, item: Rc<A>) -> ConsList<A>
+  fn insert_ref(&self, item: Arc<A>) -> ConsList<A>
   where A: Ord {
     match *self.0 {
-      Nil => ConsList(Rc::new(Cons(0, item, ConsList::new()))),
+      Nil => ConsList(Arc::new(Cons(0, item, ConsList::new()))),
       Cons(_, ref a, ref d) => {
         if a.deref() > item.deref() {
           self.cons(item)
@@ -484,8 +484,8 @@ impl<A> ConsList<A> where A: Ord {}
 impl<A> Clone for ConsList<A> {
   /// Clone a list.
   ///
-  /// Cons cells use `Rc` behind the scenes, so this is no more
-  /// expensive than cloning an `Rc` reference.
+  /// Cons cells use `Arc` behind the scenes, so this is no more
+  /// expensive than cloning an `Arc` reference.
   ///
   /// Time: O(1)
   fn clone(&self) -> Self {
@@ -529,7 +529,7 @@ where A: PartialEq
   /// the lists to compare values.
   ///
   /// If `A` implements `Eq`, we have an additional shortcut available to us: if
-  /// both lists refer to the same cons cell, as determined by `Rc::ptr_eq`,
+  /// both lists refer to the same cons cell, as determined by `Arc::ptr_eq`,
   /// they have to be equal.
   ///
   /// Time: O(n)
@@ -550,12 +550,12 @@ where A: Eq
   /// the lists to compare values.
   ///
   /// If `A` implements `Eq`, we have an additional shortcut available to us: if
-  /// both lists refer to the same cons cell, as determined by `Rc::ptr_eq`,
+  /// both lists refer to the same cons cell, as determined by `Arc::ptr_eq`,
   /// they have to be equal.
   ///
   /// Time: O(n)
   fn eq(&self, other: &ConsList<A>) -> bool {
-    Rc::ptr_eq(&self.0, &other.0)
+    Arc::ptr_eq(&self.0, &other.0)
       || (self.len() == other.len() && self.iter().eq(other.iter()))
   }
 }
@@ -619,7 +619,7 @@ pub struct Iter<A> {
 }
 
 impl<A> Iterator for Iter<A> {
-  type Item = Rc<A>;
+  type Item = Arc<A>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self.current.uncons() {
@@ -641,7 +641,7 @@ impl<A> ExactSizeIterator for Iter<A> {}
 
 impl<A> IntoIterator for ConsList<A> {
   type IntoIter = Iter<A>;
-  type Item = Rc<A>;
+  type Item = Arc<A>;
 
   fn into_iter(self) -> Iter<A> { self.iter() }
 }
@@ -694,12 +694,12 @@ use quickcheck::{
   Gen,
 };
 
-// #[cfg(any(test, feature = "quickcheck"))]
-// impl<A: Arbitrary + Sync> Arbitrary for ConsList<A> {
-//   fn arbitrary<G: Gen>(g: &mut G) -> Self {
-//     ConsList::from(Vec::<A>::arbitrary(g))
-//   }
-// }
+#[cfg(any(test, feature = "quickcheck"))]
+impl<A: Arbitrary + Sync> Arbitrary for ConsList<A> {
+  fn arbitrary<G: Gen>(g: &mut G) -> Self {
+    ConsList::from(Vec::<A>::arbitrary(g))
+  }
+}
 
 // Proptest
 
@@ -746,6 +746,7 @@ mod test {
   };
   use crate::test::is_sorted;
   use ::proptest::*;
+  use alloc::string::String;
   use quickcheck::quickcheck;
 
   #[test]
@@ -767,47 +768,47 @@ mod test {
   }
 
   #[test]
-  // fn equality_of_empty_lists() {
-  //   let l1 = ConsList::<String>::new();
-  //   let l2 = ConsList::<String>::new();
-  //   assert_eq!(l1, l2);
-  // }
+  fn equality_of_empty_lists() {
+    let l1 = ConsList::<String>::new();
+    let l2 = ConsList::<String>::new();
+    assert_eq!(l1, l2);
+  }
 
-  // quickcheck! {
-  //     fn length(vec: Vec<i32>) -> bool {
-  //         let list = ConsList::from(vec.clone());
-  //         vec.len() == list.len()
-  //     }
+  quickcheck! {
+      fn length(vec: Vec<i32>) -> bool {
+          let list = ConsList::from(vec.clone());
+          vec.len() == list.len()
+      }
 
-  //     fn equality(vec: Vec<i32>) -> bool {
-  //         let list1 = ConsList::from(vec.clone());
-  //         let list2 = ConsList::from(vec.clone());
-  //         list1 == list2
-  //     }
+      fn equality(vec: Vec<i32>) -> bool {
+          let list1 = ConsList::from(vec.clone());
+          let list2 = ConsList::from(vec.clone());
+          list1 == list2
+      }
 
-  //     fn order(vec: Vec<i32>) -> bool {
-  //         let list = ConsList::from(vec.clone());
-  //         list.iter().map(|a| *a).eq(vec.into_iter())
-  //     }
+      fn order(vec: Vec<i32>) -> bool {
+          let list = ConsList::from(vec.clone());
+          list.iter().map(|a| *a).eq(vec.into_iter())
+      }
 
-  //     fn reverse_a_list(l: ConsList<i32>) -> bool {
-  //         let vec: Vec<i32> = l.iter().map(|v| *v).collect();
-  //         let rev = ConsList::from_iter(vec.into_iter().rev());
-  //         l.reverse() == rev
-  //     }
+      fn reverse_a_list(l: ConsList<i32>) -> bool {
+          let vec: Vec<i32> = l.iter().map(|v| *v).collect();
+          let rev = ConsList::from_iter(vec.into_iter().rev());
+          l.reverse() == rev
+      }
 
-  //     fn append_two_lists(xs: ConsList<i32>, ys: ConsList<i32>) -> bool {
-  //         let extended = ConsList::from_iter(
-  //           xs.iter().map(|v| *v).chain(ys.iter().map(|v| *v))
-  //         );
-  //         xs.append(&ys) == extended
-  //     }
+      fn append_two_lists(xs: ConsList<i32>, ys: ConsList<i32>) -> bool {
+          let extended = ConsList::from_iter(
+            xs.iter().map(|v| *v).chain(ys.iter().map(|v| *v))
+          );
+          xs.append(&ys) == extended
+      }
 
-  //     fn sort_a_list(l: ConsList<i32>) -> bool {
-  //         let sorted = l.sort();
-  //         l.len() == sorted.len() && is_sorted(sorted)
-  //     }
-  // }
+      fn sort_a_list(l: ConsList<i32>) -> bool {
+          let sorted = l.sort();
+          l.len() == sorted.len() && is_sorted(sorted)
+      }
+  }
 
   proptest! {
       #[test]
