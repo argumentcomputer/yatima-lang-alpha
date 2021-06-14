@@ -1,3 +1,4 @@
+use sp_im::ConsList;
 use yatima_core::{
   defs::{
     Def,
@@ -56,7 +57,7 @@ pub fn parse_eval(
       input,
       defs.clone(),
       None,
-      Rc::new(VecDeque::new()),
+      ConsList::new(),
       VecDeque::new(),
     )(i)
     .map_err(error::convert)?;
@@ -74,7 +75,7 @@ pub fn parse_type(
       input,
       defs.clone(),
       None,
-      Rc::new(VecDeque::new()),
+      ConsList::new(),
       VecDeque::new(),
     )(i)
     .map_err(error::convert)?;

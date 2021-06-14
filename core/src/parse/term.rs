@@ -23,11 +23,11 @@ use multihash::{
   Code,
   MultihashDigest,
 };
+use sp_im::ConsList;
 use sp_ipld::{
   dag_cbor::DagCborCodec,
   Codec,
 };
-use std::rc::Rc;
 
 use crate::parse::span::Span;
 
@@ -67,7 +67,7 @@ use nom::{
 };
 use std::collections::VecDeque;
 
-type Ctx = Rc<VecDeque<Name>>;
+type Ctx = ConsList<Name>;
 
 pub fn reserved_symbols() -> VecDeque<String> {
   VecDeque::from(vec![
@@ -211,7 +211,7 @@ pub fn parse_antiquote(
         upto,
         ParseErrorKind::UndefinedReference(
           Name::from(format!("#${}", nam.to_string())),
-          ctx.as_ref().clone(),
+          ctx.clone(),
         ),
       )))
     }
@@ -243,7 +243,7 @@ pub fn parse_var(
     else {
       Err(Err::Error(ParseError::new(
         upto,
-        ParseErrorKind::UndefinedReference(nam.clone(), ctx.as_ref().clone()),
+        ParseErrorKind::UndefinedReference(nam.clone(), ctx.clone()),
       )))
     }
   }
@@ -263,15 +263,15 @@ pub fn parse_lam(
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=>")(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
+    let mut ctx2 = ctx.clone();
     for n in ns.clone().into_iter() {
-      ctx2.push_front(n);
+      ctx2 = ctx2.cons(n);
     }
     let (upto, bod) = parse_expression(
       input,
       defs.clone(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -393,7 +393,7 @@ pub fn parse_binders(
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
-    let mut ctx = ctx.as_ref().clone();
+    let mut ctx = ctx.clone();
     let mut res = Vec::new();
 
     loop {
@@ -407,7 +407,7 @@ pub fn parse_binders(
           input,
           defs.to_owned(),
           rec.clone(),
-          Rc::new(ctx.clone()),
+          ctx.clone(),
           quasi.to_owned(),
           nam_opt,
         ),
@@ -416,7 +416,7 @@ pub fn parse_binders(
         Err(e) => return Err(e),
         Ok((i2, bs)) => {
           for (u, n, t) in bs {
-            ctx.push_front(n.to_owned());
+            ctx = ctx.cons(n.to_owned());
             res.push((u, n, t));
           }
           i = i2;
@@ -437,14 +437,14 @@ pub fn parse_binders1(
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
-    let mut ctx = ctx.as_ref().clone();
+    let mut ctx = ctx.clone();
     let mut res = Vec::new();
 
     match parse_binder(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx.clone()),
+      ctx.clone(),
       quasi.to_owned(),
       nam_opt,
     )(i.to_owned())
@@ -452,7 +452,7 @@ pub fn parse_binders1(
       Err(e) => return Err(e),
       Ok((i1, bs)) => {
         for (u, n, t) in bs {
-          ctx.push_front(n.to_owned());
+          ctx = ctx.cons(n.to_owned());
           res.push((u, n, t));
         }
         i = i1;
@@ -462,7 +462,7 @@ pub fn parse_binders1(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx.clone()),
+      ctx.clone(),
       quasi.to_owned(),
       nam_opt,
       terminator,
@@ -492,15 +492,15 @@ pub fn parse_all(
       "->",
     )(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
+    let mut ctx2 = ctx.clone();
     for (_, n, _) in bs.iter() {
-      ctx2.push_front(n.clone());
+      ctx2 = ctx2.cons(n.clone());
     }
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -533,13 +533,13 @@ pub fn parse_self(
     let (i, _) = nom::character::complete::char('@')(from)?;
     let (i, n) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
-    ctx2.push_front(n.clone());
+    let mut ctx2 = ctx.clone();
+    ctx2 = ctx2.cons(n.clone());
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2.clone(),
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -615,23 +615,23 @@ pub fn parse_bound_expression(
       ":",
     )(from)?;
     let (i, _) = parse_space(i)?;
-    let mut type_ctx = ctx.as_ref().clone();
+    let mut type_ctx = ctx.clone();
     for (_, n, _) in bs.iter() {
-      type_ctx.push_front(n.clone());
+      type_ctx = type_ctx.cons(n.clone());
     }
     let (i, typ) = parse_expression(
       input,
       defs.clone(),
       rec.clone(),
-      Rc::new(type_ctx),
+      type_ctx,
       quasi.clone(),
     )(i)?;
-    let mut term_ctx = ctx.as_ref().clone();
+    let mut term_ctx = ctx.clone();
     if letrec {
-      term_ctx.push_front(nam.clone());
+      term_ctx = term_ctx.cons(nam.clone());
     };
     for (_, n, _) in bs.iter() {
-      term_ctx.push_front(n.clone());
+      term_ctx = term_ctx.cons(n.clone());
     }
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=")(i)?;
@@ -640,7 +640,7 @@ pub fn parse_bound_expression(
       input,
       defs.clone(),
       rec.clone(),
-      Rc::new(term_ctx),
+      term_ctx,
       quasi.clone(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -682,13 +682,13 @@ pub fn parse_let(
     )(i)?;
     let (i, _) = alt((tag(";"), tag("in")))(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
-    ctx2.push_front(nam.clone());
+    let mut ctx2 = ctx.clone();
+    ctx2 = ctx2.cons(nam.clone());
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -940,22 +940,18 @@ pub fn input_cid(i: &str) -> Cid {
 }
 
 pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(
-    input_cid(i),
-    defs,
-    None,
-    Rc::new(VecDeque::new()),
-    VecDeque::new(),
-  )(Span::new(i))
+  parse_expression(input_cid(i), defs, None, ConsList::new(), VecDeque::new())(
+    Span::new(i),
+  )
 }
 pub fn parse_quasi(
   i: &str,
   defs: Defs,
   quasi: VecDeque<Term>,
 ) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), defs, None, Rc::new(VecDeque::new()), quasi)(
-    Span::new(i),
-  )
+  parse_expression(input_cid(i), defs, None, ConsList::new(), quasi)(Span::new(
+    i,
+  ))
 }
 
 #[macro_export]
@@ -982,7 +978,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1001,7 +997,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1028,7 +1024,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1043,7 +1039,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1059,7 +1055,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
       )(Span::new(i))
     }
@@ -1073,7 +1069,7 @@ pub mod tests {
           err.errors
             == vec![ParseErrorKind::UndefinedReference(
               Name::from("Unknown"),
-              VecDeque::from(vec![])
+              ConsList::new(),
             )]
         )
       }
@@ -1089,7 +1085,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
         Name::from("test"),
         false,
@@ -1107,7 +1103,7 @@ pub mod tests {
           err.errors
             == vec![ParseErrorKind::UndefinedReference(
               Name::from("Unknown"),
-              VecDeque::from(vec![])
+              ConsList::new()
             )]
         )
       }
@@ -1127,7 +1123,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
         nam_opt,
         ":",
@@ -1155,7 +1151,7 @@ pub mod tests {
         input_cid(i),
         Defs::new(),
         None,
-        Rc::new(VecDeque::new()),
+        ConsList::new(),
         VecDeque::new(),
         nam_opt,
         ":",
@@ -1191,7 +1187,7 @@ pub mod tests {
           err.errors
             == vec![ParseErrorKind::UndefinedReference(
               Name::from("Unknown"),
-              VecDeque::from(vec!(Name::from("A")))
+              ConsList::from(vec!(Name::from("A")))
             )]
         )
       }
@@ -1207,7 +1203,7 @@ pub mod tests {
           err.errors
             == vec![ParseErrorKind::UndefinedReference(
               Name::from("Unknown"),
-              VecDeque::new(),
+              ConsList::new(),
             )]
         );
       }
@@ -1224,7 +1220,7 @@ pub mod tests {
       input_cid(&i),
       test_defs(),
       None,
-      Rc::new(VecDeque::new()),
+      ConsList::new(),
       VecDeque::new(),
     )(Span::new(&i))
     {
