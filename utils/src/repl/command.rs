@@ -34,16 +34,17 @@ use nom::{
   self,
   branch::alt,
   bytes::complete::tag,
+  combinator::value,
   IResult,
 };
 
 pub enum Command {
   Eval(Box<Term>),
   Type(Box<Term>),
+  Set(String, bool),
   Browse,
   // Help,
   Define(Box<(Name, Def, Entry)>),
-  // Type,
   Load(Name),
   // Import,
   Quit,
@@ -63,6 +64,25 @@ pub fn parse_eval(
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Eval(Box::new(trm))))
+  }
+}
+
+pub fn parse_set() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
+  move |i: Span| {
+    let (i, _) = alt((tag(":set"), tag(":s")))(i)?;
+    let (i, _) = parse_space1(i).map_err(error::convert)?;
+    // let (i, _) = alt((tag("type-system")))(i)?;
+    let (i, s) = parse_name(i).map_err(error::convert)?;
+    let (i, _) = parse_space1(i).map_err(error::convert)?;
+    let (i, b) = alt((
+      value(true, tag("on")),
+      value(true, tag("true")),
+      value(true, tag("yes")),
+      value(false, tag("off")),
+      value(false, tag("false")),
+      value(false, tag("no")),
+    ))(i)?;
+    Ok((i, Command::Set(s.to_string(), b)))
   }
 }
 
@@ -129,6 +149,7 @@ pub fn parse_command(
     alt((
       parse_quit(),
       parse_browse(),
+      parse_set(),
       parse_load(),
       parse_type(input, defs.clone()),
       parse_define(input, defs.clone()),

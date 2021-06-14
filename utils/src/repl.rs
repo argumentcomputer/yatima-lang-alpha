@@ -29,31 +29,52 @@ use yatima_core::{
 use command::Command;
 use error::ReplError;
 
+pub struct ReplEnv {
+  type_system: bool,
+  defs: Defs,
+}
+
+impl Default for ReplEnv {
+  fn default() -> Self { ReplEnv { type_system: true, defs: Defs::new() } }
+}
+
 pub trait Repl {
   fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
   fn println(&self, s: String);
   fn load_history(&mut self);
   fn add_history_entry(&mut self, s: &str);
   fn save_history(&mut self);
-  fn get_defs(&self) -> Arc<Mutex<Defs>>;
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>>;
   fn get_store(&self) -> Rc<dyn Store>;
   fn handle_line(
     &mut self,
     readline: Result<String, ReplError>,
   ) -> Result<(), ()> {
-    let mutex_defs = self.get_defs();
-    let mut defs = mutex_defs.lock().unwrap();
+    let mutex_env = self.get_env();
+    let mut env = mutex_env.lock().unwrap();
     let store = self.get_store();
     match readline {
       Ok(line) => {
         self.add_history_entry(line.as_str());
         let res = command::parse_command(
           input_cid(line.as_str()),
-          Rc::new(RefCell::new(defs.clone())),
+          Rc::new(RefCell::new(env.defs.clone())),
         )(Span::new(&line));
         match res {
           Ok((_, command)) => {
             match command {
+              Command::Set(field, setting) => match field.as_str() {
+                "type-system" => {
+                  env.type_system = setting;
+                  println!(
+                    "type-system: {}",
+                    if setting { "on" } else { "off" }
+                  )
+                }
+                _ => {
+                  println!("Error: Unknown setting {}", field)
+                }
+              },
               Command::Load(name) => {
                 let root = std::env::current_dir().unwrap();
                 let mut path = root.clone();
@@ -62,16 +83,29 @@ pub trait Repl {
                 }
                 path.set_extension("ya");
                 if let Ok(ds) = file::check_all(path, store) {
-                  *defs = ds;
+                  env.defs = ds;
                 }
               }
               Command::Eval(term) => {
                 let mut dag = DAG::from_term(&term);
-                dag.norm(&defs);
-                self.println(format!("{}", dag));
+                if env.type_system {
+                  let res = infer_term(&env.defs, *term);
+                  match res {
+                    Ok(typ) => {
+                      dag.norm(&env.defs);
+                      self.println(format!("{}", dag));
+                      self.println(format!(": {}", typ));
+                    }
+                    Err(e) => self.println(format!("Type Error: {}", e)),
+                  }
+                }
+                else {
+                  dag.norm(&env.defs);
+                  self.println(format!("{}", dag));
+                }
               }
               Command::Type(term) => {
-                let res = infer_term(&defs, *term);
+                let res = infer_term(&env.defs, *term);
                 match res {
                   Ok(term) => self.println(format!("{}", term)),
                   Err(e) => self.println(format!("Error: {}", e)),
@@ -79,12 +113,12 @@ pub trait Repl {
               }
               Command::Define(boxed) => {
                 let (n, def, _) = *boxed;
-                let mut tmp_defs = defs.clone();
+                let mut tmp_defs = env.defs.clone();
                 tmp_defs.insert(n.clone(), def);
                 let res = check_def(&tmp_defs, &n);
                 match res {
                   Ok(res) => {
-                    *defs = tmp_defs;
+                    env.defs = tmp_defs;
                     self.println(format!(
                       "{} : {}",
                       n,
@@ -95,7 +129,7 @@ pub trait Repl {
                 }
               }
               Command::Browse => {
-                for (n, d) in defs.named_defs() {
+                for (n, d) in env.defs.named_defs() {
                   self.println(format!("{}", d.pretty(n.to_string())))
                 }
               }

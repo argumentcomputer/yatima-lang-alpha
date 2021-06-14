@@ -10,6 +10,7 @@ use yatima_utils::{
   repl::{
     error::ReplError,
     Repl,
+    ReplEnv,
   },
   store::Store,
 };
@@ -62,7 +63,7 @@ const CURSOR_RIGHT: &str = "\x1b[C";
 
 struct WebRepl {
   terminal: Terminal,
-  defs: Arc<Mutex<Defs>>,
+  env: Arc<Mutex<ReplEnv>>,
   shell_state: Arc<Mutex<ShellState>>,
   store: Rc<WebStore>,
 }
@@ -75,7 +76,6 @@ struct ShellState {
 
 impl WebRepl {
   pub fn new() -> Self {
-    let defs = Arc::new(Mutex::new(Defs::new()));
     let terminal: Terminal = Terminal::new(
       TerminalOptions::new()
         .with_rows(50)
@@ -114,7 +114,8 @@ impl WebRepl {
     addon.fit();
     terminal.focus();
     let store = Rc::new(WebStore::new());
-    WebRepl { terminal, defs, shell_state, store }
+    let env = Arc::new(Mutex::new(ReplEnv::default()));
+    WebRepl { terminal, env, shell_state, store }
   }
 
   pub fn handle_event(&mut self, e: OnKeyEvent) {
@@ -186,7 +187,7 @@ impl Repl for WebRepl {
     Ok(self.shell_state.lock().unwrap().clone().line)
   }
 
-  fn get_defs(&self) -> Arc<Mutex<Defs>> { self.defs.clone() }
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>> { self.env.clone() }
 
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
