@@ -39,10 +39,8 @@ use yatima_core::{
   position::Pos,
 };
 
-use libipld::{
-  cid::Cid,
-  ipld::Ipld,
-};
+use cid::Cid;
+use sp_ipld::Ipld;
 
 use nom::{
   bytes::complete::tag,

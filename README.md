@@ -46,6 +46,8 @@ Yatima is a pure functional programming language implemented in Rust with the fo
   extensibility of a dynamically-typed language, without sacrificing the safety
   of static-typing.
 
+For examples of Yatima code please refer to the `introit` standard library: https://github.com/yatima-inc/introit
+
 On an implementation level:
 
 - Yatima's core reduction machine is based on the λ-DAG technique described in [Bottom-up β-reduction](https://www.ccs.neu.edu/home/wand/papers/shivers-wand-10.pdf).
@@ -55,8 +57,7 @@ On an implementation level:
 - The `hashexpr` content-addressing schema is an adaptation of IPFS' [Multiformats](https://multiformats.io/) and [IPLD](https://docs.ipld.io/) to align with [Rivest's Canonical S-exprssions](https://people.csail.mit.edu/rivest/Sexp.txt) rather than JSON.
 
 
-Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org)
-
+Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org) or on the [Yatima subreddit](https://www.reddit.com/r/yatima/)
 
 ## Build Instructions:
 
@@ -96,16 +97,30 @@ nix-build default.nix
 ### Compiling to WASM
 
 ```bash
-wasm-pack build --target web
+nix-shell
+cd web
+wasm-pack build
 ```
 
-Host the experimental web version with:
+Then run the following command to install required dependencies:
 
 ```bash
-yatima hashspace server
+npm install
+```
+
+Afterwards, the experimental web version can be hosted with:
+
+```bash
+npm start
 ```
 
 ### With cargo
+
+Yatima requires nightly Rust:
+
+```bash
+rustup default nightly
+```
 
 To build yatima:
 
@@ -121,7 +136,7 @@ cargo test --all
 To install the yatima binary:
 
 ```bash
-cargo install --path .
+cargo install --path cli
 ```
 
 # Usage Instructions:
@@ -205,7 +220,7 @@ problem on its own, but there are some ways in a programming language can help:
 5. Integrate with decentralized technologies to remove, as much as possible,
    social barriers and frictions. Having centralized services like
    most modern package managers raises the question "Who controls the package server?" 
-   The famous [leftpad incident](https://qz.com/646467/how-one-programmer-broke-the-internet-by-deleting-a-tiny-piece-of-code/from)
+   The famous [leftpad incident](https://qz.com/646467/how-one-programmer-broke-the-internet-by-deleting-a-tiny-piece-of-code)
    is commonly presented as a build system issue (which it absolutely is), but
    less frequently discussed is that what precipitated the incident was how the
    `npm` administrators transfered ownership of a package from an individual

@@ -18,7 +18,7 @@ pub mod u8;
 
 use std::fmt;
 
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use crate::{
   ipld_error::IpldError,
@@ -274,7 +274,7 @@ pub mod tests {
   impl Arbitrary for Op {
     fn arbitrary(g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..13);
+      let gen: u32 = rng.gen_range(0..=13);
       match gen {
         0 => Self::Nat(NatOp::arbitrary(g)),
         1 => Self::Int(IntOp::arbitrary(g)),
@@ -299,6 +299,25 @@ pub mod tests {
     match Op::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
+    }
+  }
+
+  #[derive(Clone, Debug)]
+  pub enum TestArg3 {
+    A,
+    B,
+    C
+  }
+
+  impl Arbitrary for TestArg3 {
+    fn arbitrary(_g: &mut Gen) -> Self {
+      let mut rng = rand::thread_rng();
+      let gen: u32 = rng.gen_range(0..=2);
+      match gen {
+        0 => Self::A,
+        1 => Self::B,
+        _ => Self::C
+      }
     }
   }
 }

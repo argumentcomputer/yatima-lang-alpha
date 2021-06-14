@@ -325,10 +325,10 @@ impl DAG {
           body.whnf(defs);
           match body.head {
             DAGPtr::Dat(body_link) => {
-              let Dat { bod: single_body, .. } = unsafe { body_link.as_ref() };
-              replace_child(node, *single_body);
+              let bod = unsafe { body_link.as_ref().bod };
+              replace_child(node, bod);
               free_dead_node(node);
-              node = *single_body;
+              node = bod;
             }
             DAGPtr::Lit(link) => {
               let Lit { lit, parents, .. } = unsafe { link.as_ref() };

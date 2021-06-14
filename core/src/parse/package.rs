@@ -39,7 +39,7 @@ use nom::{
   IResult,
 };
 
-use libipld::Cid;
+use cid::Cid;
 
 pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {
   let (upto, (_, bytes)) = parse_multibase()(from)?;

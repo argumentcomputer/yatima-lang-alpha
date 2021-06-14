@@ -12,8 +12,8 @@ default = ["console_error_panic_hook"]
 [dependencies]
 yatima_core = { path = "../core" }
 yatima_utils = { path = "../utils" }
-cid = ">= 0.6.0"
-libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
+cid = "0.6.1"
+sp-ipld = { path = "../sp_ipld" }
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"
 wasm-bindgen-futures = "0.4.22"
@@ -39,7 +39,3 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.12"
-
-[profile.release]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"

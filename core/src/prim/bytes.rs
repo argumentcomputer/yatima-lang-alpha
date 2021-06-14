@@ -1,5 +1,5 @@
-use libipld::ipld::Ipld;
 use num_bigint::BigUint;
+use sp_ipld::Ipld;
 use std::fmt;
 
 use crate::{
@@ -134,10 +134,13 @@ impl BytesOp {
         let x = xs.last();
         x.map(|x| U8(*x))
       }
-      (Self::Tail, Bytes(xs)) => {
-        let xs = xs[0..xs.len() - 1].to_vec();
-        Some(Bytes(xs))
-      }
+      (Self::Tail, Bytes(xs)) => Some(Bytes(
+        if xs.is_empty() {
+          vec![]
+        } else {
+          xs[0..xs.len() - 1].to_vec()
+        }
+      )),
       _ => None,
     }
   }
@@ -240,12 +243,28 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
+    TestResult
   };
   use rand::Rng;
+  use Literal::{
+    Nat,
+    U8,
+    Bytes,
+    Bits
+  };
+  use crate::prim::{
+    BytesOp,
+    BitsOp,
+    tests::TestArg3
+  };
+  use std::{
+    convert::TryInto,
+    mem
+  };
   impl Arbitrary for BytesOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..9);
+      let gen: u32 = rng.gen_range(0..=10);
       match gen {
         0 => Self::Cons,
         1 => Self::Len,
@@ -256,7 +275,8 @@ pub mod tests {
         6 => Self::Append,
         7 => Self::Insert,
         8 => Self::Remove,
-        _ => Self::Index,
+        9 => Self::Index,
+        _ => Self::ToBits,
       }
     }
   }
@@ -266,6 +286,312 @@ pub mod tests {
     match BytesOp::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply(
+    op: BytesOp,
+    a: Vec<u8>,
+    b: u8,
+    c: u64,
+    d: Vec<u8>
+  ) -> TestResult {
+    let big = BigUint::from;
+    let apply1_bytes = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BytesOp::apply1(
+          op,
+          &Bytes(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_u8_bytes = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BytesOp::apply2(
+          op,
+          &U8(b),
+          &Bytes(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_nat_bytes = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BytesOp::apply2(
+          op,
+          &Nat(big(c)),
+          &Bytes(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_bytes_bytes = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BytesOp::apply2(
+          op,
+          &Bytes(a.clone()),
+          &Bytes(d.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply3_nat_u8_bytes = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BytesOp::apply3(
+          op,
+          &Nat(big(c)),
+          &U8(b),
+          &Bytes(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let from_bool = TestResult::from_bool;
+
+    match op {
+      BytesOp::Cons => {
+        let mut a = a.clone();
+        a.push(b);
+        apply2_u8_bytes(Some(Bytes(a)))
+      },
+      BytesOp::Len => apply1_bytes(Some(Nat(a.len().into()))),
+      BytesOp::Head => apply1_bytes(a.last().map(|z| U8(*z))),
+      BytesOp::Tail => apply1_bytes(Some(Bytes(
+        if a.is_empty() {
+          vec![]
+        } else {
+          a[0..a.len() - 1].to_vec()
+        }
+      ))),
+      BytesOp::Take => apply2_nat_bytes(Some(Bytes(safe_split(&big(c), &a).0))),
+      BytesOp::Drop => apply2_nat_bytes(Some(Bytes(safe_split(&big(c), &a).1))),
+      BytesOp::Append => {
+        let mut a = a.clone();
+        a.extend_from_slice(&d);
+        apply2_bytes_bytes(Some(Bytes(a)))
+      },
+      BytesOp::Insert => {
+        let idx = usize::try_from(c);
+        match idx {
+          Ok(idx) if idx < a.len() => {
+            let mut a = a.clone();
+            a.insert(idx, b);
+            apply3_nat_u8_bytes(Some(Bytes(a)))
+          }
+          _ => apply3_nat_u8_bytes(Some(Bytes(a.clone()))),
+        }
+      },
+      BytesOp::Remove => {
+        let idx = usize::try_from(c);
+        match idx {
+          Ok(idx) if idx < a.len() => {
+            let mut a = a.clone();
+            a.remove(idx);
+            apply2_nat_bytes(Some(Bytes(a)))
+          }
+          _ => apply2_nat_bytes(Some(Bytes(a.clone()))),
+        }
+      },
+      BytesOp::Index => {
+        let idx = usize::try_from(c);
+        match idx {
+          Ok(idx) if idx < a.len() => apply2_nat_bytes(Some(U8(a[idx]))),
+          _ => apply2_nat_bytes(None),
+        }
+      },
+      BytesOp::ToBits => {
+        let bits = BytesOp::apply1(op, &Bytes(a.clone()));
+        match bits {
+          None => apply1_bytes(None),
+          Some(bits_) => match bits_.clone() {
+            Bits(_) => {
+              let bytes = BitsOp::apply2(
+                BitsOp::ToBytes,
+                &Nat(big(a.len().try_into().unwrap())),
+                &bits_
+              );
+              match bytes {
+                None => apply1_bytes(None),
+                Some(bytes_) => from_bool(
+                  bytes_ == Bytes(a.clone())
+                )
+              }
+            },
+            _ => apply1_bytes(None),
+          }
+        }
+      }
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply_none_on_invalid(
+    op: BytesOp,
+    a: Literal,
+    b: Vec<u8>,
+    c: u8,
+    d: u64,
+    test_arg_2: bool,
+    test_arg_3: TestArg3,
+  ) -> TestResult {
+    let big = BigUint::from;
+    let test_apply1_none_on_invalid = |
+      valid_arg: Literal
+    | -> TestResult {
+      if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
+        TestResult::discard()
+      } else {
+        TestResult::from_bool(
+          BytesOp::apply1(
+            op,
+            &a
+          ) ==
+          None
+        )
+      }
+    };
+
+    let test_apply2_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        BytesOp::apply2(
+          op,
+          &a_,
+          &b_
+        ) ==
+        None
+      );
+      if test_arg_2 {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      } else {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    let test_apply3_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal,
+      c_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        BytesOp::apply3(
+          op,
+          &a_,
+          &b_,
+          &c_
+        ) ==
+        None
+      );
+      match test_arg_3 {
+        TestArg3::A => if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        },
+        TestArg3::B => if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        },
+        TestArg3::C => if mem::discriminant(&valid_arg) == mem::discriminant(&c_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    match op {
+      // Arity 1, valid is Bytes.
+      BytesOp::Len |
+      BytesOp::Head |
+      BytesOp::Tail => test_apply1_none_on_invalid(Bytes(b)),
+      // Arity 2, valid are U8 on a and Bytes on b.
+      BytesOp::Cons => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          U8(c),
+          a,
+          Bytes(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Bytes(b),
+          U8(c),
+          a
+        )
+      },
+      // Arity 2, valid are Nat on a and Bytes on b.
+      BytesOp::Take |
+      BytesOp::Drop |
+      BytesOp::Remove |
+      BytesOp::Index |
+      BytesOp::ToBits => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Nat(big(d)),
+          a,
+          Bytes(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Bytes(b),
+          Nat(big(d)),
+          a
+        )
+      },
+      // Arity 2, valid are Bytes on a and b.
+      BytesOp::Append => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Bytes(b.clone()),
+          a,
+          Bytes(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Bytes(b.clone()),
+          Bytes(b),
+          a
+        )
+      },
+      // Arity 3, valid are Nat on a, U8 on b and Bytes on c.
+      BytesOp::Insert => match test_arg_3 {
+        TestArg3::A => test_apply3_none_on_invalid(
+          Nat(big(d)),
+          a,
+          U8(c),
+          Bytes(b)
+        ),
+        TestArg3::B => test_apply3_none_on_invalid(
+          U8(c),
+          Nat(big(d)),
+          a,
+          Bytes(b)
+        ),
+        TestArg3::C => test_apply3_none_on_invalid(
+          Bytes(b),
+          Nat(big(d)),
+          U8(c),
+          a
+        ),
+      }
     }
   }
 }

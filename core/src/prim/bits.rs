@@ -1,5 +1,5 @@
-use libipld::ipld::Ipld;
 use num_bigint::BigUint;
+use sp_ipld::Ipld;
 use std::fmt;
 
 use crate::{
@@ -132,11 +132,14 @@ impl BitsOp {
       (Self::Head, Bits(xs)) => {
         let x = xs.last();
         x.map(|x| Bool(*x))
-      }
-      (Self::Tail, Bits(xs)) => {
-        let xs = xs[0..xs.len() - 1].to_vec();
-        Some(Bits(xs))
-      }
+      },
+      (Self::Tail, Bits(xs)) => Some(Bits(
+        if xs.is_empty() {
+          vec![]
+        } else {
+          xs[0..xs.len() - 1].to_vec()
+        }
+      )),
       (Self::ToBytes, Bits(xs)) => Some(Literal::Bytes(bits_to_bytes(xs).1)),
       _ => None,
     }
@@ -287,12 +290,25 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
+    TestResult
   };
   use rand::Rng;
+  use Literal::{
+    Nat,
+    Bool,
+  };
+  use crate::prim::{
+    BytesOp,
+    tests::TestArg3
+  };
+  use std::{
+    convert::TryInto,
+    mem
+  };
   impl Arbitrary for BitsOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..9);
+      let gen: u32 = rng.gen_range(0..=10);
       match gen {
         0 => Self::Cons,
         1 => Self::Len,
@@ -303,7 +319,8 @@ pub mod tests {
         6 => Self::Append,
         7 => Self::Insert,
         8 => Self::Remove,
-        _ => Self::Index,
+        9 => Self::Index,
+        _ => Self::ToBytes,
       }
     }
   }
@@ -347,5 +364,311 @@ pub mod tests {
   fn test_bytes_to_bits(x: Vec<u8>) -> bool {
     let len = x.len() * 8;
     bits_to_bytes(&bytes_to_bits(len, &x)) == (len, x)
+  }
+
+  #[quickcheck]
+  fn test_apply(
+    op: BitsOp,
+    a: Vec<bool>,
+    b: bool,
+    c: u64,
+    d: Vec<bool>
+  ) -> TestResult {
+    let big = BigUint::from;
+    let apply1_bits = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BitsOp::apply1(
+          op,
+          &Literal::Bits(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_bool_bits = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BitsOp::apply2(
+          op,
+          &Bool(b),
+          &Literal::Bits(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_nat_bits = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BitsOp::apply2(
+          op,
+          &Nat(big(c)),
+          &Literal::Bits(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_bits_bits = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BitsOp::apply2(
+          op,
+          &Literal::Bits(a.clone()),
+          &Literal::Bits(d.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let apply3_nat_bool_bits = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        BitsOp::apply3(
+          op,
+          &Nat(big(c)),
+          &Bool(b),
+          &Literal::Bits(a.clone())
+        ) ==
+        expected
+      )
+    };
+
+    let from_bool = TestResult::from_bool;
+
+    match op {
+      BitsOp::Cons => {
+        let mut a = a.clone();
+        a.push(b);
+        apply2_bool_bits(Some(Literal::Bits(a)))
+      },
+      BitsOp::Len => apply1_bits(Some(Nat(a.len().into()))),
+      BitsOp::Head => apply1_bits(a.last().map(|z| Bool(*z))),
+      BitsOp::Tail => apply1_bits(Some(Literal::Bits(
+        if a.is_empty() {
+          vec![]
+        } else {
+          a[0..a.len() - 1].to_vec()
+        }
+      ))),
+      BitsOp::Take => apply2_nat_bits(Some(Literal::Bits(safe_split(&big(c), &a).0))),
+      BitsOp::Drop => apply2_nat_bits(Some(Literal::Bits(safe_split(&big(c), &a).1))),
+      BitsOp::Append => {
+        let mut a = a.clone();
+        a.extend_from_slice(&d);
+        apply2_bits_bits(Some(Literal::Bits(a)))
+      },
+      BitsOp::Insert => {
+        let idx = usize::try_from(c);
+        match idx {
+          Ok(idx) if idx < a.len() => {
+            let mut a = a.clone();
+            a.insert(idx, b);
+            apply3_nat_bool_bits(Some(Literal::Bits(a)))
+          }
+          _ => apply3_nat_bool_bits(Some(Literal::Bits(a.clone()))),
+        }
+      },
+      BitsOp::Remove => {
+        let idx = usize::try_from(c);
+        match idx {
+          Ok(idx) if idx < a.len() => {
+            let mut a = a.clone();
+            a.remove(idx);
+            apply2_nat_bits(Some(Literal::Bits(a)))
+          }
+          _ => apply2_nat_bits(Some(Literal::Bits(a.clone()))),
+        }
+      },
+      BitsOp::Index => {
+        let idx = usize::try_from(c);
+        match idx {
+          Ok(idx) if idx < a.len() => apply2_nat_bits(Some(Bool(a[idx]))),
+          _ => apply2_nat_bits(None),
+        }
+      },
+      BitsOp::ToBytes => {
+        let bytes = BitsOp::apply1(op, &Literal::Bits(a.clone()));
+        match bytes {
+          None => apply1_bits(None),
+          Some(bytes_) => match bytes_.clone() {
+            Literal::Bytes(_) => {
+              let bits = BytesOp::apply2(
+                BytesOp::ToBits,
+                &Literal::Nat(big(a.len().try_into().unwrap())),
+                &bytes_
+              );
+              match bits {
+                None => apply1_bits(None),
+                Some(bits_) => from_bool(
+                  bits_ == Literal::Bits(a.clone())
+                )
+              }
+            },
+            _ => apply1_bits(None),
+          }
+        }
+      }
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply_none_on_invalid(
+    op: BitsOp,
+    a: Literal,
+    b: Vec<bool>,
+    c: bool,
+    d: u64,
+    test_arg_2: bool,
+    test_arg_3: TestArg3,
+  ) -> TestResult {
+    let big = BigUint::from;
+    let test_apply1_none_on_invalid = |
+      valid_arg: Literal
+    | -> TestResult {
+      if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
+        TestResult::discard()
+      } else {
+        TestResult::from_bool(
+          BitsOp::apply1(
+            op,
+            &a
+          ) ==
+          None
+        )
+      }
+    };
+
+    let test_apply2_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        BitsOp::apply2(
+          op,
+          &a_,
+          &b_
+        ) ==
+        None
+      );
+      if test_arg_2 {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      } else {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    let test_apply3_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal,
+      c_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        BitsOp::apply3(
+          op,
+          &a_,
+          &b_,
+          &c_
+        ) ==
+        None
+      );
+      match test_arg_3 {
+        TestArg3::A => if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        },
+        TestArg3::B => if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        },
+        TestArg3::C => if mem::discriminant(&valid_arg) == mem::discriminant(&c_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    match op {
+      // Arity 1, valid is Bits.
+      BitsOp::Len |
+      BitsOp::Head |
+      BitsOp::Tail |
+      BitsOp::ToBytes => test_apply1_none_on_invalid(Literal::Bits(b)),
+      // Arity 2, valid are Bool on a and Bits on b.
+      BitsOp::Cons => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Bool(c),
+          a,
+          Literal::Bits(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Literal::Bits(b),
+          Bool(c),
+          a
+        )
+      },
+      // Arity 2, valid are Nat on a and Bits on b.
+      BitsOp::Take |
+      BitsOp::Drop |
+      BitsOp::Remove |
+      BitsOp::Index => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Nat(big(d)),
+          a,
+          Literal::Bits(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Literal::Bits(b),
+          Nat(big(d)),
+          a
+        )
+      },
+      // Arity 2, valid are Bits on a and b.
+      BitsOp::Append => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          Literal::Bits(b.clone()),
+          a,
+          Literal::Bits(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          Literal::Bits(b.clone()),
+          Literal::Bits(b),
+          a
+        )
+      },
+      // Arity 3, valid are Nat on a, Bool on b and Bits on c.
+      BitsOp::Insert => match test_arg_3 {
+        TestArg3::A => test_apply3_none_on_invalid(
+          Nat(big(d)),
+          a,
+          Bool(c),
+          Literal::Bits(b)
+        ),
+        TestArg3::B => test_apply3_none_on_invalid(
+          Bool(c),
+          Nat(big(d)),
+          a,
+          Literal::Bits(b)
+        ),
+        TestArg3::C => test_apply3_none_on_invalid(
+          Literal::Bits(b),
+          Nat(big(d)),
+          Bool(c),
+          a
+        ),
+      }
+    }
   }
 }

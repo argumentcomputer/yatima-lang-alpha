@@ -1,17 +1,9 @@
 use cid::Cid;
-use libipld::{
-  cbor::DagCborCodec,
-  codec::Codec,
-  ipld::Ipld,
-};
-use multihash::{
-  Code,
-  MultihashDigest,
-};
+use sp_ipld::Ipld;
 
 /// This trait describes the interations with
-/// externaly stored IPLD structures. 
+/// externaly stored IPLD structures.
 pub trait Store: std::fmt::Debug {
-    fn put(&self, expr: Ipld) -> Cid;
-    fn get(&self, link: Cid) -> Option<Ipld>;
+  fn put(&self, expr: Ipld) -> Cid;
+  fn get(&self, link: Cid) -> Option<Ipld>;
 }
