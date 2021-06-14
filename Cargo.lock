@@ -2141,6 +2141,7 @@ dependencies = [
  "ropey",
  "sp-im",
  "sp-ipld",
+ "sp-std",
 ]
 
 [[package]]
@@ -2162,6 +2163,7 @@ dependencies = [
  "serde_json",
  "sp-im",
  "sp-ipld",
+ "sp-std",
  "yatima_core",
 ]
 
