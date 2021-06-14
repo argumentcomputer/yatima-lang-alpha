@@ -718,15 +718,9 @@ pub mod tests {
 
   #[quickcheck]
   fn test_apply_none_on_invalid(args: ArgsApplyNoneOnInvalid) -> TestResult {
-    let op = args.0;
-    let a = args.1;
-    let b = Rope::from(args.2);
-    let c = args.3;
-    let d = Rope::from(args.4);
-    let e = args.5;
-    let f = args.6;
-    let test_arg_2 = args.7;
-    let test_arg_3 = args.8;
+    let ArgsApplyNoneOnInvalid(op, a, b, c, d, e, f, test_arg_2, test_arg_3) = args;
+    let b = Rope::from(b);
+    let d = Rope::from(d);
     let big = BigUint::from;
     let test_apply1_none_on_invalid = |
       valid_arg: Literal
