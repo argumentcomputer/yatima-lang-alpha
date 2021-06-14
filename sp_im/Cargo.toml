@@ -1,0 +1,11 @@
+[package]
+name = "sp-im"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+sp-std = { version = "3", default-features = false }
+
+[dev-dependencies]
+quickcheck = "0.6"
+proptest = "0.5"

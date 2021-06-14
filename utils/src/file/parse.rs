@@ -230,10 +230,11 @@ pub fn parse_import(
           done: env.done.clone(),
           store: env.store.clone(),
         };
-        let (from, _, defs) = parse_file(env.clone());
+        let (from, pack, defs) = parse_file(env.clone());
         env.remove_open(import_path.clone());
         env.insert_done(import_path, from);
-        let with = with.unwrap_or_else(|| defs.names());
+        let names = pack.index.keys();
+        let with = with.unwrap_or_else(|| names);
         Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
       }
     }

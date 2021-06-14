@@ -26,6 +26,7 @@ pub mod prim;
 pub mod term;
 pub mod upcopy;
 pub mod uses;
+pub mod runtime;
 
 #[cfg(test)]
 pub mod tests {

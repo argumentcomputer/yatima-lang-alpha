@@ -23,11 +23,16 @@ use multihash::{
   Code,
   MultihashDigest,
 };
+
+use sp_im::ConsList;
 use sp_ipld::{
   dag_cbor::DagCborCodec,
   Codec,
 };
-use std::rc::Rc;
+use sp_std::{
+  cell::RefCell,
+  rc::Rc,
+};
 
 use crate::parse::span::Span;
 
@@ -67,7 +72,7 @@ use nom::{
 };
 use std::collections::VecDeque;
 
-type Ctx = Rc<VecDeque<Name>>;
+type Ctx = ConsList<Name>;
 
 pub fn reserved_symbols() -> VecDeque<String> {
   VecDeque::from(vec![
@@ -194,7 +199,7 @@ pub fn is_valid_symbol_string(s: &str) -> bool {
 
 pub fn parse_antiquote(
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (upto, nam) =
@@ -211,7 +216,7 @@ pub fn parse_antiquote(
         upto,
         ParseErrorKind::UndefinedReference(
           Name::from(format!("#${}", nam.to_string())),
-          ctx.as_ref().clone(),
+          ctx.clone(),
         ),
       )))
     }
@@ -220,7 +225,7 @@ pub fn parse_antiquote(
 
 pub fn parse_var(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
@@ -237,13 +242,13 @@ pub fn parse_var(
     else if is_rec_name {
       Ok((upto, Term::Rec(pos)))
     }
-    else if let Some(def) = defs.get(&nam) {
+    else if let Some(def) = defs.as_ref().borrow().get(&nam) {
       Ok((upto, Term::Ref(pos, nam.clone(), def.def_cid, def.ast_cid)))
     }
     else {
       Err(Err::Error(ParseError::new(
         upto,
-        ParseErrorKind::UndefinedReference(nam.clone(), ctx.as_ref().clone()),
+        ParseErrorKind::UndefinedReference(nam.clone(), ctx.clone()),
       )))
     }
   }
@@ -251,10 +256,10 @@ pub fn parse_var(
 
 pub fn parse_lam(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
@@ -263,15 +268,15 @@ pub fn parse_lam(
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=>")(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
+    let mut ctx2 = ctx.clone();
     for n in ns.clone().into_iter() {
-      ctx2.push_front(n);
+      ctx2 = ctx2.cons(n);
     }
     let (upto, bod) = parse_expression(
       input,
       defs.clone(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -294,10 +299,10 @@ pub fn parse_uses(i: Span) -> IResult<Span, Uses, ParseError<Span>> {
 
 pub fn parse_binder_full(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
@@ -308,7 +313,7 @@ pub fn parse_binder_full(
     let (i, _) = parse_space(i)?;
     let (i, typ) = parse_expression(
       input,
-      defs.to_owned(),
+      defs.clone(),
       rec.clone(),
       ctx.clone(),
       quasi.to_owned(),
@@ -324,16 +329,16 @@ pub fn parse_binder_full(
 
 pub fn parse_binder_short(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     map(
       parse_term(
         input,
-        defs.to_owned(),
+        defs.clone(),
         rec.clone(),
         ctx.clone(),
         quasi.to_owned(),
@@ -345,10 +350,10 @@ pub fn parse_binder_short(
 
 pub fn parse_binder(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
@@ -384,54 +389,39 @@ pub fn parse_binder(
 
 pub fn parse_binders(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
+  terminator: &'static str,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
-    let mut ctx = ctx.as_ref().clone();
+    let mut ctx = ctx.clone();
     let mut res = Vec::new();
 
-    match parse_binder(
-      input,
-      defs.to_owned(),
-      rec.clone(),
-      Rc::new(ctx.clone()),
-      quasi.to_owned(),
-      nam_opt,
-    )(i.to_owned())
-    {
-      Err(e) => return Err(e),
-      Ok((i1, bs)) => {
-        for (u, n, t) in bs {
-          ctx.push_front(n.to_owned());
-          res.push((u, n, t));
-        }
-        i = i1;
-      }
-    }
-
     loop {
+      match preceded(parse_space, tag(terminator))(i) {
+        Ok((i2, _)) => return Ok((i2, res)),
+        _ => {}
+      }
       match preceded(
         parse_space,
         parse_binder(
           input,
           defs.to_owned(),
           rec.clone(),
-          Rc::new(ctx.clone()),
+          ctx.clone(),
           quasi.to_owned(),
           nam_opt,
         ),
       )(i)
       {
-        Err(Err::Error(_)) => return Ok((i, res)),
         Err(e) => return Err(e),
         Ok((i2, bs)) => {
           for (u, n, t) in bs {
-            ctx.push_front(n.to_owned());
+            ctx = ctx.cons(n.to_owned());
             res.push((u, n, t));
           }
           i = i2;
@@ -441,36 +431,81 @@ pub fn parse_binders(
   }
 }
 
-pub fn parse_all(
+pub fn parse_binders1(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
+  nam_opt: bool,
+  terminator: &'static str,
+) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
+{
+  move |mut i: Span| {
+    let mut ctx = ctx.clone();
+    let mut res = Vec::new();
+
+    match parse_binder(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.to_owned(),
+      nam_opt,
+    )(i.to_owned())
+    {
+      Err(e) => return Err(e),
+      Ok((i1, bs)) => {
+        for (u, n, t) in bs {
+          ctx = ctx.cons(n.to_owned());
+          res.push((u, n, t));
+        }
+        i = i1;
+      }
+    }
+    let (i, mut res2) = parse_binders(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.to_owned(),
+      nam_opt,
+      terminator,
+    )(i)?;
+    res.append(&mut res2);
+    Ok((i, res))
+  }
+}
+
+pub fn parse_all(
+  input: Cid,
+  defs: Rc<RefCell<Defs>>,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, bs) = parse_binders(
+    let (i, bs) = parse_binders1(
       input,
       defs.clone(),
       rec.clone(),
       ctx.clone(),
       quasi.clone(),
       true,
+      "->",
     )(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, _) = tag("->")(i)?;
-    let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
+    let mut ctx2 = ctx.clone();
     for (_, n, _) in bs.iter() {
-      ctx2.push_front(n.clone());
+      ctx2 = ctx2.cons(n.clone());
     }
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -494,22 +529,22 @@ pub fn parse_type(
 
 pub fn parse_self(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = nom::character::complete::char('@')(from)?;
     let (i, n) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
-    ctx2.push_front(n.clone());
+    let mut ctx2 = ctx.clone();
+    ctx2 = ctx2.cons(n.clone());
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2.clone(),
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -519,10 +554,10 @@ pub fn parse_self(
 
 pub fn parse_case(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("case")(from)?;
@@ -541,10 +576,10 @@ pub fn parse_case(
 
 pub fn parse_data(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("data")(from)?;
@@ -567,47 +602,41 @@ pub fn parse_data(
 /// This is useful for parsing lets and defs
 pub fn parse_bound_expression(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
   nam: Name,
   letrec: bool,
 ) -> impl Fn(Span) -> IResult<Span, (Term, Term), ParseError<Span>> {
   move |from: Span| {
-    let (i, bs) = alt((
-      terminated(
-        parse_binders(
-          input,
-          defs.clone(),
-          rec.clone(),
-          ctx.clone(),
-          quasi.clone(),
-          false,
-        ),
-        parse_space,
-      ),
-      success(Vec::new()),
-    ))(from)?;
-    let (i, _) = tag(":")(i)?;
+    let (i, bs) = parse_binders(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.clone(),
+      false,
+      ":",
+    )(from)?;
     let (i, _) = parse_space(i)?;
-    let mut type_ctx = ctx.as_ref().clone();
+    let mut type_ctx = ctx.clone();
     for (_, n, _) in bs.iter() {
-      type_ctx.push_front(n.clone());
+      type_ctx = type_ctx.cons(n.clone());
     }
     let (i, typ) = parse_expression(
       input,
       defs.clone(),
       rec.clone(),
-      Rc::new(type_ctx),
+      type_ctx,
       quasi.clone(),
     )(i)?;
-    let mut term_ctx = ctx.as_ref().clone();
+    let mut term_ctx = ctx.clone();
     if letrec {
-      term_ctx.push_front(nam.clone());
+      term_ctx = term_ctx.cons(nam.clone());
     };
     for (_, n, _) in bs.iter() {
-      term_ctx.push_front(n.clone());
+      term_ctx = term_ctx.cons(n.clone());
     }
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=")(i)?;
@@ -616,7 +645,7 @@ pub fn parse_bound_expression(
       input,
       defs.clone(),
       rec.clone(),
-      Rc::new(term_ctx),
+      term_ctx,
       quasi.clone(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -634,10 +663,10 @@ pub fn parse_bound_expression(
 
 pub fn parse_let(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, letrec) =
@@ -658,13 +687,13 @@ pub fn parse_let(
     )(i)?;
     let (i, _) = alt((tag(";"), tag("in")))(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.as_ref().clone();
-    ctx2.push_front(nam.clone());
+    let mut ctx2 = ctx.clone();
+    ctx2 = ctx2.cons(nam.clone());
     let (upto, bod) = parse_expression(
       input,
       defs.to_owned(),
       rec.clone(),
-      Rc::new(ctx2),
+      ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
@@ -757,10 +786,10 @@ pub fn parse_lit(
 
 pub fn parse_expression(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i, trm) =
@@ -804,10 +833,10 @@ pub fn parse_app_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
 
 pub fn parse_apps(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
     let (i2, _) = parse_space(from)?;
@@ -845,10 +874,10 @@ pub fn parse_apps(
 
 pub fn parse_term(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
   rec: Option<Name>,
   ctx: Ctx,
-  quasi: VecDeque<Term>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |i: Span| {
     context(
@@ -918,20 +947,20 @@ pub fn input_cid(i: &str) -> Cid {
 pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
   parse_expression(
     input_cid(i),
-    defs,
+    Rc::new(RefCell::new(defs)),
     None,
+    ConsList::new(),
     Rc::new(VecDeque::new()),
-    VecDeque::new(),
   )(Span::new(i))
 }
 pub fn parse_quasi(
   i: &str,
-  defs: Defs,
-  quasi: VecDeque<Term>,
+  defs: Rc<RefCell<Defs>>,
+  quasi: Rc<VecDeque<Term>>,
 ) -> IResult<Span, Term, ParseError<Span>> {
-  parse_expression(input_cid(i), defs, None, Rc::new(VecDeque::new()), quasi)(
-    Span::new(i),
-  )
+  parse_expression(input_cid(i), defs, None, ConsList::new(), quasi)(Span::new(
+    i,
+  ))
 }
 
 #[macro_export]
@@ -942,7 +971,10 @@ macro_rules! yatima {
   ($i:literal, $($q: expr),*) => {{
     let mut quasi = Vec::new();
     $(quasi.push($q);)*
-    crate::parse::term::parse_quasi($i, crate::defs::Defs::new(), std::collections::VecDeque::from(quasi)).unwrap().1
+    crate::parse::term::parse_quasi($i,
+      sp_std::rc::Rc::new(sp_std::cell::RefCell::new(crate::defs::Defs::new())),
+      sp_std::rc::Rc::new(sp_std::collections::vec_deque::VecDeque::from(quasi)))
+      .unwrap().1
   }}
 }
 
@@ -956,10 +988,10 @@ pub mod tests {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
       parse_apps(
         input_cid(i),
-        Defs::new(),
+        Rc::new(RefCell::new(Defs::new())),
         None,
+        ConsList::new(),
         Rc::new(VecDeque::new()),
-        VecDeque::new(),
       )(Span::new(i))
     }
     let res = test("0d1");
@@ -975,10 +1007,10 @@ pub mod tests {
     fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
       parse_expression(
         input_cid(i),
-        Defs::new(),
+        Rc::new(RefCell::new(Defs::new())),
         None,
+        ConsList::new(),
         Rc::new(VecDeque::new()),
-        VecDeque::new(),
       )(Span::new(i))
     }
     let res = test("(Type :: Type)");
@@ -995,6 +1027,130 @@ pub mod tests {
     let res = test("∀ (_ :Type) -> Type");
     assert!(res.is_ok());
   }
+  #[test]
+  fn test_parse_binder_full() {
+    fn test(
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binder_full(
+        input_cid(i),
+        Rc::new(RefCell::new(Defs::new())),
+        None,
+        ConsList::new(),
+        Rc::new(VecDeque::new()),
+      )(Span::new(i))
+    }
+    let res = test("(a b c: Type)");
+    assert!(res.is_ok());
+  }
+
+  #[test]
+  fn test_parse_alls() {
+    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
+      parse_all(
+        input_cid(i),
+        Rc::new(RefCell::new(Defs::new())),
+        None,
+        ConsList::new(),
+        Rc::new(VecDeque::new()),
+      )(Span::new(i))
+    }
+    let res = test("∀ (a b c: Type) -> Type");
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+  }
+
+  #[test]
+  fn test_parse_let() {
+    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
+      parse_let(
+        input_cid(i),
+        Rc::new(RefCell::new(Defs::new())),
+        None,
+        ConsList::new(),
+        Rc::new(VecDeque::new()),
+      )(Span::new(i))
+    }
+    let res = test("let 0 x: Type = Type; x");
+    assert!(res.is_ok());
+    let res = test("let 0 f (x: Unknown) = Type; x");
+    println!("res: {:?}", res);
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              ConsList::new(),
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+  }
+  #[test]
+  fn test_parse_bound_expression() {
+    fn test(i: &str) -> IResult<Span, (Term, Term), ParseError<Span>> {
+      parse_bound_expression(
+        input_cid(i),
+        Rc::new(RefCell::new(Defs::new())),
+        None,
+        ConsList::new(),
+        Rc::new(VecDeque::new()),
+        Name::from("test"),
+        false,
+      )(Span::new(i))
+    }
+    let res = test(": Type = Type");
+    assert!(res.is_ok());
+    let res = test("(x: Type): Type = Type");
+    assert!(res.is_ok());
+    let res = test("(x: Unknown): Type = Type");
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        println!("err: {:?}", err);
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              ConsList::new()
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+  }
+  #[test]
+  fn test_parse_binders1() {
+    use Term::*;
+    fn test(
+      nam_opt: bool,
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binders(
+        input_cid(i),
+        Rc::new(RefCell::new(Defs::new())),
+        None,
+        ConsList::new(),
+        Rc::new(VecDeque::new()),
+        nam_opt,
+        ":",
+      )(Span::new(i))
+    }
+    let res = test(true, "Type #Text:");
+    assert!(res.is_ok());
+    assert!(
+      res.unwrap().1
+        == vec![
+          (Uses::Many, Name::from(""), Typ(Pos::None)),
+          (Uses::Many, Name::from(""), LTy(Pos::None, LitType::Text)),
+        ]
+    );
+  }
 
   #[test]
   fn test_parse_binders() {
@@ -1005,27 +1161,17 @@ pub mod tests {
     ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
       parse_binders(
         input_cid(i),
-        Defs::new(),
+        Rc::new(RefCell::new(Defs::new())),
         None,
+        ConsList::new(),
         Rc::new(VecDeque::new()),
-        VecDeque::new(),
         nam_opt,
+        ":",
       )(Span::new(i))
     }
-    fn test_full(
-      i: &str,
-    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
-      parse_binder_full(
-        input_cid(i),
-        Defs::new(),
-        None,
-        Rc::new(VecDeque::new()),
-        VecDeque::new(),
-      )(Span::new(i))
-    }
-    let res = test_full("(a b c: Type)");
+    let res = test(true, ":");
     assert!(res.is_ok());
-    let res = test(true, "Type Type");
+    let res = test(true, "Type Type:");
     assert!(res.is_ok());
     assert!(
       res.unwrap().1
@@ -1034,7 +1180,7 @@ pub mod tests {
           (Uses::Many, Name::from(""), Typ(Pos::None)),
         ]
     );
-    let res = test(true, "(A: Type) (a b c: A)");
+    let res = test(true, "(A: Type) (a b c: A):");
     assert!(res.is_ok());
     assert!(
       res.unwrap().1
@@ -1045,6 +1191,38 @@ pub mod tests {
           (Uses::Many, Name::from("c"), Var(Pos::None, Name::from("A"), 2)),
         ]
     );
+    let res = test(true, "(A: Type) (a b c: Unknown):");
+    assert!(res.is_err());
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              ConsList::from(vec!(Name::from("A")))
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+    let res = test(false, "(x: Unknown):");
+    assert!(res.is_err());
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              ConsList::new(),
+            )]
+        );
+      }
+      _ => {
+        assert!(false)
+      }
+    }
   }
 
   #[quickcheck]
@@ -1052,10 +1230,10 @@ pub mod tests {
     let i = format!("{}", x);
     match parse_expression(
       input_cid(&i),
-      test_defs(),
+      Rc::new(RefCell::new(test_defs())),
       None,
+      ConsList::new(),
       Rc::new(VecDeque::new()),
-      VecDeque::new(),
     )(Span::new(&i))
     {
       Ok((_, y)) => x == y,

@@ -476,23 +476,23 @@ impl PrimOp {
   }
 }
 
-pub fn apply_una_op(opr: PrimOp, x: Literal) -> Option<Literal> {
+pub fn apply_una_op(opr: PrimOp, x: &Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
   match (opr, x) {
     (NatSuc, Nat(x)) => Some(Nat(x + BigUint::from(1u64))),
-    (NatPre, Nat(x)) if x != 0u64.into() => Some(Nat(x - BigUint::from(1u64))),
+    (NatPre, Nat(x)) if *x != 0u64.into() => Some(Nat(x - BigUint::from(1u64))),
     (IntSgn, Int(x)) => match x.sign() {
       Sign::NoSign => Some(Int(BigInt::from(0i64))),
       Sign::Plus => Some(Int(BigInt::from(1i64))),
       Sign::Minus => Some(Int(BigInt::from(-1i64))),
     },
-    (IntAbs, Int(x)) => Some(Nat(x.into_parts().1)),
+    (IntAbs, Int(x)) => Some(Nat(x.clone().into_parts().1)),
     _ => None,
   }
 }
 
-pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
+pub fn apply_bin_op(opr: PrimOp, x: &Literal, y: &Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
   let tt = Bool(true);
@@ -501,14 +501,14 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
   match (opr, x, y) {
     // Construction
     (IntNew, Bool(x), Nat(y)) => {
-      if y == 0u64.into() {
-        Some(Int(BigInt::from_biguint(Sign::NoSign, y)))
+      if *y == 0u64.into() {
+        Some(Int(BigInt::from_biguint(Sign::NoSign, y.clone())))
       }
-      else if x {
-        Some(Int(BigInt::from_biguint(Sign::Plus, y)))
+      else if *x {
+        Some(Int(BigInt::from_biguint(Sign::Plus, y.clone())))
       }
       else {
-        Some(Int(BigInt::from_biguint(Sign::Minus, y)))
+        Some(Int(BigInt::from_biguint(Sign::Minus, y.clone())))
       }
     }
     // Comparison
@@ -527,16 +527,18 @@ pub fn apply_bin_op(opr: PrimOp, x: Literal, y: Literal) -> Option<Literal> {
     (IntSub, Int(x), Int(y)) => Some(Int(x - y)),
     (NatMul, Nat(x), Nat(y)) => Some(Nat(x * y)),
     (IntMul, Int(x), Int(y)) => Some(Int(x * y)),
-    (NatDiv, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
-    (IntDiv, Int(x), Int(y)) if y != 0.into() => Some(Int(x / y)),
-    (NatMod, Nat(x), Nat(y)) if y != (0u64).into() => Some(Nat(x * y)),
-    (IntMod, Int(x), Int(y)) if y != 0.into() => Some(Int(x % y)),
-    (TextCons, Char(c), Text(mut cs)) => {
-      cs.insert_char(0, c);
+    (NatDiv, Nat(x), Nat(y)) if *y != (0u64).into() => Some(Nat(x * y)),
+    (IntDiv, Int(x), Int(y)) if *y != 0.into() => Some(Int(x / y)),
+    (NatMod, Nat(x), Nat(y)) if *y != (0u64).into() => Some(Nat(x * y)),
+    (IntMod, Int(x), Int(y)) if *y != 0.into() => Some(Int(x % y)),
+    (TextCons, Char(c), Text(cs)) => {
+      let mut cs = cs.clone();
+      cs.insert_char(0, *c);
       Some(Text(cs))
     }
-    (BytesCons, U8(c), Bytes(mut cs)) => {
-      cs.push_front(c);
+    (BytesCons, U8(c), Bytes(cs)) => {
+      let mut cs = cs.clone();
+      cs.push_front(*c);
       Some(Bytes(cs))
     }
     _ => None,
