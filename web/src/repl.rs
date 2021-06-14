@@ -196,7 +196,7 @@ impl Repl for WebRepl {
     // TODO
   }
 
-  fn add_history_entry(&mut self, s: &str) {
+  fn add_history_entry(&mut self, _s: &str) {
     // TODO
   }
 
@@ -227,10 +227,10 @@ pub fn main() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn run_repl_line(line: &str) {}
+pub fn run_repl_line(_line: &str) {}
 
 #[wasm_bindgen]
-pub fn parse_source(source: &str) {
+pub fn parse_source(_source: &str) {
   // alert(&format!("Parsing:\n{}", source));
   // let hashspace =
   //   hashspace::Hashspace::with_hosts(vec!["localhost:8000".to_string()]);

@@ -16,15 +16,15 @@ use crate::{
   yatima,
 };
 
-use std::collections::{
-  HashMap,
-};
+use std::collections::HashMap;
 
 use cid::Cid;
 
 use core::ptr::NonNull;
-use std::collections::HashSet;
-use std::mem;
+use std::{
+  collections::HashSet,
+  mem,
+};
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -104,8 +104,12 @@ pub fn check(
   typ: &mut DAG,
 ) -> Result<(), CheckError> {
   match term {
-    Term::Lam(pos, _, bod) => check_lam(rec, defs, ctx, uses, term, typ, pos, &**bod),
-    Term::Dat(pos, bod) => check_dat(rec, defs, ctx, uses, term, typ, pos, &**bod),
+    Term::Lam(pos, _, bod) => {
+      check_lam(rec, defs, ctx, uses, term, typ, pos, &**bod)
+    }
+    Term::Dat(pos, bod) => {
+      check_dat(rec, defs, ctx, uses, term, typ, pos, &**bod)
+    }
     _ => {
       let depth = ctx.len();
       // TODO Should we clone ctx?
@@ -138,27 +142,30 @@ pub fn check_lam(
   term: &Term,
   typ: &mut DAG,
   pos: &Pos,
-  bod: &Term
+  bod: &Term,
 ) -> Result<(), CheckError> {
-  // To check whether a lambda is well typed, its type must reduce to a forall; otherwise we fail
+  // To check whether a lambda is well typed, its type must reduce to a forall;
+  // otherwise we fail
   typ.whnf(defs);
   match typ.head {
     DAGPtr::All(all_link) => {
-      // Extract the domain and image of the function and also the variable that is dependently bound.
+      // Extract the domain and image of the function and also the variable that
+      // is dependently bound.
       let All { uses: lam_uses, dom, img, .. } =
         unsafe { &mut *all_link.as_ptr() };
-      let Lam { var: all_var, bod: img, .. } =
-        unsafe { &mut *img.as_ptr() };
-      // Annotate the depth of the node that binds each variable. This is needed to decide whether
-      // two variables of distinct DAGs are actually the same.
+      let Lam { var: all_var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
+      // Annotate the depth of the node that binds each variable. This is needed
+      // to decide whether two variables of distinct DAGs are actually the
+      // same.
       (*all_var).dep = ctx.len() as u64;
-      // Adjust the context multiplicity, add the argument to the context and check the body
+      // Adjust the context multiplicity, add the argument to the context and
+      // check the body
       let rest_ctx = div_ctx(uses, ctx);
       ctx.push((all_var.nam.to_string(), *lam_uses, dom));
       let mut img = DAG::new(*img);
       check(rec, defs, ctx, Uses::Once, bod, &mut img)?;
-      // Check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
-      // otherwise the variable was not used enough
+      // Check whether the rest 'contains' zero (i.e., zero is less than or
+      // equal to the rest), otherwise the variable was not used enough
       let (_, rest, _) = ctx.last().unwrap();
       if !Uses::lte(Uses::None, *rest) {
         Err(CheckError::QuantityTooLittle(
@@ -170,7 +177,8 @@ pub fn check_lam(
         ))
       }
       else {
-        // Remove the argument from the context, readjust the context multiplicity
+        // Remove the argument from the context, readjust the context
+        // multiplicity
         ctx.pop();
         add_mul_ctx(uses, ctx, rest_ctx);
         Ok(())
@@ -198,18 +206,19 @@ pub fn check_dat(
   term: &Term,
   typ: &mut DAG,
   pos: &Pos,
-  bod: &Term
+  bod: &Term,
 ) -> Result<(), CheckError> {
-  // To check whether data is well typed, its type must reduce to a self type; otherwise we fail
+  // To check whether data is well typed, its type must reduce to a self type;
+  // otherwise we fail
   typ.whnf(defs);
   match typ.head {
     DAGPtr::Slf(slf_link) => {
       // Extract the body of the self type
-      let Slf { var, bod: slf_bod, .. } =
-        unsafe { &mut *slf_link.as_ptr() };
-      // The type of the body of the data must be the body of the self with term substituted
-      // for its variable. To do this we copy the body of the self with a mapping from the
-      // variable to the term as a DAG. The copied type must be rooted
+      let Slf { var, bod: slf_bod, .. } = unsafe { &mut *slf_link.as_ptr() };
+      // The type of the body of the data must be the body of the self with term
+      // substituted for its variable. To do this we copy the body of the
+      // self with a mapping from the variable to the term as a DAG. The
+      // copied type must be rooted
       let mut map = HashMap::new();
       if var.parents.is_some() {
         map.insert(
@@ -252,40 +261,41 @@ pub fn infer(
   term: &Term,
 ) -> Result<DAG, CheckError> {
   match term {
-    Term::Rec(_) =>
-      infer_rec(rec, defs),
-    Term::Var(pos, nam, idx) =>
-      infer_var(rec, defs, ctx, uses, pos, nam, idx),
-    Term::Ref(pos, nam, def_link, _) =>
-      infer_ref(defs, pos, nam, def_link),
-    Term::App(pos, fun_arg) =>
-      infer_app(rec, defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1),
-    Term::Cse(pos, exp) =>
-      infer_cse(rec, defs, ctx, uses, pos, exp),
-    Term::All(_, _, nam, dom_img) =>
-      infer_all(rec, defs, ctx, nam, &dom_img.0, &dom_img.1),
-    Term::Slf(_, nam, bod) =>
-      infer_slf(rec, defs, ctx, term, nam, bod),
-    Term::Ann(_, typ_exp) =>
-      infer_ann(rec, defs, ctx, uses, &typ_exp.0, &typ_exp.1),
-    Term::Let(pos, false, exp_uses, nam, triple) =>
-      infer_let(rec, defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1, &triple.2),
-    Term::Let(pos, true, exp_uses, nam, triple) => 
-      infer_letrec(rec, defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1, &triple.2),
+    Term::Rec(_) => infer_rec(rec, defs),
+    Term::Var(pos, nam, idx) => infer_var(rec, defs, ctx, uses, pos, nam, idx),
+    Term::Ref(pos, nam, def_link, _) => infer_ref(defs, pos, nam, def_link),
+    Term::App(pos, fun_arg) => {
+      infer_app(rec, defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1)
+    }
+    Term::Cse(pos, exp) => infer_cse(rec, defs, ctx, uses, pos, exp),
+    Term::All(_, _, nam, dom_img) => {
+      infer_all(rec, defs, ctx, nam, &dom_img.0, &dom_img.1)
+    }
+    Term::Slf(_, nam, bod) => infer_slf(rec, defs, ctx, term, nam, bod),
+    Term::Ann(_, typ_exp) => {
+      infer_ann(rec, defs, ctx, uses, &typ_exp.0, &typ_exp.1)
+    }
+    Term::Let(pos, false, exp_uses, nam, triple) => infer_let(
+      rec, defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1,
+      &triple.2,
+    ),
+    Term::Let(pos, true, exp_uses, nam, triple) => infer_letrec(
+      rec, defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1,
+      &triple.2,
+    ),
     Term::Typ(_) => {
       let typ = DAG::from_term(&Term::Typ(Pos::None));
       Ok(typ)
     }
-    Term::Lit(_, lit) =>
-      Ok(DAG::from_term(&infer_lit(lit.to_owned()))),
-    Term::LTy(..) =>
-      Ok(DAG::from_term(&yatima!("Type"))),
-    Term::Opr(_, opr) =>
-      Ok(DAG::from_term(&opr.type_of())),
-    Term::Lam(..) =>
-      Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx))),
-    Term::Dat(..) =>
+    Term::Lit(_, lit) => Ok(DAG::from_term(&infer_lit(lit.to_owned()))),
+    Term::LTy(..) => Ok(DAG::from_term(&yatima!("Type"))),
+    Term::Opr(_, opr) => Ok(DAG::from_term(&opr.type_of())),
+    Term::Lam(..) => {
+      Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx)))
+    }
+    Term::Dat(..) => {
       Err(CheckError::UntypedData(term.pos(), error_context(&ctx)))
+    }
   }
 }
 
@@ -309,8 +319,8 @@ pub fn infer_rec(
 
 #[inline]
 pub fn infer_var(
-  rec: &Option<(Name, Cid, Cid)>,
-  defs: &Defs,
+  _rec: &Option<(Name, Cid, Cid)>,
+  _defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
   pos: &Pos,
@@ -368,14 +378,13 @@ pub fn infer_app(
   uses: Uses,
   pos: &Pos,
   fun: &Term,
-  arg: &Term
+  arg: &Term,
 ) -> Result<DAG, CheckError> {
   let mut fun_typ = infer(rec, defs, ctx, uses, fun)?;
   fun_typ.whnf(defs);
   match fun_typ.head {
     DAGPtr::All(link) => {
-      let All { uses: lam_uses, dom, img, .. } =
-        unsafe { &mut *link.as_ptr() };
+      let All { uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
       let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
       check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
       let mut map = HashMap::new();
@@ -441,11 +450,9 @@ pub fn infer_cse(
       let LTy { lty, .. } = unsafe { &mut *link.as_ptr() };
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       match lty.induction(exp.clone()) {
-        None => Err(CheckError::NonInductiveLitType(
-          *pos,
-          error_context(&ctx),
-          *lty,
-        )),
+        None => {
+          Err(CheckError::NonInductiveLitType(*pos, error_context(&ctx), *lty))
+        }
         Some(ind) => {
           let induction = DAG::from_term_inner(
             &ind,
@@ -529,20 +536,28 @@ pub fn infer_let(
   exp: &Term,
   bod: &Term,
 ) -> Result<DAG, CheckError> {
-  let exp_dag = &mut DAG::new(
-    DAG::from_term_inner(exp, ctx.len() as u64, HashMap::new(), None, rec.clone())
-  );
+  let exp_dag = &mut DAG::new(DAG::from_term_inner(
+    exp,
+    ctx.len() as u64,
+    HashMap::new(),
+    None,
+    rec.clone(),
+  ));
   let root = alloc_val(DLL::singleton(ParentPtr::Root));
-  let exp_typ_dag = &mut DAG::new(
-    DAG::from_term_inner(exp_typ, ctx.len() as u64, HashMap::new(), Some(root), rec.clone())
-  );
+  let exp_typ_dag = &mut DAG::new(DAG::from_term_inner(
+    exp_typ,
+    ctx.len() as u64,
+    HashMap::new(),
+    Some(root),
+    rec.clone(),
+  ));
   check(rec, defs, ctx, exp_uses * uses, exp, exp_typ_dag)?;
   let rest_ctx = div_ctx(uses, ctx);
   ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
   let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
   let (_, rest, _) = ctx.last().unwrap();
-  // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
-  // otherwise the variable was not used enough
+  // Have to check whether the rest 'contains' zero (i.e., zero is less than or
+  // equal to the rest), otherwise the variable was not used enough
   if !Uses::lte(Uses::None, *rest) {
     Err(CheckError::QuantityTooLittle(
       *pos,
@@ -584,12 +599,18 @@ pub fn infer_letrec(
       exp,
       ctx.len() as u64 + 1,
       exp_map,
-      NonNull::new(fix_bod_ref), rec.clone()));
+      NonNull::new(fix_bod_ref),
+      rec.clone(),
+    ));
     // Allocates exp_typ as a DAG, must be rooted
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    let exp_typ_dag = &mut DAG::new(
-      DAG::from_term_inner(exp_typ, ctx.len() as u64, HashMap::new(), Some(root), rec.clone())
-    );
+    let exp_typ_dag = &mut DAG::new(DAG::from_term_inner(
+      exp_typ,
+      ctx.len() as u64,
+      HashMap::new(),
+      Some(root),
+      rec.clone(),
+    ));
     // Check exp, noting it is a recursive definition
     let rest_ctx = div_ctx(Uses::Many, ctx);
     ctx.push((nam.to_string(), Uses::Many, &mut exp_typ_dag.head));
@@ -601,8 +622,8 @@ pub fn infer_letrec(
     ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
     let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
     let (_, rest, _) = ctx.last().unwrap();
-    // Have to check whether the rest 'contains' zero (i.e., zero is less than or equal to the rest),
-    // otherwise the variable was not used enough
+    // Have to check whether the rest 'contains' zero (i.e., zero is less than
+    // or equal to the rest), otherwise the variable was not used enough
     if !Uses::lte(Uses::None, *rest) {
       Err(CheckError::QuantityTooLittle(
         *pos,

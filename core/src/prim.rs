@@ -216,7 +216,6 @@ impl Op {
       Self::I32(op) => op.apply2(x, y),
       Self::I64(op) => op.apply2(x, y),
       // Self::I128(op) => op.apply2(x, y),
-      _ => None,
     }
   }
 
@@ -306,7 +305,7 @@ pub mod tests {
   pub enum TestArg3 {
     A,
     B,
-    C
+    C,
   }
 
   impl Arbitrary for TestArg3 {
@@ -316,7 +315,7 @@ pub mod tests {
       match gen {
         0 => Self::A,
         1 => Self::B,
-        _ => Self::C
+        _ => Self::C,
       }
     }
   }

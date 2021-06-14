@@ -38,6 +38,11 @@ pub enum CharOp {
   ToAsciiUppercase,
   ToLowercase,
   ToUppercase,
+  Eql,
+  Lte,
+  Lth,
+  Gth,
+  Gte,
 }
 
 impl CharOp {
@@ -70,6 +75,11 @@ impl CharOp {
       Self::ToAsciiUppercase => "to_ascii_uppercase".to_owned(),
       Self::ToLowercase => "to_lowercase".to_owned(),
       Self::ToUppercase => "to_uppercase".to_owned(),
+      Self::Eql => "eql".to_owned(),
+      Self::Lte => "lte".to_owned(),
+      Self::Lth => "lth".to_owned(),
+      Self::Gth => "gth".to_owned(),
+      Self::Gte => "gte".to_owned(),
     }
   }
 
@@ -102,6 +112,11 @@ impl CharOp {
       "to_ascii_uppercase" => Some(Self::ToAsciiUppercase),
       "to_lowercase" => Some(Self::ToLowercase),
       "to_uppercase" => Some(Self::ToUppercase),
+      "eql" => Some(Self::Eql),
+      "lth" => Some(Self::Lth),
+      "lte" => Some(Self::Lte),
+      "gth" => Some(Self::Gth),
+      "gte" => Some(Self::Gte),
       _ => None,
     }
   }
@@ -135,6 +150,11 @@ impl CharOp {
       Self::ToAsciiUppercase => yatima!("∀ #Char -> #Bool"),
       Self::ToLowercase => yatima!("∀ #Char -> #Bool"),
       Self::ToUppercase => yatima!("∀ #Char -> #Bool"),
+      Self::Eql => yatima!("∀ #Char #Char -> #Bool"),
+      Self::Lte => yatima!("∀ #Char #Char -> #Bool"),
+      Self::Lth => yatima!("∀ #Char #Char -> #Bool"),
+      Self::Gth => yatima!("∀ #Char #Char -> #Bool"),
+      Self::Gte => yatima!("∀ #Char #Char -> #Bool"),
     }
   }
 
@@ -167,6 +187,11 @@ impl CharOp {
       Self::ToAsciiUppercase => Ipld::Integer(24),
       Self::ToLowercase => Ipld::Integer(25),
       Self::ToUppercase => Ipld::Integer(26),
+      Self::Eql => Ipld::Integer(27),
+      Self::Lte => Ipld::Integer(28),
+      Self::Lth => Ipld::Integer(29),
+      Self::Gth => Ipld::Integer(30),
+      Self::Gte => Ipld::Integer(31),
     }
   }
 
@@ -199,6 +224,11 @@ impl CharOp {
       Ipld::Integer(24) => Ok(Self::ToAsciiUppercase),
       Ipld::Integer(25) => Ok(Self::ToLowercase),
       Ipld::Integer(26) => Ok(Self::ToUppercase),
+      Ipld::Integer(27) => Ok(Self::Eql),
+      Ipld::Integer(28) => Ok(Self::Lte),
+      Ipld::Integer(29) => Ok(Self::Lth),
+      Ipld::Integer(30) => Ok(Self::Gth),
+      Ipld::Integer(31) => Ok(Self::Gte),
       xs => Err(IpldError::CharOp(xs.to_owned())),
     }
   }
@@ -232,6 +262,11 @@ impl CharOp {
       Self::ToAsciiUppercase => 1,
       Self::ToLowercase => 1,
       Self::ToUppercase => 1,
+      Self::Eql => 2,
+      Self::Lte => 2,
+      Self::Lth => 2,
+      Self::Gth => 2,
+      Self::Gte => 2,
     }
   }
 
@@ -244,13 +279,17 @@ impl CharOp {
       (Self::IsAlphanumeric, Char(x)) => Some(Bool(x.is_alphanumeric())),
       (Self::IsAscii, Char(x)) => Some(Bool(x.is_ascii())),
       (Self::IsAsciiAlphabetic, Char(x)) => Some(Bool(x.is_ascii_alphabetic())),
-      (Self::IsAsciiAlphanumeric, Char(x)) => Some(Bool(x.is_ascii_alphanumeric())),
+      (Self::IsAsciiAlphanumeric, Char(x)) => {
+        Some(Bool(x.is_ascii_alphanumeric()))
+      }
       (Self::IsAsciiControl, Char(x)) => Some(Bool(x.is_ascii_control())),
       (Self::IsAsciiDigit, Char(x)) => Some(Bool(x.is_ascii_digit())),
       (Self::IsAsciiGraphic, Char(x)) => Some(Bool(x.is_ascii_graphic())),
       (Self::IsAsciiHexDigit, Char(x)) => Some(Bool(x.is_ascii_hexdigit())),
       (Self::IsAsciiLowerCase, Char(x)) => Some(Bool(x.is_ascii_lowercase())),
-      (Self::IsAsciiPunctuation, Char(x)) => Some(Bool(x.is_ascii_punctuation())),
+      (Self::IsAsciiPunctuation, Char(x)) => {
+        Some(Bool(x.is_ascii_punctuation()))
+      }
       (Self::IsAsciiUpperCase, Char(x)) => Some(Bool(x.is_ascii_uppercase())),
       (Self::IsAsciiWhitespace, Char(x)) => Some(Bool(x.is_ascii_whitespace())),
       (Self::IsControl, Char(x)) => Some(Bool(x.is_control())),
@@ -262,8 +301,12 @@ impl CharOp {
       (Self::LenUTF16, Char(x)) => Some(Nat(x.len_utf16().into())),
       (Self::ToAsciiLowercase, Char(x)) => Some(Char(x.to_ascii_lowercase())),
       (Self::ToAsciiUppercase, Char(x)) => Some(Char(x.to_ascii_uppercase())),
-      (Self::ToLowercase, Char(x)) => Some(Text(x.to_lowercase().to_string().into())),
-      (Self::ToUppercase, Char(x)) => Some(Text(x.to_uppercase().to_string().into())),
+      (Self::ToLowercase, Char(x)) => {
+        Some(Text(x.to_lowercase().to_string().into()))
+      }
+      (Self::ToUppercase, Char(x)) => {
+        Some(Text(x.to_uppercase().to_string().into()))
+      }
       _ => None,
     }
   }
@@ -271,12 +314,21 @@ impl CharOp {
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
-      // TODO: Hardcoding the maximum radix here is probably bad, not sure how to do it differently though.
-      (Self::IsDigit, Char(x), U32(y)) => if *y > 36 {
-        None
-      } else {
-        Some(Bool(x.is_digit(*y)))
-      },
+      // TODO: Hardcoding the maximum radix here is probably bad, not sure how
+      // to do it differently though.
+      (Self::IsDigit, Char(x), U32(y)) => {
+        if *y > 36 {
+          None
+        }
+        else {
+          Some(Bool(x.is_digit(*y)))
+        }
+      }
+      (Self::Eql, Char(x), Char(y)) => Some(Bool(x == y)),
+      (Self::Lte, Char(x), Char(y)) => Some(Bool(x <= y)),
+      (Self::Lth, Char(x), Char(y)) => Some(Bool(x < y)),
+      (Self::Gth, Char(x), Char(y)) => Some(Bool(x > y)),
+      (Self::Gte, Char(x), Char(y)) => Some(Bool(x >= y)),
       _ => None,
     }
   }
@@ -294,21 +346,21 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
-    TestResult
+    TestResult,
   };
   use rand::Rng;
-  use Literal::{
-    U32,
-    Char,
-    Bool,
-    Nat,
-    Text
-  };
   use std::mem;
+  use Literal::{
+    Bool,
+    Char,
+    Nat,
+    Text,
+    U32,
+  };
   impl Arbitrary for CharOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..=26);
+      let gen: u32 = rng.gen_range(0..=31);
       match gen {
         0 => Self::FromU32,
         1 => Self::ToU32,
@@ -336,7 +388,12 @@ pub mod tests {
         23 => Self::ToAsciiLowercase,
         24 => Self::ToAsciiUppercase,
         25 => Self::ToLowercase,
-        _ => Self::ToUppercase,
+        26 => Self::ToUppercase,
+        27 => Self::Eql,
+        28 => Self::Lte,
+        29 => Self::Lth,
+        30 => Self::Gth,
+        _ => Self::Gte,
       }
     }
   }
@@ -350,40 +407,20 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: CharOp,
-    a: u32,
-    b: char
-  ) -> TestResult {
+  fn test_apply(op: CharOp, a: u32, b: char, c: char) -> TestResult {
     let apply1_u32 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        CharOp::apply1(
-          op,
-          &U32(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(CharOp::apply1(op, &U32(a)) == expected)
     };
 
     let apply1_char = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        CharOp::apply1(
-          op,
-          &Char(b)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(CharOp::apply1(op, &Char(b)) == expected)
     };
 
     let apply2_char_u32 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        CharOp::apply2(
-          op,
-          &Char(b),
-          &U32(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(CharOp::apply2(op, &Char(b), &U32(a)) == expected)
+    };
+    let apply2_char_char = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(CharOp::apply2(op, &Char(b), &Char(c)) == expected)
     };
 
     match op {
@@ -392,24 +429,33 @@ pub mod tests {
       CharOp::IsAlphabetic => apply1_char(Some(Bool(b.is_alphabetic()))),
       CharOp::IsAlphanumeric => apply1_char(Some(Bool(b.is_alphanumeric()))),
       CharOp::IsAscii => apply1_char(Some(Bool(b.is_ascii()))),
-      CharOp::IsAsciiAlphabetic => apply1_char(Some(Bool(b.is_ascii_alphabetic()))),
-      CharOp::IsAsciiAlphanumeric => apply1_char(Some(Bool(b.is_ascii_alphanumeric()))),
+      CharOp::IsAsciiAlphabetic => {
+        apply1_char(Some(Bool(b.is_ascii_alphabetic())))
+      }
+      CharOp::IsAsciiAlphanumeric => {
+        apply1_char(Some(Bool(b.is_ascii_alphanumeric())))
+      }
       CharOp::IsAsciiControl => apply1_char(Some(Bool(b.is_ascii_control()))),
       CharOp::IsAsciiDigit => apply1_char(Some(Bool(b.is_ascii_digit()))),
       CharOp::IsAsciiGraphic => apply1_char(Some(Bool(b.is_ascii_graphic()))),
       CharOp::IsAsciiHexDigit => apply1_char(Some(Bool(b.is_ascii_hexdigit()))),
-      CharOp::IsAsciiLowerCase => apply1_char(Some(Bool(b.is_ascii_lowercase()))),
-      CharOp::IsAsciiPunctuation => apply1_char(Some(Bool(b.is_ascii_punctuation()))),
-      CharOp::IsAsciiUpperCase => apply1_char(Some(Bool(b.is_ascii_uppercase()))),
-      CharOp::IsAsciiWhitespace => apply1_char(Some(Bool(b.is_ascii_whitespace()))),
+      CharOp::IsAsciiLowerCase => {
+        apply1_char(Some(Bool(b.is_ascii_lowercase())))
+      }
+      CharOp::IsAsciiPunctuation => {
+        apply1_char(Some(Bool(b.is_ascii_punctuation())))
+      }
+      CharOp::IsAsciiUpperCase => {
+        apply1_char(Some(Bool(b.is_ascii_uppercase())))
+      }
+      CharOp::IsAsciiWhitespace => {
+        apply1_char(Some(Bool(b.is_ascii_whitespace())))
+      }
       CharOp::IsControl => apply1_char(Some(Bool(b.is_control()))),
       CharOp::IsDigit => apply2_char_u32(
-        // TODO: Hardcoding the maximum radix here is probably bad, not sure how to do it differently though.
-        if a > 36 {
-          None
-        } else {
-          Some(Bool(b.is_digit(a)))
-        }
+        // TODO: Hardcoding the maximum radix here is probably bad, not sure
+        // how to do it differently though.
+        if a > 36 { None } else { Some(Bool(b.is_digit(a))) },
       ),
       CharOp::IsLowercase => apply1_char(Some(Bool(b.is_lowercase()))),
       CharOp::IsNumeric => apply1_char(Some(Bool(b.is_numeric()))),
@@ -417,10 +463,23 @@ pub mod tests {
       CharOp::IsWhitespace => apply1_char(Some(Bool(b.is_whitespace()))),
       CharOp::LenUTF8 => apply1_char(Some(Nat(b.len_utf8().into()))),
       CharOp::LenUTF16 => apply1_char(Some(Nat(b.len_utf16().into()))),
-      CharOp::ToAsciiLowercase => apply1_char(Some(Char(b.to_ascii_lowercase()))),
-      CharOp::ToAsciiUppercase => apply1_char(Some(Char(b.to_ascii_uppercase()))),
-      CharOp::ToLowercase => apply1_char(Some(Text(b.to_lowercase().to_string().into()))),
-      CharOp::ToUppercase => apply1_char(Some(Text(b.to_uppercase().to_string().into()))),
+      CharOp::ToAsciiLowercase => {
+        apply1_char(Some(Char(b.to_ascii_lowercase())))
+      }
+      CharOp::ToAsciiUppercase => {
+        apply1_char(Some(Char(b.to_ascii_uppercase())))
+      }
+      CharOp::ToLowercase => {
+        apply1_char(Some(Text(b.to_lowercase().to_string().into())))
+      }
+      CharOp::ToUppercase => {
+        apply1_char(Some(Text(b.to_uppercase().to_string().into())))
+      }
+      CharOp::Eql => apply2_char_char(Some(Bool(b == c))),
+      CharOp::Lth => apply2_char_char(Some(Bool(b < c))),
+      CharOp::Lte => apply2_char_char(Some(Bool(b <= c))),
+      CharOp::Gth => apply2_char_char(Some(Bool(b > c))),
+      CharOp::Gte => apply2_char_char(Some(Bool(b >= c))),
     }
   }
 
@@ -432,93 +491,83 @@ pub mod tests {
     c: char,
     test_arg_2: bool,
   ) -> TestResult {
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          CharOp::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(CharOp::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        CharOp::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(CharOp::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 1, valid is U32.
       CharOp::FromU32 => test_apply1_none_on_invalid(U32(b)),
       // Arity 1, valid is Char.
-      CharOp::ToU32 |
-      CharOp::IsAlphabetic |
-      CharOp::IsAlphanumeric |
-      CharOp::IsAscii |
-      CharOp::IsAsciiAlphabetic |
-      CharOp::IsAsciiAlphanumeric |
-      CharOp::IsAsciiControl |
-      CharOp::IsAsciiDigit |
-      CharOp::IsAsciiGraphic |
-      CharOp::IsAsciiHexDigit |
-      CharOp::IsAsciiLowerCase |
-      CharOp::IsAsciiPunctuation |
-      CharOp::IsAsciiUpperCase |
-      CharOp::IsAsciiWhitespace |
-      CharOp::IsControl |
-      CharOp::IsLowercase |
-      CharOp::IsNumeric |
-      CharOp::IsUppercase |
-      CharOp::IsWhitespace |
-      CharOp::LenUTF8 |
-      CharOp::LenUTF16 |
-      CharOp::ToAsciiLowercase |
-      CharOp::ToAsciiUppercase |
-      CharOp::ToLowercase |
-      CharOp::ToUppercase => test_apply1_none_on_invalid(Char(c)),
-      // Arity 2, valid are Char on a and U32 on b.
-      CharOp::IsDigit => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          Char(c),
-          a,
-          U32(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U32(b),
-          Char(c),
-          a
-        )
-      },
+      CharOp::ToU32
+      | CharOp::IsAlphabetic
+      | CharOp::IsAlphanumeric
+      | CharOp::IsAscii
+      | CharOp::IsAsciiAlphabetic
+      | CharOp::IsAsciiAlphanumeric
+      | CharOp::IsAsciiControl
+      | CharOp::IsAsciiDigit
+      | CharOp::IsAsciiGraphic
+      | CharOp::IsAsciiHexDigit
+      | CharOp::IsAsciiLowerCase
+      | CharOp::IsAsciiPunctuation
+      | CharOp::IsAsciiUpperCase
+      | CharOp::IsAsciiWhitespace
+      | CharOp::IsControl
+      | CharOp::IsLowercase
+      | CharOp::IsNumeric
+      | CharOp::IsUppercase
+      | CharOp::IsWhitespace
+      | CharOp::LenUTF8
+      | CharOp::LenUTF16
+      | CharOp::ToAsciiLowercase
+      | CharOp::ToAsciiUppercase
+      | CharOp::ToLowercase
+      | CharOp::ToUppercase => test_apply1_none_on_invalid(Char(c)),
+      // Arity 2, valid are Char on a and U32 on b
+      CharOp::IsDigit => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(Char(c), a, U32(b))
+        }
+        else {
+          test_apply2_none_on_invalid(U32(b), Char(c), a)
+        }
+      }
+      // Arity 2, valid are Char on a and Char on b
+      CharOp::Eql | CharOp::Lth | CharOp::Lte | CharOp::Gth | CharOp::Gte => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(Char(c), a, Char(c))
+        }
+        else {
+          test_apply2_none_on_invalid(Char(c), Char(c), a)
+        }
+      }
     }
   }
 
