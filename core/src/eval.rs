@@ -7,8 +7,9 @@ use crate::{
   upcopy::*,
 };
 
-use std::mem;
 use std::collections::HashMap;
+
+use sp_std::mem;
 
 enum Single {
   Lam(Var),
@@ -199,7 +200,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let top_let = &mut *link.as_ptr();
         let link = top_let.copy.unwrap();
         top_let.copy = None;
-        let Let { typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } = &mut *link.as_ptr();
+        let Let { typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } =
+          &mut *link.as_ptr();
         add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
         add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
         add_to_parents(DAGPtr::Lam(*bod), NonNull::new(bod_ref).unwrap());
@@ -358,18 +360,27 @@ impl DAG {
           let Fix { var, bod, .. } = &mut *link.as_ptr();
           replace_child(node, *bod);
           if !var.parents.is_none() {
-            let new_fix = alloc_fix(var.nam.clone(), 0, mem::zeroed(), None).as_mut();
-            let result = subst(*bod, var, DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)), true);
+            let new_fix =
+              alloc_fix(var.nam.clone(), 0, mem::zeroed(), None).as_mut();
+            let result = subst(
+              *bod,
+              var,
+              DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
+              true,
+            );
             new_fix.bod = result;
-            add_to_parents(result, NonNull::new_unchecked(&mut new_fix.bod_ref));
+            add_to_parents(
+              result,
+              NonNull::new_unchecked(&mut new_fix.bod_ref),
+            );
             replace_child(
               DAGPtr::Var(NonNull::new(var).unwrap()),
-              DAGPtr::Fix(NonNull::new_unchecked(new_fix))
+              DAGPtr::Fix(NonNull::new_unchecked(new_fix)),
             );
           }
           free_dead_node(node);
           node = *bod;
-        }
+        },
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };

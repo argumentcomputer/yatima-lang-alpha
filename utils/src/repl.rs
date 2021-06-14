@@ -6,13 +6,13 @@ use crate::{
   store::Store,
 };
 use nom::Err;
-use std::{
+use sp_std::{
+  cell::RefCell,
   rc::Rc,
-  sync::{
-    Arc,
-    Mutex,
-  },
+  sync::Arc,
 };
+
+use std::sync::Mutex;
 use yatima_core::{
   check::{
     check_def,
@@ -49,7 +49,7 @@ pub trait Repl {
         self.add_history_entry(line.as_str());
         let res = command::parse_command(
           input_cid(line.as_str()),
-          defs.clone(),
+          Rc::new(RefCell::new(defs.clone())),
         )(Span::new(&line));
         match res {
           Ok((_, command)) => {

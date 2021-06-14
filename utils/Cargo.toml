@@ -13,6 +13,7 @@ multihash = "0.13.2"
 multibase = "0.9.1"
 sp-im = { path = "../sp_im" }
 sp-ipld = { path = "../sp_ipld" }
+sp-std = { version = "3", default-features = false }
 im  = "15.0.0"
 bit-vec = "0.6.3"
 num-bigint = "0.3.1"

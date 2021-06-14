@@ -23,8 +23,9 @@ use crate::file::{
   error::FileError,
 };
 
-use std::{
-  collections::VecDeque,
+use sp_std::{
+  cell::RefCell,
+  collections::vec_deque::VecDeque,
   rc::Rc,
 };
 
@@ -50,7 +51,7 @@ pub enum Command {
 
 pub fn parse_eval(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, trm) = parse_expression(
@@ -58,7 +59,7 @@ pub fn parse_eval(
       defs.clone(),
       None,
       ConsList::new(),
-      VecDeque::new(),
+      Rc::new(VecDeque::new()),
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Eval(Box::new(trm))))
@@ -67,7 +68,7 @@ pub fn parse_eval(
 
 pub fn parse_type(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, _) = alt((tag(":type"), tag(":t")))(i)?;
@@ -76,7 +77,7 @@ pub fn parse_type(
       defs.clone(),
       None,
       ConsList::new(),
-      VecDeque::new(),
+      Rc::new(VecDeque::new()),
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Type(Box::new(trm))))
@@ -85,7 +86,7 @@ pub fn parse_type(
 
 pub fn parse_define(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, res) =
@@ -122,7 +123,7 @@ pub fn parse_load() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
 
 pub fn parse_command(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     alt((
