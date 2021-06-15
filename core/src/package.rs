@@ -85,10 +85,8 @@ impl Entry {
 impl fmt::Display for Entry {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     writeln!(f, "Entry")?;
-    writeln!(f, "  Type anon: {}", self.type_anon)?;
-    writeln!(f, "  Term anon: {}", self.term_anon)?;
-    writeln!(f, "  Type meta: {}", self.type_meta)?;
-    writeln!(f, "  Term meta: {}", self.term_meta)?;
+    writeln!(f, "  Type: {} ({})", self.type_meta, self.type_anon)?;
+    writeln!(f, "  Term: {} ({})", self.term_meta, self.term_anon)?;
     Ok(())
   }
 }
@@ -142,6 +140,7 @@ impl Index {
 
 impl fmt::Display for Index {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    writeln!(f, "Exporting")?;
     for (n, cid) in self.0.clone() {
       writeln!(f, " {} ({})", n, cid)?;
     }
@@ -191,17 +190,18 @@ impl Import {
 
 impl fmt::Display for Import {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    writeln!(
-      f,
-      "Importing from {} ({}) as \"{}\"",
-      self.name, self.cid, self.alias
-    )?;
-    if !self.with.is_empty() {
-      write!(
+    if self.alias.is_empty() {
+      writeln!(f, "Importing from {} ({})", self.name, self.cid)?;
+    }
+    else {
+      writeln!(
         f,
-        "  {:#?}",
-        self.with.iter().map(|x| x.to_string()).collect::<Vec<_>>()
+        "Importing from {} as {} ({})",
+        self.name, self.alias, self.cid
       )?;
+    }
+    for withIdent in self.with.clone() {
+      writeln!(f, "  {}", withIdent)?;
     }
     Ok(())
   }
