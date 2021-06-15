@@ -97,13 +97,21 @@ nix-build default.nix
 ### Compiling to WASM
 
 ```bash
-wasm-pack build --target web
+nix-shell
+cd web
+wasm-pack build
 ```
 
-Host the experimental web version with:
+Then run the following command to install required dependencies:
 
 ```bash
-yatima hashspace server
+npm install
+```
+
+Afterwards, the experimental web version can be hosted with:
+
+```bash
+npm start
 ```
 
 ### With cargo
