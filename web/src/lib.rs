@@ -1,5 +1,6 @@
 pub mod repl;
 pub mod store;
+#[macro_use]
 pub mod utils;
 
 #[cfg(feature = "wee_alloc")]

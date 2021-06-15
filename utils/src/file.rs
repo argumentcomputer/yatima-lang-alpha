@@ -32,15 +32,11 @@ pub fn check_all_in_file(
   check_all(p, ds, store).map_err(|e| Error::new(ErrorKind::Other, e))
 }
 
-
+/// Type check all in an IPLD representation of a package
 pub fn check_all_in_ipld(
   ipld: Ipld,
   store: Rc<dyn Store>,
 ) -> Result<Defs, String> {
-  // let root = std::env::current_dir()?;
-  // let env = parse::PackageEnv::new(root, path, store.clone());
-  // let (_, p, ds) = parse::parse_file(env);
-  // let cid = store.put(p.to_ipld());
   let p = Package::from_ipld(&ipld)?;
   let ds = store::load_package_defs(store.clone(), p.clone())?;
   println!("Checking package {} at {}", p.name, p.cid());

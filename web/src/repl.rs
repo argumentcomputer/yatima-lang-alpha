@@ -9,6 +9,8 @@ use std::{
 };
 use yatima_core::defs::Defs;
 use yatima_utils::{
+  log,
+  logging::log,
   file::parse::{
     self,
     PackageEnv,
@@ -25,7 +27,6 @@ use crate::{
   store::WebStore,
   utils::{
     self,
-    log,
   },
 };
 use wasm_bindgen::{
@@ -60,7 +61,7 @@ const KEY_RIGHT_ARROW: u32 = 39;
 const KEY_UP_ARROW: u32 = 38;
 const KEY_DOWN_ARROW: u32 = 40;
 const KEY_C: u32 = 67;
-const KEY_V: u32 = 86;
+// const KEY_V: u32 = 86;
 const KEY_L: u32 = 76;
 
 const CLEAR_LINE: &str = "\x1b[2K";
@@ -71,6 +72,7 @@ const CURSOR_DOWN: &str = "\x1b[B";
 const BACKSPACE: &str = "\x1b[H";
 const RETURN: &str = "\x1b[M";
 const LINEFEED: &str = "\x1b[J";
+const DELETE: &str = "\x1b[3";
 
 
 fn set_column(term: &Terminal, col: u32) {
@@ -284,12 +286,6 @@ impl WebRepl {
         }
       }
       KEY_L if event.ctrl_key() => term.clear(),
-      KEY_V if event.ctrl_key() => {
-        // prompt(&term);
-        // line.clear();
-        log("click v");
-        term.paste("hello");
-      }
       KEY_C if event.ctrl_key() && event.shift_key() => {
         prompt(&term);
         line.clear();
@@ -328,10 +324,8 @@ impl WebRepl {
   pub fn handle_data(&mut self, data: String) {
     let mut ss = self.read_shell_state();
     let term: Terminal = self.get_terminal();
-    // log("got data");
-    log(&ss.line);
-    log(&format!("{:X?}", &data));
-    // term.write(&data);
+    log!("line: {:X?}", &ss.line);
+    log!("data: {:X?}", &data);
 
     match data.as_str() {
       CURSOR_RIGHT => {
@@ -390,6 +384,13 @@ impl WebRepl {
           ss.history_index = 0;
         }
         prompt(&term);
+      }
+      DELETE => {
+        if ss.cursor_col > 0 {
+          term.write("\u{7f}");
+          ss.line.pop();
+          ss.cursor_col -= 1;
+        }
       }
       _ if data.starts_with("\x1b") => {
         log("ESC");

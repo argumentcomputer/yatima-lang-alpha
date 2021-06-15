@@ -77,7 +77,6 @@ pub fn fs_get(link: Cid) -> Option<Ipld> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file: Vec<u8> = fs::read(path).ok()?;
-  // println!("file {:?}", file);
   let res: Ipld = DagCborCodec.decode(&file).expect("valid cbor bytes");
   Some(res)
 }
@@ -113,7 +112,7 @@ impl Store for FileStore {
     Err("Not implemented".to_owned())
   }
 
-  fn load_by_name(&self, path: Vec<&str>) -> Option<Ipld> {
+  fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String> {
     let root = std::env::current_dir().unwrap();
     let mut fs_path = root.clone();
     for n in path {
@@ -123,7 +122,7 @@ impl Store for FileStore {
     let env = parse::PackageEnv::new(root, fs_path, Rc::new(self.clone()));
     let (_cid, p, _ds) = parse::parse_file(env);
     let ipld = p.to_ipld();
-    Some(ipld)
+    Ok(ipld)
   }
 
   fn get(&self, link: Cid) -> Option<Ipld> {

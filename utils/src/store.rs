@@ -21,7 +21,7 @@ pub trait Store: std::fmt::Debug {
   fn get_by_multiaddr(&self, multiaddr: Multiaddr) -> Result<Ipld, String>;
 
   /// Load a package in a environment agnostic way
-  fn load_by_name(&self, path: Vec<&str>) -> Option<Ipld>;
+  fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String>;
 
   /// Put an IPLD expression into the store
   fn put(&self, expr: Ipld) -> Cid;

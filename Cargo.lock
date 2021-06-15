@@ -2155,6 +2155,7 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "wasm-bindgen",
  "yatima_core",
 ]
 

@@ -2,6 +2,7 @@ pub mod command;
 pub mod error;
 
 use crate::{
+  log,
   file,
   store::{
     self,
@@ -83,16 +84,9 @@ pub trait Repl {
               Command::Load(reference) => {
                 match reference {
                   Reference::FileName(name) => {
-                    // TODO make web compatible
-                    store.load_by_name(name.split('.').collect());
-                    let root = std::env::current_dir().unwrap();
-                    let mut path = root.clone();
-                    for n in name.split('.') {
-                      path.push(n);
-                    }
-                    path.set_extension("ya");
+                    let ipld = store.load_by_name(name.split('.').collect()).map_err(|e| log!("{}", e))?;
 
-                    if let Ok(ds) = file::check_all_in_file(path, store) {
+                    if let Ok(ds) = file::check_all_in_ipld(ipld, store) {
                       *defs = ds;
                       Ok(())
                     }

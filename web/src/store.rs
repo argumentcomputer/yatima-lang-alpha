@@ -1,4 +1,3 @@
-use crate::utils::log;
 use base64;
 use libipld::{
   cbor::DagCborCodec,
@@ -14,7 +13,10 @@ use web_sys::{
 };
 use multiaddr::Multiaddr;
 use yatima_core::cid::cid;
-use yatima_utils::store::Store;
+use yatima_utils::{
+  log,
+  store::Store,
+};
 
 #[derive(Debug, Clone)]
 pub struct WebStore {
@@ -33,7 +35,7 @@ extern "C" {
   pub fn create() -> Ipfs;
 
   #[wasm_bindgen(method, js_name = "add")]
-  pub fn add(this: &Ipfs, data: Vec<u8>);
+  pub fn add(this: &Ipfs, data: Vec<u8>) -> JsValue;
 
   #[wasm_bindgen(method, js_name = "get")]
   pub fn get(this: &Ipfs, link: &str) -> JsValue;
@@ -53,14 +55,16 @@ impl WebStore {
 
 impl Store for WebStore {
   fn get_by_multiaddr(&self, addr: Multiaddr) -> Result<Ipld, String> {
-    self.ipfs.get(&addr.to_string());
+    let s = self.ipfs.get(&addr.to_string()).as_string()
+        .ok_or(format!("Failed to load multiaddr {}", addr))?;
+    log!("{:?}", s);
+    
     Err("nn".to_owned())
   }
 
-  fn load_by_name(&self, _path: Vec<&str>) -> Option<Ipld> { None }
+  fn load_by_name(&self, _path: Vec<&str>) -> Result<Ipld, String> { Err("Not implemented".to_owned()) }
 
   fn get(&self, link: Cid) -> Option<Ipld> {
-    log("");
     match self.storage.get(&link.to_string()) {
       Ok(Some(s)) => {
         let bin = base64::decode(s).expect("invalid base64");
@@ -68,7 +72,7 @@ impl Store for WebStore {
       }
       _ => {
         let res = self.ipfs.get(&link.to_string());
-        log(&format!("Failed to get {} {:?}", link, res));
+        log!("Failed to get {} {:?}", link, res);
         None
       }
     }
@@ -79,9 +83,10 @@ impl Store for WebStore {
     let data = DagCborCodec.encode(&expr).unwrap();
     match self.storage.set(&link.to_string(), &base64::encode(data.clone())) {
       Ok(()) => (),
-      Err(_) => log("Failed to put to local_storage"),
+      Err(_) => log!("Failed to put to local_storage"),
     }
-    self.ipfs.add(data);
+    let res = self.ipfs.add(data);
+    log!("{:?}", res);
 
     link
   }
