@@ -24,7 +24,6 @@ use yatima_core::{
   },
   term::Term,
 };
-
 use crate::file::{
   error,
   error::FileError,
@@ -49,9 +48,10 @@ use nom::{
   IResult,
 };
 
-/// A
+/// A reference for something that can be loaded
 #[derive(Debug, Clone)]
 pub enum Reference {
+  Cid(Cid),
   FileName(Name),
   Multiaddr(Multiaddr),
 }
@@ -133,29 +133,37 @@ pub fn parse_browse() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>
 
 pub fn parse_multiaddr(
   from: Span,
-) -> IResult<Span, Multiaddr, ParseError<Span>> {
+) -> IResult<Span, Reference, ParseError<Span>> {
   let (i, s) = take_till1(|x| char::is_whitespace(x))(from)?;
   let s: String = String::from(s.fragment().to_owned());
   match Multiaddr::try_from(s) {
-    Ok(addr) => Ok((i, addr)),
+    Ok(addr) => Ok((i, Reference::Multiaddr(addr))),
     Err(e) => {
       Err(Err::Error(ParseError::new(from, ParseErrorKind::InvalidSymbol(e.to_string()))))
     }
   }
 }
 
+pub fn parse_cid_reference(from: Span) -> IResult<Span, Reference, ParseError<Span>>
+{
+  let (i, cid) = parse_link(from)?;
+  Ok((i, Reference::Cid(cid)))
+}
+
+pub fn parse_name_reference(from: Span) -> IResult<Span, Reference, ParseError<Span>>
+{
+  let (i, name) = parse_name(from)?;
+  Ok((i, Reference::FileName(name)))
+}
+
+/// Parse the :load command
 pub fn parse_load() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
 {
   move |i: Span| {
     let (i, _) = alt((tag(":load"), tag(":l")))(i)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
-    match parse_multiaddr(i).map_err(error::convert) {
-      Ok((i, addr)) => Ok((i, Command::Load(Reference::Multiaddr(addr)))),
-      Err(_e) => {
-        let (i, name) = parse_name(i).map_err(error::convert)?;
-        Ok((i, Command::Load(Reference::FileName(name))))
-      }
-    }
+    let (i, reference) = alt((parse_multiaddr, parse_name_reference, parse_cid_reference))(i).map_err(error::convert)?;
+    Ok((i, Command::Load(reference)))
   }
 }
 

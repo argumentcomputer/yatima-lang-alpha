@@ -82,31 +82,24 @@ pub trait Repl {
           Ok((_, command)) => {
             match command {
               Command::Load(reference) => {
-                match reference {
+                let ipld = match reference {
                   Reference::FileName(name) => {
-                    let ipld = store.load_by_name(name.split('.').collect()).map_err(|e| log!("{}", e))?;
-
-                    if let Ok(ds) = file::check_all_in_ipld(ipld, store) {
-                      *defs = ds;
-                      Ok(())
-                    }
-                    else {
-                      Err(())
-                    }
+                    store.load_by_name(name.split('.').collect())
                   }
                   Reference::Multiaddr(addr) => {
-                    match store.get_by_multiaddr(addr) {
-                      Ok(ipld) => {
-                        if let Ok(ds) = file::check_all_in_ipld(ipld, store) {
-                          *defs = ds;
-                          Ok(())
-                        } else {
-                          Err(())
-                        }
-                      }
-                      Err(_) => Err(()),
-                    }
+                    store.get_by_multiaddr(addr)
                   }
+                  Reference::Cid(cid) => {
+                    store.get(cid).ok_or(format!("Failed to get cid {}", cid))
+                  }
+                }.map_err(|e| log!("{}", e))?;
+
+                if let Ok(ds) = file::check_all_in_ipld(ipld, store) {
+                  *defs = ds;
+                  Ok(())
+                }
+                else {
+                  Err(())
                 }
               }
               Command::Show { typ_, link } => {
