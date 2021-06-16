@@ -3,7 +3,7 @@ use crate::{
   parse::span::Span,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::Ipld;
 
 use sp_std::{

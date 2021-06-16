@@ -50,10 +50,10 @@ pub fn cid(x: &Ipld) -> Cid {
 pub mod tests {
   use super::*;
   use crate::{
-    bytecursor::*,
     codec::*,
     ipld::*,
   };
+  use bytecursor::ByteCursor;
   #[macro_use]
   use quickcheck::{
     quickcheck,
@@ -62,7 +62,7 @@ pub mod tests {
   };
 
   use sp_std::collections::btree_map::BTreeMap;
-  use multihash::Size as S;
+  use sp_multihash::Size as S;
 
   fn encode_decode_id<T: DagCbor + PartialEq<T> + Clone>(value: T) -> bool {
     let mut bc = ByteCursor::new(Vec::new());

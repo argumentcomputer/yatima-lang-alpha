@@ -17,7 +17,7 @@ use crate::{
 };
 
 
-use cid::Cid;
+use sp_cid::Cid;
 
 use core::ptr::NonNull;
 

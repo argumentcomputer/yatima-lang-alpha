@@ -1,5 +1,3 @@
-// use cid::Cid;
-
 use libipld::ipld::Ipld;
 
 use crate::{

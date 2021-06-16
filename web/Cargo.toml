@@ -1,5 +1,5 @@
 [package]
-name = "yatima_web"
+name = "yatima-web"
 version = "0.1.0"
 edition = "2018"
 
@@ -10,9 +10,9 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-yatima_core = { path = "../core" }
-yatima_utils = { path = "../utils" }
-cid = "0.6.1"
+yatima-core = { path = "../core" }
+yatima-utils = { path = "../utils" }
+sp-cid = { path = "../sp-cid" }
 sp-ipld = { path = "../sp-ipld" }
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"

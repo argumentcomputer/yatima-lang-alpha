@@ -209,17 +209,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cid"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff0e3bc0b6446b3f9663c1a6aba6ef06c5aeaa1bc92bd18077be337198ab9768"
-dependencies = [
- "multibase 0.8.0",
- "multihash",
- "unsigned-varint 0.5.1",
-]
-
-[[package]]
 name = "clap"
 version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -800,17 +789,6 @@ dependencies = [
 
 [[package]]
 name = "multibase"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b78c60039650ff12e140ae867ef5299a58e19dded4d334c849dc7177083667e2"
-dependencies = [
- "base-x",
- "data-encoding",
- "data-encoding-macro",
-]
-
-[[package]]
-name = "multibase"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b3539ec3c1f04ac9748a260728e855f261b4977f5c3406612c884564f329404"
@@ -818,37 +796,6 @@ dependencies = [
  "base-x",
  "data-encoding",
  "data-encoding-macro",
-]
-
-[[package]]
-name = "multihash"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dac63698b887d2d929306ea48b63760431ff8a24fac40ddb22f9c7f49fb7cab"
-dependencies = [
- "blake2b_simd",
- "blake2s_simd",
- "blake3",
- "digest",
- "generic-array",
- "multihash-derive",
- "sha2",
- "sha3",
- "unsigned-varint 0.5.1",
-]
-
-[[package]]
-name = "multihash-derive"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "424f6e86263cd5294cbd7f1e95746b95aca0e0d66bff31e5a40d6baa87b4aa99"
-dependencies = [
- "proc-macro-crate 1.0.0",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
 ]
 
 [[package]]
@@ -1495,10 +1442,10 @@ name = "sp-cid"
 version = "0.1.0"
 dependencies = [
  "bytecursor",
- "multibase 0.9.1",
+ "multibase",
  "sp-multihash",
  "sp-std",
- "unsigned-varint 0.7.0",
+ "unsigned-varint",
 ]
 
 [[package]]
@@ -1507,7 +1454,7 @@ version = "0.1.0"
 dependencies = [
  "bytecursor",
  "byteorder",
- "multibase 0.9.1",
+ "multibase",
  "parity-scale-codec",
  "quickcheck",
  "quickcheck_macros",
@@ -1519,7 +1466,7 @@ dependencies = [
  "sp-multihash",
  "sp-std",
  "tokio",
- "unsigned-varint 0.7.0",
+ "unsigned-varint",
 ]
 
 [[package]]
@@ -1536,7 +1483,7 @@ dependencies = [
  "sha3",
  "sp-multihash-derive",
  "sp-std",
- "unsigned-varint 0.7.0",
+ "unsigned-varint",
 ]
 
 [[package]]
@@ -1831,12 +1778,6 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "unsigned-varint"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7fdeedbf205afadfe39ae559b75c3240f24e257d0ca27e85f85cb82aa19ac35"
-
-[[package]]
-name = "unsigned-varint"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f8d425fafb8cd76bc3f22aace4af471d3156301d7508f2107e98fbeae10bc7f"
@@ -2044,17 +1985,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "yatima_cli"
+name = "yatima-cli"
 version = "0.1.0"
 dependencies = [
  "base-x",
  "bit-vec",
- "cid",
+ "bytecursor",
  "directories-next",
  "futures",
  "im",
- "multibase 0.9.1",
- "multihash",
+ "multibase",
  "nom",
  "nom_locate 3.0.1",
  "quickcheck",
@@ -2064,21 +2004,21 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
+ "sp-cid",
  "sp-ipld",
+ "sp-multihash",
  "structopt",
  "tokio",
- "yatima_core",
- "yatima_utils",
+ "yatima-core",
+ "yatima-utils",
 ]
 
 [[package]]
-name = "yatima_core"
+name = "yatima-core"
 version = "0.1.0"
 dependencies = [
  "base-x",
- "cid",
- "multibase 0.9.1",
- "multihash",
+ "multibase",
  "nom",
  "nom_locate 3.0.0",
  "num-bigint",
@@ -2086,20 +2026,20 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "ropey",
+ "sp-cid",
  "sp-ipld",
+ "sp-multihash",
  "sp-std",
 ]
 
 [[package]]
-name = "yatima_utils"
+name = "yatima-utils"
 version = "0.1.0"
 dependencies = [
  "base-x",
  "bit-vec",
- "cid",
  "im",
- "multibase 0.9.1",
- "multihash",
+ "multibase",
  "nom",
  "nom_locate 3.0.1",
  "num-bigint",
@@ -2107,23 +2047,25 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "sp-cid",
  "sp-ipld",
- "yatima_core",
+ "sp-multihash",
+ "yatima-core",
 ]
 
 [[package]]
-name = "yatima_web"
+name = "yatima-web"
 version = "0.1.0"
 dependencies = [
- "cid",
  "console_error_panic_hook",
  "js-sys",
+ "sp-cid",
  "sp-ipld",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
  "xterm-js-rs",
- "yatima_core",
- "yatima_utils",
+ "yatima-core",
+ "yatima-utils",
 ]

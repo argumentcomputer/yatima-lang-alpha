@@ -24,6 +24,7 @@ pub mod tests {
     dag_cbor::*,
     ipld::*,
   };
+  use bytecursor::ByteCursor;
   use quickcheck::{
     quickcheck,
     Arbitrary,

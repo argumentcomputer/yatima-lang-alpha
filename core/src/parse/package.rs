@@ -41,7 +41,7 @@ use nom::{
   IResult,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 
 pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {
   let (upto, (_, bytes)) = parse_multibase()(from)?;

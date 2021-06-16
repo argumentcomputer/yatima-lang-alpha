@@ -18,8 +18,8 @@ use crate::{
   },
 };
 
-use cid::Cid;
-use multihash::{
+use sp_cid::Cid;
+use sp_multihash::{
   Code,
   MultihashDigest,
 };

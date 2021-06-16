@@ -5,6 +5,7 @@ use sp_ipld::Ipld;
 use sp_std::{
   fmt,
   borrow::ToOwned,
+  vec::Vec,
 };
 
 use alloc::{

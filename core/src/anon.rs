@@ -1,5 +1,5 @@
 use crate::ipld_error::IpldError;
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::{
   dag_cbor::cid,
   Ipld,

@@ -1,5 +1,5 @@
 [package]
-name = "yatima_utils"
+name = "yatima-utils"
 version = "0.1.0"
 edition = "2018"
 
@@ -7,9 +7,9 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-yatima_core = { path = "../core" }
-cid = "0.6.1"
-multihash = "0.13.2"
+yatima-core = { path = "../core" }
+sp-cid = { path = "../sp-cid" }
+sp-multihash = { path = "../sp-multihash" }
 multibase = "0.9.1"
 sp-ipld = { path = "../sp-ipld" }
 im  = "15.0.0"

@@ -29,7 +29,7 @@ use sp_std::{
 };
 
 use alloc::string::String;
-use cid::Cid;
+use sp_cid::Cid;
 
 pub struct DAG {
   pub head: DAGPtr,

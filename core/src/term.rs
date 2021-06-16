@@ -12,7 +12,7 @@ pub use crate::{
   uses::Uses,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 
 use sp_std::{
   fmt,
