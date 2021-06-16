@@ -72,7 +72,7 @@ use nom::{
 };
 use std::collections::VecDeque;
 
-type Ctx = ConsList<Name>;
+pub type Ctx = ConsList<Name>;
 
 pub fn reserved_symbols() -> VecDeque<String> {
   VecDeque::from(vec![
@@ -80,8 +80,6 @@ pub fn reserved_symbols() -> VecDeque<String> {
     String::from("λ"),
     String::from("lambda"),
     String::from("=>"),
-    String::from("{"),
-    String::from("}"),
     String::from("∀"),
     String::from("forall"),
     String::from("->"),
@@ -124,6 +122,8 @@ pub fn parse_name(from: Span) -> IResult<Span, Name, ParseError<Span>> {
       | (x == ';')
       | (x == ')')
       | (x == '(')
+      | (x == '{')
+      | (x == '}')
       | (x == ',')
   })(from)?;
   let s: String = String::from(s.fragment().to_owned());
@@ -184,6 +184,8 @@ pub fn is_valid_symbol_char(c: char) -> bool {
     && c != ';'
     && c != '('
     && c != ')'
+    && c != '{'
+    && c != '}'
     && c != ','
     && !char::is_whitespace(c)
     && !char::is_control(c)
@@ -603,7 +605,8 @@ pub fn parse_data(
 pub fn parse_bound_expression(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
-  rec: Option<Name>,
+  type_rec: Option<Name>,
+  term_rec: Option<Name>,
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
   nam: Name,
@@ -613,7 +616,7 @@ pub fn parse_bound_expression(
     let (i, bs) = parse_binders(
       input,
       defs.clone(),
-      rec.clone(),
+      type_rec.clone(),
       ctx.clone(),
       quasi.clone(),
       false,
@@ -627,7 +630,7 @@ pub fn parse_bound_expression(
     let (i, typ) = parse_expression(
       input,
       defs.clone(),
-      rec.clone(),
+      type_rec.clone(),
       type_ctx,
       quasi.clone(),
     )(i)?;
@@ -644,7 +647,7 @@ pub fn parse_bound_expression(
     let (upto, trm) = parse_expression(
       input,
       defs.clone(),
-      rec.clone(),
+      term_rec.clone(),
       term_ctx,
       quasi.clone(),
     )(i)?;
@@ -680,6 +683,7 @@ pub fn parse_let(
       input,
       defs.clone(),
       rec.clone(),
+      rec.clone(),
       ctx.clone(),
       quasi.clone(),
       nam.clone(),
@@ -709,6 +713,8 @@ pub fn parse_builtin_symbol_end()
       peek(value((), eof)),
       peek(value((), tag("("))),
       peek(value((), tag(")"))),
+      peek(value((), tag("{"))),
+      peek(value((), tag("}"))),
       peek(value((), tag(";"))),
       peek(value((), tag(":"))),
       peek(value((), tag(","))),
@@ -820,12 +826,15 @@ pub fn parse_expression(
 pub fn parse_app_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
   let (i, _) = alt((
     peek(tag("def")),
-    peek(tag("open")),
+    peek(tag("type")),
     peek(tag("::")),
     peek(tag("=")),
     peek(tag("->")),
     peek(tag(";")),
     peek(tag(")")),
+    peek(tag("{")),
+    peek(tag("}")),
+    peek(tag(",")),
     peek(eof),
   ))(i)?;
   Ok((i, ()))
@@ -1092,37 +1101,50 @@ pub mod tests {
   }
   #[test]
   fn test_parse_bound_expression() {
-    fn test(i: &str) -> IResult<Span, (Term, Term), ParseError<Span>> {
+    fn test(
+      type_rec: Option<Name>,
+      term_rec: Option<Name>,
+      i: &str,
+    ) -> IResult<Span, (Term, Term), ParseError<Span>> {
       parse_bound_expression(
         input_cid(i),
         Rc::new(RefCell::new(Defs::new())),
-        None,
+        type_rec,
+        term_rec,
         ConsList::new(),
         Rc::new(VecDeque::new()),
         Name::from("test"),
         false,
       )(Span::new(i))
     }
-    let res = test(": Type = Type");
+    let res = test(None, None, ": Type = Type");
     assert!(res.is_ok());
-    let res = test("(x: Type): Type = Type");
+    let res = test(None, None, "(x: Type): Type = Type");
     assert!(res.is_ok());
-    let res = test("(x: Unknown): Type = Type");
+    let res = test(None, None, "(x: Unknown): Type = Type");
     match res.unwrap_err() {
       Err::Error(err) => {
-        println!("err: {:?}", err);
+        // println!("err: {:?}", err);
         assert!(
           err.errors
             == vec![ParseErrorKind::UndefinedReference(
               Name::from("Unknown"),
               ConsList::new()
             )]
-        )
+        );
       }
       _ => {
-        assert!(false)
+        assert!(false);
       }
-    }
+    };
+    let res = test(Some(Name::from("Test")), None, "(x: Test): Type = Type");
+    assert!(res.is_ok());
+    let res = test(Some(Name::from("Test")), None, "(x: Type): Type = Test");
+    assert!(res.is_err());
+    let res = test(None, Some(Name::from("Test")), "(x: Test): Type = Type");
+    assert!(res.is_err());
+    let res = test(None, Some(Name::from("Test")), "(x: Type): Type = Test");
+    assert!(res.is_ok());
   }
   #[test]
   fn test_parse_binders1() {

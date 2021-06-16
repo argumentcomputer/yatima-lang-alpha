@@ -71,7 +71,6 @@ pub fn parse_set() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, _) = alt((tag(":set"), tag(":s")))(i)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
-    // let (i, _) = alt((tag("type-system")))(i)?;
     let (i, s) = parse_name(i).map_err(error::convert)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
     let (i, b) = alt((

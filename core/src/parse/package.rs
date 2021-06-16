@@ -99,6 +99,7 @@ pub fn parse_entry(
       let (upto, (typ_, term)) = parse_bound_expression(
         input,
         defs.clone(),
+        None,
         Some(nam.clone()),
         ConsList::new(),
         Rc::new(VecDeque::new()),
