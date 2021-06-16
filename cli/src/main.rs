@@ -1,6 +1,6 @@
 use std::{
-  rc::Rc,
   path::PathBuf,
+  rc::Rc,
 };
 
 use structopt::StructOpt;
@@ -12,9 +12,9 @@ use yatima_utils::{
   },
 };
 use yatima_cli::{
+  file::store::FileStore,
   ipfs,
   repl,
-  file::store::FileStore,
 };
 use yatima_core::{
   parse,
@@ -77,12 +77,12 @@ async fn main() -> std::io::Result<()> {
       let (cid, p, d) = file::parse::parse_file(env);
       store.put(p.to_ipld());
 
-      let ipld_cid = 
-        if !no_ipfs {
-          ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
-        } else {
-          "Not using ipfs".to_string()
-        };
+      let ipld_cid = if !no_ipfs {
+        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
+      }
+      else {
+        "Not using ipfs".to_string()
+      };
       println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
       println!("{}", d);
       Ok(())

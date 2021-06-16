@@ -3,8 +3,14 @@ members = [
   "core",
   "cli",
   "utils",
-  "web"
+  "web",
+  "sp_im",
+  "sp_ipld"
 ]
 
 [profile.dev]
 debug = 2
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"

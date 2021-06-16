@@ -1,8 +1,3 @@
-use std::{
-  io::{self, Write},
-  sync::{Arc, Mutex},
-  rc::Rc,
-};
 use rustyline::{
   error::ReadlineError,
   Cmd,
@@ -11,24 +6,32 @@ use rustyline::{
   Editor,
   KeyEvent,
 };
-
-use yatima_core::{
-  defs::Defs,
+use std::{
+  io::{
+    self,
+    Write,
+  },
+  rc::Rc,
+  sync::{
+    Arc,
+    Mutex,
+  },
 };
+
+use crate::file::store::FileStore;
 use yatima_utils::{
-  store::Store,
   repl::{
+    error::ReplError,
     run_repl,
     Repl,
-    error::ReplError
-  }
+    ReplEnv,
+  },
+  store::Store,
 };
-use crate::file::store::FileStore;
-
 
 struct RustyLineRepl {
   rl: Editor<()>,
-  defs: Arc<Mutex<Defs>>,
+  env: Arc<Mutex<ReplEnv>>,
   store: Rc<FileStore>,
 }
 
@@ -41,7 +44,7 @@ impl RustyLineRepl {
     let store = Rc::new(FileStore::new());
     RustyLineRepl {
       rl: rl,
-      defs: Arc::new(Mutex::new(Defs::new())),
+      env: Arc::new(Mutex::new(ReplEnv::default())),
       store: store,
     }
   }
@@ -52,7 +55,7 @@ impl Repl for RustyLineRepl {
     self.rl.readline(prompt).map_err(|e| match e {
       ReadlineError::Interrupted => ReplError::Interrupted,
       ReadlineError::Eof => ReplError::Eof,
-      _ => ReplError::Other(e.to_string())
+      _ => ReplError::Other(e.to_string()),
     })
   }
 
@@ -68,23 +71,13 @@ impl Repl for RustyLineRepl {
     }
   }
 
-  fn add_history_entry(&mut self, s: &str) {
-    self.rl.add_history_entry(s);
-  }
+  fn add_history_entry(&mut self, s: &str) { self.rl.add_history_entry(s); }
 
-  fn save_history(&mut self) {
-    self.rl.save_history("history.txt").unwrap();
-  }
+  fn save_history(&mut self) { self.rl.save_history("history.txt").unwrap(); }
 
-  fn get_defs(&self) -> Arc<Mutex<Defs>> {
-    self.defs.clone()
-  }
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>> { self.env.clone() }
 
-  fn get_store(&self) -> Rc<dyn Store> {
-    self.store.clone()
-  }
+  fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 }
 
-pub fn main() {
-  run_repl(&mut RustyLineRepl::new());
-}
+pub fn main() { run_repl(&mut RustyLineRepl::new()); }

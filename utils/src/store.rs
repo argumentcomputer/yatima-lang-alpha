@@ -1,6 +1,6 @@
 use crate::file;
-use libipld::{
-  cid::Cid,
+use cid::Cid;
+use sp_ipld::{
   ipld::Ipld,
 };
 use multiaddr::Multiaddr;

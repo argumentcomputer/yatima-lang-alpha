@@ -1,10 +1,4 @@
 use base64;
-use libipld::{
-  cbor::DagCborCodec,
-  cid::Cid,
-  codec::Codec,
-  ipld::Ipld,
-};
 use wasm_bindgen::prelude::*;
 use web_sys::{
   self,
@@ -12,10 +6,19 @@ use web_sys::{
   Window,
 };
 use multiaddr::Multiaddr;
-use yatima_core::cid::cid;
 use yatima_utils::{
   log,
   store::Store,
+};
+use cid::Cid;
+use sp_ipld::{
+  Codec,
+  bytecursor::ByteCursor,
+  dag_cbor::{
+    DagCborCodec,
+    cid
+  },
+  Ipld,
 };
 
 #[derive(Debug, Clone)]
@@ -67,8 +70,8 @@ impl Store for WebStore {
   fn get(&self, link: Cid) -> Option<Ipld> {
     match self.storage.get(&link.to_string()) {
       Ok(Some(s)) => {
-        let bin = base64::decode(s).expect("invalid base64");
-        Some(DagCborCodec.decode(&bin).expect("invalid cbor bytes"))
+        let bin = ByteCursor::new(base64::decode(s).expect("invalid base64"));
+        Some(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
         let res = self.ipfs.get(&link.to_string());
@@ -81,11 +84,11 @@ impl Store for WebStore {
   fn put(&self, expr: Ipld) -> Cid {
     let link = cid(&expr);
     let data = DagCborCodec.encode(&expr).unwrap();
-    match self.storage.set(&link.to_string(), &base64::encode(data.clone())) {
+    match self.storage.set(&link.to_string(), &base64::encode(data.clone().into_inner())) {
       Ok(()) => (),
       Err(_) => log!("Failed to put to local_storage"),
     }
-    let res = self.ipfs.add(data);
+    let res = self.ipfs.add(data.into_inner());
     log!("{:?}", res);
 
     link

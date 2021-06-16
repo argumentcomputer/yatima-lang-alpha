@@ -10,13 +10,13 @@ use crate::{
   },
 };
 use nom::Err;
-use std::{
+use sp_std::{
+  cell::RefCell,
   rc::Rc,
-  sync::{
-    Arc,
-    Mutex,
-  },
+  sync::Arc,
 };
+
+use std::sync::Mutex;
 use yatima_core::{
   check::{
     check_def,
@@ -35,6 +35,16 @@ use command::{
   Reference,
 };
 use error::ReplError;
+
+/// Contains the state and configuration of the REPL
+pub struct ReplEnv {
+  type_system: bool,
+  defs: Defs,
+}
+
+impl Default for ReplEnv {
+  fn default() -> Self { ReplEnv { type_system: true, defs: Defs::new() } }
+}
 
 /// Read evaluate print loop - REPL
 /// A common interface for both the CLI REPL and the web REPL.
@@ -56,8 +66,8 @@ pub trait Repl {
   /// Save the command history
   fn save_history(&mut self);
 
-  /// Get a thread safe mutable pointer to the current definitions
-  fn get_defs(&self) -> Arc<Mutex<Defs>>;
+  /// Get a thread safe mutable pointer to the current ReplEnv
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>>;
 
   /// Get store for this Repl
   fn get_store(&self) -> Rc<dyn Store>;
@@ -68,15 +78,15 @@ pub trait Repl {
     &mut self,
     readline: Result<String, ReplError>,
   ) -> Result<(), ()> {
-    let mutex_defs = self.get_defs();
-    let mut defs = mutex_defs.lock().unwrap();
+    let mutex_env = self.get_env();
+    let mut env = mutex_env.lock().unwrap();
     let store = self.get_store();
     match readline {
       Ok(line) => {
         self.add_history_entry(line.as_str());
         let res = command::parse_command(
           input_cid(line.as_str()),
-          defs.clone(),
+          Rc::new(RefCell::new(env.defs.clone())),
         )(Span::new(&line));
         match res {
           Ok((_, command)) => {
@@ -94,8 +104,8 @@ pub trait Repl {
                   }
                 }.map_err(|e| log!("{}", e))?;
 
-                if let Ok(ds) = file::check_all_in_ipld(ipld, store) {
-                  *defs = ds;
+                if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
+                  env.defs.flat_merge_mut(ds);
                   Ok(())
                 }
                 else {
@@ -114,14 +124,45 @@ pub trait Repl {
                   }
                 }
               }
+              Command::Set(field, setting) => match field.as_str() {
+                "type-system" => {
+                  env.type_system = setting;
+                  self.println(format!(
+                    "type-system: {}",
+                    if setting { "on" } else { "off" }
+                  ));
+                  Ok(())
+                }
+                _ => {
+                  self.println(format!("Error: Unknown setting {}", field));
+                  Err(())
+                }
+              },
               Command::Eval(term) => {
                 let mut dag = DAG::from_term(&term);
-                dag.norm(&defs);
-                self.println(format!("{}", dag));
-                Ok(())
+                if env.type_system {
+                  let res = infer_term(&env.defs, *term);
+                  match res {
+                    Ok(typ) => {
+                      dag.norm(&env.defs);
+                      self.println(format!("{}", dag));
+                      self.println(format!(": {}", typ));
+                      Ok(())
+                    }
+                    Err(e) => {
+                        self.println(format!("Type Error: {}", e));
+                        Err(())
+                    },
+                  }
+                }
+                else {
+                  dag.norm(&env.defs);
+                  self.println(format!("{}", dag));
+                  Ok(())
+                }
               }
               Command::Type(term) => {
-                let res = infer_term(&defs, *term);
+                let res = infer_term(&env.defs, *term);
                 match res {
                   Ok(term) => self.println(format!("{}", term)),
                   Err(e) => self.println(format!("Error: {}", e)),
@@ -130,12 +171,12 @@ pub trait Repl {
               }
               Command::Define(boxed) => {
                 let (n, def, _) = *boxed;
-                let mut tmp_defs = defs.clone();
+                let mut tmp_defs = env.defs.clone();
                 tmp_defs.insert(n.clone(), def);
                 let res = check_def(&tmp_defs, &n);
                 match res {
                   Ok(res) => {
-                    *defs = tmp_defs;
+                    env.defs = tmp_defs;
                     self.println(format!(
                       "{} : {}",
                       n,
@@ -147,9 +188,9 @@ pub trait Repl {
                 Ok(())
               }
               Command::Browse => {
-                for (n, d) in defs.named_defs() {
+                for (n, d) in env.defs.named_defs() {
                   self.println(format!("{}", d.pretty(n.to_string())))
-                }
+                };
                 Ok(())
               }
               Command::Quit => {

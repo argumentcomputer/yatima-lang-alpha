@@ -4,7 +4,7 @@ use crate::{
 };
 
 use cid::Cid;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use std::{
   convert::TryInto,
@@ -91,7 +91,7 @@ impl Position {
          Ipld::Integer(upto_line),
          Ipld::Integer(upto_column),
         ] => {
-          let from_offset: u64 = 
+          let from_offset: u64 =
             (*from_offset).try_into().map_err(IpldError::U64)?;
           let from_line: u64 =
             (*from_line).try_into().map_err(IpldError::U64)?;

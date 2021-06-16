@@ -1,4 +1,4 @@
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 use std::{
   convert::TryFrom,
@@ -12,6 +12,8 @@ use crate::{
   term::Term,
   yatima,
 };
+
+use num_bigint::BigUint;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum U32Op {
@@ -323,11 +325,11 @@ impl U32Op {
     match (self, x) {
       (Self::CountZeros, U32(x)) => Some(U32(x.count_zeros())),
       (Self::CountOnes, U32(x)) => Some(U32(x.count_ones())),
-      (Self::ToChar, U32(x)) => char::from_u32(*x).map(Char),
       (Self::ToU8, U32(x)) => u8::try_from(*x).ok().map(U8),
       (Self::ToU16, U32(x)) => u16::try_from(*x).ok().map(U16),
       (Self::ToU64, U32(x)) => Some(U64((*x).into())),
       (Self::ToU128, U32(x)) => Some(U128((*x).into())),
+      (Self::ToNat, U32(x)) => Some(Nat(BigUint::from(u64::try_from(*x).unwrap()))),
       (Self::ToI8, U32(x)) => i8::try_from(*x).ok().map(I8),
       (Self::ToI16, U32(x)) => i16::try_from(*x).ok().map(I16),
       (Self::ToI32, U32(x)) => i32::try_from(*x).ok().map(I32),
@@ -335,10 +337,9 @@ impl U32Op {
       (Self::ToI128, U32(x)) => Some(I128((*x).into())),
       (Self::Not, U32(x)) => Some(U32(!x)),
       (Self::ToInt, U32(x)) => Some(Int((*x).into())),
+      (Self::ToBits, U32(x)) => Some(Bits(bits::bytes_to_bits(32, &x.to_be_bytes().into()))),
       (Self::ToBytes, U32(x)) => Some(Bytes(x.to_be_bytes().into())),
-      (Self::ToBits, U32(x)) => {
-        Some(Bits(bits::bytes_to_bits(32, &x.to_be_bytes().into())))
-      }
+      (Self::ToChar, U32(x)) => char::from_u32(*x).map(Char),
       _ => None,
     }
   }
@@ -357,8 +358,16 @@ impl U32Op {
       (Self::Add, U32(x), U32(y)) => Some(U32(x.wrapping_add(*y))),
       (Self::Sub, U32(x), U32(y)) => Some(U32(x.wrapping_sub(*y))),
       (Self::Mul, U32(x), U32(y)) => Some(U32(x.wrapping_mul(*y))),
-      (Self::Div, U32(x), U32(y)) => Some(U32(x.wrapping_div(*y))),
-      (Self::Mod, U32(x), U32(y)) => Some(U32(x.wrapping_rem(*y))),
+      (Self::Div, U32(x), U32(y)) => if *y == 0 {
+        None
+      } else {
+        Some(U32(x.wrapping_div(*y)))
+      },
+      (Self::Mod, U32(x), U32(y)) => if *y == 0 {
+        None
+      } else {
+        Some(U32(x.wrapping_rem(*y)))
+      },
       (Self::Pow, U32(x), U32(y)) => Some(U32(x.wrapping_pow(*y))),
       (Self::Shl, U32(x), U32(y)) => Some(U32(y.wrapping_shl(*x))),
       (Self::Shr, U32(x), U32(y)) => Some(U32(y.wrapping_shr(*x))),
@@ -381,12 +390,36 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
+    TestResult
   };
   use rand::Rng;
+  use Literal::{
+    U32,
+    Bool,
+    Nat,
+    Int,
+    Bits,
+    Bytes,
+    Char
+  };
+  use crate::prim::{
+    U8Op,
+    U16Op,
+    U64Op,
+    I8Op,
+    I16Op,
+    I32Op,
+    I64Op,
+  };
+  use std::{
+    convert::TryInto,
+    mem
+  };
+  use num_bigint::BigUint;
   impl Arbitrary for U32Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
-      let gen: u32 = rng.gen_range(0..11);
+      let gen: u32 = rng.gen_range(0..=34);
       match gen {
         0 => Self::Max,
         1 => Self::Min,
@@ -415,15 +448,16 @@ pub mod tests {
         24 => Self::ToU8,
         25 => Self::ToU16,
         26 => Self::ToU64,
-        27 => Self::ToU128,
-        28 => Self::ToNat,
-        29 => Self::ToI8,
-        30 => Self::ToI16,
-        31 => Self::ToI32,
-        32 => Self::ToI64,
-        33 => Self::ToI128,
-        34 => Self::ToInt,
-        _ => Self::ToBytes,
+        27 => Self::ToNat,
+        28 => Self::ToI8,
+        29 => Self::ToI16,
+        30 => Self::ToI32,
+        31 => Self::ToI64,
+        32 => Self::ToInt,
+        33 => Self::ToBytes,
+        _ => Self::ToBits,
+        // 27 => Self::ToU128,
+        // 33 => Self::ToI128,
       }
     }
   }
@@ -433,6 +467,307 @@ pub mod tests {
     match U32Op::from_ipld(&x.to_ipld()) {
       Ok(y) => x == y,
       _ => false,
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply(
+    op: U32Op,
+    a: u32,
+    b: u32,
+    c: u32
+  ) -> TestResult {
+    let apply0_go = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        U32Op::apply0(op) ==
+        expected
+      )
+    };
+
+    let apply1_u32 = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        U32Op::apply1(
+          op,
+          &U32(a)
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_u32_a_u32_b = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        U32Op::apply2(
+          op,
+          &U32(a),
+          &U32(b)
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_u32_a_u32_c = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        U32Op::apply2(
+          op,
+          &U32(a),
+          &U32(c)
+        ) ==
+        expected
+      )
+    };
+
+    let apply2_u32_c_u32_a = |expected: Option<Literal>| -> TestResult {
+      TestResult::from_bool(
+        U32Op::apply2(
+          op,
+          &U32(c),
+          &U32(a)
+        ) ==
+        expected
+      )
+    };
+
+    let from_bool = TestResult::from_bool;
+
+    match op {
+      U32Op::Max => apply0_go(Some(U32(u32::MAX))),
+      U32Op::Min => apply0_go(Some(U32(u32::MIN))),
+      U32Op::Eql => apply2_u32_a_u32_b(Some(Bool(a == b))),
+      U32Op::Lte => apply2_u32_a_u32_b(Some(Bool(a <= b))),
+      U32Op::Lth => apply2_u32_a_u32_b(Some(Bool(a < b))),
+      U32Op::Gth => apply2_u32_a_u32_b(Some(Bool(a > b))),
+      U32Op::Gte => apply2_u32_a_u32_b(Some(Bool(a >= b))),
+      U32Op::Not => apply1_u32(Some(U32(!a))),
+      U32Op::And => apply2_u32_a_u32_b(Some(U32(a & b))),
+      U32Op::Or => apply2_u32_a_u32_b(Some(U32(a | b))),
+      U32Op::Xor => apply2_u32_a_u32_b(Some(U32(a ^ b))),
+      U32Op::Add => apply2_u32_a_u32_b(Some(U32(a.wrapping_add(b)))),
+      U32Op::Sub => apply2_u32_a_u32_b(Some(U32(a.wrapping_sub(b)))),
+      U32Op::Mul => apply2_u32_a_u32_b(Some(U32(a.wrapping_mul(b)))),
+      U32Op::Div => apply2_u32_a_u32_b(
+        if b == 0 {
+          None
+        } else {
+          Some(U32(a.wrapping_div(b)))
+        }
+      ),
+      U32Op::Mod => apply2_u32_a_u32_b(
+        if b == 0 {
+          None
+        } else {
+          Some(U32(a.wrapping_rem(b)))
+        }
+      ),
+      U32Op::Pow => apply2_u32_a_u32_c(Some(U32(a.wrapping_pow(c)))),
+      U32Op::Shl => apply2_u32_c_u32_a(Some(U32(a.wrapping_shl(c)))),
+      U32Op::Shr => apply2_u32_c_u32_a(Some(U32(a.wrapping_shr(c)))),
+      U32Op::Rol => apply2_u32_c_u32_a(Some(U32(a.rotate_left(c)))),
+      U32Op::Ror => apply2_u32_c_u32_a(Some(U32(a.rotate_right(c)))),
+      U32Op::CountZeros => apply1_u32(Some(U32(a.count_zeros()))),
+      U32Op::CountOnes => apply1_u32(Some(U32(a.count_ones()))),
+      U32Op::ToU8 => from_bool(
+        if a > u8::MAX.into() {
+          U32Op::apply1(op, &U32(a)) == None
+        } else {
+          U8Op::apply1(
+            U8Op::ToU32,
+            &U32Op::apply1(op, &U32(a)).unwrap()
+          ) == Some(U32(a))
+        }
+      ),
+      U32Op::ToU16 => from_bool(
+        if a > u16::MAX.into() {
+          U32Op::apply1(op, &U32(a)) == None
+        } else {
+          U16Op::apply1(
+            U16Op::ToU32,
+            &U32Op::apply1(op, &U32(a)).unwrap()
+          ) == Some(U32(a))
+        }
+      ),
+      U32Op::ToU64 => from_bool(
+        U64Op::apply1(
+          U64Op::ToU32,
+          &U32Op::apply1(op, &U32(a)).unwrap()
+        ) == Some(U32(a))
+      ),
+      U32Op::ToU128 => TestResult::discard(),
+      U32Op::ToNat => apply1_u32(Some(Nat(BigUint::from(u64::try_from(a).unwrap())))),
+      U32Op::ToI8 => from_bool(
+        if a > i8::MAX.try_into().unwrap() {
+          U32Op::apply1(op, &U32(a)) == None
+        } else {
+          I8Op::apply1(
+            I8Op::ToU32,
+            &U32Op::apply1(op, &U32(a)).unwrap()
+          ) == Some(U32(a))
+        }
+      ),
+      U32Op::ToI16 => from_bool(
+        if a > i16::MAX.try_into().unwrap() {
+          U32Op::apply1(op, &U32(a)) == None
+        } else {
+          I16Op::apply1(
+            I16Op::ToU32,
+            &U32Op::apply1(op, &U32(a)).unwrap()
+          ) == Some(U32(a))
+        }
+      ),
+      U32Op::ToI32 => from_bool(
+        if a > i32::MAX.try_into().unwrap() {
+          U32Op::apply1(op, &U32(a)) == None
+        } else {
+          I32Op::apply1(
+            I32Op::ToU32,
+            &U32Op::apply1(op, &U32(a)).unwrap()
+          ) == Some(U32(a))
+        }
+      ),
+      U32Op::ToI64 => from_bool(
+        I64Op::apply1(
+          I64Op::ToU32,
+          &U32Op::apply1(op, &U32(a)).unwrap()
+        ) == Some(U32(a))
+      ),
+      U32Op::ToI128 => TestResult::discard(),
+      U32Op::ToInt => apply1_u32(Some(Int(a.into()))),
+      U32Op::ToBits => apply1_u32(Some(Bits(bits::bytes_to_bits(32, &a.to_be_bytes().into())))),
+      U32Op::ToBytes => apply1_u32(Some(Bytes(a.to_be_bytes().into()))),
+      U32Op::ToChar => apply1_u32(char::from_u32(a).map(Char)),
+    }
+  }
+
+  #[quickcheck]
+  fn test_apply_none_on_invalid(
+    op: U32Op,
+    a: Literal,
+    b: u32,
+    c: u32,
+    test_arg_2: bool,
+  ) -> TestResult {
+    let test_apply1_none_on_invalid = |
+      valid_arg: Literal
+    | -> TestResult {
+      if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
+        TestResult::discard()
+      } else {
+        TestResult::from_bool(
+          U32Op::apply1(
+            op,
+            &a
+          ) ==
+          None
+        )
+      }
+    };
+
+    let test_apply2_none_on_invalid = |
+      valid_arg: Literal,
+      a_: Literal,
+      b_: Literal
+    | -> TestResult {
+      let go = || TestResult::from_bool(
+        U32Op::apply2(
+          op,
+          &a_,
+          &b_
+        ) ==
+        None
+      );
+      if test_arg_2 {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      } else {
+        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+          TestResult::discard()
+        } else {
+          go()
+        }
+      }
+    };
+
+    match op {
+      // Arity 0.
+      U32Op::Max |
+      U32Op::Min => TestResult::discard(),
+      // Arity 1, valid is U32.
+      U32Op::Not |
+      U32Op::CountZeros |
+      U32Op::CountOnes |
+      U32Op::ToU8 |
+      U32Op::ToU16 |
+      U32Op::ToU64 |
+      U32Op::ToU128 |
+      U32Op::ToNat |
+      U32Op::ToI8 |
+      U32Op::ToI16 |
+      U32Op::ToI32 |
+      U32Op::ToI64 |
+      U32Op::ToI128 |
+      U32Op::ToInt |
+      U32Op::ToBytes |
+      U32Op::ToBits |
+      U32Op::ToChar => test_apply1_none_on_invalid(U32(b)),
+      // Arity 2, valid are U32 on a and b.
+      U32Op::Eql |
+      U32Op::Lte |
+      U32Op::Lth |
+      U32Op::Gth |
+      U32Op::Gte |
+      U32Op::And |
+      U32Op::Or |
+      U32Op::Xor |
+      U32Op::Add |
+      U32Op::Sub |
+      U32Op::Mul |
+      U32Op::Div |
+      U32Op::Mod => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          U32(b),
+          a,
+          U32(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          U32(b),
+          U32(b),
+          a
+        )
+      },
+      // Arity 2, valid are U32 on a and U32 on b.
+      U32Op::Pow => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          U32(b),
+          a,
+          U32(c)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          U32(c),
+          U32(b),
+          a
+        )
+      },
+      // Arity 2, valid are U32 on a and U32 on b.
+      U32Op::Shl |
+      U32Op::Shr |
+      U32Op::Rol |
+      U32Op::Ror => if test_arg_2 {
+        test_apply2_none_on_invalid(
+          U32(c),
+          a,
+          U32(b)
+        )
+      } else {
+        test_apply2_none_on_invalid(
+          U32(b),
+          U32(c),
+          a
+        )
+      }
     }
   }
 }

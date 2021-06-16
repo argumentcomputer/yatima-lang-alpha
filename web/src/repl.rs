@@ -7,7 +7,6 @@ use std::{
   },
   collections::VecDeque,
 };
-use yatima_core::defs::Defs;
 use yatima_utils::{
   log,
   logging::log,
@@ -18,6 +17,7 @@ use yatima_utils::{
   repl::{
     error::ReplError,
     Repl,
+    ReplEnv,
   },
   store::Store,
 };
@@ -86,7 +86,7 @@ fn clear_line(term: &Terminal) {
 
 struct WebRepl {
   terminal: Terminal,
-  defs: Arc<Mutex<Defs>>,
+  env: Arc<Mutex<ReplEnv>>,
   shell_state: Arc<Mutex<ShellState>>,
   store: Rc<WebStore>,
   history: VecDeque<String>,
@@ -114,7 +114,7 @@ impl Repl for WebRepl {
     Ok(self.shell_state.lock().unwrap().clone().line)
   }
 
-  fn get_defs(&self) -> Arc<Mutex<Defs>> { self.defs.clone() }
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>> { self.env.clone() }
 
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
@@ -164,7 +164,6 @@ impl Repl for WebRepl {
 
 impl WebRepl {
   pub fn new() -> Self {
-    let defs = Arc::new(Mutex::new(Defs::new()));
     let terminal: Terminal = Terminal::new(
       TerminalOptions::new()
         .with_rows(50)
@@ -211,7 +210,8 @@ impl WebRepl {
     fit_addon.fit();
     terminal.focus();
     let store = Rc::new(WebStore::new());
-    WebRepl { terminal, defs, shell_state, store, history: VecDeque::new() }
+    let env = Arc::new(Mutex::new(ReplEnv::default()));
+    WebRepl { terminal, env, shell_state, store, history: VecDeque::new() }
   }
 
   pub fn get_terminal(&self) -> Terminal {

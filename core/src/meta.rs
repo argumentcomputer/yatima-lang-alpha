@@ -4,7 +4,7 @@ use crate::{
   position::Pos,
 };
 use cid::Cid;
-use libipld::ipld::Ipld;
+use sp_ipld::Ipld;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Meta {

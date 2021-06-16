@@ -1,3 +1,4 @@
+use sp_im::ConsList;
 use yatima_core::{
   defs::{
     Def,
@@ -30,13 +31,14 @@ use crate::file::{
 };
 
 use multiaddr::Multiaddr;
-use std::{
-  collections::VecDeque,
+use sp_std::{
+  cell::RefCell,
+  collections::vec_deque::VecDeque,
   rc::Rc,
   convert::TryFrom,
 };
 
-use libipld::Cid;
+use cid::Cid;
 use nom::{
   self,
   branch::alt,
@@ -45,6 +47,7 @@ use nom::{
     take_till1,
   },
   Err,
+  combinator::value,
   IResult,
 };
 
@@ -59,6 +62,7 @@ pub enum Reference {
 pub enum Command {
   Eval(Box<Term>),
   Type(Box<Term>),
+  Set(String, bool),
   Browse,
   // Help,
   Define(Box<(Name, Def, Entry)>),
@@ -71,24 +75,43 @@ pub enum Command {
 
 pub fn parse_eval(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, trm) = parse_expression(
       input,
       defs.clone(),
       None,
+      ConsList::new(),
       Rc::new(VecDeque::new()),
-      VecDeque::new(),
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Eval(Box::new(trm))))
   }
 }
 
+pub fn parse_set() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
+  move |i: Span| {
+    let (i, _) = alt((tag(":set"), tag(":s")))(i)?;
+    let (i, _) = parse_space1(i).map_err(error::convert)?;
+    // let (i, _) = alt((tag("type-system")))(i)?;
+    let (i, s) = parse_name(i).map_err(error::convert)?;
+    let (i, _) = parse_space1(i).map_err(error::convert)?;
+    let (i, b) = alt((
+      value(true, tag("on")),
+      value(true, tag("true")),
+      value(true, tag("yes")),
+      value(false, tag("off")),
+      value(false, tag("false")),
+      value(false, tag("no")),
+    ))(i)?;
+    Ok((i, Command::Set(s.to_string(), b)))
+  }
+}
+
 pub fn parse_type(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, _) = alt((tag(":type"), tag(":t")))(i)?;
@@ -96,8 +119,8 @@ pub fn parse_type(
       input,
       defs.clone(),
       None,
+      ConsList::new(),
       Rc::new(VecDeque::new()),
-      VecDeque::new(),
     )(i)
     .map_err(error::convert)?;
     Ok((i, Command::Type(Box::new(trm))))
@@ -106,7 +129,7 @@ pub fn parse_type(
 
 pub fn parse_define(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, res) =
@@ -193,12 +216,13 @@ pub fn parse_show() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
 
 pub fn parse_command(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     alt((
       parse_quit(),
       parse_browse(),
+      parse_set(),
       parse_load(),
       parse_show(),
       parse_type(input, defs.clone()),

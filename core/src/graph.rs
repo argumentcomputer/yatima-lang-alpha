@@ -1,3 +1,4 @@
+use cid::Cid;
 use petgraph::{
   dot::Dot,
   graph::{
@@ -19,7 +20,6 @@ use crate::{
   uses::Uses,
 };
 use core::ptr::NonNull;
-use libipld::Cid;
 use std::collections::HashMap;
 
 use std::fmt;
@@ -30,10 +30,11 @@ pub enum Node {
   App,
   All { uses: Uses },
   Slf { name: Name },
+  Fix { name: Name },
   Dat,
   Cse,
   Ref { name: Name, rec: bool, exp: Cid, ast: Cid },
-  Let { uses: Uses, name: Name },
+  Let { uses: Uses },
   Typ,
   Ann,
   Lit { lit: Literal },
@@ -52,14 +53,15 @@ impl fmt::Display for Node {
       Self::All { uses: Uses::Affi } => write!(f, "∀&"),
       Self::All { uses: Uses::Many } => write!(f, "∀ω"),
       Self::Slf { name } => write!(f, "@{}", name),
+      Self::Fix { name } => write!(f, "μ{}", name),
       Self::Dat => write!(f, "data"),
       Self::Cse => write!(f, "case"),
       Self::Ref { name, rec: false, .. } => write!(f, "#{}", name),
       Self::Ref { name, rec: true, .. } => write!(f, "#^{}", name),
-      Self::Let { uses: Uses::None, name } => write!(f, "let0 {}", name),
-      Self::Let { uses: Uses::Once, name } => write!(f, "let1 {}", name),
-      Self::Let { uses: Uses::Affi, name } => write!(f, "let& {}", name),
-      Self::Let { uses: Uses::Many, name } => write!(f, "letω {}", name),
+      Self::Let { uses: Uses::None } => write!(f, "let0"),
+      Self::Let { uses: Uses::Once } => write!(f, "let1"),
+      Self::Let { uses: Uses::Affi } => write!(f, "let&"),
+      Self::Let { uses: Uses::Many } => write!(f, "letω"),
       Self::Typ => write!(f, "Type"),
       Self::Ann => write!(f, "::"),
       Self::App => write!(f, "( )"),
@@ -77,6 +79,7 @@ pub enum Edge {
   Downlink,
   LamBod,
   SlfBod,
+  FixBod,
   DatBod,
   CseBod,
   AppFun,
@@ -90,9 +93,8 @@ pub enum Edge {
   LetBod,
   BindFree,
   BindLam,
-  BindAll,
   BindSlf,
-  BindLet,
+  BindFix,
 }
 
 impl fmt::Display for Edge {
@@ -103,6 +105,7 @@ impl fmt::Display for Edge {
       Self::Downlink => write!(f, ""),
       Self::LamBod => write!(f, "LamBod"),
       Self::SlfBod => write!(f, "SlfBod"),
+      Self::FixBod => write!(f, "FixBod"),
       Self::DatBod => write!(f, "DatBod"),
       Self::CseBod => write!(f, "CseBod"),
       Self::AppFun => write!(f, "AppFun"),
@@ -116,9 +119,8 @@ impl fmt::Display for Edge {
       Self::LetBod => write!(f, "LetBod"),
       Self::BindFree => write!(f, "BindFree"),
       Self::BindLam => write!(f, "BindLam"),
-      Self::BindAll => write!(f, "BindAll"),
       Self::BindSlf => write!(f, "BindSlf"),
-      Self::BindLet => write!(f, "BindLet"),
+      Self::BindFix => write!(f, "BindFix"),
     }
   }
 }
@@ -151,9 +153,13 @@ pub fn add_parent_edges(
         let p_ix = from_dag_ptr(&DAGPtr::Slf(link), map, graph);
         graph.add_edge(ix, p_ix, Edge::SlfBod);
       }
+      ParentPtr::FixBod(link) => {
+        let p_ix = from_dag_ptr(&DAGPtr::Fix(link), map, graph);
+        graph.add_edge(ix, p_ix, Edge::FixBod);
+      }
       ParentPtr::DatBod(link) => {
         let p_ix = from_dag_ptr(&DAGPtr::Dat(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::SlfBod);
+        graph.add_edge(ix, p_ix, Edge::DatBod);
       }
       ParentPtr::CseBod(link) => {
         let p_ix = from_dag_ptr(&DAGPtr::Cse(link), map, graph);
@@ -226,9 +232,9 @@ pub fn from_dag_ptr(
             let bind_ix = from_dag_ptr(&DAGPtr::Slf(*link), map, graph);
             graph.add_edge(ix, bind_ix, Edge::BindSlf);
           }
-          BinderPtr::Let(link) => {
-            let bind_ix = from_dag_ptr(&DAGPtr::Let(*link), map, graph);
-            graph.add_edge(ix, bind_ix, Edge::BindLet);
+          BinderPtr::Fix(link) => {
+            let bind_ix = from_dag_ptr(&DAGPtr::Fix(*link), map, graph);
+            graph.add_edge(ix, bind_ix, Edge::BindFix);
           }
         }
         add_parent_edges(ix, map, graph, *parents);
@@ -256,6 +262,20 @@ pub fn from_dag_ptr(
       else {
         let Slf { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
         let ix = graph.add_node(Node::Slf { name: var.nam.clone() });
+        map.insert(*node, ix);
+        add_parent_edges(ix, map, graph, *parents);
+        let bod_ix = from_dag_ptr(bod, map, graph);
+        graph.add_edge(ix, bod_ix, Edge::Downlink);
+        ix
+      }
+    }
+    DAGPtr::Fix(link) => {
+      if let Some(ix) = map.get(node) {
+        *ix
+      }
+      else {
+        let Fix { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+        let ix = graph.add_node(Node::Fix { name: var.nam.clone() });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let bod_ix = from_dag_ptr(bod, map, graph);
@@ -345,17 +365,17 @@ pub fn from_dag_ptr(
         *ix
       }
       else {
-        let Let { uses, var, typ, exp, bod, parents, .. } =
+        let Let { uses, typ, exp, bod, parents, .. } =
           unsafe { &mut *link.as_ptr() };
         let ix =
-          graph.add_node(Node::Let { uses: *uses, name: var.nam.clone() });
+          graph.add_node(Node::Let { uses: *uses });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let typ_ix = from_dag_ptr(typ, map, graph);
         graph.add_edge(ix, typ_ix, Edge::Downlink);
         let exp_ix = from_dag_ptr(exp, map, graph);
         graph.add_edge(ix, exp_ix, Edge::Downlink);
-        let bod_ix = from_dag_ptr(bod, map, graph);
+        let bod_ix = from_dag_ptr(&DAGPtr::Lam(*bod), map, graph);
         graph.add_edge(ix, bod_ix, Edge::Downlink);
         ix
       }
@@ -439,11 +459,11 @@ pub fn to_dot<'a>(graph: &'a Graph) -> Dot<'a, &'a Graph> {
       Edge::Copy => format!(", weight = 0"),
       Edge::BindFree
       | Edge::BindLam
-      | Edge::BindAll
       | Edge::BindSlf
-      | Edge::BindLet => format!(", weight = 0"),
+      | Edge::BindFix => format!(", weight = 0"),
       Edge::LamBod
       | Edge::SlfBod
+      | Edge::FixBod
       | Edge::DatBod
       | Edge::CseBod
       | Edge::AppFun

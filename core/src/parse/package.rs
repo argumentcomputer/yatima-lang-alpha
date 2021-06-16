@@ -21,8 +21,9 @@ use crate::{
   term::*,
 };
 
-use std::{
-  collections::VecDeque,
+use sp_std::{
+  cell::RefCell,
+  collections::vec_deque::VecDeque,
   convert::TryFrom,
   rc::Rc,
 };
@@ -39,7 +40,8 @@ use nom::{
   IResult,
 };
 
-use libipld::Cid;
+use cid::Cid;
+use sp_im::ConsList;
 
 pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {
   let (upto, (_, bytes)) = parse_multibase()(from)?;
@@ -80,13 +82,13 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
 
 pub fn parse_entry(
   input: Cid,
-  defs: Defs,
+  defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, (Name, Def, Entry), ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
-    if defs.names.get(&nam.clone()).is_some() {
+    if defs.borrow().names.get(&nam.clone()).is_some() {
       Err(Err::Error(ParseError::new(
         from,
         ParseErrorKind::TopLevelRedefinition(nam),
@@ -96,10 +98,10 @@ pub fn parse_entry(
       let (i, _) = parse_space(i)?;
       let (upto, (typ_, term)) = parse_bound_expression(
         input,
-        defs.to_owned(),
+        defs.clone(),
         Some(nam.clone()),
+        ConsList::new(),
         Rc::new(VecDeque::new()),
-        VecDeque::new(),
         nam.clone(),
         false,
       )(i)?;
@@ -115,7 +117,7 @@ pub fn parse_defs(
   import_defs: Defs,
 ) -> impl Fn(Span) -> IResult<Span, (Defs, Index), ParseError<Span>> {
   move |i: Span| {
-    let mut defs: Defs = import_defs.clone();
+    let defs = Rc::new(RefCell::new(import_defs.clone()));
     let mut ind: Vec<(Name, Cid)> = Vec::new();
     let mut i = i;
     loop {
@@ -123,12 +125,12 @@ pub fn parse_defs(
       i = i2;
       let end: IResult<Span, Span, ParseError<Span>> = eof(i);
       if end.is_ok() {
-        return Ok((i2, (defs, Index(ind))));
+        return Ok((i2, (defs.as_ref().clone().into_inner(), Index(ind))));
       }
       else {
         let (i2, (name, def, _)) = parse_entry(input, defs.clone())(i)?;
         ind.push((name.clone(), def.def_cid));
-        defs.insert(name, def);
+        defs.borrow_mut().insert(name, def);
         i = i2;
       }
     }

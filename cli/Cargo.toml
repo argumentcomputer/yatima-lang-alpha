@@ -12,11 +12,11 @@ path = "src/main.rs"
 [dependencies]
 yatima_core = { path = "../core"}
 yatima_utils = { path = "../utils"}
-cid = ">= 0.6.0"
+cid = "0.6.1"
 multihash = "0.13.2"
 multibase = "0.9.1"
 multiaddr = "*"
-libipld = { default-features = false, features = ["dag-cbor"], version = "0.11.0" }
+sp-ipld = { path = "../sp_ipld" }
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"

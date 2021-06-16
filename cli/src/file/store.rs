@@ -1,12 +1,16 @@
 use directories_next::ProjectDirs;
 
-use crate::ipfs;
-use libipld::{
-  cbor::DagCborCodec,
-  cid::Cid,
-  codec::Codec,
-  ipld::Ipld,
+use cid::Cid;
+use sp_ipld::{
+  dag_cbor::{
+    cid,
+    DagCborCodec,
+  },
+  ByteCursor,
+  Codec,
+  Ipld,
 };
+use crate::ipfs;
 use yatima_utils::{
   file::parse,
 };
@@ -77,22 +81,24 @@ pub fn fs_get(link: Cid) -> Option<Ipld> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file: Vec<u8> = fs::read(path).ok()?;
-  let res: Ipld = DagCborCodec.decode(&file).expect("valid cbor bytes");
+  let res: Ipld =
+    DagCborCodec.decode(ByteCursor::new(file)).expect("valid cbor bytes");
   Some(res)
 }
 
 pub fn fs_put(expr: Ipld) -> Cid {
   let dir = hashspace_directory();
-  let link = yatima_core::cid::cid(&expr);
+  let link = cid(&expr);
   let path = dir.as_path().join(Path::new(&link.to_string()));
-  fs::write(path, DagCborCodec.encode(&expr).unwrap()).unwrap_or_else(|_| {
-    panic!(
+  fs::write(path, DagCborCodec.encode(&expr).unwrap().into_inner())
+    .unwrap_or_else(|_| {
+      panic!(
     "Error: cannot write to hashspace path {}. \
      Please open an issue at \
      \"https://github.com/yatima-inc/yatima/issues\" \
      if you see this message",
     link)
-  });
+    });
   link
 }
 
@@ -126,13 +132,25 @@ impl Store for FileStore {
   }
 
   fn get(&self, link: Cid) -> Option<Ipld> {
-    fs_get(link).or_else(|| {
-      task::block_in_place(move || {
-        Handle::current()
-          .block_on(async move { ipfs::dag_get(link.to_string()).await.ok() })
+    fs_get(link).or_else(||
+      if self.use_ipfs_daemon { 
+        task::block_in_place(move || {
+          Handle::current()
+            .block_on(async move { ipfs::dag_get(link.to_string()).await.ok() })
+        })
+      } else {
+        None
       })
-    })
   }
 
-  fn put(&self, expr: Ipld) -> Cid { fs_put(expr) }
+  fn put(&self, expr: Ipld) -> Cid { 
+      if self.use_ipfs_daemon {
+        let expr = expr.clone();
+        task::block_in_place(move || {
+          Handle::current()
+            .block_on(async move { ipfs::dag_put(expr).await.unwrap(); })
+        });   
+      }
+      fs_put(expr)
+  }
 }

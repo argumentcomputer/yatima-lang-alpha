@@ -1,4 +1,4 @@
-use libipld::Ipld;
+use sp_ipld::Ipld;
 use std::{
   io::{
     self,
@@ -36,11 +36,11 @@ pub fn check_all_in_file(
 pub fn check_all_in_ipld(
   ipld: Ipld,
   store: Rc<dyn Store>,
-) -> Result<Defs, String> {
+) -> Result<(Package, Defs), String> {
   let p = Package::from_ipld(&ipld)?;
   let ds = store::load_package_defs(store.clone(), p.clone())?;
   println!("Checking package {} at {}", p.name, p.cid());
-  check_all(p, ds, store)
+  check_all(p.clone(), ds, store).map(|defs| (p, defs))
 }
 
 pub fn check_all(
