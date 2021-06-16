@@ -121,11 +121,13 @@ impl TypeDef {
   pub fn variant_data(&self) -> Vec<Term> {
     let mut lam_bind: Vec<Name> = vec![Name::from("P")];
     for v in self.variants.iter() {
-      lam_bind.push(Name::from(format!("{}.{}", self.name, v.name)));
+      let name = Name::from(format!("{}.{}", self.name, v.name));
+      lam_bind.push(name);
     }
     let mut data = vec![];
     let n = self.variants.len();
     for (i, v) in self.variants.iter().enumerate() {
+      let name = Name::from(format!("{}.{}", self.name, v.name));
       let bod: Term = v
         .bind
         .iter()
@@ -134,13 +136,16 @@ impl TypeDef {
         .map(|(j, (_, n, _))| {
           Term::Var(Pos::None, n.clone(), (j + lam_bind.len()) as u64)
         })
-        .fold(
-          Term::Var(Pos::None, v.name.clone(), (n - i) as u64),
-          |acc, arg| Term::App(Pos::None, Box::new((acc, arg))),
-        );
-      let trm = v.bind.iter().rev().fold(bod, |acc, (_, n, _)| {
-        Term::Lam(Pos::None, n.clone(), Box::new(acc))
-      });
+        .fold(Term::Var(Pos::None, name, (n - i) as u64), |acc, arg| {
+          Term::App(Pos::None, Box::new((acc, arg)))
+        });
+      for (_, n, _) in v.bind.iter() {
+        lam_bind.push(n.clone())
+      }
+      let trm = lam_bind
+        .iter()
+        .rev()
+        .fold(bod, |acc, n| Term::Lam(Pos::None, n.clone(), Box::new(acc)));
       data.push(Term::Dat(Pos::None, Box::new(trm)));
     }
     data
