@@ -172,6 +172,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72feb31ffc86498dacdbd0fcebb56138e7177a8cc5cea4516031d15ae85a742e"
 
 [[package]]
+name = "bytecursor"
+version = "0.1.0"
+dependencies = [
+ "sp-std",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1484,12 +1491,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-cid"
+version = "0.1.0"
+dependencies = [
+ "bytecursor",
+ "multibase 0.9.1",
+ "sp-multihash",
+ "sp-std",
+ "unsigned-varint 0.7.0",
+]
+
+[[package]]
 name = "sp-ipld"
 version = "0.1.0"
 dependencies = [
+ "bytecursor",
  "byteorder",
  "multibase 0.9.1",
- "multihash",
  "parity-scale-codec",
  "quickcheck",
  "quickcheck_macros",
@@ -1497,9 +1515,40 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sp-cid",
+ "sp-multihash",
  "sp-std",
  "tokio",
  "unsigned-varint 0.7.0",
+]
+
+[[package]]
+name = "sp-multihash"
+version = "0.1.0"
+dependencies = [
+ "blake2b_simd",
+ "blake2s_simd",
+ "blake3",
+ "bytecursor",
+ "digest",
+ "generic-array",
+ "sha2",
+ "sha3",
+ "sp-multihash-derive",
+ "sp-std",
+ "unsigned-varint 0.7.0",
+]
+
+[[package]]
+name = "sp-multihash-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate 1.0.0",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]

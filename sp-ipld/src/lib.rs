@@ -10,21 +10,16 @@ extern crate quickcheck_macros;
 #[cfg(test)]
 extern crate rand;
 
-pub mod bytecursor;
 pub mod codec;
 pub mod dag_cbor;
 pub mod ipld;
-pub mod sp_cid;
 
-pub use bytecursor::*;
 pub use codec::*;
 pub use ipld::*;
-pub use sp_cid::*;
 
 #[cfg(test)]
 pub mod tests {
   use super::{
-    bytecursor::*,
     codec::*,
     dag_cbor::*,
     ipld::*,

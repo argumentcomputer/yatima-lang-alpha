@@ -1,9 +1,7 @@
 use crate::{
-  bytecursor::ByteCursor,
   codec::Encode,
   dag_cbor::DagCborCodec,
   ipld::Ipld,
-  sp_cid::Cid,
 };
 
 use alloc::{
@@ -23,6 +21,8 @@ use sp_std::{
   ops::Deref,
   vec::Vec,
 };
+use bytecursor::ByteCursor;
+use sp_cid::Cid;
 
 /// # Errors
 ///

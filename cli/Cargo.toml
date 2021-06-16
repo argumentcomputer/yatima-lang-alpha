@@ -15,7 +15,7 @@ yatima_utils = { path = "../utils"}
 cid = "0.6.1"
 multihash = "0.13.2"
 multibase = "0.9.1"
-sp-ipld = { path = "../sp_ipld" }
+sp-ipld = { path = "../sp-ipld" }
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"
