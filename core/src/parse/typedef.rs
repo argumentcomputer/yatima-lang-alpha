@@ -450,6 +450,7 @@ pub fn parse_variant(
         .rev()
         .enumerate()
         .map(|(i, (_, n, _))| Term::Var(Pos::None, n.clone(), i as u64))
+        .rev()
         .collect();
       let (i, (ty_params, ty_indices)) = alt((
         parse_variant_params(
@@ -811,17 +812,39 @@ pub mod tests {
     assert!(res.type_of() == yatima!("∀ (A B: Type) (0 x y: #Nat) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
-    let res2 = yatima!("λ A B x y => @Chain.self ∀\
-      (0 P: ∀ (0 x y: #Nat) (#$0 A B x y) -> Type)
-      (& Nil: P 0 0 (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Nil))
-      (& Lft : ∀ (0 x y: #Nat) (a: A) (as: (#$0 A B x y))
-        -> P (#Nat.suc x) y (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Lft x y a as))
-      (& Rgt : ∀ (0 x y: #Nat) (a: A) (as: (#$0 A B x y))
-        -> P x (#Nat.suc y) (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Rgt x y a as))
+    let res2 = yatima!("λ A B x y => @Chain.self ∀ \
+      (0 P: ∀ (0 x y: #Nat) (#$0 A B x y) -> Type) \
+      (& Nil: P 0 0 (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Nil))\
+      (& Lft : ∀ (0 x y: #Nat) (a: A) (as: (#$0 A B x y)) \
+        -> P (#Nat.suc x) y \
+          (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Lft x y a as)) \
+      (& Rgt : ∀ (0 x y: #Nat) (a: A) (as: (#$0 A B x y)) \
+        -> P x (#Nat.suc y) \
+          (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Rgt x y a as)) \
       -> P x y Chain.self
     ", Term::Rec(Pos::None));
     println!("res1: {}", res1.pretty(Some(&"Chain".to_string()), true));
     println!("res2: {}", res2.pretty(Some(&"Chain".to_string()), true));
     assert!(res1 == res2);
+    let constrs = res.constructors();
+    println!("{:?}", constrs);
+    let (nil_name, nil_def, _) = constrs[0].clone();
+    assert_eq!(nil_name.to_string(), "Chain.Nil".to_string());
+    let typ1 = nil_def.typ_;
+    let typ2 = yatima!("∀ (A B: Type) -> (#$0 A B 0 0)", res.type_ref());
+    println!("typ1: {}", typ1.pretty(Some(&"Chain.Nil".to_string()), true));
+    println!("typ2. {}", typ2.pretty(Some(&"Chain.Nil".to_string()), true));
+    let (lft_name, lft_def, _) = constrs[1].clone();
+    assert_eq!(lft_name.to_string(), "Chain.Lft".to_string());
+    let typ1 = lft_def.typ_;
+    #[rustfmt::skip]
+    let typ2 = yatima!(
+      "∀ (A B: Type) (0 x y: #Nat) (a: A) (as: #$0 A B x y) \
+        -> (#$0 A B (#Nat.suc x) y)",
+      res.type_ref()
+    );
+    println!("typ1: {}", typ1.pretty(Some(&"Chain.Lft".to_string()), true));
+    println!("typ2. {}", typ2.pretty(Some(&"Chain.Lft".to_string()), true));
+    assert_eq!(typ1, typ2);
   }
 }
