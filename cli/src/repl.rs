@@ -19,19 +19,19 @@ use std::{
 };
 
 use crate::file::store::FileStore;
-use yatima_core::defs::Defs;
 use yatima_utils::{
   repl::{
     error::ReplError,
     run_repl,
     Repl,
+    ReplEnv,
   },
   store::Store,
 };
 
 struct RustyLineRepl {
   rl: Editor<()>,
-  defs: Arc<Mutex<Defs>>,
+  env: Arc<Mutex<ReplEnv>>,
   store: Rc<FileStore>,
 }
 
@@ -42,7 +42,7 @@ impl RustyLineRepl {
     rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
     rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
     let store = Rc::new(FileStore {});
-    RustyLineRepl { rl, defs: Arc::new(Mutex::new(Defs::new())), store }
+    RustyLineRepl { rl, env: Arc::new(Mutex::new(ReplEnv::default())), store }
   }
 }
 
@@ -71,7 +71,7 @@ impl Repl for RustyLineRepl {
 
   fn save_history(&mut self) { self.rl.save_history("history.txt").unwrap(); }
 
-  fn get_defs(&self) -> Arc<Mutex<Defs>> { self.defs.clone() }
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>> { self.env.clone() }
 
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 }

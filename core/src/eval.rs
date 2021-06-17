@@ -8,8 +8,9 @@ use crate::{
 };
 
 use sp_std::{
-  collections::vec_deque::VecDeque,
+  collections::btree_map::BTreeMap,
   vec::Vec,
+  mem,
 };
 
 use alloc::string::String;
@@ -17,6 +18,7 @@ use alloc::string::String;
 enum Single {
   Lam(Var),
   Slf(Var),
+  Fix(Var),
   Dat,
   Cse,
 }
@@ -46,6 +48,11 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let Slf { var, bod, .. } = unsafe { link.as_ref() };
         input = *bod;
         spine.push(Single::Slf(var.clone()));
+      }
+      DAGPtr::Fix(link) => {
+        let Fix { var, bod, .. } = unsafe { link.as_ref() };
+        input = *bod;
+        spine.push(Single::Fix(var.clone()));
       }
       DAGPtr::Dat(link) => {
         let Dat { bod, .. } = unsafe { link.as_ref() };
@@ -97,17 +104,10 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         break;
       }
       DAGPtr::Let(link) => {
-        let Let { var: old_var, uses, typ, exp, bod, .. } =
-          unsafe { link.as_ref() };
-        let Var { nam, dep, .. } = old_var;
-        let new_let =
-          alloc_let(nam.clone(), *dep, None, *uses, *typ, *exp, *bod, None);
+        let Let { uses, typ, exp, bod, .. } = unsafe { link.as_ref() };
+        let new_let = alloc_let(*uses, *typ, *exp, *bod, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_let);
-          let ptr: *mut Var = &mut (*new_let.as_ptr()).var;
-          for parent in DLL::iter_option(old_var.parents) {
-            upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
-          }
         }
         top_branch = Some(Branch::Let(link));
         for parent in DLL::iter_option(var.parents) {
@@ -128,7 +128,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
     match single {
       Single::Lam(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_lam = alloc_lam(nam, dep, None, result, None);
+        let new_lam = alloc_lam(nam, dep, result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_lam.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
@@ -139,7 +139,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
       }
       Single::Slf(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_slf = alloc_slf(nam, dep, None, result, None);
+        let new_slf = alloc_slf(nam, dep, result, None);
         let ptr: *mut Parents = unsafe { &mut (*new_slf.as_ptr()).bod_ref };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
@@ -147,6 +147,17 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
           upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
         }
         result = DAGPtr::Slf(new_slf);
+      }
+      Single::Fix(var) => {
+        let Var { nam, dep, parents: var_parents, .. } = var;
+        let new_fix = alloc_fix(nam, dep, result, None);
+        let ptr: *mut Parents = unsafe { &mut (*new_fix.as_ptr()).bod_ref };
+        add_to_parents(result, NonNull::new(ptr).unwrap());
+        let ptr: *mut Var = unsafe { &mut (*new_fix.as_ptr()).var };
+        for parent in DLL::iter_option(var_parents) {
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+        }
+        result = DAGPtr::Fix(new_fix);
       }
       Single::Dat => {
         let new_dat = alloc_dat(result, None);
@@ -193,14 +204,11 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         let top_let = &mut *link.as_ptr();
         let link = top_let.copy.unwrap();
         top_let.copy = None;
-        let Let { var, typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } =
+        let Let { typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } =
           &mut *link.as_ptr();
         add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
         add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
-        add_to_parents(*bod, NonNull::new(bod_ref).unwrap());
-        for var_parent in DLL::iter_option(var.parents) {
-          clean_up(var_parent);
-        }
+        add_to_parents(DAGPtr::Lam(*bod), NonNull::new(bod_ref).unwrap());
       },
     }
     for parent in DLL::iter_option(var.parents) {
@@ -218,6 +226,13 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         },
         DAGPtr::Slf(link) => unsafe {
           let Slf { var, bod, .. } = &mut *link.as_ptr();
+          for parent in DLL::iter_option(var.parents) {
+            clean_up(parent);
+          }
+          spine = *bod;
+        },
+        DAGPtr::Fix(link) => unsafe {
+          let Fix { var, bod, .. } = &mut *link.as_ptr();
           for parent in DLL::iter_option(var.parents) {
             clean_up(parent);
           }
@@ -253,6 +268,26 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
   };
   replace_child(DAGPtr::App(redex), top_node);
   free_dead_node(DAGPtr::App(redex));
+  top_node
+}
+
+// Contract a let redex, return the body.
+#[inline]
+pub fn reduce_let(redex: NonNull<Let>) -> DAGPtr {
+  let Let { bod: lam, exp: arg, .. } = unsafe { redex.as_ref() };
+  let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
+  let top_node = if DLL::is_singleton(*parents) {
+    replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *arg);
+    *bod
+  }
+  else if var.parents.is_none() {
+    *bod
+  }
+  else {
+    subst(*bod, var, *arg, false)
+  };
+  replace_child(DAGPtr::Let(redex), top_node);
+  free_dead_node(DAGPtr::Let(redex));
   top_node
 }
 
@@ -296,10 +331,10 @@ impl DAG {
           body.whnf(defs);
           match body.head {
             DAGPtr::Dat(body_link) => {
-              let Dat { bod: single_body, .. } = unsafe { body_link.as_ref() };
-              replace_child(node, *single_body);
+              let bod = unsafe { body_link.as_ref().bod };
+              replace_child(node, bod);
               free_dead_node(node);
-              node = *single_body;
+              node = bod;
             }
             DAGPtr::Lit(link) => {
               let Lit { lit, parents, .. } = unsafe { link.as_ref() };
@@ -309,7 +344,7 @@ impl DAG {
                   let expand = DAG::from_term_inner(
                     expand,
                     0,
-                    VecDeque::new(),
+                    BTreeMap::new(),
                     *parents,
                     None,
                   );
@@ -323,12 +358,33 @@ impl DAG {
           }
         }
         DAGPtr::Let(link) => {
-          let Let { var, exp, bod, .. } = unsafe { &mut *link.as_ptr() };
+          node = reduce_let(link);
+        }
+        DAGPtr::Fix(link) => unsafe {
+          let Fix { var, bod, .. } = &mut *link.as_ptr();
           replace_child(node, *bod);
-          replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *exp);
+          if !var.parents.is_none() {
+            let new_fix =
+              alloc_fix(var.nam.clone(), 0, mem::zeroed(), None).as_mut();
+            let result = subst(
+              *bod,
+              var,
+              DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
+              true,
+            );
+            new_fix.bod = result;
+            add_to_parents(
+              result,
+              NonNull::new_unchecked(&mut new_fix.bod_ref),
+            );
+            replace_child(
+              DAGPtr::Var(NonNull::new(var).unwrap()),
+              DAGPtr::Fix(NonNull::new_unchecked(new_fix)),
+            );
+          }
           free_dead_node(node);
           node = *bod;
-        }
+        },
         DAGPtr::Ref(link) => {
           let Ref { nam, exp, ast, parents: ref_parents, .. } =
             unsafe { &mut *link.as_ptr() };
@@ -650,7 +706,7 @@ pub mod test {
       id,
     );
     let trm_str =
-      &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id,);
+      &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id);
     println!("{}", trm_str);
     let (_, trm) = parse(trm_str).unwrap();
     println!("{:?}", DAG::to_term(&trm, true));

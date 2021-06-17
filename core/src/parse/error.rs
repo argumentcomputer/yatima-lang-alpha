@@ -20,18 +20,19 @@ use nom::{
 
 use sp_std::{
   cmp::Ordering,
-  collections::vec_deque::VecDeque,
   fmt,
   fmt::Write,
   num::ParseIntError,
   vec::Vec,
 };
 
+use sp_im::ConsList;
+
 use alloc::string::String;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseErrorKind {
-  UndefinedReference(Name, VecDeque<Name>),
+  UndefinedReference(Name, ConsList<Name>),
   TopLevelRedefinition(Name),
   UnknownLiteralType(String),
   InvalidBaseEncoding(base::LitBase),

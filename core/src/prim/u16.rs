@@ -325,7 +325,9 @@ impl U16Op {
       (Self::ToU32, U16(x)) => Some(U32((*x).into())),
       (Self::ToU64, U16(x)) => Some(U64((*x).into())),
       (Self::ToU128, U16(x)) => Some(U128((*x).into())),
-      (Self::ToNat, U16(x)) => Some(Nat(BigUint::from(u64::try_from(*x).unwrap()))),
+      (Self::ToNat, U16(x)) => {
+        Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
+      }
       (Self::ToI8, U16(x)) => i8::try_from(*x).ok().map(I8),
       (Self::ToI16, U16(x)) => i16::try_from(*x).ok().map(I16),
       (Self::ToI32, U16(x)) => Some(I32((*x).into())),
@@ -333,7 +335,9 @@ impl U16Op {
       (Self::ToI128, U16(x)) => Some(I128((*x).into())),
       (Self::Not, U16(x)) => Some(U16(!x)),
       (Self::ToInt, U16(x)) => Some(Int((*x).into())),
-      (Self::ToBits, U16(x)) => Some(Bits(bits::bytes_to_bits(16, &x.to_be_bytes().into()))),
+      (Self::ToBits, U16(x)) => {
+        Some(Bits(bits::bytes_to_bits(16, &x.to_be_bytes().into())))
+      }
       (Self::ToBytes, U16(x)) => Some(Bytes(x.to_be_bytes().into())),
       _ => None,
     }
@@ -353,16 +357,22 @@ impl U16Op {
       (Self::Add, U16(x), U16(y)) => Some(U16(x.wrapping_add(*y))),
       (Self::Sub, U16(x), U16(y)) => Some(U16(x.wrapping_sub(*y))),
       (Self::Mul, U16(x), U16(y)) => Some(U16(x.wrapping_mul(*y))),
-      (Self::Div, U16(x), U16(y)) => if *y == 0 {
-        None
-      } else {
-        Some(U16(x.wrapping_div(*y)))
-      },
-      (Self::Mod, U16(x), U16(y)) => if *y == 0 {
-        None
-      } else {
-        Some(U16(x.wrapping_rem(*y)))
-      },
+      (Self::Div, U16(x), U16(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(U16(x.wrapping_div(*y)))
+        }
+      }
+      (Self::Mod, U16(x), U16(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(U16(x.wrapping_rem(*y)))
+        }
+      }
       (Self::Pow, U16(x), U32(y)) => Some(U16(x.wrapping_pow(*y))),
       (Self::Shl, U32(x), U16(y)) => Some(U16(y.wrapping_shl(*x))),
       (Self::Shr, U32(x), U16(y)) => Some(U16(y.wrapping_shr(*x))),
@@ -382,35 +392,35 @@ impl fmt::Display for U16Op {
 #[cfg(test)]
 pub mod tests {
   use super::*;
-  use quickcheck::{
-    Arbitrary,
-    Gen,
-    TestResult
-  };
-  use rand::Rng;
-  use Literal::{
-    U16,
-    Bool,
-    Nat,
-    Int,
-    Bits,
-    Bytes,
-    U32
-  };
   use crate::prim::{
-    U8Op,
-    U32Op,
-    U64Op,
-    I8Op,
     I16Op,
     I32Op,
     I64Op,
-  };
-  use std::{
-    convert::TryInto,
-    mem
+    I8Op,
+    U32Op,
+    U64Op,
+    U8Op,
   };
   use num_bigint::BigUint;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+    TestResult,
+  };
+  use rand::Rng;
+  use std::{
+    convert::TryInto,
+    mem,
+  };
+  use Literal::{
+    Bits,
+    Bool,
+    Bytes,
+    Int,
+    Nat,
+    U16,
+    U32,
+  };
   impl Arbitrary for U16Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -450,8 +460,6 @@ pub mod tests {
         31 => Self::ToInt,
         32 => Self::ToBytes,
         _ => Self::ToBits,
-        // 26 => Self::ToU128,
-        // 32 => Self::ToI128,
       }
     }
   }
@@ -465,60 +473,25 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: U16Op,
-    a: u16,
-    b: u16,
-    c: u32
-  ) -> TestResult {
+  fn test_apply(op: U16Op, a: u16, b: u16, c: u32) -> TestResult {
     let apply0_go = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        U16Op::apply0(op) ==
-        expected
-      )
+      TestResult::from_bool(U16Op::apply0(op) == expected)
     };
 
     let apply1_u16 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        U16Op::apply1(
-          op,
-          &U16(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(U16Op::apply1(op, &U16(a)) == expected)
     };
 
     let apply2_u16_u16 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        U16Op::apply2(
-          op,
-          &U16(a),
-          &U16(b)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(U16Op::apply2(op, &U16(a), &U16(b)) == expected)
     };
 
     let apply2_u16_u32 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        U16Op::apply2(
-          op,
-          &U16(a),
-          &U32(c)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(U16Op::apply2(op, &U16(a), &U32(c)) == expected)
     };
 
     let apply2_u32_u16 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        U16Op::apply2(
-          op,
-          &U32(c),
-          &U16(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(U16Op::apply2(op, &U32(c), &U16(a)) == expected)
     };
 
     let from_bool = TestResult::from_bool;
@@ -538,20 +511,12 @@ pub mod tests {
       U16Op::Add => apply2_u16_u16(Some(U16(a.wrapping_add(b)))),
       U16Op::Sub => apply2_u16_u16(Some(U16(a.wrapping_sub(b)))),
       U16Op::Mul => apply2_u16_u16(Some(U16(a.wrapping_mul(b)))),
-      U16Op::Div => apply2_u16_u16(
-        if b == 0 {
-          None
-        } else {
-          Some(U16(a.wrapping_div(b)))
-        }
-      ),
-      U16Op::Mod => apply2_u16_u16(
-        if b == 0 {
-          None
-        } else {
-          Some(U16(a.wrapping_rem(b)))
-        }
-      ),
+      U16Op::Div => {
+        apply2_u16_u16(if b == 0 { None } else { Some(U16(a.wrapping_div(b))) })
+      }
+      U16Op::Mod => {
+        apply2_u16_u16(if b == 0 { None } else { Some(U16(a.wrapping_rem(b))) })
+      }
       U16Op::Pow => apply2_u16_u32(Some(U16(a.wrapping_pow(c)))),
       U16Op::Shl => apply2_u32_u16(Some(U16(a.wrapping_shl(c)))),
       U16Op::Shr => apply2_u32_u16(Some(U16(a.wrapping_shr(c)))),
@@ -559,65 +524,52 @@ pub mod tests {
       U16Op::Ror => apply2_u32_u16(Some(U16(a.rotate_right(c)))),
       U16Op::CountZeros => apply1_u16(Some(U32(a.count_zeros()))),
       U16Op::CountOnes => apply1_u16(Some(U32(a.count_ones()))),
-      U16Op::ToU8 => from_bool(
-        if a > u8::MAX.into() {
-          U16Op::apply1(op, &U16(a)) == None
-        } else {
-          U8Op::apply1(
-            U8Op::ToU16,
-            &U16Op::apply1(op, &U16(a)).unwrap()
-          ) == Some(U16(a))
-        }
-      ),
+      U16Op::ToU8 => from_bool(if a > u8::MAX.into() {
+        U16Op::apply1(op, &U16(a)) == None
+      }
+      else {
+        U8Op::apply1(U8Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a))
+      }),
       U16Op::ToU32 => from_bool(
-        U32Op::apply1(
-          U32Op::ToU16,
-          &U16Op::apply1(op, &U16(a)).unwrap()
-        ) == Some(U16(a))
+        U32Op::apply1(U32Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a)),
       ),
       U16Op::ToU64 => from_bool(
-        U64Op::apply1(
-          U64Op::ToU16,
-          &U16Op::apply1(op, &U16(a)).unwrap()
-        ) == Some(U16(a))
+        U64Op::apply1(U64Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a)),
       ),
       U16Op::ToU128 => TestResult::discard(),
-      U16Op::ToNat => apply1_u16(Some(Nat(BigUint::from(u64::try_from(a).unwrap())))),
-      U16Op::ToI8 => from_bool(
-        if a > i8::MAX.try_into().unwrap() {
-          U16Op::apply1(op, &U16(a)) == None
-        } else {
-          I8Op::apply1(
-            I8Op::ToU16,
-            &U16Op::apply1(op, &U16(a)).unwrap()
-          ) == Some(U16(a))
-        }
-      ),
-      U16Op::ToI16 => from_bool(
-        if a > i16::MAX.try_into().unwrap() {
-          U16Op::apply1(op, &U16(a)) == None
-        } else {
-          I16Op::apply1(
-            I16Op::ToU16,
-            &U16Op::apply1(op, &U16(a)).unwrap()
-          ) == Some(U16(a))
-        }
-      ),
+      U16Op::ToNat => {
+        apply1_u16(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
+      }
+      U16Op::ToI8 => from_bool(if a > i8::MAX.try_into().unwrap() {
+        U16Op::apply1(op, &U16(a)) == None
+      }
+      else {
+        I8Op::apply1(I8Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a))
+      }),
+      U16Op::ToI16 => from_bool(if a > i16::MAX.try_into().unwrap() {
+        U16Op::apply1(op, &U16(a)) == None
+      }
+      else {
+        I16Op::apply1(I16Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a))
+      }),
       U16Op::ToI32 => from_bool(
-        I32Op::apply1(
-          I32Op::ToU16,
-          &U16Op::apply1(op, &U16(a)).unwrap()
-        ) == Some(U16(a))
+        I32Op::apply1(I32Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a)),
       ),
       U16Op::ToI64 => from_bool(
-        I64Op::apply1(
-          I64Op::ToU16,
-          &U16Op::apply1(op, &U16(a)).unwrap()
-        ) == Some(U16(a))
+        I64Op::apply1(I64Op::ToU16, &U16Op::apply1(op, &U16(a)).unwrap())
+          == Some(U16(a)),
       ),
       U16Op::ToI128 => TestResult::discard(),
       U16Op::ToInt => apply1_u16(Some(Int(a.into()))),
-      U16Op::ToBits => apply1_u16(Some(Bits(bits::bytes_to_bits(16, &a.to_be_bytes().into())))),
+      U16Op::ToBits => {
+        apply1_u16(Some(Bits(bits::bytes_to_bits(16, &a.to_be_bytes().into()))))
+      }
       U16Op::ToBytes => apply1_u16(Some(Bytes(a.to_be_bytes().into()))),
     }
   }
@@ -630,127 +582,94 @@ pub mod tests {
     c: u32,
     test_arg_2: bool,
   ) -> TestResult {
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          U16Op::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(U16Op::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        U16Op::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(U16Op::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 0.
-      U16Op::Max |
-      U16Op::Min => TestResult::discard(),
+      U16Op::Max | U16Op::Min => TestResult::discard(),
       // Arity 1, valid is U16.
-      U16Op::Not |
-      U16Op::CountZeros |
-      U16Op::CountOnes |
-      U16Op::ToU8 |
-      U16Op::ToU32 |
-      U16Op::ToU64 |
-      U16Op::ToU128 |
-      U16Op::ToNat |
-      U16Op::ToI8 |
-      U16Op::ToI16 |
-      U16Op::ToI32 |
-      U16Op::ToI64 |
-      U16Op::ToI128 |
-      U16Op::ToInt |
-      U16Op::ToBytes |
-      U16Op::ToBits => test_apply1_none_on_invalid(U16(b)),
+      U16Op::Not
+      | U16Op::CountZeros
+      | U16Op::CountOnes
+      | U16Op::ToU8
+      | U16Op::ToU32
+      | U16Op::ToU64
+      | U16Op::ToU128
+      | U16Op::ToNat
+      | U16Op::ToI8
+      | U16Op::ToI16
+      | U16Op::ToI32
+      | U16Op::ToI64
+      | U16Op::ToI128
+      | U16Op::ToInt
+      | U16Op::ToBytes
+      | U16Op::ToBits => test_apply1_none_on_invalid(U16(b)),
       // Arity 2, valid are U16 on a and b.
-      U16Op::Eql |
-      U16Op::Lte |
-      U16Op::Lth |
-      U16Op::Gth |
-      U16Op::Gte |
-      U16Op::And |
-      U16Op::Or |
-      U16Op::Xor |
-      U16Op::Add |
-      U16Op::Sub |
-      U16Op::Mul |
-      U16Op::Div |
-      U16Op::Mod => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          U16(b),
-          a,
-          U16(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U16(b),
-          U16(b),
-          a
-        )
-      },
+      U16Op::Eql
+      | U16Op::Lte
+      | U16Op::Lth
+      | U16Op::Gth
+      | U16Op::Gte
+      | U16Op::And
+      | U16Op::Or
+      | U16Op::Xor
+      | U16Op::Add
+      | U16Op::Sub
+      | U16Op::Mul
+      | U16Op::Div
+      | U16Op::Mod => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(U16(b), a, U16(b))
+        }
+        else {
+          test_apply2_none_on_invalid(U16(b), U16(b), a)
+        }
+      }
       // Arity 2, valid are U16 on a and U32 on b.
-      U16Op::Pow => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          U16(b),
-          a,
-          U32(c)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U32(c),
-          U16(b),
-          a
-        )
-      },
+      U16Op::Pow => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(U16(b), a, U32(c))
+        }
+        else {
+          test_apply2_none_on_invalid(U32(c), U16(b), a)
+        }
+      }
       // Arity 2, valid are U32 on a and U16 on b.
-      U16Op::Shl |
-      U16Op::Shr |
-      U16Op::Rol |
-      U16Op::Ror => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          U32(c),
-          a,
-          U16(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U16(b),
-          U32(c),
-          a
-        )
+      U16Op::Shl | U16Op::Shr | U16Op::Rol | U16Op::Ror => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(U32(c), a, U16(b))
+        }
+        else {
+          test_apply2_none_on_invalid(U16(b), U32(c), a)
+        }
       }
     }
   }

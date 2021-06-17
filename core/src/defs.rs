@@ -138,8 +138,10 @@ impl Defs {
       defs.insert(k, v);
     }
     let mut names = self.names;
-    for (k, v) in other.names {
-      names.insert(import_alias(k, import), v);
+    for k in import.with.iter() {
+      let k = k.clone();
+      let v = other.names.get(&k).unwrap();
+      names.insert(import_alias(k, import), *v);
     }
     Defs { defs, names }
   }

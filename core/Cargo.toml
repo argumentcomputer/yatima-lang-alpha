@@ -27,6 +27,7 @@ ropey = { git = "https://github.com/yatima-inc/ropey", branch = "master" }
 sp-ipld = { path = "../sp-ipld" }
 sp-multihash = { path = "../sp-multihash" }
 sp-cid = { path = "../sp-cid" }
+sp-im = { path = "../sp-im" }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

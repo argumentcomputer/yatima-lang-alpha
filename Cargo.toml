@@ -4,14 +4,7 @@ members = [
   "cli",
   "utils",
   "web",
-  "sp-ipld"
 ]
-exclude = [
-  "bytecursor",
-  "sp-cid",
-  "sp-multihash",
-]
-
 
 [profile.dev]
 debug = 2

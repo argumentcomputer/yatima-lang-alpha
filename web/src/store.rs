@@ -1,7 +1,6 @@
 use sp_cid::Cid;
 use sp_ipld::{
   dag_cbor,
-  Codec,
   Ipld,
 };
 use yatima_utils::store::Store;
@@ -14,12 +13,12 @@ impl WebStore {
 }
 
 impl Store for WebStore {
-  fn get(&self, link: Cid) -> Option<Ipld> {
+  fn get(&self, _link: Cid) -> Option<Ipld> {
     // TODO
     None
   }
 
-  fn put(&self, expr: Ipld) -> Cid {
+  fn put(&self, _expr: Ipld) -> Cid {
     // TODO
     dag_cbor::cid(&Ipld::Null)
   }

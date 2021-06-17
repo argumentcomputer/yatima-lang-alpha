@@ -39,3 +39,4 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.12"
+#Also do you know how to pipe cargo commands into a file, grep etc? The usual bash commands don't work on it

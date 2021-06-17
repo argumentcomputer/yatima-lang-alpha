@@ -295,8 +295,6 @@ pub mod tests {
         11 => Self::I16(I16Op::arbitrary(g)),
         12 => Self::I32(I32Op::arbitrary(g)),
         _ => Self::I64(I64Op::arbitrary(g)),
-        // 10 => Self::U128(U128Op::arbitrary(g)),
-        // _ => Self::I128(I128Op::arbitrary(g)),
       }
     }
   }
@@ -313,7 +311,7 @@ pub mod tests {
   pub enum TestArg3 {
     A,
     B,
-    C
+    C,
   }
 
   impl Arbitrary for TestArg3 {
@@ -323,7 +321,7 @@ pub mod tests {
       match gen {
         0 => Self::A,
         1 => Self::B,
-        _ => Self::C
+        _ => Self::C,
       }
     }
   }
