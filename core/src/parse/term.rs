@@ -324,7 +324,7 @@ pub fn parse_binder_full(
     let (i, _) = tag(")")(i)?;
     let mut res = Vec::new();
     for (i, n) in ns.iter().enumerate() {
-      res.push((u, n.to_owned(), typ.clone().shift(i as u64, 0)))
+      res.push((u, n.to_owned(), typ.clone().shift(i as i64, 0)))
     }
     Ok((i, res))
   }

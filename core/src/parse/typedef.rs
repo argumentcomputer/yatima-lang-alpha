@@ -14,7 +14,6 @@ use crate::{
     term::*,
   },
   term::*,
-  yatima,
 };
 use nom::{
   branch::alt,
@@ -24,11 +23,7 @@ use nom::{
     peek,
     value,
   },
-  sequence::{
-    delimited,
-    preceded,
-    terminated,
-  },
+  sequence::preceded,
   Err,
   IResult,
 };
@@ -218,24 +213,30 @@ impl TypeDef {
     let mut res = Vec::new();
     let data = self.data_terms();
     for (i, v) in self.variants.iter().enumerate() {
-      let trm = v.bind.iter().rev().fold(data[i].clone(), |acc, (_, n, _)| {
-        Term::Lam(Pos::None, n.clone(), Box::new(acc))
-      });
-      let typ = v
-        .ty_indices
+      let trm = self
+        .ty_params
         .iter()
-        .chain(v.ty_params.iter())
+        .chain(v.bind.iter())
         .rev()
+        .fold(data[i].clone(), |acc, (_, n, _)| {
+          Term::Lam(Pos::None, n.clone(), Box::new(acc))
+        });
+      let typ = v
+        .ty_params
+        .iter()
+        .chain(v.ty_indices.iter())
         .fold(self.type_ref(), |acc, arg| {
           Term::App(Pos::None, Box::new((acc, arg.clone())))
         });
-      let typ = v.bind.iter().rev().fold(typ, |acc, (u, n, t)| {
-        let t = match t {
-          Term::Rec(..) => self.type_ref(),
-          _ => t.clone(),
-        };
-        Term::All(Pos::None, *u, n.clone(), Box::new((t, acc)))
-      });
+      let typ = self.ty_params.iter().chain(v.bind.iter()).rev().fold(
+        typ,
+        |acc, (u, n, t)| {
+          Term::All(Pos::None, *u, n.clone(), Box::new((t.clone(), acc)))
+        },
+      );
+      let offset = -((self.ty_indices.len() + 2 + i) as i64);
+      let typ = typ.shift(offset, 0);
+      let typ = typ.un_rec(Rc::new(self.type_ref()));
       let (d, e) = Def::make(Pos::None, typ, trm);
       res.push((Name::from(format!("{}.{}", self.name, v.name)), d, e));
     }
@@ -374,6 +375,7 @@ pub fn parse_typedef(
       let mut vars = Vec::new();
       let mut ctx = ctx;
       let mut i = i;
+      let rc_params = Rc::new(ty_params);
       loop {
         match preceded(parse_space, tag("}"))(i) {
           Ok((i2, _)) => {
@@ -381,7 +383,7 @@ pub fn parse_typedef(
             return Ok((i2, TypeDef {
               pos,
               name: type_name,
-              ty_params,
+              ty_params: rc_params.as_ref().clone(),
               ty_indices,
               variants: vars,
             }));
@@ -395,7 +397,7 @@ pub fn parse_typedef(
             defs.clone(),
             ctx.clone(),
             type_name.clone(),
-            ty_params.len(),
+            rc_params.clone(),
           ),
         )(i)
         {
@@ -416,7 +418,7 @@ pub fn parse_variant(
   defs: Rc<RefCell<Defs>>,
   ctx: Ctx,
   type_name: Name,
-  len_params: usize,
+  typedef_params: Rc<Vec<(Uses, Name, Term)>>,
 ) -> impl Fn(Span) -> IResult<Span, Variant, ParseError<Span>> {
   move |from: Span| {
     let (i, vari_name) = parse_name(from)?;
@@ -442,15 +444,22 @@ pub fn parse_variant(
       for (_, n, _) in bs.iter() {
         vari_type_ctx = vari_type_ctx.cons(n.clone());
       }
+      let default_params = typedef_params
+        .as_ref()
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(i, (_, n, _))| Term::Var(Pos::None, n.clone(), i as u64))
+        .collect();
       let (i, (ty_params, ty_indices)) = alt((
         parse_variant_params(
           input,
           defs.clone(),
           Some(type_name.clone()),
           vari_type_ctx,
-          len_params,
+          typedef_params.len(),
         ),
-        value((vec![], vec![]), parse_space),
+        value((default_params, vec![]), parse_space),
       ))(i)?;
       let (i, _) = alt((tag(","), peek(tag("}"))))(i)?;
       Ok((i, Variant { name: vari_name, bind: bs, ty_params, ty_indices }))
@@ -473,19 +482,23 @@ pub fn parse_typedef_elaborated(
 #[cfg(test)]
 pub mod tests {
   use super::*;
+  use crate::yatima;
 
   #[test]
   fn variant_parse() {
-    fn test(n: usize, i: &str) -> IResult<Span, Variant, ParseError<Span>> {
+    fn test(
+      n: Vec<(Uses, Name, Term)>,
+      i: &str,
+    ) -> IResult<Span, Variant, ParseError<Span>> {
       parse_variant(
         input_cid(i),
         Rc::new(RefCell::new(Defs::new())),
         ConsList::new(),
         Name::from("Test"),
-        n,
+        Rc::new(n),
       )(Span::new(i))
     }
-    let res = test(0, "New : Test,");
+    let res = test(vec![], "New : Test,");
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -494,7 +507,7 @@ pub mod tests {
       ty_params: vec![],
       ty_indices: vec![],
     });
-    let res = test(0, "New,");
+    let res = test(vec![], "New,");
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -503,7 +516,7 @@ pub mod tests {
       ty_params: vec![],
       ty_indices: vec![],
     });
-    let res = test(0, "New}");
+    let res = test(vec![], "New}");
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -512,7 +525,10 @@ pub mod tests {
       ty_params: vec![],
       ty_indices: vec![],
     });
-    let res = test(1, "New: Test #Nat,");
+    let res = test(
+      vec![(Uses::Many, Name::from("A"), yatima!("Type"))],
+      "New: Test #Nat,",
+    );
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -521,7 +537,10 @@ pub mod tests {
       ty_params: vec![yatima!("#Nat")],
       ty_indices: vec![],
     });
-    let res = test(1, "New: Test #Nat}");
+    let res = test(
+      vec![(Uses::Many, Name::from("A"), yatima!("Type"))],
+      "New: Test #Nat}",
+    );
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -530,7 +549,10 @@ pub mod tests {
       ty_params: vec![yatima!("#Nat")],
       ty_indices: vec![],
     });
-    let res = test(1, "New: Test #Nat 1,");
+    let res = test(
+      vec![(Uses::Many, Name::from("A"), yatima!("Type"))],
+      "New: Test #Nat 1,",
+    );
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -539,7 +561,28 @@ pub mod tests {
       ty_params: vec![yatima!("#Nat")],
       ty_indices: vec![yatima!("1")],
     });
-    let res = test(2, "New (x: #Nat): Test #Nat x,");
+    let res = test(
+      vec![
+        (Uses::Many, Name::from("A"), yatima!("Type")),
+        (Uses::Many, Name::from("x"), yatima!("#Nat")),
+      ],
+      "New: Test #Nat 1,",
+    );
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, Variant {
+      name: Name::from("New"),
+      bind: vec![],
+      ty_params: vec![yatima!("#Nat"), yatima!("1"),],
+      ty_indices: vec![],
+    });
+    let res = test(
+      vec![
+        (Uses::Many, Name::from("A"), yatima!("Type")),
+        (Uses::Many, Name::from("x"), yatima!("#Nat")),
+      ],
+      "New (x: #Nat): Test #Nat x 1,",
+    );
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -549,21 +592,15 @@ pub mod tests {
         yatima!("#Nat"),
         Term::Var(Pos::None, Name::from("x"), 0 as u64)
       ],
-      ty_indices: vec![],
-    });
-    let res = test(2, "New (x: #Nat): Test #Nat x 1,");
-    assert!(res.is_ok());
-    let res = res.unwrap().1;
-    assert_eq!(res, Variant {
-      name: Name::from("New"),
-      bind: vec![(Uses::Many, Name::from("x"), yatima!("#Nat"))],
-      ty_params: vec![
-        yatima!("#Nat"),
-        Term::Var(Pos::None, Name::from("x"), 0 as u64)
-      ],
       ty_indices: vec![yatima!("1")],
     });
-    let res = test(2, "New (x y: #Nat): Test #Nat x y 1,");
+    let res = test(
+      vec![
+        (Uses::Many, Name::from("A"), yatima!("Type")),
+        (Uses::Many, Name::from("x"), yatima!("#Nat")),
+      ],
+      "New (x y: #Nat): Test #Nat x y 1,",
+    );
     assert!(res.is_ok());
     let res = res.unwrap().1;
     assert_eq!(res, Variant {
@@ -698,6 +735,23 @@ pub mod tests {
     println!("res1: {}", res1.pretty(Some(&"List".to_string()), true));
     println!("res2: {}", res2.pretty(Some(&"List".to_string()), true));
     assert!(res1 == res2);
+    let constrs = res.constructors();
+    println!("{:?}", constrs);
+    let (nil_name, nil_def, _) = constrs[0].clone();
+    assert_eq!(nil_name.to_string(), "List.Nil".to_string());
+    let typ1 = nil_def.typ_;
+    let typ2 = yatima!("∀ (A: Type) -> (#$0 A)", res.type_ref());
+    println!("typ1: {}", typ1.pretty(Some(&"List.Nil".to_string()), true));
+    println!("typ2. {}", typ2.pretty(Some(&"List.Nil".to_string()), true));
+    assert_eq!(typ1, typ2);
+    let (cons_name, cons_def, _) = constrs[1].clone();
+    assert_eq!(cons_name.to_string(), "List.Cons".to_string());
+    let typ1 = cons_def.typ_;
+    let typ2 =
+      yatima!("∀ (A: Type) (x: A) (xs: #$0 A) -> (#$0 A)", res.type_ref());
+    println!("typ1: {}", typ1.pretty(Some(&"Vector.Cons".to_string()), true));
+    println!("typ2. {}", typ2.pretty(Some(&"Vector.Cons".to_string()), true));
+    assert_eq!(typ1, typ2);
   }
   #[test]
   fn typedef_vector() {
@@ -723,6 +777,24 @@ pub mod tests {
     println!("res1: {}", res1.pretty(Some(&"Vector".to_string()), true));
     println!("res2: {}", res2.pretty(Some(&"Vector".to_string()), true));
     assert!(res1 == res2);
+    let constrs = res.constructors();
+    println!("{:?}", constrs);
+    let (nil_name, nil_def, _) = constrs[0].clone();
+    assert_eq!(nil_name.to_string(), "Vector.Nil".to_string());
+    let typ1 = nil_def.typ_;
+    let typ2 = yatima!("∀ (A: Type) -> (#$0 A 0)", res.type_ref());
+    println!("typ1: {}", typ1.pretty(Some(&"Vector.Nil".to_string()), true));
+    println!("typ2. {}", typ2.pretty(Some(&"Vector.Nil".to_string()), true));
+    let (cons_name, cons_def, _) = constrs[1].clone();
+    assert_eq!(cons_name.to_string(), "Vector.Cons".to_string());
+    let typ1 = cons_def.typ_;
+    let typ2 = yatima!(
+      "∀ (A: Type) (0 k: #Nat) (x: A) (xs: #$0 A k) -> (#$0 A (#Nat.suc k))",
+      res.type_ref()
+    );
+    println!("typ1: {}", typ1.pretty(Some(&"Vector.Cons".to_string()), true));
+    println!("typ2. {}", typ2.pretty(Some(&"Vector.Cons".to_string()), true));
+    assert_eq!(typ1, typ2);
   }
   #[test]
   fn typedef_chain() {

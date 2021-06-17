@@ -14,7 +14,10 @@ pub use crate::{
 
 use cid::Cid;
 
-use std::fmt;
+use sp_std::{
+  fmt,
+  rc::Rc,
+};
 
 #[derive(Clone, Debug)]
 pub enum Term {
@@ -90,10 +93,12 @@ impl Term {
     }
   }
 
-  pub fn shift(self, inc: u64, dep: u64) -> Self {
+  pub fn shift(self, inc: i64, dep: u64) -> Self {
     match self {
       Self::Var(pos, nam, idx) if idx < dep => Self::Var(pos, nam, idx),
-      Self::Var(pos, nam, idx) => Self::Var(pos, nam, idx + inc),
+      Self::Var(pos, nam, idx) => {
+        Self::Var(pos, nam, ((idx as i64) + inc) as u64)
+      }
       Self::Lam(pos, nam, bod) => {
         Self::Lam(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
       }
@@ -130,6 +135,52 @@ impl Term {
             typ.shift(inc, dep),
             exp.shift(inc, if rec { dep + 1 } else { dep }),
             bod.shift(inc, dep + 1),
+          )),
+        )
+      }
+      x => x,
+    }
+  }
+
+  pub fn un_rec(self, trm: Rc<Term>) -> Self {
+    match self {
+      Self::Rec(_) => trm.as_ref().clone(),
+      Self::Lam(pos, nam, bod) => {
+        Self::Lam(pos, nam, Box::new((*bod).un_rec(trm)))
+      }
+      Self::Slf(pos, nam, bod) => {
+        Self::Slf(pos, nam, Box::new((*bod).un_rec(trm)))
+      }
+      Self::Cse(pos, bod) => Self::Cse(pos, Box::new((*bod).un_rec(trm))),
+      Self::Dat(pos, bod) => Self::Dat(pos, Box::new((*bod).un_rec(trm))),
+      Self::App(pos, fun_arg) => {
+        let (fun, arg) = *fun_arg;
+        Self::App(pos, Box::new((fun.un_rec(trm.clone()), arg.un_rec(trm))))
+      }
+      Self::Ann(pos, typ_exp) => {
+        let (typ, exp) = *typ_exp;
+        Self::Ann(pos, Box::new((typ.un_rec(trm.clone()), exp.un_rec(trm))))
+      }
+      Self::All(pos, uses, nam, dom_img) => {
+        let (dom, img) = *dom_img;
+        Self::All(
+          pos,
+          uses,
+          nam,
+          Box::new((dom.un_rec(trm.clone()), img.un_rec(trm))),
+        )
+      }
+      Self::Let(pos, rec, uses, nam, typ_exp_bod) => {
+        let (typ, exp, bod) = *typ_exp_bod;
+        Self::Let(
+          pos,
+          rec,
+          uses,
+          nam,
+          Box::new((
+            typ.un_rec(trm.clone()),
+            exp.un_rec(trm.clone()),
+            bod.un_rec(trm),
           )),
         )
       }
