@@ -79,6 +79,7 @@ pub fn reserved_symbols() -> VecDeque<String> {
   VecDeque::from(vec![
     String::from("//"),
     String::from("λ"),
+    String::from("ω"),
     String::from("lambda"),
     String::from("=>"),
     String::from("∀"),
@@ -291,13 +292,18 @@ pub fn parse_lam(
   }
 }
 
-pub fn parse_uses(i: Span) -> IResult<Span, Uses, ParseError<Span>> {
-  alt((
-    value(Uses::None, terminated(tag("0"), multispace1)),
-    value(Uses::Affi, terminated(tag("&"), multispace1)),
-    value(Uses::Once, terminated(tag("1"), multispace1)),
-    success(Uses::Many),
-  ))(i)
+pub fn parse_uses(
+  default: Uses,
+) -> impl Fn(Span) -> IResult<Span, Uses, ParseError<Span>> {
+  move |i: Span| {
+    alt((
+      value(Uses::Many, terminated(tag("ω"), multispace1)),
+      value(Uses::None, terminated(tag("0"), multispace1)),
+      value(Uses::Affi, terminated(tag("&"), multispace1)),
+      value(Uses::Once, terminated(tag("1"), multispace1)),
+      success(default),
+    ))(i)
+  }
 }
 
 pub fn parse_binder_full(
@@ -306,11 +312,12 @@ pub fn parse_binder_full(
   rec: Option<Name>,
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
+  uses: Uses,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, u) = parse_uses(i)?;
+    let (i, u) = parse_uses(uses)(i)?;
     let (i, ns) = many1(terminated(parse_name, parse_space))(i)?;
     let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
@@ -336,6 +343,7 @@ pub fn parse_binder_short(
   rec: Option<Name>,
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
+  uses: Uses,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     map(
@@ -346,7 +354,7 @@ pub fn parse_binder_short(
         ctx.clone(),
         quasi.to_owned(),
       ),
-      |t| vec![(Uses::Many, Name::from("_"), t)],
+      |t| vec![(uses, Name::from("_"), t)],
     )(i)
   }
 }
@@ -358,6 +366,7 @@ pub fn parse_binder(
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
+  uses: Uses,
 ) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
   move |i: Span| {
     if nam_opt {
@@ -368,6 +377,7 @@ pub fn parse_binder(
           rec.clone(),
           ctx.clone(),
           quasi.clone(),
+          uses,
         ),
         parse_binder_short(
           input,
@@ -375,6 +385,7 @@ pub fn parse_binder(
           rec.clone(),
           ctx.clone(),
           quasi.to_owned(),
+          uses,
         ),
       ))(i)
     }
@@ -385,6 +396,7 @@ pub fn parse_binder(
         rec.clone(),
         ctx.clone(),
         quasi.to_owned(),
+        uses,
       )(i)
     }
   }
@@ -398,6 +410,7 @@ pub fn parse_binders(
   quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
   terminator: Vec<char>,
+  uses: Uses,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
@@ -419,6 +432,7 @@ pub fn parse_binders(
           ctx.clone(),
           quasi.to_owned(),
           nam_opt,
+          uses,
         ),
       )(i)
       {
@@ -443,6 +457,7 @@ pub fn parse_binders1(
   quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
   terminator: Vec<char>,
+  uses: Uses,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
@@ -456,6 +471,7 @@ pub fn parse_binders1(
       ctx.clone(),
       quasi.to_owned(),
       nam_opt,
+      uses,
     )(i.to_owned())
     {
       Err(e) => return Err(e),
@@ -475,6 +491,7 @@ pub fn parse_binders1(
       quasi.to_owned(),
       nam_opt,
       terminator.clone(),
+      uses,
     )(i)?;
     res.append(&mut res2);
     Ok((i, res))
@@ -499,6 +516,7 @@ pub fn parse_all(
       quasi.clone(),
       true,
       vec!['-'],
+      Uses::Many,
     )(i)?;
     let (i, _) = tag("->")(i)?;
     let (i, _) = parse_space(i)?;
@@ -624,6 +642,7 @@ pub fn parse_bound_expression(
       quasi.clone(),
       false,
       vec![':'],
+      Uses::Many,
     )(from)?;
     let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
@@ -679,7 +698,7 @@ pub fn parse_let(
     let (i, letrec) =
       alt((value(true, tag("letrec")), value(false, tag("let"))))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, uses) = parse_uses(i)?;
+    let (i, uses) = parse_uses(Uses::Many)(i)?;
     let (i, _) = parse_space(i)?;
     let (i, nam) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
@@ -1051,6 +1070,7 @@ pub mod tests {
         None,
         ConsList::new(),
         Rc::new(VecDeque::new()),
+        Uses::Many,
       )(Span::new(i))
     }
     let res = test("(a b c: Type)");
@@ -1165,6 +1185,7 @@ pub mod tests {
         Rc::new(VecDeque::new()),
         nam_opt,
         vec![':'],
+        Uses::Many,
       )(Span::new(i))
     }
     let res = test(true, "Type #Text:");
@@ -1193,6 +1214,7 @@ pub mod tests {
         Rc::new(VecDeque::new()),
         nam_opt,
         vec![':'],
+        Uses::Many,
       )(Span::new(i))
     }
     let res = test(true, ":");

@@ -265,6 +265,7 @@ pub fn parse_motive_binders(
         Rc::new(VecDeque::new()),
         true,
         vec!['-'],
+        Uses::None,
       )(i)?;
       let (i, _) = tag("->")(i)?;
       let (i, _) = parse_space(i)?;
@@ -272,8 +273,6 @@ pub fn parse_motive_binders(
     };
     let (i, bs) = opt(inner)(i)?;
     let bs = bs.unwrap_or_else(|| vec![]);
-    let bs: Vec<(Uses, Name, Term)> =
-      bs.into_iter().map(|(_, n, t)| (Uses::None, n, t)).collect();
     let (i, _) = parse_type(input)(i)?;
     let (i, _) = parse_space(i)?;
     Ok((i, bs))
@@ -362,10 +361,9 @@ pub fn parse_typedef(
         Rc::new(VecDeque::new()),
         false,
         vec![':', '{'],
+        Uses::None,
       )(i)?;
 
-      let ty_params: Vec<(Uses, Name, Term)> =
-        ty_params.into_iter().map(|(_, n, t)| (Uses::None, n, t)).collect();
       let mut ctx = ConsList::new();
       for (_, n, _) in ty_params.iter() {
         ctx = ctx.cons(n.clone());
@@ -446,6 +444,7 @@ pub fn parse_variant(
         Rc::new(VecDeque::new()),
         true,
         vec![':', ',', '}'],
+        Uses::Many,
       )(i)?;
       let mut vari_type_ctx = ctx.clone();
       for (_, n, _) in bs.iter() {
