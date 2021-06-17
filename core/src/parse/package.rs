@@ -17,6 +17,7 @@ use crate::{
     },
     span::Span,
     term::*,
+    typedef::parse_typedef_elaborated,
   },
   term::*,
 };
@@ -29,6 +30,7 @@ use sp_std::{
 };
 
 use nom::{
+  branch::alt,
   bytes::complete::tag,
   combinator::{
     eof,
@@ -83,7 +85,7 @@ pub fn parse_import(i: Span) -> IResult<Span, Import, ParseError<Span>> {
 pub fn parse_entry(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
-) -> impl Fn(Span) -> IResult<Span, (Name, Def, Entry), ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, Vec<(Name, Def, Entry)>, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("def")(from)?;
     let (i, _) = parse_space(i)?;
@@ -108,7 +110,7 @@ pub fn parse_entry(
       )(i)?;
       let pos = Pos::from_upto(input, from, upto);
       let (def, entry) = Def::make(pos, typ_, term);
-      Ok((upto, (nam, def, entry)))
+      Ok((upto, vec![(nam, def, entry)]))
     }
   }
 }
@@ -129,9 +131,14 @@ pub fn parse_defs(
         return Ok((i2, (defs.as_ref().clone().into_inner(), Index(ind))));
       }
       else {
-        let (i2, (name, def, _)) = parse_entry(input, defs.clone())(i)?;
-        ind.push((name.clone(), def.def_cid));
-        defs.borrow_mut().insert(name, def);
+        let (i2, entries) = alt((
+          parse_entry(input, defs.clone()),
+          parse_typedef_elaborated(input, defs.clone()),
+        ))(i)?;
+        for (name, def, _) in entries {
+          ind.push((name.clone(), def.def_cid));
+          defs.borrow_mut().insert(name, def);
+        }
         i = i2;
       }
     }

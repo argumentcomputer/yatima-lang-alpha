@@ -280,7 +280,7 @@ impl Term {
     }
   }
 
-  pub fn pretty(&self, rec: Option<&String>) -> String {
+  pub fn pretty(&self, rec: Option<&String>, ind: bool) -> String {
     use Term::*;
     const WILDCARD: &str = "_";
 
@@ -299,17 +299,18 @@ impl Term {
       matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
     }
 
-    fn lams(rec: Option<&String>, nam: &str, bod: &Term) -> String {
+    fn lams(rec: Option<&String>, ind: bool, nam: &str, bod: &Term) -> String {
       match bod {
         Lam(_, nam2, bod2) => {
-          format!("{} {}", name(nam), lams(rec, nam2, bod2))
+          format!("{} {}", name(nam), lams(rec, ind, nam2, bod2))
         }
-        _ => format!("{} => {}", nam, bod.pretty(rec)),
+        _ => format!("{} => {}", nam, bod.pretty(rec, ind)),
       }
     }
 
     fn alls(
       rec: Option<&String>,
+      ind: bool,
       use_: &Uses,
       nam: &str,
       typ: &Term,
@@ -321,76 +322,91 @@ impl Term {
             " ({}{}: {}){}",
             uses(use_),
             name(nam),
-            typ.pretty(rec),
-            alls(rec, bod_use, bod_nam, &bod.0, &bod.1)
+            typ.pretty(rec, ind),
+            alls(rec, ind, bod_use, bod_nam, &bod.0, &bod.1)
           )
         }
         _ => format!(
           " ({}{}: {}) -> {}",
           uses(use_),
           name(nam),
-          typ.pretty(rec),
-          bod.pretty(rec)
+          typ.pretty(rec, ind),
+          bod.pretty(rec, ind)
         ),
       }
     }
 
-    fn parens(rec: Option<&String>, term: &Term) -> String {
+    fn parens(rec: Option<&String>, ind: bool, term: &Term) -> String {
       if is_atom(term) {
-        term.pretty(rec)
+        term.pretty(rec, ind)
       }
       else {
-        format!("({})", term.pretty(rec))
+        format!("({})", term.pretty(rec, ind))
       }
     }
 
-    fn apps(rec: Option<&String>, fun: &Term, arg: &Term) -> String {
+    fn apps(rec: Option<&String>, ind: bool, fun: &Term, arg: &Term) -> String {
       match (fun, arg) {
         (App(_, f), App(_, a)) => {
-          format!("{} ({})", apps(rec, &f.0, &f.1), apps(rec, &a.0, &a.1))
+          format!(
+            "{} ({})",
+            apps(rec, ind, &f.0, &f.1),
+            apps(rec, ind, &a.0, &a.1)
+          )
         }
         (App(_, f), arg) => {
-          format!("{} {}", apps(rec, &f.0, &f.1), parens(rec, arg))
+          format!("{} {}", apps(rec, ind, &f.0, &f.1), parens(rec, ind, arg))
         }
         (fun, App(_, a)) => {
-          format!("{} ({})", parens(rec, fun), apps(rec, &a.0, &a.1))
+          format!("{} ({})", parens(rec, ind, fun), apps(rec, ind, &a.0, &a.1))
         }
         (fun, arg) => {
-          format!("{} {}", parens(rec, fun), parens(rec, arg))
+          format!("{} {}", parens(rec, ind, fun), parens(rec, ind, arg))
         }
       }
     }
 
     match self {
-      Var(_, nam, ..) => nam.to_string(),
+      Var(_, nam, index) => {
+        if ind {
+          format!("{}^{}", nam, index)
+        }
+        else {
+          nam.to_string()
+        }
+      }
       Ref(_, nam, ..) => nam.to_string(),
       Rec(_) => match rec {
         Some(rec) => rec.to_owned(),
         _ => "#^".to_string(),
       },
 
-      Lam(_, nam, term) => format!("λ {}", lams(rec, nam, term)),
-      App(_, terms) => apps(rec, &terms.0, &terms.1),
+      Lam(_, nam, term) => format!("λ {}", lams(rec, ind, nam, term)),
+      App(_, terms) => apps(rec, ind, &terms.0, &terms.1),
       Let(_, letrec, u, n, terms) => {
         format!(
           "let{} {}{}: {} = {}; {}",
           if *letrec { "rec" } else { "" },
           uses(u),
           name(n),
-          terms.0.pretty(rec),
-          terms.1.pretty(rec),
-          terms.2.pretty(rec),
+          terms.0.pretty(rec, ind),
+          terms.1.pretty(rec, ind),
+          terms.2.pretty(rec, ind),
         )
       }
-      Slf(_, nam, bod) => format!("@{} {}", name(nam), bod.pretty(rec)),
+      Slf(_, nam, bod) => format!("@{} {}", name(nam), bod.pretty(rec, ind)),
       All(_, us_, nam, terms) => {
-        format!("∀{}", alls(rec, us_, nam, &terms.0, &terms.1))
+        format!("∀{}", alls(rec, ind, us_, nam, &terms.0, &terms.1))
       }
       Ann(_, terms) => {
-        format!("{} :: {}", parens(rec, &terms.1), parens(rec, &terms.0))
+        format!(
+          "{} :: {}",
+          parens(rec, ind, &terms.1),
+          parens(rec, ind, &terms.0)
+        )
       }
-      Dat(_, bod) => format!("data {}", bod.pretty(rec)),
-      Cse(_, bod) => format!("case {}", bod.pretty(rec)),
+      Dat(_, bod) => format!("data {}", bod.pretty(rec, ind)),
+      Cse(_, bod) => format!("case {}", bod.pretty(rec, ind)),
       Typ(_) => "Type".to_string(),
       Lit(_, lit) => format!("{}", lit),
       LTy(_, lty) => format!("{}", lty),
@@ -401,7 +417,7 @@ impl Term {
 
 impl fmt::Display for Term {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.pretty(None))
+    write!(f, "{}", self.pretty(None, false))
   }
 }
 

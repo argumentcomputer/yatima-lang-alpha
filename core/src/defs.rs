@@ -91,8 +91,8 @@ impl Def {
     format!(
       "def {} : {} = {}",
       name,
-      self.typ_.pretty(Some(&name)),
-      self.term.pretty(Some(&name))
+      self.typ_.pretty(Some(&name), false),
+      self.term.pretty(Some(&name), false)
     )
   }
 }
@@ -159,8 +159,8 @@ impl fmt::Display for Defs {
         f,
         "def {} : {} = {}",
         k.clone(),
-        def.typ_.pretty(Some(&k.to_string())),
-        def.term.pretty(Some(&k.to_string())),
+        def.typ_.pretty(Some(&k.to_string()), false),
+        def.term.pretty(Some(&k.to_string()), false),
       )?;
       writeln!(f)?;
     }

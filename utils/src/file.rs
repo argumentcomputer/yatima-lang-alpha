@@ -29,13 +29,15 @@ pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
         &ds,
         &yatima_core::package::import_alias(n.to_owned(), &i),
       ) {
-        Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()))),
+        Ok(ty) => {
+          println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()), false))
+        }
         Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
           println!("✕ {}: {}", n, e);
         }
         Err(err) => {
           let def = ds.get(n).unwrap();
-          println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string())));
+          println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string()), false));
           if let Pos::Some(pos) = err.pos() {
             if let Some(Ipld::String(input)) = store.get(pos.input) {
               println!("{}", pos.range(input))
@@ -49,13 +51,13 @@ pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
   println!("Checking definitions:");
   for (n, _) in &p.index.0 {
     match yatima_core::check::check_def(&ds, n) {
-      Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()))),
+      Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()), false)),
       Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
         println!("✕ {}: {}", n, e);
       }
       Err(err) => {
         let def = ds.get(n).unwrap();
-        println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string())));
+        println!("✕ {}: {}", n, def.typ_.pretty(Some(&n.to_string()), false));
         if let Pos::Some(pos) = err.pos() {
           if let Some(Ipld::String(input)) = store.get(pos.input) {
             println!("{}", pos.range(input))

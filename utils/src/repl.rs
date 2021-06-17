@@ -122,7 +122,7 @@ pub trait Repl {
                     self.println(format!(
                       "{} : {}",
                       n,
-                      res.pretty(Some(&n.to_string()))
+                      res.pretty(Some(&n.to_string()), false)
                     ))
                   }
                   Err(e) => self.println(format!("Error: {}", e)),

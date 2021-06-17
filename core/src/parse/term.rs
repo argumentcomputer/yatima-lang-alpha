@@ -47,6 +47,7 @@ use nom::{
     digit1,
     multispace0,
     multispace1,
+    satisfy,
   },
   combinator::{
     eof,
@@ -345,7 +346,7 @@ pub fn parse_binder_short(
         ctx.clone(),
         quasi.to_owned(),
       ),
-      |t| vec![(Uses::Many, Name::from(""), t)],
+      |t| vec![(Uses::Many, Name::from("_"), t)],
     )(i)
   }
 }
@@ -396,7 +397,7 @@ pub fn parse_binders(
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
-  terminator: &'static str,
+  terminator: Vec<char>,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
@@ -404,7 +405,8 @@ pub fn parse_binders(
     let mut res = Vec::new();
 
     loop {
-      match preceded(parse_space, tag(terminator))(i) {
+      match preceded(parse_space, peek(satisfy(|x| terminator.contains(&x))))(i)
+      {
         Ok((i2, _)) => return Ok((i2, res)),
         _ => {}
       }
@@ -440,7 +442,7 @@ pub fn parse_binders1(
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
   nam_opt: bool,
-  terminator: &'static str,
+  terminator: Vec<char>,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
 {
   move |mut i: Span| {
@@ -472,7 +474,7 @@ pub fn parse_binders1(
       ctx.clone(),
       quasi.to_owned(),
       nam_opt,
-      terminator,
+      terminator.clone(),
     )(i)?;
     res.append(&mut res2);
     Ok((i, res))
@@ -496,8 +498,9 @@ pub fn parse_all(
       ctx.clone(),
       quasi.clone(),
       true,
-      "->",
+      vec!['-'],
     )(i)?;
+    let (i, _) = tag("->")(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     for (_, n, _) in bs.iter() {
@@ -620,8 +623,9 @@ pub fn parse_bound_expression(
       ctx.clone(),
       quasi.clone(),
       false,
-      ":",
+      vec![':'],
     )(from)?;
+    let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
     let mut type_ctx = ctx.clone();
     for (_, n, _) in bs.iter() {
@@ -1160,7 +1164,7 @@ pub mod tests {
         ConsList::new(),
         Rc::new(VecDeque::new()),
         nam_opt,
-        ":",
+        vec![':'],
       )(Span::new(i))
     }
     let res = test(true, "Type #Text:");
@@ -1168,8 +1172,8 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, Name::from(""), Typ(Pos::None)),
-          (Uses::Many, Name::from(""), LTy(Pos::None, LitType::Text)),
+          (Uses::Many, Name::from("_"), Typ(Pos::None)),
+          (Uses::Many, Name::from("_"), LTy(Pos::None, LitType::Text)),
         ]
     );
   }
@@ -1188,7 +1192,7 @@ pub mod tests {
         ConsList::new(),
         Rc::new(VecDeque::new()),
         nam_opt,
-        ":",
+        vec![':'],
       )(Span::new(i))
     }
     let res = test(true, ":");
@@ -1198,8 +1202,8 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, Name::from(""), Typ(Pos::None)),
-          (Uses::Many, Name::from(""), Typ(Pos::None)),
+          (Uses::Many, Name::from("_"), Typ(Pos::None)),
+          (Uses::Many, Name::from("_"), Typ(Pos::None)),
         ]
     );
     let res = test(true, "(A: Type) (a b c: A):");
