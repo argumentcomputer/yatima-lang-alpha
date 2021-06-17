@@ -120,11 +120,13 @@ impl TypeDef {
       });
     self
       .ty_indices
-      .iter()
-      .chain(once(&(Uses::Many, Name::from("_"), slf_ty)))
+      .clone()
+      .into_iter()
+      .map(|(u, n, t)| (u, n, t.shift((1 + i_len) as i64, 0)))
+      .chain(once((Uses::Many, Name::from("_"), slf_ty)))
       .rev()
       .fold(Term::Typ(Pos::None), |acc, (u, n, t)| {
-        Term::All(Pos::None, *u, n.clone(), Box::new((t.clone(), acc)))
+        Term::All(Pos::None, u, n, Box::new((t, acc)))
       })
   }
 
@@ -886,5 +888,38 @@ pub mod tests {
     println!("typ1: {}", typ1.pretty(Some(&"Pair.New".to_string()), true));
     println!("typ2. {}", typ2.pretty(Some(&"Pair.New".to_string()), true));
     assert_eq!(typ1, typ2);
+  }
+  #[test]
+  fn typedef_equal() {
+    #[rustfmt::skip]
+    let res = test_parse(
+      "type Equal (A: Type) (a: A): ∀ (b: A) -> Type {\
+         Refl: Equal A a a\
+       }"
+    );
+    println!("{:?}", res);
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res.type_of(), yatima!("∀ (0 A: Type) (0 a b: A) -> Type"));
+    let res1 = res.term_of();
+    #[rustfmt::skip]
+    let res2 = yatima!("λ A a b => @Equal.self ∀ \
+      (0 P: ∀ (0 b: A) (#$0 A a b) -> Type) \
+      (& Refl: P a (data λ P Equal.Refl => Equal.Refl)) \
+      -> P b Equal.self
+    ", Term::Rec(Pos::None));
+    println!("res1: {}", res1.pretty(Some(&"Pair".to_string()), true));
+    println!("res2. {}", res2.pretty(Some(&"Pair".to_string()), true));
+    assert_eq!(res1, res2);
+    // let constrs = res.constructors();
+    // let (new_name, new_def, _) = constrs[0].clone();
+    // assert_eq!(new_name.to_string(), "Pair.New".to_string());
+    // let typ1 = new_def.typ_;
+    // let typ2 =
+    //  yatima!("∀ (0 A B: Type) (fst: A) (snd: B) -> (#$0 A B)",
+    // res.type_ref()); println!("typ1: {}",
+    // typ1.pretty(Some(&"Pair.New".to_string()), true)); println!("typ2.
+    // {}", typ2.pretty(Some(&"Pair.New".to_string()), true));
+    // assert_eq!(typ1, typ2);
   }
 }
