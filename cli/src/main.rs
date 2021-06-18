@@ -33,6 +33,8 @@ enum Cli {
     input: String,
     #[structopt(name = "type", default_value = "raw", long, short)]
     typ_: String,
+    #[structopt(name = "var_index", long, short)]
+    var_index: bool,
   },
   Run {
     #[structopt(parse(from_os_str))]
@@ -49,7 +51,7 @@ async fn main() -> std::io::Result<()> {
       repl::main();
       Ok(())
     }
-    Cli::Show { input, typ_ } => {
+    Cli::Show { input, typ_, var_index } => {
       use yatima_core::parse;
       let store = Rc::new(FileStore::new());
       let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
@@ -66,7 +68,7 @@ async fn main() -> std::io::Result<()> {
             yatima_core::package::Entry::from_ipld(&ipld).expect("entry ipld");
           println!("{:?}", entry);
           let def = file::parse::entry_to_def(entry, store).expect("valid def");
-          println!("{}", def);
+          println!("{}", def.pretty("#^".to_string(), var_index));
         }
         "anon" => {
           let pack =

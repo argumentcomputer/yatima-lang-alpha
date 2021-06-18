@@ -122,7 +122,7 @@ pub trait Repl {
                     self.println(format!(
                       "{} : {}",
                       n,
-                      res.pretty(Some(&n.to_string()))
+                      res.pretty(Some(&n.to_string()), false)
                     ))
                   }
                   Err(e) => self.println(format!("Error: {}", e)),
@@ -130,7 +130,7 @@ pub trait Repl {
               }
               Command::Browse => {
                 for (n, d) in env.defs.named_defs() {
-                  self.println(format!("{}", d.pretty(n.to_string())))
+                  self.println(format!("{}", d.pretty(n.to_string(), false)))
                 }
               }
               Command::Quit => {
