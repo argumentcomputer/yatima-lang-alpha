@@ -130,7 +130,7 @@ pub trait Repl {
               }
               Command::Browse => {
                 for (n, d) in env.defs.named_defs() {
-                  self.println(format!("{}", d.pretty(n.to_string())))
+                  self.println(format!("{}", d.pretty(n.to_string(), false)))
                 }
               }
               Command::Quit => {

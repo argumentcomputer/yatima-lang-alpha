@@ -87,12 +87,12 @@ impl Def {
     })
   }
 
-  pub fn pretty(&self, name: String) -> String {
+  pub fn pretty(&self, name: String, ind: bool) -> String {
     format!(
       "def {} : {} = {}",
       name,
-      self.typ_.pretty(Some(&name), false),
-      self.term.pretty(Some(&name), false)
+      self.typ_.pretty(Some(&name), ind),
+      self.term.pretty(Some(&name), ind)
     )
   }
 }
@@ -147,7 +147,7 @@ impl Default for Defs {
 
 impl fmt::Display for Def {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.pretty("#^".to_string()))
+    write!(f, "{}", self.pretty("#^".to_string(), false))
   }
 }
 impl fmt::Display for Defs {

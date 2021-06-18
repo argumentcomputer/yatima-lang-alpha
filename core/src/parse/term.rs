@@ -331,7 +331,7 @@ pub fn parse_binder_full(
     let (i, _) = tag(")")(i)?;
     let mut res = Vec::new();
     for (i, n) in ns.iter().enumerate() {
-      res.push((u, n.to_owned(), typ.clone().shift(i as i64, 0)))
+      res.push((u, n.to_owned(), typ.clone().shift(i as i64, Some(0))))
     }
     Ok((i, res))
   }
@@ -1063,19 +1063,97 @@ pub mod tests {
   #[test]
   fn test_parse_binder_full() {
     fn test(
+      ctx: Vec<Name>,
       i: &str,
     ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
       parse_binder_full(
         input_cid(i),
         Rc::new(RefCell::new(Defs::new())),
         None,
-        ConsList::new(),
+        ConsList::from(ctx),
         Rc::new(VecDeque::new()),
         Uses::Many,
       )(Span::new(i))
     }
-    let res = test("(a b c: Type)");
+    let res = test(vec![], "(a b c: Type)");
     assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, vec![
+      (Uses::Many, Name::from("a"), yatima!("Type")),
+      (Uses::Many, Name::from("b"), yatima!("Type")),
+      (Uses::Many, Name::from("c"), yatima!("Type"))
+    ]);
+    let res = test(vec![Name::from("A")], "(a b c: A)");
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, vec![
+      (Uses::Many, Name::from("a"), Term::Var(Pos::None, Name::from("A"), 0)),
+      (Uses::Many, Name::from("b"), Term::Var(Pos::None, Name::from("A"), 1)),
+      (Uses::Many, Name::from("c"), Term::Var(Pos::None, Name::from("A"), 2)),
+    ]);
+    let res = test(vec![Name::from("A")], "(a : ∀ (x: A) -> A)");
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, vec![(
+      Uses::Many,
+      Name::from("a"),
+      Term::All(
+        Pos::None,
+        Uses::Many,
+        Name::from("x"),
+        Box::new((
+          Term::Var(Pos::None, Name::from("A"), 0),
+          Term::Var(Pos::None, Name::from("A"), 1)
+        ))
+      )
+    ),]);
+    fn test_binders(
+      ctx: Vec<Name>,
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binders(
+        input_cid(i),
+        Rc::new(RefCell::new(Defs::new())),
+        None,
+        Ctx::from(ctx),
+        Rc::new(VecDeque::new()),
+        false,
+        vec![':'],
+        Uses::Many,
+      )(Span::new(i))
+    }
+    let res1 = test(vec![Name::from("A")], "(a : ∀ (x: A) -> A)");
+    let res2 = test_binders(vec![Name::from("A")], "(a : ∀ (x: A) -> A):");
+    assert!(res1.is_ok() && res2.is_ok());
+    let (res1, res2) = (res1.unwrap().1, res2.unwrap().1);
+    assert_eq!(res1, res2);
+    let res1 = test(vec![Name::from("A")], "(a b c: ∀ (x: A) -> A)");
+    let res2 = test_binders(
+      vec![Name::from("A")],
+      "(a : ∀ (x: A) -> A)
+       (b : ∀ (x: A) -> A)
+       (c : ∀ (x: A) -> A)
+    :",
+    );
+    assert!(res1.is_ok() && res2.is_ok());
+    let (res1, res2) = (res1.unwrap().1, res2.unwrap().1);
+    assert_eq!(res1, res2);
+    let res1 =
+      test(vec![Name::from("A")], "(a b c d e f g: ∀ (x y z w: A) -> A)");
+    let res2 = test_binders(
+      vec![Name::from("A")],
+      "(a: ∀ (x y z w: A) -> A)
+       (b: ∀ (x y z w: A) -> A)
+       (c: ∀ (x y z w: A) -> A)
+       (d: ∀ (x y z w: A) -> A)
+       (e: ∀ (x y z w: A) -> A)
+       (f: ∀ (x y z w: A) -> A)
+       (g: ∀ (x y z w: A) -> A)
+    :",
+    );
+    assert!(res1.is_ok() && res2.is_ok());
+    let (res1, res2) = (res1.unwrap().1, res2.unwrap().1);
+    assert_eq!(res1, res2)
   }
 
   #[test]

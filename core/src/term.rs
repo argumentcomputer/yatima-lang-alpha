@@ -93,17 +93,17 @@ impl Term {
     }
   }
 
-  pub fn shift(self, inc: i64, dep: u64) -> Self {
+  pub fn shift(self, inc: i64, dep: Option<u64>) -> Self {
     match self {
-      Self::Var(pos, nam, idx) if idx < dep => Self::Var(pos, nam, idx),
-      Self::Var(pos, nam, idx) => {
-        Self::Var(pos, nam, ((idx as i64) + inc) as u64)
-      }
+      Self::Var(pos, nam, idx) => match dep {
+        Some(dep) if idx < dep => Self::Var(pos, nam, idx),
+        _ => Self::Var(pos, nam, ((idx as i64) + inc) as u64),
+      },
       Self::Lam(pos, nam, bod) => {
-        Self::Lam(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
+        Self::Lam(pos, nam, Box::new((*bod).shift(inc, dep.map(|x| x + 1))))
       }
       Self::Slf(pos, nam, bod) => {
-        Self::Slf(pos, nam, Box::new((*bod).shift(inc, dep + 1)))
+        Self::Slf(pos, nam, Box::new((*bod).shift(inc, dep.map(|x| x + 1))))
       }
       Self::Cse(pos, bod) => Self::Cse(pos, Box::new((*bod).shift(inc, dep))),
       Self::Dat(pos, bod) => Self::Dat(pos, Box::new((*bod).shift(inc, dep))),
@@ -121,7 +121,7 @@ impl Term {
           pos,
           uses,
           nam,
-          Box::new((dom.shift(inc, dep), img.shift(inc, dep + 1))),
+          Box::new((dom.shift(inc, dep), img.shift(inc, dep.map(|x| x + 1)))),
         )
       }
       Self::Let(pos, rec, uses, nam, typ_exp_bod) => {
@@ -133,8 +133,8 @@ impl Term {
           nam,
           Box::new((
             typ.shift(inc, dep),
-            exp.shift(inc, if rec { dep + 1 } else { dep }),
-            bod.shift(inc, dep + 1),
+            exp.shift(inc, if rec { dep.map(|x| x + 1) } else { dep }),
+            bod.shift(inc, dep.map(|x| x + 1)),
           )),
         )
       }
