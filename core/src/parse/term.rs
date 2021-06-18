@@ -752,9 +752,10 @@ pub fn parse_lty(
     let (i, lty) = alt((
       value(LitType::Nat, tag("#Nat")),
       value(LitType::Int, tag("#Int")),
+      value(LitType::Bits, tag("#Bits")),
       value(LitType::Bytes, tag("#Bytes")),
-      value(LitType::Text, tag("#Text")),
       value(LitType::Bool, tag("#Bool")),
+      value(LitType::Text, tag("#Text")),
       value(LitType::Char, tag("#Char")),
       value(LitType::U8, tag("#U8")),
       value(LitType::U16, tag("#U16")),
