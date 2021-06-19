@@ -58,11 +58,11 @@ async fn main() -> std::io::Result<()> {
       Ok(())
     }
     Cli::Show { input, typ_, var_index } => {
-      let (_, link) =
-        parse::package::parse_link(parse::span::Span::new(&input))
-          .expect("Invalid links");
+      use yatima_core::parse;
       let store = Rc::new(FileStore::new());
-      match show(store, link, typ_, var_index) {
+      let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
+        .expect("valid cid");
+      match show(store, cid, typ_, var_index) {
         Ok(s) => {
           println!("{}", s);
           Ok(())
