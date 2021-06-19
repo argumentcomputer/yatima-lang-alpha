@@ -5,9 +5,14 @@ use std::{
   rc::Rc,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Name {
   inner: Rc<str>,
+}
+impl fmt::Debug for Name {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.inner)
+  }
 }
 
 impl AsRef<str> for Name {
