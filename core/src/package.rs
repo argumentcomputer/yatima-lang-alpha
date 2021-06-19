@@ -85,8 +85,10 @@ impl Entry {
 impl fmt::Display for Entry {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     writeln!(f, "Entry")?;
-    writeln!(f, "  Type: {} ({})", self.type_meta, self.type_anon)?;
-    writeln!(f, "  Term: {} ({})", self.term_meta, self.term_anon)?;
+    writeln!(f, "  Type ({}):", self.type_anon)?;
+    writeln!(f, "  {}", self.type_meta)?;
+    writeln!(f, "  Term ({}):", self.term_anon)?;
+    writeln!(f, "  {}", self.term_meta)?;
     Ok(())
   }
 }
