@@ -54,8 +54,8 @@ enum ShowType {
   Entry {
     #[structopt(parse(try_from_str = parse_cid))]
     input: Cid,
-    #[structopt(name = "var_index", long, short)]
-    var_index: bool,
+    #[structopt(name = "var", long, short)]
+    var: bool,
   },
   Anon {
     #[structopt(parse(try_from_str = parse_cid))]
@@ -98,14 +98,15 @@ async fn main() -> std::io::Result<()> {
       };
       Ok(())
     }
-    Cli::Show { typ: ShowType::Entry { input, var_index } } => {
+    Cli::Show { typ: ShowType::Entry { input, var} } => {
       let store = Rc::new(FileStore::new());
       match store.get(input) {
         Some(ipld) => match yatima_core::package::Entry::from_ipld(&ipld) {
           Ok(entry) => {
             println!("{}", entry);
+            println!("{}", var);
             match file::parse::entry_to_def(entry, store) {
-              Ok(def) => println!("{}", def.pretty("#^".to_string(), var_index)),
+              Ok(def) => println!("{}", def.pretty("#^".to_string(), var)),
               Err(_) => eprintln!("expected valid def"),
             }
           }
