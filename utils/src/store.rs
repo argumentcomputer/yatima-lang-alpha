@@ -60,6 +60,7 @@ pub fn show(
   store: Rc<dyn Store>,
   cid: Cid,
   typ_: String,
+  var_index: bool
 ) -> Result<String, String> {
   if let Some(ipld) = store.get(cid) {
     match typ_.as_str() {
@@ -71,7 +72,7 @@ pub fn show(
         let entry = Entry::from_ipld(&ipld)?;
         let mut s = format!("{:?}\n", entry);
         let def = file::parse::entry_to_def(entry, store).expect("valid def");
-        s += format!("{}", def).as_str();
+        s += format!("{}", def.pretty("#^".to_string(), var_index)).as_str();
 
         Ok(s)
       }

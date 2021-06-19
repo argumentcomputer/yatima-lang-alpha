@@ -113,7 +113,8 @@ pub trait Repl {
                 }
               }
               Command::Show { typ_, link } => {
-                match store::show(store, link, typ_) {
+                let var_index = true;
+                match store::show(store, link, typ_, var_index) {
                   Ok(s) => {
                     self.println(format!("{}", s));
                     Ok(())
@@ -180,7 +181,7 @@ pub trait Repl {
                     self.println(format!(
                       "{} : {}",
                       n,
-                      res.pretty(Some(&n.to_string()))
+                      res.pretty(Some(&n.to_string()), false)
                     ))
                   }
                   Err(e) => self.println(format!("Error: {}", e)),
@@ -189,8 +190,8 @@ pub trait Repl {
               }
               Command::Browse => {
                 for (n, d) in env.defs.named_defs() {
-                  self.println(format!("{}", d.pretty(n.to_string())))
-                };
+                  self.println(format!("{}", d.pretty(n.to_string(), false)))
+                }
                 Ok(())
               }
               Command::Quit => {

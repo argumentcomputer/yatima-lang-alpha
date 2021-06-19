@@ -4,21 +4,18 @@ use std::{
 };
 
 use structopt::StructOpt;
+use yatima_cli::{
+  file::store::FileStore,
+  ipfs,
+  repl,
+};
+use yatima_core::name::Name;
 use yatima_utils::{
   file,
   store::{
     show,
     Store,
   },
-};
-use yatima_cli::{
-  file::store::FileStore,
-  ipfs,
-  repl,
-};
-use yatima_core::{
-  parse,
-  name::Name,
 };
 
 #[derive(Debug, StructOpt)]
@@ -39,6 +36,8 @@ enum Cli {
     input: String,
     #[structopt(name = "type", default_value = "raw", long, short)]
     typ_: String,
+    #[structopt(name = "var_index", long, short)]
+    var_index: bool,
   },
   Run {
     #[structopt(parse(from_os_str))]
@@ -55,15 +54,16 @@ async fn main() -> std::io::Result<()> {
       repl::main();
       Ok(())
     }
-    Cli::Show { input, typ_ } => {
-      let (_, link) = parse::package::parse_link(parse::span::Span::new(&input))
-        .expect("Invalid links");
+    Cli::Show { input, typ_, var_index } => {
+      use yatima_core::parse;
       let store = Rc::new(FileStore::new());
-      match show(store, link, typ_) {
+      let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
+        .expect("valid cid");
+      match show(store, cid, typ_, var_index) {
         Ok(s) => {
           println!("{}", s);
           Ok(())
-        },
+        }
         Err(s) => {
           eprintln!("{}", s);
           Err(std::io::Error::from(std::io::ErrorKind::NotFound))

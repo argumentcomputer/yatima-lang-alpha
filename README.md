@@ -46,9 +46,57 @@ Yatima is a pure functional programming language implemented in Rust with the fo
   extensibility of a dynamically-typed language, without sacrificing the safety
   of static-typing.
 
-For examples of Yatima code please refer to the `introit` standard library: https://github.com/yatima-inc/introit
+## Examples
 
-On an implementation level:
+Algebraic datatypes (ADTs):
+
+```
+type Maybe (A: Type) {
+  None,
+  Some A,
+}
+
+type List (A: Type) {
+  Nil,
+  Cons A (List A),
+}
+
+def List.head (0 A: Type) (a: List A): Maybe A
+  = (case a) (λ _ => Maybe A) (Maybe.None A) (λ x _ => Maybe.Some A x)
+```
+
+Generalized algrebraic datatypes:
+
+```
+type Expr: ∀ Type -> Type {
+  N Nat: Expr Nat,
+  B Bool: Expr Bool,
+  Add (Expr Nat) (Expr Nat): Expr Nat,
+  Mut (Expr Nat) (Expr Nat): Expr Nat,
+  Eql (Expr Nat) (Expr Nat): Expr Bool,
+}
+
+def Expr.checks : Expr Bool = Expr.Eql (Expr.N 1) (Expr.N 2)
+```
+
+Dependent types and proofs:
+
+```
+type Vector (A: Type): ∀ (ω k: Natural) -> Type {
+   Nil: Vector A Natural.Z,
+   Cons (0 k: Natural) (x: A) (xs: Vector A k): Vector A (Natural.S k),
+}
+
+def Vector.head (0 A: Type) (k: Natural) (a : Vector A (Natural.S k)): A
+  = ((case a) (λ k' self => ∀ (Equal Natural (Natural.S k) k') -> A)
+    (λ e => Empty.absurd A (Natural.Z_isnt_S k e))
+    (λ k x xs e => x))
+    (Equal.Refl Natural (Natural.S k))
+```
+
+For more examples of Yatima code please refer to the `introit` standard library: https://github.com/yatima-inc/introit
+
+## Implementation
 
 - Yatima's core reduction machine is based on the λ-DAG technique described in [Bottom-up β-reduction](https://www.ccs.neu.edu/home/wand/papers/shivers-wand-10.pdf).
 - Yatima's approach to inductive datatypes is based on [Self Types for Dependently Typed Lambda Encodings](https://homepage.divms.uiowa.edu/~astump/papers/fu-stump-rta-tlca-14.pdf).
@@ -144,7 +192,31 @@ cargo install --path cli
 Parse a `.ya` file (like from https://github.com/yatima-inc/introit) with:
 
 ```bash
-yatima parse Bool.ya
+λ yatima parse bool.ya 
+Package parsed: bafy2bzacedl5jeqjqvvykquxjy53xey2l2hvcye2bi2omddjdwjbfqkpagksi
+...
+```
+
+Typecheck with:
+
+```bash
+λ yatima check bool.ya
+Checking package bool at bafy2bzacedl5jeqjqvvykquxjy53xey2l2hvcye2bi2omddjdwjbfqkpagksi
+Checking definitions:
+✓ Bool: Type
+✓ Bool.True: Bool
+✓ Bool.False: Bool
+✓ Bool.eql: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.lte: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.lth: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.gte: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.gth: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.and: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.or: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.xor: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.not: ∀ (x: Bool) -> Bool
+✓ Bool.neq: ∀ (x: Bool) (y: Bool) -> Bool
+✓ Bool.if: ∀ (A: Type) (bool: Bool) (t: A) (f: A) -> A
 ```
 
 Run the `main` expression in a Yatima package with
