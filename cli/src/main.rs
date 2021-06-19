@@ -47,6 +47,10 @@ enum Cli {
 
 #[derive(Debug, StructOpt)]
 enum ShowType {
+  File {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
   Package {
     #[structopt(parse(try_from_str = parse_cid))]
     input: Cid,
@@ -87,6 +91,14 @@ async fn main() -> std::io::Result<()> {
       repl::main();
       Ok(())
     }
+    Cli::Show { typ: ShowType::File { path } } => {
+      let root = std::env::current_dir()?;
+      let store = Rc::new(FileStore::new());
+      let env = file::parse::PackageEnv::new(root, path, store.clone());
+      let (_, pack, _) = file::parse::parse_file(env);
+      println!("{}", pack);
+      Ok(())
+    }
     Cli::Show { typ: ShowType::Package { input } } => {
       let store = Rc::new(FileStore::new());
       match store.get(input) {
@@ -98,7 +110,7 @@ async fn main() -> std::io::Result<()> {
       };
       Ok(())
     }
-    Cli::Show { typ: ShowType::Entry { input, var} } => {
+    Cli::Show { typ: ShowType::Entry { input, var } } => {
       let store = Rc::new(FileStore::new());
       match store.get(input) {
         Some(ipld) => match yatima_core::package::Entry::from_ipld(&ipld) {
