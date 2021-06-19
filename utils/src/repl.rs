@@ -2,8 +2,8 @@ pub mod command;
 pub mod error;
 
 use crate::{
-  log,
   file,
+  log,
   store::{
     self,
     Store,
@@ -39,11 +39,14 @@ use error::ReplError;
 /// Contains the state and configuration of the REPL
 pub struct ReplEnv {
   type_system: bool,
+  var_index: bool,
   defs: Defs,
 }
 
 impl Default for ReplEnv {
-  fn default() -> Self { ReplEnv { type_system: true, defs: Defs::new() } }
+  fn default() -> Self {
+    ReplEnv { type_system: true, var_index: false, defs: Defs::new() }
+  }
 }
 
 /// Read evaluate print loop - REPL
@@ -89,116 +92,122 @@ pub trait Repl {
           Rc::new(RefCell::new(env.defs.clone())),
         )(Span::new(&line));
         match res {
-          Ok((_, command)) => {
-            match command {
-              Command::Load(reference) => {
-                let ipld = match reference {
-                  Reference::FileName(name) => {
-                    store.load_by_name(name.split('.').collect())
-                  }
-                  Reference::Multiaddr(addr) => {
-                    store.get_by_multiaddr(addr)
-                  }
-                  Reference::Cid(cid) => {
-                    store.get(cid).ok_or(format!("Failed to get cid {}", cid))
-                  }
-                }.map_err(|e| log!("{}", e))?;
+          Ok((_, command)) => match command {
+            Command::Load(reference) => {
+              let ipld = match reference {
+                Reference::FileName(name) => {
+                  store.load_by_name(name.split('.').collect())
+                }
+                Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
+                Reference::Cid(cid) => {
+                  store.get(cid).ok_or(format!("Failed to get cid {}", cid))
+                }
+              }
+              .map_err(|e| log!("{}", e))?;
 
-                if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
-                  env.defs.flat_merge_mut(ds);
+              if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
+                env.defs.flat_merge_mut(ds);
+                Ok(())
+              }
+              else {
+                Err(())
+              }
+            }
+            Command::Show { typ_, link } => {
+              let var_index = env.var_index;
+              match store::show(store, link, typ_, var_index) {
+                Ok(s) => {
+                  self.println(format!("{}", s));
                   Ok(())
                 }
-                else {
+                Err(s) => {
+                  self.println(format!("{}", s));
                   Err(())
                 }
               }
-              Command::Show { typ_, link } => {
-                match store::show(store, link, typ_) {
-                  Ok(s) => {
-                    self.println(format!("{}", s));
+            }
+            Command::Set(field, setting) => match field.as_str() {
+              "type-system" => {
+                env.type_system = setting;
+                self.println(format!(
+                  "type-system: {}",
+                  if setting { "on" } else { "off" }
+                ));
+                Ok(())
+              }
+              "var-index" => {
+                env.var_index = setting;
+                self.println(format!(
+                  "var-index: {}",
+                  if setting { "on" } else { "off" }
+                ));
+                Ok(())
+              }
+              _ => {
+                self.println(format!("Error: Unknown setting {}", field));
+                Err(())
+              }
+            },
+            Command::Eval(term) => {
+              let mut dag = DAG::from_term(&term);
+              if env.type_system {
+                let res = infer_term(&env.defs, *term);
+                match res {
+                  Ok(typ) => {
+                    dag.norm(&env.defs);
+                    self.println(format!("{}", dag));
+                    self.println(format!(": {}", typ));
                     Ok(())
                   }
-                  Err(s) => {
-                    self.println(format!("{}", s));
+                  Err(e) => {
+                    self.println(format!("Type Error: {}", e));
                     Err(())
                   }
                 }
               }
-              Command::Set(field, setting) => match field.as_str() {
-                "type-system" => {
-                  env.type_system = setting;
-                  self.println(format!(
-                    "type-system: {}",
-                    if setting { "on" } else { "off" }
-                  ));
-                  Ok(())
-                }
-                _ => {
-                  self.println(format!("Error: Unknown setting {}", field));
-                  Err(())
-                }
-              },
-              Command::Eval(term) => {
-                let mut dag = DAG::from_term(&term);
-                if env.type_system {
-                  let res = infer_term(&env.defs, *term);
-                  match res {
-                    Ok(typ) => {
-                      dag.norm(&env.defs);
-                      self.println(format!("{}", dag));
-                      self.println(format!(": {}", typ));
-                      Ok(())
-                    }
-                    Err(e) => {
-                        self.println(format!("Type Error: {}", e));
-                        Err(())
-                    },
-                  }
-                }
-                else {
-                  dag.norm(&env.defs);
-                  self.println(format!("{}", dag));
-                  Ok(())
-                }
-              }
-              Command::Type(term) => {
-                let res = infer_term(&env.defs, *term);
-                match res {
-                  Ok(term) => self.println(format!("{}", term)),
-                  Err(e) => self.println(format!("Error: {}", e)),
-                }
-                Ok(())
-              }
-              Command::Define(boxed) => {
-                let (n, def, _) = *boxed;
-                let mut tmp_defs = env.defs.clone();
-                tmp_defs.insert(n.clone(), def);
-                let res = check_def(&tmp_defs, &n);
-                match res {
-                  Ok(res) => {
-                    env.defs = tmp_defs;
-                    self.println(format!(
-                      "{} : {}",
-                      n,
-                      res.pretty(Some(&n.to_string()))
-                    ))
-                  }
-                  Err(e) => self.println(format!("Error: {}", e)),
-                }
-                Ok(())
-              }
-              Command::Browse => {
-                for (n, d) in env.defs.named_defs() {
-                  self.println(format!("{}", d.pretty(n.to_string())))
-                };
-                Ok(())
-              }
-              Command::Quit => {
-                self.println(format!("Goodbye."));
+              else {
+                dag.norm(&env.defs);
+                self.println(format!("{}", dag));
                 Ok(())
               }
             }
-          }
+            Command::Type(term) => {
+              let res = infer_term(&env.defs, *term);
+              match res {
+                Ok(term) => self.println(format!("{}", term)),
+                Err(e) => self.println(format!("Error: {}", e)),
+              }
+              Ok(())
+            }
+            Command::Define(boxed) => {
+              let (n, def, _) = *boxed;
+              let mut tmp_defs = env.defs.clone();
+              tmp_defs.insert(n.clone(), def);
+              let res = check_def(&tmp_defs, &n);
+              match res {
+                Ok(res) => {
+                  env.defs = tmp_defs;
+                  self.println(format!(
+                    "{} : {}",
+                    n,
+                    res.pretty(Some(&n.to_string()), false)
+                  ))
+                }
+                Err(e) => self.println(format!("Error: {}", e)),
+              }
+              Ok(())
+            }
+            Command::Browse => {
+              for (n, d) in env.defs.named_defs() {
+                self.println(format!("{}", d.pretty(n.to_string(), false)))
+              }
+              Ok(())
+            }
+            Command::Quit => {
+              self.println(format!("Goodbye."));
+              Ok(())
+            }
+          },
           Err(e) => {
             match e {
               Err::Incomplete(_) => self.println(format!("Incomplete Input")),

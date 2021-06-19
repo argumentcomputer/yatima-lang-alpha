@@ -19,14 +19,15 @@ pub mod literal;
 pub mod meta;
 pub mod name;
 pub mod package;
+pub mod typedef;
 #[macro_use]
 pub mod parse;
 pub mod position;
 pub mod prim;
+pub mod runtime;
 pub mod term;
 pub mod upcopy;
 pub mod uses;
-pub mod runtime;
 
 #[cfg(test)]
 pub mod tests {
