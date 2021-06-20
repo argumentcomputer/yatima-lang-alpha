@@ -12,10 +12,11 @@ use crate::{
 };
 
 use cid::Cid;
-
-use std::collections::HashMap;
-
-use std::fmt;
+use std::{
+  collections::HashMap,
+  rc::Rc,
+  fmt,
+};
 
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -142,9 +143,9 @@ impl Defs {
   }
 
   /// Merge Defs mutably at the same level like in a REPL env
-  pub fn flat_merge_mut(&mut self, other: Defs) {
-    for (k, v) in other.defs {
-      self.defs.insert(k, v);
+  pub fn flat_merge_mut(&mut self, other: Rc<Defs>) {
+    for (k, v) in other.defs.iter() {
+      self.defs.insert(*k, v.clone());
     }
     for (k, v) in other.names.iter() {
       self.names.insert(k.clone(), *v);

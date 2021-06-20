@@ -447,9 +447,10 @@ pub fn main() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn parse_source(source: &str) {
+pub fn parse_source(source: &str) -> Result<JsValue, JsValue> {
   let store = Rc::new(WebStore::new());
   let env = PackageEnv::new(PathBuf::new(), PathBuf::new(), store.clone());
-  let (cid, p, _d) = parse::parse_text(source.to_owned(), env);
+  let (cid, p, _d) = parse::parse_text(&source, env)?;
   log(&format!("parsed {} {:#?}", cid, p));
+  Ok("ok".into())
 }

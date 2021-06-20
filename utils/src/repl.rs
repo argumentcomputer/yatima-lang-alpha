@@ -183,10 +183,11 @@ pub trait Repl {
               let (n, def, _) = *boxed;
               let mut tmp_defs = env.defs.clone();
               tmp_defs.insert(n.clone(), def);
-              let res = check_def(&tmp_defs, &n);
+              let re = Rc::new(tmp_defs);
+              let res = check_def(re.clone(), &n);
               match res {
                 Ok(res) => {
-                  env.defs = tmp_defs;
+                  env.defs.flat_merge_mut(re);
                   self.println(format!(
                     "{} : {}",
                     n,

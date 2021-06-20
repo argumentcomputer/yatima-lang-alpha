@@ -37,6 +37,8 @@ pub enum FileErrorKind {
   IpldError(IpldError),
   EmbedError(Box<yatima_core::embed_error::EmbedError>),
   Nom(ErrorKind),
+  /// For OS errors or general failed side effect errors
+  SystemError(String),
 }
 
 impl FileErrorKind {

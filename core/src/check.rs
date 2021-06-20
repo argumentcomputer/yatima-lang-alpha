@@ -16,13 +16,15 @@ use crate::{
   yatima,
 };
 
-use std::collections::HashMap;
-
 use cid::Cid;
 
 use core::ptr::NonNull;
 use std::{
-  collections::HashSet,
+  collections::{
+    HashSet,
+    HashMap,
+  },
+  rc::Rc,
   mem,
 };
 
@@ -693,7 +695,7 @@ pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
   Ok(typ)
 }
 
-pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
+pub fn check_def(defs: Rc<Defs>, name: &str) -> Result<Term, CheckError> {
   let def = defs.get(&Name::from(name)).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;

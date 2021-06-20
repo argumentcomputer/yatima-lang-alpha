@@ -35,8 +35,8 @@ pub trait Store: std::fmt::Debug {
 /// Load all the package defs from the store
 pub fn load_package_defs(
   store: Rc<dyn Store>,
-  package: Package,
-) -> Result<Defs, String> {
+  package: Rc<Package>,
+) -> Result<Rc<Defs>, String> {
   let Index(def_refs) = &package.index;
   let mut defs = Defs::new();
   for (name, cid) in def_refs {
@@ -67,7 +67,7 @@ pub fn load_package_defs(
       return Err(format!("Failed to load {} at {}", name, package.cid()));
     }
   }
-  Ok(defs)
+  Ok(Rc::new(defs))
 }
 
 /// Show the contents of a link

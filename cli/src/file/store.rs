@@ -126,7 +126,7 @@ impl Store for FileStore {
     }
     fs_path.set_extension("ya");
     let env = parse::PackageEnv::new(root, fs_path, Rc::new(self.clone()));
-    let (_cid, p, _ds) = parse::parse_file(env);
+    let (_cid, p, _ds) = parse::parse_file(env)?;
     let ipld = p.to_ipld();
     Ok(ipld)
   }

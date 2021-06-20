@@ -11,7 +11,6 @@ use yatima_cli::{
 };
 use yatima_core::{
   name::Name,
-  parse,
 };
 use yatima_utils::{
   file,
@@ -77,7 +76,10 @@ async fn main() -> std::io::Result<()> {
       let root = std::env::current_dir()?;
       let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path, store.clone());
-      let (cid, p, d) = file::parse::parse_file(env);
+      let (cid, p, d) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
       store.put(p.to_ipld());
 
       let ipld_cid = if !no_ipfs {
@@ -99,7 +101,11 @@ async fn main() -> std::io::Result<()> {
       let root = std::env::current_dir()?;
       let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) = file::parse::parse_file(env);
+      let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
+
       let _cid = store.put(p.to_ipld());
       let _ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
