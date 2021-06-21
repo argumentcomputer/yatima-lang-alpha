@@ -11,6 +11,7 @@ use crate::{
   literal::Literal,
   name::Name,
   position::Pos,
+  prim::Op,
   term::Term,
   uses::*,
   yatima,
@@ -25,6 +26,21 @@ use std::{
   collections::HashSet,
   mem,
 };
+
+#[derive(Clone, Debug)]
+pub enum IR {
+  Var(Name, u64),
+  Lam(Uses, Name, Box<IR>),
+  App(Uses, Box<(IR, IR)>),
+  Dat(Box<IR>),
+  Cse(Box<IR>),
+  Ref(Name, Cid, Cid),
+  Let(bool, Uses, Name, Box<(IR, IR)>),
+  Lit(Literal),
+  Opr(Op),
+  Rec,
+  Typ,
+}
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = HashMap::new();
@@ -102,7 +118,7 @@ pub fn check(
   uses: Uses,
   term: &Term,
   typ: &mut DAG,
-) -> Result<(), CheckError> {
+) -> Result<IR, CheckError> {
   match term {
     Term::Lam(pos, _, bod) => {
       check_lam(rec, defs, ctx, uses, term, typ, pos, &**bod)
@@ -113,10 +129,10 @@ pub fn check(
     _ => {
       let depth = ctx.len();
       // TODO Should we clone ctx?
-      let mut detected_typ = infer(rec, defs, ctx, uses, term)?;
+      let (mut detected_typ, eras_term) = infer(rec, defs, ctx, uses, term)?;
       if equal(defs, typ, &mut detected_typ, depth as u64) {
         detected_typ.free();
-        Ok(())
+        Ok(eras_term)
       }
       else {
         let expected = typ.to_term(false);
@@ -143,7 +159,7 @@ pub fn check_lam(
   typ: &mut DAG,
   pos: &Pos,
   bod: &Term,
-) -> Result<(), CheckError> {
+) -> Result<IR, CheckError> {
   // To check whether a lambda is well typed, its type must reduce to a forall;
   // otherwise we fail
   typ.whnf(defs);
@@ -163,7 +179,7 @@ pub fn check_lam(
       let rest_ctx = div_ctx(uses, ctx);
       ctx.push((all_var.nam.to_string(), *lam_uses, dom));
       let mut img = DAG::new(*img);
-      check(rec, defs, ctx, Uses::Once, bod, &mut img)?;
+      let eras_bod = check(rec, defs, ctx, Uses::Once, bod, &mut img)?;
       // Check whether the rest 'contains' zero (i.e., zero is less than or
       // equal to the rest), otherwise the variable was not used enough
       let (_, rest, _) = ctx.last().unwrap();
@@ -177,11 +193,12 @@ pub fn check_lam(
         ))
       }
       else {
+        let eras_lam = IR::Lam(*lam_uses, all_var.nam.clone(), Box::new(eras_bod));
         // Remove the argument from the context, readjust the context
         // multiplicity
         ctx.pop();
         add_mul_ctx(uses, ctx, rest_ctx);
-        Ok(())
+        Ok(eras_lam)
       }
     }
     _ => {
@@ -207,7 +224,7 @@ pub fn check_dat(
   typ: &mut DAG,
   pos: &Pos,
   bod: &Term,
-) -> Result<(), CheckError> {
+) -> Result<IR, CheckError> {
   // To check whether data is well typed, its type must reduce to a self type;
   // otherwise we fail
   typ.whnf(defs);
@@ -235,10 +252,11 @@ pub fn check_dat(
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let mut unrolled_typ =
         DAG::new(DAG::from_subdag(*slf_bod, &mut map, Some(root)));
-      check(rec, defs, ctx, uses, bod, &mut unrolled_typ)?;
+      let eras_bod = check(rec, defs, ctx, uses, bod, &mut unrolled_typ)?;
       // We must free the newly created type as to not leak
       unrolled_typ.free();
-      Ok(())
+      let eras_dat = IR::Dat(Box::new(eras_bod));
+      Ok(eras_dat)
     }
     _ => {
       let checked = term.clone();
@@ -259,11 +277,11 @@ pub fn infer(
   ctx: &mut Ctx,
   uses: Uses,
   term: &Term,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   match term {
     Term::Rec(_) => infer_rec(rec, defs),
-    Term::Var(pos, nam, idx) => infer_var(rec, defs, ctx, uses, pos, nam, idx),
-    Term::Ref(pos, nam, def_link, _) => infer_ref(defs, pos, nam, def_link),
+    Term::Var(pos, nam, idx) => infer_var(ctx, uses, pos, nam, idx),
+    Term::Ref(pos, nam, def_link, ast_link) => infer_ref(defs, pos, nam, def_link, ast_link),
     Term::App(pos, fun_arg) => {
       infer_app(rec, defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1)
     }
@@ -285,11 +303,14 @@ pub fn infer(
     ),
     Term::Typ(_) => {
       let typ = DAG::from_term(&Term::Typ(Pos::None));
-      Ok(typ)
+      Ok((typ, IR::Typ))
     }
-    Term::Lit(_, lit) => Ok(DAG::from_term(&infer_lit(lit.to_owned()))),
-    Term::LTy(..) => Ok(DAG::from_term(&yatima!("Type"))),
-    Term::Opr(_, opr) => Ok(DAG::from_term(&opr.type_of())),
+    Term::Lit(_, lit) =>
+      Ok((DAG::from_term(&infer_lit(lit.to_owned())), IR::Lit(lit.clone()))),
+    Term::LTy(..) =>
+      Ok((DAG::from_term(&yatima!("Type")), IR::Typ)),
+    Term::Opr(_, opr) =>
+      Ok((DAG::from_term(&opr.type_of()), IR::Opr(*opr))),
     Term::Lam(..) => {
       Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx)))
     }
@@ -303,10 +324,10 @@ pub fn infer(
 pub fn infer_rec(
   rec: &Option<(Name, Cid, Cid)>,
   defs: &Defs,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   if let Some((nam, exp, _)) = rec {
     if let Some(def) = defs.defs.get(exp) {
-      Ok(DAG::from_term(&def.typ_))
+      Ok((DAG::from_term(&def.typ_), IR::Rec))
     }
     else {
       panic!("undefined runtime reference: {}, {}", nam, exp);
@@ -319,14 +340,14 @@ pub fn infer_rec(
 
 #[inline]
 pub fn infer_var(
-  _rec: &Option<(Name, Cid, Cid)>,
-  _defs: &Defs,
+  // _rec: &Option<(Name, Cid, Cid)>,
+  // _defs: &Defs,
   ctx: &mut Ctx,
   uses: Uses,
   pos: &Pos,
   nam: &Name,
   idx: &u64,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   let dep = ctx.len() - 1 - (*idx as usize);
   let bind = ctx.get(dep).ok_or_else(|| {
     CheckError::UnboundVariable(
@@ -352,7 +373,7 @@ pub fn infer_var(
     #[allow(clippy::redundant_clone)]
     dag.clone()
   };
-  Ok(typ)
+  Ok((typ, IR::Var(nam.clone(), *idx)))
 }
 
 #[inline]
@@ -361,13 +382,14 @@ pub fn infer_ref(
   pos: &Pos,
   nam: &Name,
   def_link: &Cid,
-) -> Result<DAG, CheckError> {
+  ast_link: &Cid,
+) -> Result<(DAG, IR), CheckError> {
   let def = defs
     .defs
     .get(def_link)
     .ok_or_else(|| CheckError::UndefinedReference(*pos, nam.to_string()))?;
   let typ = DAG::from_term(&def.typ_);
-  Ok(typ)
+  Ok((typ, IR::Ref(nam.clone(), *def_link, *ast_link)))
 }
 
 #[inline]
@@ -379,14 +401,14 @@ pub fn infer_app(
   pos: &Pos,
   fun: &Term,
   arg: &Term,
-) -> Result<DAG, CheckError> {
-  let mut fun_typ = infer(rec, defs, ctx, uses, fun)?;
+) -> Result<(DAG, IR), CheckError> {
+  let (mut fun_typ, eras_fun) = infer(rec, defs, ctx, uses, fun)?;
   fun_typ.whnf(defs);
   match fun_typ.head {
     DAGPtr::All(link) => {
       let All { uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
       let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
-      check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
+      let eras_arg = check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
       let mut map = HashMap::new();
       if var.parents.is_some() {
         map.insert(
@@ -403,7 +425,8 @@ pub fn infer_app(
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let new_img = DAG::from_subdag(*img, &mut map, Some(root));
       fun_typ.free();
-      Ok(DAG::new(new_img))
+      let eras_app = IR::App(*lam_uses, Box::new((eras_fun, eras_arg)));
+      Ok((DAG::new(new_img), eras_app))
     }
     _ => Err(CheckError::AppFunMismatch(
       *pos,
@@ -422,8 +445,8 @@ pub fn infer_cse(
   uses: Uses,
   pos: &Pos,
   exp: &Term,
-) -> Result<DAG, CheckError> {
-  let mut exp_typ = infer(rec, defs, ctx, uses, exp)?;
+) -> Result<(DAG, IR), CheckError> {
+  let (mut exp_typ, eras_exp) = infer(rec, defs, ctx, uses, exp)?;
   exp_typ.whnf(defs);
   match exp_typ.head {
     DAGPtr::Slf(link) => {
@@ -444,7 +467,8 @@ pub fn infer_cse(
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let new_bod = DAG::from_subdag(*bod, &mut map, Some(root));
       exp_typ.free();
-      Ok(DAG::new(new_bod))
+      let eras_cse = IR::Cse(Box::new(eras_exp));
+      Ok((DAG::new(new_bod), eras_cse))
     }
     DAGPtr::LTy(link) => {
       let LTy { lty, .. } = unsafe { &mut *link.as_ptr() };
@@ -461,7 +485,8 @@ pub fn infer_cse(
             Some(root),
             None,
           );
-          Ok(DAG::new(induction))
+          let eras_cse = IR::Cse(Box::new(eras_exp));
+          Ok((DAG::new(induction), eras_cse))
         }
       }
     }
@@ -482,7 +507,7 @@ pub fn infer_all(
   nam: &Name,
   dom: &Term,
   img: &Term,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   let mut typ = DAG::from_term(&Term::Typ(Pos::None));
   check(rec, defs, ctx, Uses::None, dom, &mut typ)?;
   let mut dom_dag = DAG::from_term_inner(
@@ -496,7 +521,7 @@ pub fn infer_all(
   check(rec, defs, ctx, Uses::None, img, &mut typ)?;
   ctx.pop();
   free_dead_node(dom_dag);
-  Ok(typ)
+  Ok((typ, IR::Typ))
 }
 
 #[inline]
@@ -507,7 +532,7 @@ pub fn infer_slf(
   term: &Term,
   nam: &Name,
   bod: &Term,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   let mut typ = DAG::from_term(&Term::Typ(Pos::None));
   let mut term_dag = DAG::from_term_inner(
     term,
@@ -520,7 +545,7 @@ pub fn infer_slf(
   check(rec, defs, ctx, Uses::None, bod, &mut typ)?;
   ctx.pop();
   free_dead_node(term_dag);
-  Ok(typ)
+  Ok((typ, IR::Typ))
 }
 
 #[inline]
@@ -535,7 +560,7 @@ pub fn infer_let(
   exp_typ: &Term,
   exp: &Term,
   bod: &Term,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   let exp_dag = &mut DAG::new(DAG::from_term_inner(
     exp,
     ctx.len() as u64,
@@ -551,10 +576,10 @@ pub fn infer_let(
     Some(root),
     rec.clone(),
   ));
-  check(rec, defs, ctx, exp_uses * uses, exp, exp_typ_dag)?;
+  let eras_exp = check(rec, defs, ctx, exp_uses * uses, exp, exp_typ_dag)?;
   let rest_ctx = div_ctx(uses, ctx);
   ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
-  let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
+  let (mut bod_typ, eras_bod) = infer(rec, defs, ctx, Uses::Once, bod)?;
   let (_, rest, _) = ctx.last().unwrap();
   // Have to check whether the rest 'contains' zero (i.e., zero is less than or
   // equal to the rest), otherwise the variable was not used enough
@@ -572,7 +597,8 @@ pub fn infer_let(
     DAG::new(exp_typ_dag.head).free();
     add_mul_ctx(uses, ctx, rest_ctx);
     bod_typ.subst(ctx.len() as u64, exp_dag.head);
-    Ok(bod_typ)
+    let eras_let = IR::Let(false, uses, nam.clone(), Box::new((eras_exp, eras_bod)));
+    Ok((bod_typ, eras_let))
   }
 }
 
@@ -588,7 +614,7 @@ pub fn infer_letrec(
   exp_typ: &Term,
   exp: &Term,
   bod: &Term,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   unsafe {
     // Allocates exp as a DAG, must be rootless
     let fix = alloc_fix(nam.clone(), 0, mem::zeroed(), None);
@@ -614,13 +640,13 @@ pub fn infer_letrec(
     // Check exp, noting it is a recursive definition
     let rest_ctx = div_ctx(Uses::Many, ctx);
     ctx.push((nam.to_string(), Uses::Many, &mut exp_typ_dag.head));
-    check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag)?; // TODO better error message
+    let eras_exp = check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag)?; // TODO better error message
     ctx.pop();
     // Check bod
     add_ctx(ctx, rest_ctx);
     let rest_ctx = div_ctx(uses, ctx);
     ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
-    let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
+    let (mut bod_typ, eras_bod) = infer(rec, defs, ctx, Uses::Once, bod)?;
     let (_, rest, _) = ctx.last().unwrap();
     // Have to check whether the rest 'contains' zero (i.e., zero is less than
     // or equal to the rest), otherwise the variable was not used enough
@@ -638,7 +664,8 @@ pub fn infer_letrec(
       DAG::new(exp_typ_dag.head).free();
       add_mul_ctx(uses, ctx, rest_ctx);
       bod_typ.subst(ctx.len() as u64, exp_dag.head);
-      Ok(bod_typ)
+      let eras_let = IR::Let(true, uses, nam.clone(), Box::new((eras_exp, eras_bod)));
+      Ok((bod_typ, eras_let))
     }
   }
 }
@@ -651,7 +678,7 @@ pub fn infer_ann(
   uses: Uses,
   exp: &Term,
   typ: &Term,
-) -> Result<DAG, CheckError> {
+) -> Result<(DAG, IR), CheckError> {
   let root = alloc_val(DLL::singleton(ParentPtr::Root));
   let mut typ_dag = DAG::new(DAG::from_term_inner(
     typ,
@@ -660,8 +687,8 @@ pub fn infer_ann(
     Some(root),
     rec.clone(),
   ));
-  check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
-  Ok(typ_dag)
+  let eras_exp = check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
+  Ok((typ_dag, eras_exp))
 }
 
 pub fn infer_lit(lit: Literal) -> Term {
@@ -687,7 +714,7 @@ pub fn infer_lit(lit: Literal) -> Term {
 }
 
 pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
-  let typ_dag = infer(&None, &defs, &mut vec![].into(), Uses::Once, &term)?;
+  let (typ_dag, _) = infer(&None, &defs, &mut vec![].into(), Uses::Once, &term)?;
   let typ = DAG::to_term(&typ_dag, true);
   typ_dag.free();
   Ok(typ)
