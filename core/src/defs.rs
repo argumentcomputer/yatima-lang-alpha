@@ -142,6 +142,18 @@ impl Defs {
     Defs { defs, names }
   }
 
+  /// Merge Defs from an Import mutably
+  pub fn merge_mut(&mut self, other: Rc<Defs>, import: &Import) {
+    for (k, v) in other.defs.iter() {
+      self.defs.insert(*k, v.clone());
+    }
+    for k in import.with.iter() {
+      let k = k.clone();
+      let v = other.names.get(&k).unwrap();
+      self.names.insert(import_alias(k, import), *v);
+    }
+  }
+
   /// Merge Defs mutably at the same level like in a REPL env
   pub fn flat_merge_mut(&mut self, other: Rc<Defs>) {
     for (k, v) in other.defs.iter() {

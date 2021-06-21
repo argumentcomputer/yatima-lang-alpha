@@ -117,10 +117,10 @@ pub fn parse_entry(
 
 pub fn parse_defs(
   input: Cid,
-  import_defs: Defs,
-) -> impl Fn(Span) -> IResult<Span, (Defs, Index), ParseError<Span>> {
+  defs: Rc<RefCell<Defs>>,
+) -> impl Fn(Span) -> IResult<Span, (Rc<RefCell<Defs>>, Index), ParseError<Span>> {
   move |i: Span| {
-    let defs = Rc::new(RefCell::new(import_defs.clone()));
+    // let defs = Rc::new(RefCell::new(import_defs.clone()));
     let mut ind: Vec<(Name, Cid)> = Vec::new();
     let mut i = i;
     loop {
@@ -128,7 +128,7 @@ pub fn parse_defs(
       i = i2;
       let end: IResult<Span, Span, ParseError<Span>> = eof(i);
       if end.is_ok() {
-        return Ok((i2, (defs.as_ref().clone().into_inner(), Index(ind))));
+        return Ok((i2, (defs.clone(), Index(ind))));
       }
       else {
         let (i2, entries) = alt((

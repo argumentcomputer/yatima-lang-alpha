@@ -29,7 +29,7 @@ pub fn check_all_in_file(
   let (_, p, ds) = parse::parse_file(env).map_err(|e| Error::new(ErrorKind::Other, e))?;
   let cid = store.put(p.to_ipld());
   println!("Checking package {} at {}", p.name, cid);
-  check_all(Rc::new(p), Rc::new(ds), store).map_err(|e| Error::new(ErrorKind::Other, e))
+  check_all(p, ds, store).map_err(|e| Error::new(ErrorKind::Other, e))
 }
 
 /// Type check all in an IPLD representation of a package

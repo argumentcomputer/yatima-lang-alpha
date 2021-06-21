@@ -106,13 +106,13 @@ impl PackageEnv {
   }
 }
 
-pub fn parse_file(env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
+pub fn parse_file(env: PackageEnv) -> Result<(Cid, Rc<Package>, Rc<RefCell<Defs>>), String> {
   let path = env.path.clone();
   let txt = fs::read_to_string(&path).map_err(|_| "file not found")?;
   parse_text(txt.as_str(), env)
 }
 
-pub fn parse_text(txt: &str, env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
+pub fn parse_text(txt: &str, env: PackageEnv) -> Result<(Cid, Rc<Package>, Rc<RefCell<Defs>>), String> {
   let path = env.path.clone();
   let input_cid = env.store.put(Ipld::String(txt.to_owned()));
   match parse_package(input_cid, env)(Span::new(&txt)) {
@@ -165,7 +165,7 @@ pub fn index_to_defs(
 
 pub fn parse_import(
   env: PackageEnv,
-) -> impl Fn(Span) -> IResult<Span, (Cid, Import, Defs), FileError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, (Cid, Import, Rc<RefCell<Defs>>), FileError<Span>> {
   move |i: Span| {
     let (i, _) = tag("import")(i)?;
     let (i, _) = parse_space(i).map_err(error::convert)?;
@@ -204,7 +204,7 @@ pub fn parse_import(
         |v| Ok((i, v)),
       )?;
       let with: Vec<Name> = with.unwrap_or_else(|| defs.names());
-      Ok((i, (from, Import { cid: from, name, alias, with }, defs)))
+      Ok((i, (from, Import { cid: from, name, alias, with }, Rc::new(RefCell::new(defs)))))
     }
     else {
       let has_path = env.insert_open(import_path.clone());
@@ -236,9 +236,9 @@ pub fn parse_import(
 
 pub fn parse_imports(
   env: PackageEnv,
-) -> impl Fn(Span) -> IResult<Span, (Vec<Import>, Defs), FileError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, (Vec<Import>, Rc<RefCell<Defs>>), FileError<Span>> {
   move |i: Span| {
-    let mut defs = Defs::new();
+    let defs = Rc::new(RefCell::new(Defs::new()));
     let mut imps: Vec<Import> = Vec::new();
     let mut i = i;
     loop {
@@ -252,7 +252,7 @@ pub fn parse_imports(
           for (def_name, _) in &imp_defs.names {
             let imp_def = imp_defs.get(def_name).unwrap();
             let def_name = import_alias(def_name.clone(), &imp);
-            if let Some(def) = defs.get(&def_name) {
+            if let Some(def) = defs.borrow().get(&def_name) {
               if imp_def.def_cid != def.def_cid {
                 return Err(Err::Error(FileError::new(
                   i,
@@ -265,7 +265,7 @@ pub fn parse_imports(
               }
             }
           }
-          defs = defs.merge(imp_defs, &imp);
+          defs.borrow_mut().merge_mut(imp_defs, &imp);
           imps.push(imp);
           i = i2;
         }
@@ -277,7 +277,7 @@ pub fn parse_imports(
 pub fn parse_package(
   input: Cid,
   env: PackageEnv,
-) -> impl Fn(Span) -> IResult<Span, (Cid, Package, Defs), FileError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, (Cid, Rc<Package>, Rc<RefCell<Defs>>), FileError<Span>> {
   move |from: Span| {
     let (i, _) = parse_space(from).map_err(error::convert)?;
     let (i, _) = tag("package")(i)?;
@@ -298,7 +298,8 @@ pub fn parse_package(
     let (upto, (defs, index)) =
       parse_defs(input, defs)(i).map_err(error::convert)?;
     for (n, _) in index.0.iter() {
-      let d = defs.get(n).unwrap();
+        let defs_ref = defs.borrow();
+      let d = defs_ref.get(n).unwrap();
       let (entry, typ, trm) = d.clone().embed();
       env.store.put(typ.to_ipld());
       env.store.put(trm.to_ipld());
@@ -308,7 +309,7 @@ pub fn parse_package(
       }
     }
     let pos = Pos::from_upto(input, from, upto);
-    let package = Package { pos, name, imports, index };
+    let package = Rc::new(Package { pos, name, imports, index });
     let pack_cid = env.store.put(package.to_ipld());
     Ok((from, (pack_cid, package, defs)))
   }
