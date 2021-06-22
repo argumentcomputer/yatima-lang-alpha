@@ -8,7 +8,10 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
-  literal::Literal,
+  literal::{
+    LitType,
+    Literal,
+  },
   name::Name,
   position::Pos,
   prim::Op,
@@ -32,8 +35,7 @@ pub enum IR {
   Var(Name, u64),
   Lam(Uses, Name, Box<IR>),
   App(Uses, Box<(IR, IR)>),
-  Dat(Box<IR>),
-  Cse(Box<IR>),
+  Cse(LitType, Box<IR>),
   Ref(Name, Cid, Cid),
   Let(bool, Uses, Name, Box<(IR, IR)>),
   Lit(Literal),
@@ -255,8 +257,7 @@ pub fn check_dat(
       let eras_bod = check(rec, defs, ctx, uses, bod, &mut unrolled_typ)?;
       // We must free the newly created type as to not leak
       unrolled_typ.free();
-      let eras_dat = IR::Dat(Box::new(eras_bod));
-      Ok(eras_dat)
+      Ok(eras_bod)
     }
     _ => {
       let checked = term.clone();
@@ -467,8 +468,7 @@ pub fn infer_cse(
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let new_bod = DAG::from_subdag(*bod, &mut map, Some(root));
       exp_typ.free();
-      let eras_cse = IR::Cse(Box::new(eras_exp));
-      Ok((DAG::new(new_bod), eras_cse))
+      Ok((DAG::new(new_bod), eras_exp))
     }
     DAGPtr::LTy(link) => {
       let LTy { lty, .. } = unsafe { &mut *link.as_ptr() };
@@ -485,7 +485,7 @@ pub fn infer_cse(
             Some(root),
             None,
           );
-          let eras_cse = IR::Cse(Box::new(eras_exp));
+          let eras_cse = IR::Cse(*lty, Box::new(eras_exp));
           Ok((DAG::new(induction), eras_cse))
         }
       }
@@ -720,7 +720,7 @@ pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
   Ok(typ)
 }
 
-pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
+pub fn check_def(defs: &Defs, name: &str) -> Result<IR, CheckError> {
   let def = defs.get(&Name::from(name)).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;
@@ -729,7 +729,7 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let ast_cid = a.cid();
   let rec = Some((Name::from(name), def_cid, ast_cid));
   let mut typ = DAG::from_term(&def.typ_);
-  check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
+  let term_ir = check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
   typ.free();
-  Ok(def.typ_.clone())
+  Ok(term_ir)
 }
