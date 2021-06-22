@@ -64,6 +64,7 @@ pub enum ParseErrorKind {
   UnknownI32Op(Name),
   UnknownI64Op(Name),
   UnknownI128Op(Name),
+  TypeDefConstructorMustReturnItsType,
   InvalidSymbol(String),
   Nom(ErrorKind),
 }

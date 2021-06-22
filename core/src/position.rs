@@ -25,10 +25,13 @@ pub struct Position {
   pub upto_column: u64,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Pos {
   None,
   Some(Position),
+}
+impl fmt::Debug for Pos {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "") }
 }
 
 impl Position {

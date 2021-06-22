@@ -71,7 +71,6 @@ pub fn parse_set() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
     let (i, _) = alt((tag(":set"), tag(":s")))(i)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
-    // let (i, _) = alt((tag("type-system")))(i)?;
     let (i, s) = parse_name(i).map_err(error::convert)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
     let (i, b) = alt((
@@ -109,8 +108,9 @@ pub fn parse_define(
   defs: Rc<RefCell<Defs>>,
 ) -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>> {
   move |i: Span| {
-    let (i, res) =
+    let (i, mut res) =
       parse_entry(input, defs.clone())(i).map_err(error::convert)?;
+    let res = res.pop().unwrap();
     Ok((i, Command::Define(Box::new(res))))
   }
 }
