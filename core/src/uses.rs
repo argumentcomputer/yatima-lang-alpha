@@ -1,5 +1,5 @@
 use crate::ipld_error::IpldError;
-use sp_ipld::Ipld;
+use ipld::Ipld;
 use sp_std::{
   fmt,
   ops,

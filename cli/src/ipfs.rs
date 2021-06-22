@@ -3,7 +3,7 @@ use reqwest::{
   multipart,
 };
 use serde_json;
-use sp_ipld::{
+use ipld::{
   dag_cbor::{
     cid,
     DagCborCodec,

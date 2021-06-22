@@ -30,7 +30,7 @@ use crate::{
   },
 };
 
-use sp_cid::Cid;
+use cid::Cid;
 
 use crate::parse::span::Span;
 

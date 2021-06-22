@@ -1,4 +1,4 @@
-//#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 #[macro_use]
 extern crate alloc;
 
@@ -34,8 +34,8 @@ pub mod uses;
 
 #[cfg(test)]
 pub mod tests {
-  use sp_cid::Cid;
-  use sp_multihash::{
+  use cid::Cid;
+  use multihash::{
     Code,
     MultihashDigest,
   };

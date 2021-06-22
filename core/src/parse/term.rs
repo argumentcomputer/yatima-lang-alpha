@@ -18,14 +18,14 @@ use crate::{
   },
 };
 
-use sp_cid::Cid;
-use sp_multihash::{
+use cid::Cid;
+use multihash::{
   Code,
   MultihashDigest,
 };
 
-use sp_im::ConsList;
-use sp_ipld::{
+use sp_im::conslist::ConsList;
+use ipld::{
   dag_cbor::DagCborCodec,
   Codec,
 };

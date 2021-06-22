@@ -10,7 +10,7 @@ use crate::{
   yatima,
 };
 
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use ropey::Rope;
 

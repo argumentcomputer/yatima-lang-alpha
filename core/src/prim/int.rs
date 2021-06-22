@@ -2,7 +2,7 @@ use num_bigint::{
   BigInt,
   Sign,
 };
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use sp_std::{
   fmt,
@@ -205,7 +205,7 @@ pub mod tests {
     BigInt,
     BigUint
   };
-  use std::mem;
+  use sp_std::mem;
   impl Arbitrary for IntOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();

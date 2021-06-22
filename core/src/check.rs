@@ -16,7 +16,7 @@ use crate::{
   yatima,
 };
 
-use sp_cid::Cid;
+use cid::Cid;
 
 use core::ptr::NonNull;
 

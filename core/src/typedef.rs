@@ -7,6 +7,8 @@ use crate::{
 use sp_std::{
   iter::once,
   rc::Rc,
+  vec::Vec,
+  boxed::Box,
 };
 
 /// A type declaration syntax that allows for convenient expression of Yatima's

@@ -24,10 +24,10 @@ base-x = { version = "0.2.8", default-features = false }
 multibase = { version = "0.9.1", default-features = false }
 nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "master" }
 ropey = { git = "https://github.com/yatima-inc/ropey", branch = "master" }
-sp-ipld = { path = "../sp-ipld" }
-sp-multihash = { path = "../sp-multihash" }
-sp-cid = { path = "../sp-cid" }
-sp-im = { path = "../sp-im" }
+cid = { git = "https://github.com/yatima-inc/sp-ipld" }
+multihash = { git = "https://github.com/yatima-inc/sp-ipld" }
+ipld = { git = "https://github.com/yatima-inc/sp-ipld" }
+sp-im = { git = "https://github.com/yatima-inc/sp-im" }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

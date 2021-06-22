@@ -1,4 +1,4 @@
-use sp_im::ConsList;
+use sp_im::conslist::ConsList;
 use yatima_core::{
   defs::{
     Def,
@@ -29,7 +29,7 @@ use sp_std::{
   rc::Rc,
 };
 
-use sp_cid::Cid;
+use cid::Cid;
 use nom::{
   self,
   branch::alt,

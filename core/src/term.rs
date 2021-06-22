@@ -12,13 +12,14 @@ pub use crate::{
   uses::Uses,
 };
 
-use sp_cid::Cid;
+use cid::Cid;
 
 use sp_std::{
   fmt,
   boxed::Box,
   borrow::ToOwned,
   rc::Rc,
+
 };
 
 use alloc::{

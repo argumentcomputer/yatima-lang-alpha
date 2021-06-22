@@ -28,7 +28,7 @@ use sp_std::{
 };
 
 use alloc::string::String;
-use sp_cid::Cid;
+use cid::Cid;
 
 pub struct DAG {
   pub head: DAGPtr,

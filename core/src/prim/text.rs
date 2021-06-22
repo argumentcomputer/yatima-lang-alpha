@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use ropey::Rope;
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use sp_std::{
   fmt,
@@ -438,7 +438,7 @@ pub mod tests {
     Bytes
   };
   use crate::prim::tests::TestArg3;
-  use std::mem;
+  use sp_std::mem;
   use core::fmt::Debug;
   impl Arbitrary for TextOp {
     fn arbitrary(_g: &mut Gen) -> Self {

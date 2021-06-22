@@ -1,4 +1,4 @@
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use sp_std::{
   fmt,
@@ -154,7 +154,7 @@ pub mod tests {
   };
   use rand::Rng;
   use Literal::Bool;
-  use std::mem;
+  use sp_std::mem;
   impl Arbitrary for BoolOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();

@@ -12,8 +12,8 @@ default = ["console_error_panic_hook"]
 [dependencies]
 yatima-core = { path = "../core" }
 yatima-utils = { path = "../utils" }
-sp-cid = { path = "../sp-cid" }
-sp-ipld = { path = "../sp-ipld" }
+cid = { git = "https://github.com/yatima-inc/sp-ipld" }
+ipld = { git = "https://github.com/yatima-inc/sp-ipld" }
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"
 wasm-bindgen-futures = "0.4.22"

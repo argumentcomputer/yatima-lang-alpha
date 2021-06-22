@@ -11,7 +11,7 @@ use crate::{
   term::Term,
 };
 
-use sp_cid::Cid;
+use cid::Cid;
 
 use sp_std::{
   fmt,

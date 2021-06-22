@@ -1,4 +1,4 @@
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use sp_std::{
   fmt,
@@ -356,7 +356,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use std::mem;
+  use sp_std::mem;
   use Literal::{
     Bool,
     Char,

@@ -1,4 +1,4 @@
-use sp_cid::Cid;
+use cid::Cid;
 use petgraph::{
   dot::Dot,
   graph::{

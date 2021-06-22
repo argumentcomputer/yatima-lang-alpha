@@ -1,4 +1,4 @@
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use sp_std::{
   convert::TryFrom,

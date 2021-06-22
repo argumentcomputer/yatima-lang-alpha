@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use sp_std::{
   fmt,
@@ -193,7 +193,7 @@ pub mod tests {
     Bool
   };
   use num_bigint::BigUint;
-  use std::mem;
+  use sp_std::mem;
   impl Arbitrary for NatOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();

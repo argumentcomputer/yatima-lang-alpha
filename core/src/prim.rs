@@ -23,7 +23,7 @@ use sp_std::{
 
 use alloc::string::String;
 
-use sp_ipld::Ipld;
+use ipld::Ipld;
 
 use crate::{
   ipld_error::IpldError,

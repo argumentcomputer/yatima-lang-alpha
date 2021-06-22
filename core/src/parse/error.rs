@@ -26,7 +26,7 @@ use sp_std::{
   vec::Vec,
 };
 
-use sp_im::ConsList;
+use sp_im::conslist::ConsList;
 
 use alloc::string::String;
 
