@@ -4,10 +4,15 @@ use crate::{
   uses::*,
 };
 
-use std::collections::{
-  HashMap,
-  VecDeque,
+use sp_std::{
+  collections::{
+    vec_deque::VecDeque,
+    btree_map::BTreeMap,
+  },
+  vec::Vec,
 };
+
+use alloc::string::String;
 
 // Optimization: use of `*mut DAGPtr` instead of `DAG`. The context does not
 // need to hold full, "autonomous" DAGs. Instead it can keep references to parts
@@ -59,7 +64,7 @@ pub fn error_context(ctx: &Ctx) -> ErrCtx {
   let mut res: ErrCtx = VecDeque::new();
   for (n, uses, ptr) in ctx {
     let dagptr = unsafe { **ptr };
-    let mut map = HashMap::new();
+    let mut map = BTreeMap::new();
     res.push_back((
       n.clone(),
       *uses,

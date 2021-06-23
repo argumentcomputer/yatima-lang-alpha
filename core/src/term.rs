@@ -12,11 +12,17 @@ pub use crate::{
   uses::Uses,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 
 use sp_std::{
   fmt,
+  boxed::Box,
+  borrow::ToOwned,
   rc::Rc,
+};
+
+use alloc::{
+  string::{String, ToString},
 };
 
 #[derive(Clone, Debug)]
@@ -491,7 +497,11 @@ pub mod tests {
   };
   use rand::Rng;
 
-  use std::collections::VecDeque;
+  use sp_std::{
+    collections::vec_deque::VecDeque,
+    vec::Vec,
+    boxed::Box,
+  };
 
   use crate::{
     name::Name,

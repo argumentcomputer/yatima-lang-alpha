@@ -1,5 +1,5 @@
 use crate::ipld_error::IpldError;
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::{
   dag_cbor::cid,
   Ipld,
@@ -14,7 +14,11 @@ use crate::{
   uses::Uses,
 };
 
-use std::convert::TryInto;
+use sp_std::{
+  convert::TryInto,
+  boxed::Box,
+  borrow::ToOwned,
+};
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Anon {
