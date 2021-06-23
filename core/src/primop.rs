@@ -16,7 +16,6 @@ use num_bigint::{
   Sign,
 };
 
-#[macro_use]
 use sp_std::{
   fmt,
   borrow::ToOwned,

@@ -29,7 +29,7 @@ use sp_std::{
   rc::Rc,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 use nom::{
   self,
   branch::alt,

@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use ipld::Ipld;
+use sp_ipld::Ipld;
 use sp_std::{
   fmt,
   vec::Vec,

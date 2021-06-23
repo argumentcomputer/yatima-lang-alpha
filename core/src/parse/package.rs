@@ -43,7 +43,7 @@ use nom::{
   IResult,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 use sp_im::conslist::ConsList;
 
 pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {

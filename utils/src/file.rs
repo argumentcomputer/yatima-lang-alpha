@@ -1,4 +1,4 @@
-use ipld::Ipld;
+use sp_ipld::Ipld;
 use std::{
   path::PathBuf,
   rc::Rc,

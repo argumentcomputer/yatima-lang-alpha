@@ -12,10 +12,10 @@ path = "src/main.rs"
 [dependencies]
 yatima-core = { path = "../core"}
 yatima-utils = { path = "../utils"}
-cid = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master"  }
-multihash = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master"  }
-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master"  }
-bytecursor = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master"  }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "master"  }
+sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "master"  }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master"  }
+bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
 multibase = "0.9.1"
 im  = "15.0.0"
 structopt = "0.3.21"

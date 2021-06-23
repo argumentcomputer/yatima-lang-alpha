@@ -1,5 +1,5 @@
-use cid::Cid;
-use ipld::Ipld;
+use sp_cid::Cid;
+use sp_ipld::Ipld;
 
 /// This trait describes the interations with
 /// externaly stored IPLD structures.

@@ -34,8 +34,8 @@ pub mod uses;
 
 #[cfg(test)]
 pub mod tests {
-  use cid::Cid;
-  use multihash::{
+  use sp_cid::Cid;
+  use sp_multihash::{
     Code,
     MultihashDigest,
   };

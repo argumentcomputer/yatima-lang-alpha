@@ -2,7 +2,7 @@ use num_bigint::{
   BigInt,
   Sign,
 };
-use ipld::Ipld;
+use sp_ipld::Ipld;
 
 use sp_std::{
   fmt,

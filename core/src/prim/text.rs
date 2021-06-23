@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use ropey::Rope;
-use ipld::Ipld;
+use sp_ipld::Ipld;
 
 use sp_std::{
   fmt,

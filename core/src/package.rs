@@ -5,8 +5,8 @@ use crate::{
   position::Pos,
 };
 
-use cid::Cid;
-use ipld::{
+use sp_cid::Cid;
+use sp_ipld::{
   dag_cbor::cid,
   Ipld,
 };

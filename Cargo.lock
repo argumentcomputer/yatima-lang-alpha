@@ -162,7 +162,7 @@ checksum = "72feb31ffc86498dacdbd0fcebb56138e7177a8cc5cea4516031d15ae85a742e"
 [[package]]
 name = "bytecursor"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#450ce6ef626d8a30c07afda2ef5a1a7866a84525"
+source = "git+https://github.com/yatima-inc/bytecursor?branch=main#ceddcf7148286582bdec89a9490a362fb602f4ff"
 dependencies = [
  "sp-std",
 ]
@@ -196,18 +196,6 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
-
-[[package]]
-name = "cid"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#450ce6ef626d8a30c07afda2ef5a1a7866a84525"
-dependencies = [
- "bytecursor",
- "multibase",
- "multihash",
- "sp-std",
- "unsigned-varint",
-]
 
 [[package]]
 name = "clap"
@@ -678,19 +666,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ipld"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#450ce6ef626d8a30c07afda2ef5a1a7866a84525"
-dependencies = [
- "bytecursor",
- "byteorder",
- "cid",
- "multihash",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
 name = "ipnet"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -810,37 +785,6 @@ dependencies = [
  "base-x",
  "data-encoding",
  "data-encoding-macro",
-]
-
-[[package]]
-name = "multihash"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#450ce6ef626d8a30c07afda2ef5a1a7866a84525"
-dependencies = [
- "blake2b_simd",
- "blake2s_simd",
- "blake3",
- "bytecursor",
- "digest",
- "generic-array",
- "multihash-derive",
- "sha2",
- "sha3",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "multihash-derive"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#450ce6ef626d8a30c07afda2ef5a1a7866a84525"
-dependencies = [
- "proc-macro-crate",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
 ]
 
 [[package]]
@@ -1451,6 +1395,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-cid"
+version = "0.1.0"
+source = "git+https://github.com/yatima-inc/sp-cid?branch=master#b80fa29d99a87f8aae46d4a105fcbe9f654a260d"
+dependencies = [
+ "bytecursor",
+ "multibase",
+ "sp-multihash",
+ "sp-std",
+ "unsigned-varint",
+]
+
+[[package]]
 name = "sp-im"
 version = "0.0.1"
 source = "git+https://github.com/yatima-inc/sp-im?branch=main#8c0683261b9b85a95eb9c5ea204e31d538ee7ae9"
@@ -1462,6 +1418,50 @@ dependencies = [
  "sp-std",
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "sp-ipld"
+version = "0.1.0"
+source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#af6810d260b8a0422e3a5f86db79f44205c5f943"
+dependencies = [
+ "bytecursor",
+ "byteorder",
+ "sp-cid",
+ "sp-multihash",
+ "sp-std",
+ "unsigned-varint",
+]
+
+[[package]]
+name = "sp-multihash"
+version = "0.1.0"
+source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
+dependencies = [
+ "blake2b_simd",
+ "blake2s_simd",
+ "blake3",
+ "bytecursor",
+ "digest",
+ "generic-array",
+ "sha2",
+ "sha3",
+ "sp-multihash-derive",
+ "sp-std",
+ "unsigned-varint",
+]
+
+[[package]]
+name = "sp-multihash-derive"
+version = "0.1.0"
+source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]
@@ -1958,13 +1958,10 @@ dependencies = [
  "base-x",
  "bit-vec",
  "bytecursor",
- "cid",
  "directories-next",
  "futures",
  "im",
- "ipld",
  "multibase",
- "multihash",
  "nom",
  "nom_locate 3.0.1",
  "quickcheck",
@@ -1974,6 +1971,9 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
+ "sp-cid",
+ "sp-ipld",
+ "sp-multihash",
  "structopt",
  "tokio",
  "yatima-core",
@@ -1985,10 +1985,7 @@ name = "yatima-core"
 version = "0.1.0"
 dependencies = [
  "base-x",
- "cid",
- "ipld",
  "multibase",
- "multihash",
  "nom",
  "nom_locate 3.0.0",
  "num-bigint",
@@ -1996,7 +1993,10 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "ropey",
+ "sp-cid",
  "sp-im",
+ "sp-ipld",
+ "sp-multihash",
  "sp-std",
 ]
 
@@ -2006,11 +2006,8 @@ version = "0.1.0"
 dependencies = [
  "base-x",
  "bit-vec",
- "cid",
  "im",
- "ipld",
  "multibase",
- "multihash",
  "nom",
  "nom_locate 3.0.1",
  "num-bigint",
@@ -2018,7 +2015,10 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "sp-cid",
  "sp-im",
+ "sp-ipld",
+ "sp-multihash",
  "sp-std",
  "yatima-core",
 ]
@@ -2027,10 +2027,10 @@ dependencies = [
 name = "yatima-web"
 version = "0.1.0"
 dependencies = [
- "cid",
  "console_error_panic_hook",
- "ipld",
  "js-sys",
+ "sp-cid",
+ "sp-ipld",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

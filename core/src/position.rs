@@ -3,8 +3,8 @@ use crate::{
   parse::span::Span,
 };
 
-use cid::Cid;
-use ipld::Ipld;
+use sp_cid::Cid;
+use sp_ipld::Ipld;
 
 use sp_std::{
   convert::TryInto,

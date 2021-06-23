@@ -9,9 +9,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 yatima-core = { path = "../core" }
 sp-std = { version = "3", default-features = false }
-cid = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master" }
-multihash = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master" }
-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master" }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "master" }
+sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "master" }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master" }
 multibase = "0.9.1"
 sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main" }
 im  = "15.0.0"

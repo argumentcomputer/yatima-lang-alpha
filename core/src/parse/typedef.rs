@@ -35,7 +35,7 @@ use sp_std::{
   vec::Vec,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 use sp_im::conslist::ConsList;
 
 pub fn parse_motive_binders(
