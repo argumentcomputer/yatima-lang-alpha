@@ -1,7 +1,16 @@
 use num_bigint::BigUint;
 use ropey::Rope;
 use sp_ipld::Ipld;
-use std::fmt;
+
+use sp_std::{
+  fmt,
+  borrow::ToOwned,
+  vec::Vec,
+};
+
+use alloc::{
+  string::{String, ToString},
+};
 
 use crate::{
   ipld_error::IpldError,
@@ -429,7 +438,7 @@ pub mod tests {
     Bytes
   };
   use crate::prim::tests::TestArg3;
-  use std::mem;
+  use sp_std::mem;
   use core::fmt::Debug;
   impl Arbitrary for TextOp {
     fn arbitrary(_g: &mut Gen) -> Self {

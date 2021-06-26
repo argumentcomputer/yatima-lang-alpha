@@ -1,6 +1,13 @@
 use sp_ipld::Ipld;
 
-use std::fmt;
+use sp_std::{
+  fmt,
+  borrow::ToOwned,
+};
+
+use alloc::{
+  string::{String, ToString},
+};
 
 use crate::{
   ipld_error::IpldError,
@@ -349,7 +356,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use std::mem;
+  use sp_std::mem;
   use Literal::{
     Bool,
     Char,

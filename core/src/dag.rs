@@ -16,23 +16,26 @@ use crate::{
 };
 
 use core::ptr::NonNull;
-use std::{
+
+use sp_std::{
   collections::{
-    HashMap,
-    HashSet,
+    btree_map::BTreeMap,
+    btree_set::BTreeSet,
   },
   fmt,
   mem,
+  boxed::Box,
 };
 
-use cid::Cid;
+use alloc::string::String;
+use sp_cid::Cid;
 
 pub struct DAG {
   pub head: DAGPtr,
 }
 
 // A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DAGPtr {
   Var(NonNull<Var>),
   Lam(NonNull<Lam>),
@@ -675,7 +678,7 @@ impl DAG {
 
   pub fn dag_ptr_to_term(
     node: &DAGPtr,
-    map: &mut HashMap<*mut Var, u64>,
+    map: &mut BTreeMap<*mut Var, u64>,
     depth: u64,
     re_rec: bool,
   ) -> Term {
@@ -818,13 +821,13 @@ impl DAG {
   }
 
   pub fn to_term(&self, re_rec: bool) -> Term {
-    let mut map = HashMap::new();
+    let mut map = BTreeMap::new();
     DAG::dag_ptr_to_term(&self.head, &mut map, 0, re_rec)
   }
 
   pub fn from_term(tree: &Term) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(DAG::from_term_inner(tree, 0, HashMap::new(), Some(root), None))
+    DAG::new(DAG::from_term_inner(tree, 0, BTreeMap::new(), Some(root), None))
   }
 
   pub fn from_def(def: &Def, name: Name) -> Self {
@@ -835,7 +838,7 @@ impl DAG {
     DAG::new(DAG::from_term_inner(
       &def.term,
       0,
-      HashMap::new(),
+      BTreeMap::new(),
       Some(root),
       Some((name, def_cid, ast_cid)),
     ))
@@ -851,7 +854,7 @@ impl DAG {
     DAG::from_term_inner(
       &def.term,
       0,
-      HashMap::new(),
+      BTreeMap::new(),
       parents,
       Some((name, def_cid, ast_cid)),
     )
@@ -860,7 +863,7 @@ impl DAG {
   pub fn from_term_inner(
     tree: &Term,
     depth: u64,
-    mut ctx: HashMap<usize, DAGPtr>,
+    mut ctx: BTreeMap<usize, DAGPtr>,
     parents: Option<NonNull<Parents>>,
     rec_ref: Option<(Name, Cid, Cid)>,
   ) -> DAGPtr {
@@ -1114,7 +1117,7 @@ impl DAG {
 
   pub fn from_subdag(
     node: DAGPtr,
-    map: &mut HashMap<DAGPtr, DAGPtr>,
+    map: &mut BTreeMap<DAGPtr, DAGPtr>,
     parents: Option<NonNull<Parents>>,
   ) -> DAGPtr {
     // If the node is in the hash map then it was already copied,
@@ -1340,7 +1343,7 @@ impl DAG {
 
 impl Clone for DAG {
   fn clone(&self) -> Self {
-    let mut map: HashMap<DAGPtr, DAGPtr> = HashMap::new();
+    let mut map: BTreeMap<DAGPtr, DAGPtr> = BTreeMap::new();
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
     DAG::new(DAG::from_subdag(self.head, &mut map, Some(root)))
   }
@@ -1384,7 +1387,7 @@ impl fmt::Debug for DAG {
         _ => String::from("[]"),
       }
     }
-    fn go(term: DAGPtr, set: &mut HashSet<usize>) -> String {
+    fn go(term: DAGPtr, set: &mut BTreeSet<usize>) -> String {
       match term {
         DAGPtr::Var(link) => {
           let Var { nam, parents, binder, dep, .. } = unsafe { link.as_ref() };
@@ -1606,7 +1609,7 @@ impl fmt::Debug for DAG {
         }
       }
     }
-    write!(f, "{}", go(self.head, &mut HashSet::new()))
+    write!(f, "{}", go(self.head, &mut BTreeSet::new()))
   }
 }
 

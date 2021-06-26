@@ -11,11 +11,17 @@ use crate::{
   term::Term,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 
-use std::collections::HashMap;
+use sp_std::{
+  fmt,
+  vec::Vec,
+  collections::btree_map::BTreeMap,
+};
 
-use std::fmt;
+use alloc::{
+  string::{String, ToString},
+};
 
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -38,8 +44,8 @@ impl PartialEq for Def {
 /// A map of content-ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
-  pub defs: HashMap<Cid, Def>,
-  pub names: HashMap<Name, Cid>,
+  pub defs: BTreeMap<Cid, Def>,
+  pub names: BTreeMap<Name, Cid>,
 }
 
 impl Def {
@@ -98,7 +104,7 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: HashMap::new(), names: HashMap::new() } }
+  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
 
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
@@ -183,7 +189,7 @@ pub mod tests {
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term =
-      arbitrary_term(g, true, test_defs(), std::collections::VecDeque::new());
+      arbitrary_term(g, true, test_defs(), sp_std::collections::vec_deque::VecDeque::new());
     Def::make(Pos::None, typ_, term)
   }
 

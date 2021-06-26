@@ -4,7 +4,12 @@ use num_bigint::{
 };
 use sp_ipld::Ipld;
 
-use std::fmt;
+use sp_std::{
+  fmt,
+  borrow::ToOwned,
+};
+
+use alloc::string::String;
 
 use crate::{
   ipld_error::IpldError,
@@ -200,7 +205,7 @@ pub mod tests {
     BigInt,
     BigUint
   };
-  use std::mem;
+  use sp_std::mem;
   impl Arbitrary for IntOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();

@@ -32,10 +32,11 @@ use sp_std::{
   cell::RefCell,
   collections::vec_deque::VecDeque,
   rc::Rc,
+  vec::Vec,
 };
 
-use cid::Cid;
-use sp_im::ConsList;
+use sp_cid::Cid;
+use sp_im::conslist::ConsList;
 
 pub fn parse_motive_binders(
   input: Cid,

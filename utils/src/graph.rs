@@ -1,4 +1,4 @@
-use cid::Cid;
+use sp_cid::Cid;
 use petgraph::{
   dot::Dot,
   graph::{
@@ -8,7 +8,7 @@ use petgraph::{
   },
 };
 
-use crate::{
+use yatima_core::{
   dag::*,
   dll::DLL,
   literal::{
@@ -488,7 +488,7 @@ pub fn to_dot<'a>(graph: &'a Graph) -> Dot<'a, &'a Graph> {
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::eval::test::parse;
+  use yatima_core::eval::test::parse;
 
   #[test]
   fn test() {

@@ -5,8 +5,15 @@ use crate::{
   name::Name,
   position::Pos,
 };
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::Ipld;
+
+use sp_std::{
+  boxed::Box,
+  borrow::ToOwned,
+};
+
+use alloc::string::ToString;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Meta {

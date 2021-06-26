@@ -1,6 +1,10 @@
 use crate::ipld_error::IpldError;
 use sp_ipld::Ipld;
-use std::fmt;
+use sp_std::{
+  fmt,
+  ops,
+  borrow::ToOwned,
+};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Uses {
@@ -10,7 +14,7 @@ pub enum Uses {
   Many,
 }
 
-impl std::ops::Mul for Uses {
+impl ops::Mul for Uses {
   type Output = Self;
 
   fn mul(self, rhs: Self) -> Self {
@@ -23,7 +27,7 @@ impl std::ops::Mul for Uses {
   }
 }
 
-impl std::ops::Add for Uses {
+impl ops::Add for Uses {
   type Output = Self;
 
   fn add(self, rhs: Self) -> Self {
@@ -35,7 +39,7 @@ impl std::ops::Add for Uses {
   }
 }
 
-impl std::ops::Sub for Uses {
+impl ops::Sub for Uses {
   type Output = Option<Self>;
 
   fn sub(self, rhs: Self) -> Option<Self> {
@@ -54,7 +58,7 @@ impl std::ops::Sub for Uses {
 // Division-remainder for multiplicities is as follows: if x and y are
 // multiplicities, then x/y and x%y are such that x = y*(x/y) + x%y in such a
 // way that x/y and x%y are maximal, with x/y taking precedence.
-impl std::ops::Div for Uses {
+impl ops::Div for Uses {
   type Output = Self;
 
   fn div(self, rhs: Self) -> Self {
@@ -70,7 +74,7 @@ impl std::ops::Div for Uses {
   }
 }
 
-impl std::ops::Rem for Uses {
+impl sp_std::ops::Rem for Uses {
   type Output = Self;
 
   fn rem(self, rhs: Self) -> Self {
@@ -143,6 +147,11 @@ pub mod tests {
   };
 
   use crate::tests::frequency;
+
+  use sp_std::{
+    vec::Vec,
+    boxed::Box,
+  };
 
   impl Arbitrary for Uses {
     fn arbitrary(g: &mut Gen) -> Self {

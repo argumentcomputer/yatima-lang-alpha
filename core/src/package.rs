@@ -7,10 +7,19 @@ use crate::{
   position::Pos,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::{
   dag_cbor::cid,
   Ipld,
+};
+
+use sp_std::{
+  vec::Vec,
+  borrow::ToOwned,
+};
+
+use alloc::{
+  string::{String, ToString},
 };
 
 #[derive(PartialEq, Clone, Debug)]

@@ -18,20 +18,28 @@ use crate::{
   },
 };
 
-use cid::Cid;
-use multihash::{
+use sp_cid::Cid;
+use sp_multihash::{
   Code,
   MultihashDigest,
 };
 
-use sp_im::ConsList;
+use sp_im::conslist::ConsList;
 use sp_ipld::{
   dag_cbor::DagCborCodec,
   Codec,
 };
+
 use sp_std::{
-  cell::RefCell,
   rc::Rc,
+  vec::Vec,
+  boxed::Box,
+  borrow::ToOwned,
+  cell::RefCell,
+};
+
+use alloc::{
+  string::{String, ToString},
 };
 
 use crate::parse::span::Span;
@@ -71,7 +79,7 @@ use nom::{
   Err,
   IResult,
 };
-use std::collections::VecDeque;
+use sp_std::collections::vec_deque::VecDeque;
 
 pub type Ctx = ConsList<Name>;
 

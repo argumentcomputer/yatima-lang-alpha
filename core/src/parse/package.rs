@@ -27,6 +27,7 @@ use sp_std::{
   collections::vec_deque::VecDeque,
   convert::TryFrom,
   rc::Rc,
+  vec::Vec,
 };
 
 use nom::{
@@ -42,8 +43,8 @@ use nom::{
   IResult,
 };
 
-use cid::Cid;
-use sp_im::ConsList;
+use sp_cid::Cid;
+use sp_im::conslist::ConsList;
 
 pub fn parse_link(from: Span) -> IResult<Span, Cid, ParseError<Span>> {
   let (upto, (_, bytes)) = parse_multibase()(from)?;

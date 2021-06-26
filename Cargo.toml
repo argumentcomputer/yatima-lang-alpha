@@ -4,8 +4,6 @@ members = [
   "cli",
   "utils",
   "web",
-  "sp_im",
-  "sp_ipld"
 ]
 
 [profile.dev]
