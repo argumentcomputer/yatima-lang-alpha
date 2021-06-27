@@ -177,7 +177,7 @@ cargo build
 
 To run the test-suite:
 ```bash
-cargo test --all
+cargo test --all --all-features
 ```
 
 To install the yatima binary:
