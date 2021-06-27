@@ -9,9 +9,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 yatima-core = { path = "../core" }
 sp-std = { version = "3", default-features = false }
-sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "master" }
-sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "master" }
-sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master" }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
+sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main" }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
 multibase = "0.9.1"
 sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main" }
 im  = "15.0.0"
@@ -21,6 +21,6 @@ nom = "6.0.1"
 nom_locate = "3.0.1"
 base-x = "0.2.8"
 petgraph = "0.5.1"
-ropey = {git = "https://github.com/yatima-inc/ropey", branch = "master"}
+ropey = {git = "https://github.com/yatima-inc/ropey", branch = "main"}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
