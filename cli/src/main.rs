@@ -1,4 +1,4 @@
-use cid::Cid;
+use sp_cid::Cid;
 use nom::{
   error::ParseError,
   Finish,
@@ -73,7 +73,7 @@ enum ShowType {
 
 fn parse_cid(
   s: &str,
-) -> Result<Cid, yatima_core::parse::error::ParseError<LocatedSpan<&str>>> {
+) -> Result<Cid, yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>> {
   let result = yatima_core::parse::package::parse_link(
     yatima_core::parse::span::Span::new(&s),
   )

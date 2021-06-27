@@ -10,7 +10,7 @@ name = "yatima"
 path = "src/main.rs"
 
 [dependencies]
-yatima-core = { path = "../core"}
+yatima-core = { path = "../core", features = ["std"]}
 yatima-utils = { path = "../utils"}
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
 sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
@@ -20,7 +20,7 @@ multibase = "0.9.1"
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"
-nom_locate = "3.0.1"
+nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "main"}
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"

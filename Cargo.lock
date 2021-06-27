@@ -1963,7 +1963,7 @@ dependencies = [
  "im",
  "multibase",
  "nom",
- "nom_locate 3.0.1",
+ "nom_locate 3.0.0",
  "quickcheck",
  "quickcheck_macros",
  "rand",
