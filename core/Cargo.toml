@@ -22,11 +22,11 @@ num-bigint = { version = "0.3", default-features = false }
 nom = { version = "6", default-features = false, features = ["alloc"] }
 base-x = { version = "0.2.8", default-features = false }
 multibase = { version = "0.9.1", default-features = false }
-nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "master" }
-ropey = { git = "https://github.com/yatima-inc/ropey", branch = "master" }
-sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "master" }
-sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "master" }
-sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "master"  }
+nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "main" }
+ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
+sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main" }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
 sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main"  }
 
 [dev-dependencies]
