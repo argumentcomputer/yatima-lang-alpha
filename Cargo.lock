@@ -833,7 +833,7 @@ dependencies = [
 [[package]]
 name = "nom_locate"
 version = "3.0.0"
-source = "git+https://github.com/yatima-inc/nom_locate?branch=master#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
+source = "git+https://github.com/yatima-inc/nom_locate?branch=main#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
 dependencies = [
  "bytecount",
  "memchr",
@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "ropey"
 version = "1.2.0"
-source = "git+https://github.com/yatima-inc/ropey?branch=master#a963a69cd748846ad5810413817178ce28501acd"
+source = "git+https://github.com/yatima-inc/ropey?branch=main#a963a69cd748846ad5810413817178ce28501acd"
 dependencies = [
  "smallvec",
  "sp-std",
@@ -1397,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "sp-cid"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-cid?branch=master#b80fa29d99a87f8aae46d4a105fcbe9f654a260d"
+source = "git+https://github.com/yatima-inc/sp-cid?branch=main#36c5e19bfd986d24a2890011e036fe8cc728fd47"
 dependencies = [
  "bytecursor",
  "multibase",
@@ -1423,7 +1423,7 @@ dependencies = [
 [[package]]
 name = "sp-ipld"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#af6810d260b8a0422e3a5f86db79f44205c5f943"
+source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#83e38948923513a5c10515b1a31f22641150dd4e"
 dependencies = [
  "bytecursor",
  "byteorder",
@@ -1436,7 +1436,7 @@ dependencies = [
 [[package]]
 name = "sp-multihash"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
+source = "git+https://github.com/yatima-inc/sp-multihash?branch=main#5013731551e5d4e77067e14891dfbdf2a1efe349"
 dependencies = [
  "blake2b_simd",
  "blake2s_simd",
@@ -1454,7 +1454,7 @@ dependencies = [
 [[package]]
 name = "sp-multihash-derive"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
+source = "git+https://github.com/yatima-inc/sp-multihash?branch=main#5013731551e5d4e77067e14891dfbdf2a1efe349"
 dependencies = [
  "proc-macro-crate",
  "proc-macro-error",
