@@ -1472,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "sp-ipld"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#83e38948923513a5c10515b1a31f22641150dd4e"
+source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#ce7e9c98ba89d6bcb762d76dab93ca06c4df678c"
 dependencies = [
  "bytecursor",
  "byteorder",
