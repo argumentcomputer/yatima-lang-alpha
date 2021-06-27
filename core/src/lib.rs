@@ -1,3 +1,7 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+#[macro_use]
+extern crate alloc;
+
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]
@@ -13,7 +17,6 @@ pub mod defs;
 pub mod dll;
 pub mod embed_error;
 pub mod eval;
-pub mod graph;
 pub mod ipld_error;
 pub mod literal;
 pub mod meta;
@@ -31,8 +34,8 @@ pub mod uses;
 
 #[cfg(test)]
 pub mod tests {
-  use cid::Cid;
-  use multihash::{
+  use sp_cid::Cid;
+  use sp_multihash::{
     Code,
     MultihashDigest,
   };
@@ -52,7 +55,7 @@ pub mod tests {
 
   pub fn frequency<T, F: Fn(&mut Gen) -> T>(
     g: &mut Gen,
-    gens: Vec<(i64, F)>,
+    gens: sp_std::vec::Vec<(i64, F)>,
   ) -> T {
     if gens.iter().any(|(v, _)| *v < 0) {
       panic!("Negative weight");

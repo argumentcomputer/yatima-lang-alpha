@@ -20,9 +20,15 @@ use num_bigint::{
   Sign,
 };
 
-use std::{
+use sp_std::{
   convert::TryInto,
   fmt,
+  vec::Vec,
+  borrow::ToOwned,
+};
+
+use alloc::{
+  string::{String, ToString},
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -309,7 +315,7 @@ impl Literal {
             .try_into()
             .map_or_else(|e| Err(IpldError::ByteCount(e, 4)), Ok)?;
           let x: u32 = u32::from_be_bytes(x);
-          match std::char::from_u32(x) {
+          match char::from_u32(x) {
             Some(c) => Ok(Self::Char(c)),
             None => Err(IpldError::UnicodeChar(x)),
           }
@@ -530,6 +536,10 @@ pub mod tests {
   };
 
   use crate::tests::frequency;
+  use sp_std::{
+    vec::Vec,
+    boxed::Box,
+  };
 
   pub fn arbitrary_nat() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {

@@ -1,5 +1,5 @@
 [package]
-name = "yatima_web"
+name = "yatima-web"
 version = "0.1.0"
 edition = "2018"
 
@@ -10,11 +10,12 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-yatima_core = { path = "../core" }
-yatima_utils = { path = "../utils" }
+yatima-core = { path = "../core" }
+yatima-utils = { path = "../utils" }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
+bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
 multiaddr = "*"
-cid = "0.6.1"
-sp-ipld = { path = "../sp_ipld" }
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"
 base64 = "0.13.0"
@@ -41,3 +42,4 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.12"
+#Also do you know how to pipe cargo commands into a file, grep etc? The usual bash commands don't work on it

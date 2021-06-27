@@ -102,7 +102,6 @@ For more examples of Yatima code please refer to the `introit` standard library:
 - Yatima's approach to inductive datatypes is based on [Self Types for Dependently Typed Lambda Encodings](https://homepage.divms.uiowa.edu/~astump/papers/fu-stump-rta-tlca-14.pdf).
 - Yatima's quantitative types are based on [Syntax and Semantics of Quantitative Type Theory](https://bentnib.org/quantitative-type-theory.pdf).
 - Many aspects of the language, particularly its libraries and type-equality algorithm, are adapted from the authors' previous work on [The Formality proof language](https://github.com/moonad/Formality-tmp).
-- The `hashexpr` content-addressing schema is an adaptation of IPFS' [Multiformats](https://multiformats.io/) and [IPLD](https://docs.ipld.io/) to align with [Rivest's Canonical S-exprssions](https://people.csail.mit.edu/rivest/Sexp.txt) rather than JSON.
 
 
 Come chat with us on Matrix: [#yatima:matrix.org](https://matrix.to/#/!bBgWgXJqeKuDuiUYWN:matrix.org?via=matrix.org) or on the [Yatima subreddit](https://www.reddit.com/r/yatima/)

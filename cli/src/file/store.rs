@@ -1,12 +1,11 @@
 use directories_next::ProjectDirs;
 
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::{
   dag_cbor::{
     cid,
     DagCborCodec,
   },
-  ByteCursor,
   Codec,
   Ipld,
 };
@@ -28,6 +27,7 @@ use tokio::{
   task,
 };
 use yatima_utils::store::Store;
+use bytecursor::ByteCursor;
 
 pub fn hashspace_directory() -> PathBuf {
   let proj_dir =

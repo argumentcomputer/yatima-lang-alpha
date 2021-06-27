@@ -1,7 +1,5 @@
 use crate::file;
-use cid::Cid;
 use multiaddr::Multiaddr;
-use sp_ipld::ipld::Ipld;
 use std::rc::Rc;
 use yatima_core::{
   anon,
@@ -15,6 +13,8 @@ use yatima_core::{
     Package,
   },
 };
+use sp_cid::Cid;
+use sp_ipld::Ipld;
 
 /// This trait describes the interactions with
 /// externally stored IPLD structures.

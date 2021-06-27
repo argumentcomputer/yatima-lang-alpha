@@ -10,16 +10,16 @@ use yatima_utils::{
   log,
   store::Store,
 };
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::{
   Codec,
-  bytecursor::ByteCursor,
   dag_cbor::{
     DagCborCodec,
     cid
   },
   Ipld,
 };
+use bytecursor::ByteCursor;
 
 #[derive(Debug, Clone)]
 pub struct WebStore {

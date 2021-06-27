@@ -14,4 +14,4 @@ jobs:
         toolchain: nightly
     - run: rustup default nightly
     - uses: Swatinem/rust-cache@v1
-    - run: cargo test --all
+    - run: cargo test --all --all-features
