@@ -21,7 +21,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2.3.4
     - run: rustup toolchain update nightly && rustup default nightly 
-    - run: cargo +nightly bench | tee benchmark_output.txt 
+    - run: cargo +nightly bench --all | tee benchmark_output.txt 
     - name: Store benchmark result 
       uses: rhysd/github-action-benchmark@v1
       with:
