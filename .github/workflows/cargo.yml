@@ -15,3 +15,23 @@ jobs:
     - run: rustup default nightly
     - uses: Swatinem/rust-cache@v1
     - run: cargo test --all
+  benchmark: 
+    name: Performance regression check
+    runs-on: ubuntu-latest 
+    steps:
+    - uses: actions/checkout@v2.3.4
+    - run: rustup toolchain update nightly && rustup default nightly 
+    - run: cargo +nightly bench | tee benchmark_output.txt 
+    - name: Store benchmark result 
+      uses: rhysd/github-action-benchmark@v1
+      with:
+        name: "Benchmark"
+        tool: 'cargo'
+        output-file-path: benchmark_output.txt 
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        save-data-file: true        
+        alert-threshold: '200%'
+        comment-always: true
+        comment-on-alert: true 
+        fail-on-alert: true 
+        alert-comment-cc-users: '@brightly-salty,@samuelburnham'
