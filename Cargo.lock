@@ -552,9 +552,9 @@ dependencies = [
 
 [[package]]
 name = "hermit-abi"
-version = "0.1.18"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "322f4de77956e22ed0e5032c359a0f1273f1f7f0d79bfa3b8ffbc730d7fbcc5c"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
@@ -819,9 +819,9 @@ dependencies = [
 
 [[package]]
 name = "nom"
-version = "6.2.0"
+version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "046a595c7251e2f48b291c1b65d98ef1df51dbfbad46e99a1ff09729535a779e"
+checksum = "9c5c51b9083a3c620fa67a2a635d1ce7d95b897e957d6b28ff9a5da960a103a6"
 dependencies = [
  "bitvec",
  "funty",
@@ -963,9 +963,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc0e1f259c92177c30a4c9d177246edd0a3568b25756a977d0632cf8fa37e905"
+checksum = "8d31d11c69a6b52a174b42bdc0c30e5e11670f90788b2c471c31c1d17d449443"
 
 [[package]]
 name = "pin-utils"
@@ -1397,23 +1397,11 @@ dependencies = [
 [[package]]
 name = "sp-cid"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-cid?branch=main#36c5e19bfd986d24a2890011e036fe8cc728fd47"
+source = "git+https://github.com/yatima-inc/sp-cid?branch=main#f5e9eb55b48b2f6a037198d8f3e96e28fca631cb"
 dependencies = [
  "bytecursor",
  "multibase",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "sp-cid"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-cid?branch=master#b80fa29d99a87f8aae46d4a105fcbe9f654a260d"
-dependencies = [
- "bytecursor",
- "multibase",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=master)",
+ "sp-multihash",
  "sp-std",
  "unsigned-varint",
 ]
@@ -1435,25 +1423,12 @@ dependencies = [
 [[package]]
 name = "sp-ipld"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#83e38948923513a5c10515b1a31f22641150dd4e"
+source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#8e8b698b8ba165475f0a943d155f7d63f60d07a6"
 dependencies = [
  "bytecursor",
  "byteorder",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "sp-ipld"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#af6810d260b8a0422e3a5f86db79f44205c5f943"
-dependencies = [
- "bytecursor",
- "byteorder",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=master)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=master)",
+ "sp-cid",
+ "sp-multihash",
  "sp-std",
  "unsigned-varint",
 ]
@@ -1471,25 +1446,7 @@ dependencies = [
  "generic-array",
  "sha2",
  "sha3",
- "sp-multihash-derive 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "sp-multihash"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
-dependencies = [
- "blake2b_simd",
- "blake2s_simd",
- "blake3",
- "bytecursor",
- "digest",
- "generic-array",
- "sha2",
- "sha3",
- "sp-multihash-derive 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=master)",
+ "sp-multihash-derive",
  "sp-std",
  "unsigned-varint",
 ]
@@ -1498,19 +1455,6 @@ dependencies = [
 name = "sp-multihash-derive"
 version = "0.1.0"
 source = "git+https://github.com/yatima-inc/sp-multihash?branch=main#5013731551e5d4e77067e14891dfbdf2a1efe349"
-dependencies = [
- "proc-macro-crate",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
-]
-
-[[package]]
-name = "sp-multihash-derive"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
 dependencies = [
  "proc-macro-crate",
  "proc-macro-error",
@@ -2027,9 +1971,9 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
+ "sp-cid",
+ "sp-ipld",
+ "sp-multihash",
  "structopt",
  "tokio",
  "yatima-core",
@@ -2049,10 +1993,10 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "ropey",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
+ "sp-cid",
  "sp-im",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
+ "sp-ipld",
+ "sp-multihash",
  "sp-std",
 ]
 
@@ -2071,10 +2015,10 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
+ "sp-cid",
  "sp-im",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
+ "sp-ipld",
+ "sp-multihash",
  "sp-std",
  "yatima-core",
 ]
@@ -2085,8 +2029,8 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=master)",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=master)",
+ "sp-cid",
+ "sp-ipld",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
