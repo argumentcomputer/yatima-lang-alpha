@@ -14,15 +14,21 @@ pub use crate::{
 
 use sp_cid::Cid;
 
+use sp_im::{
+  OrdMap,
+  Vector,
+};
+
 use sp_std::{
-  fmt,
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
+  fmt,
   rc::Rc,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(Clone, Debug)]
@@ -42,6 +48,10 @@ pub enum Term {
   LTy(Pos, LitType),
   Opr(Pos, Op),
   Rec(Pos),
+  Vec(Pos, Box<Term>, Vector<Term>),
+  HVc(Pos, Vector<(Term, Term)>),
+  Map(Pos, Box<Term>, OrdMap<Name, Term>),
+  Mod(Pos, OrdMap<Name, (Term, Term)>),
 }
 
 impl PartialEq for Term {
@@ -73,6 +83,10 @@ impl PartialEq for Term {
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
       (Self::LTy(_, a), Self::LTy(_, b)) => a == b,
       (Self::Opr(_, a), Self::Opr(_, b)) => a == b,
+      (Self::Vec(_, ta, a), Self::Vec(_, tb, b)) => ta == tb && a == b,
+      (Self::HVc(_, a), Self::HVc(_, b)) => a == b,
+      (Self::Map(_, ta, a), Self::Map(_, tb, b)) => ta == tb && a == b,
+      (Self::Mod(_, a), Self::Mod(_, b)) => a == b,
       _ => false,
     }
   }
@@ -96,6 +110,10 @@ impl Term {
       Term::Lit(pos, _) => *pos,
       Term::Opr(pos, _) => *pos,
       Term::Rec(pos) => *pos,
+      Term::Vec(pos, ..) => *pos,
+      Term::HVc(pos, ..) => *pos,
+      Term::Map(pos, ..) => *pos,
+      Term::Mod(pos, ..) => *pos,
     }
   }
 
@@ -144,6 +162,30 @@ impl Term {
           )),
         )
       }
+      Self::Vec(pos, ty, vec) => Self::Vec(
+        pos,
+        Box::new(ty.shift(inc, dep)),
+        vec.into_iter().map(|x| x.shift(inc, dep)).collect(),
+      ),
+      Self::HVc(pos, arr) => Self::HVc(
+        pos,
+        arr
+          .into_iter()
+          .map(|(x, y)| (x.shift(inc, dep), y.shift(inc, dep)))
+          .collect(),
+      ),
+      Self::Map(pos, ty, mty) => Self::Map(
+        pos,
+        Box::new(ty.shift(inc, dep)),
+        mty.into_iter().map(|(n, x)| (n, x.shift(inc, dep))).collect(),
+      ),
+      Self::Mod(pos, map) => Self::Mod(
+        pos,
+        map
+          .into_iter()
+          .map(|(n, (x, y))| (n, (x.shift(inc, dep), y.shift(inc, dep))))
+          .collect(),
+      ),
       x => x,
     }
   }
@@ -190,6 +232,32 @@ impl Term {
           )),
         )
       }
+      Self::Vec(pos, ty, vec) => Self::Vec(
+        pos,
+        Box::new(ty.un_rec(trm.clone())),
+        vec.into_iter().map(|x| x.un_rec(trm.clone())).collect(),
+      ),
+      Self::HVc(pos, arr) => Self::HVc(
+        pos,
+        arr
+          .into_iter()
+          .map(|(x, y)| (x.un_rec(trm.clone()), y.un_rec(trm.clone())))
+          .collect(),
+      ),
+      Self::Map(pos, ty, map) => Self::Map(
+        pos,
+        Box::new(ty.un_rec(trm.clone())),
+        map.into_iter().map(|(n, x)| (n, x.un_rec(trm.clone()))).collect(),
+      ),
+      Self::Mod(pos, map) => Self::Mod(
+        pos,
+        map
+          .into_iter()
+          .map(|(n, (x, y))| {
+            (n, (x.un_rec(trm.clone()), y.un_rec(trm.clone())))
+          })
+          .collect(),
+      ),
       x => x,
     }
   }
@@ -266,6 +334,57 @@ impl Term {
           ),
         )
       }
+      Self::Vec(pos, ty, vec) => {
+        let (ty_anon, ty_meta) = ty.embed();
+        let mut anon = Vector::new();
+        let mut meta = Vector::new();
+        for x in vec {
+          let (a, m) = x.embed();
+          anon.push_back(a);
+          meta.push_back(m);
+        }
+        (
+          Anon::Vec(Box::new(ty_anon), anon),
+          Meta::Vec(*pos, Box::new(ty_meta), meta),
+        )
+      }
+      Self::HVc(pos, hvc) => {
+        let mut anon = Vector::new();
+        let mut meta = Vector::new();
+        for (typ, trm) in hvc {
+          let (typ_anon, typ_meta) = typ.embed();
+          let (trm_anon, trm_meta) = trm.embed();
+          anon.push_back((typ_anon, trm_anon));
+          meta.push_back((typ_meta, trm_meta));
+        }
+        (Anon::HVc(anon), Meta::HVc(*pos, meta))
+      }
+
+      Self::Map(pos, ty, map) => {
+        let (ty_anon, ty_meta) = ty.embed();
+        let mut anon = OrdMap::new();
+        let mut meta = OrdMap::new();
+        for (n, x) in map {
+          let (a, m) = x.embed();
+          anon.insert(n.clone(), a);
+          meta.insert(n.clone(), m);
+        }
+        (
+          Anon::Map(Box::new(ty_anon), anon),
+          Meta::Map(*pos, Box::new(ty_meta), meta),
+        )
+      }
+      Self::Mod(pos, map) => {
+        let mut anon = OrdMap::new();
+        let mut meta = OrdMap::new();
+        for (n, (typ, trm)) in map {
+          let (typ_anon, typ_meta) = typ.embed();
+          let (trm_anon, trm_meta) = trm.embed();
+          anon.insert(n.clone(), (typ_anon, trm_anon));
+          meta.insert(n.clone(), (typ_meta, trm_meta));
+        }
+        (Anon::Mod(anon), Meta::Mod(*pos, meta))
+      }
     }
   }
 
@@ -332,6 +451,48 @@ impl Term {
           Name::from(name.clone()),
           Box::new((typ, exp, bod)),
         ))
+      }
+      (Anon::Vec(typ_anon, vec_anon), Meta::Vec(pos, typ_meta, vec_meta)) => {
+        let typ = Term::unembed(typ_anon, typ_meta)?;
+        let mut res = Vector::new();
+        for (a, m) in vec_anon.iter().zip(vec_meta.iter()) {
+          let x = Term::unembed(a, m)?;
+          res.push_back(x);
+        }
+        Ok(Self::Vec(*pos, Box::new(typ), res))
+      }
+      (Anon::HVc(vec_anon), Meta::HVc(pos, vec_meta)) => {
+        let mut res = Vector::new();
+        for ((ta, a), (tm, m)) in vec_anon.iter().zip(vec_meta.iter()) {
+          let t = Term::unembed(ta, tm)?;
+          let x = Term::unembed(a, m)?;
+          res.push_back((t, x));
+        }
+        Ok(Self::HVc(*pos, res))
+      }
+      (Anon::Map(typ_anon, trms_anon), Meta::Map(pos, typ_meta, trms_meta)) => {
+        let typ = Term::unembed(typ_anon, typ_meta)?;
+        let mut res = OrdMap::new();
+        for (n, a) in trms_anon.iter() {
+          let m = trms_meta
+            .get(n)
+            .ok_or(EmbedError::Term(anon.clone(), meta.clone()))?;
+          let x = Term::unembed(a, m)?;
+          res.insert(n.clone(), x);
+        }
+        Ok(Self::Map(*pos, Box::new(typ), res))
+      }
+      (Anon::Mod(trms_anon), Meta::Mod(pos, trms_meta)) => {
+        let mut res = OrdMap::new();
+        for (n, (ta, a)) in trms_anon.iter() {
+          let (tm, m) = trms_meta
+            .get(n)
+            .ok_or(EmbedError::Term(anon.clone(), meta.clone()))?;
+          let t = Term::unembed(ta, tm)?;
+          let x = Term::unembed(a, m)?;
+          res.insert(n.clone(), (t, x));
+        }
+        Ok(Self::Mod(*pos, res))
       }
       (anon, meta) => Err(EmbedError::Term(anon.clone(), meta.clone())),
     }
@@ -468,6 +629,11 @@ impl Term {
       Lit(_, lit) => format!("{}", lit),
       LTy(_, lty) => format!("{}", lty),
       Opr(_, opr) => format!("{}", opr),
+      _ => todo!(),
+      /* Vec(_, typ, vec) => todo!(),
+       * HVc(_, vec) => todo!(),
+       * Map(_, typ, map) => todo!(),
+       * Mod(_, map) => todo!(), */
     }
   }
 }
@@ -498,9 +664,8 @@ pub mod tests {
   use rand::Rng;
 
   use sp_std::{
-    collections::vec_deque::VecDeque,
-    vec::Vec,
     boxed::Box,
+    vec::Vec,
   };
 
   use crate::{
@@ -519,7 +684,7 @@ pub mod tests {
     Name::from(format!("_{}", s))
   }
 
-  fn arbitrary_var(ctx: VecDeque<Name>) -> Box<dyn Fn(&mut Gen) -> Term> {
+  fn arbitrary_var(ctx: Vector<Name>) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       if ctx.len() == 0 {
         return Term::Typ(Pos::None);
@@ -556,8 +721,8 @@ pub mod tests {
   }
 
   fn arbitrary_ref(
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
@@ -585,8 +750,8 @@ pub mod tests {
 
   fn arbitrary_lam(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       let n = arbitrary_name(g);
@@ -598,8 +763,8 @@ pub mod tests {
 
   fn arbitrary_app(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::App(
@@ -614,8 +779,8 @@ pub mod tests {
 
   fn arbitrary_ann(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::Ann(
@@ -630,8 +795,8 @@ pub mod tests {
 
   fn arbitrary_slf(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       let n = arbitrary_name(g);
@@ -643,8 +808,8 @@ pub mod tests {
 
   fn arbitrary_dat(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::Dat(
@@ -656,8 +821,8 @@ pub mod tests {
 
   fn arbitrary_cse(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::Cse(
@@ -669,8 +834,8 @@ pub mod tests {
 
   fn arbitrary_all(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       let n = arbitrary_name(g);
@@ -691,8 +856,8 @@ pub mod tests {
 
   fn arbitrary_let(
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       // let rec: bool = Arbitrary::arbitrary(g);
@@ -716,12 +881,86 @@ pub mod tests {
       }
     })
   }
+  fn arbitrary_vec(
+    rec: bool,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
+  ) -> Box<dyn Fn(&mut Gen) -> Term> {
+    Box::new(move |g: &mut Gen| {
+      let typ = arbitrary_term(g, rec, defs.clone(), ctx.clone());
+      let mut rng = rand::thread_rng();
+      let gen = rng.gen_range(0..3);
+      let mut res = Vector::new();
+      for _ in 0..gen {
+        res.push_back(arbitrary_term(g, rec, defs.clone(), ctx.clone()));
+      }
+      Vec(Pos::None, Box::new(typ), res)
+    })
+  }
+  fn arbitrary_hvc(
+    rec: bool,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
+  ) -> Box<dyn Fn(&mut Gen) -> Term> {
+    Box::new(move |g: &mut Gen| {
+      let mut rng = rand::thread_rng();
+      let gen = rng.gen_range(0..3);
+      let mut res = Vector::new();
+      for _ in 0..gen {
+        res.push_back((
+          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
+          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
+        ));
+      }
+      HVc(Pos::None, res)
+    })
+  }
+
+  fn arbitrary_map(
+    rec: bool,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
+  ) -> Box<dyn Fn(&mut Gen) -> Term> {
+    Box::new(move |g: &mut Gen| {
+      let typ = arbitrary_term(g, rec, defs.clone(), ctx.clone());
+      let mut rng = rand::thread_rng();
+      let gen = rng.gen_range(0..2);
+      let mut res = OrdMap::new();
+      for _ in 0..gen {
+        let n = arbitrary_name(g);
+        res.insert(n, arbitrary_term(g, rec, defs.clone(), ctx.clone()));
+      }
+      Map(Pos::None, Box::new(typ), res)
+    })
+  }
+  fn arbitrary_mod(
+    rec: bool,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
+  ) -> Box<dyn Fn(&mut Gen) -> Term> {
+    Box::new(move |g: &mut Gen| {
+      let mut rng = rand::thread_rng();
+      let gen = rng.gen_range(0..2);
+      let mut res = OrdMap::new();
+      for _ in 0..gen {
+        let n = arbitrary_name(g);
+        res.insert(
+          n,
+          (
+            arbitrary_term(g, rec, defs.clone(), ctx.clone()),
+            arbitrary_term(g, rec, defs.clone(), ctx.clone()),
+          ),
+        );
+      }
+      Mod(Pos::None, res)
+    })
+  }
 
   pub fn arbitrary_term(
     g: &mut Gen,
     rec: bool,
-    defs: Defs,
-    ctx: VecDeque<Name>,
+    defs: Rc<Defs>,
+    ctx: Vector<Name>,
   ) -> Term {
     let len = ctx.len();
     if len == 0 {
@@ -744,13 +983,17 @@ pub mod tests {
         (80, arbitrary_app(rec, defs.clone(), ctx.clone())),
         (80, arbitrary_ann(rec, defs.clone(), ctx.clone())),
         (30, arbitrary_let(rec, defs.clone(), ctx.clone())),
+        //(10, arbitrary_vec(rec, defs.clone(), ctx.clone())),
+        //(10, arbitrary_hvc(rec, defs.clone(), ctx.clone())),
+        //(10, arbitrary_map(rec, defs.clone(), ctx.clone())),
+        //(10, arbitrary_mod(rec, defs.clone(), ctx.clone())),
       ])
     }
   }
 
   impl Arbitrary for Term {
     fn arbitrary(g: &mut Gen) -> Self {
-      arbitrary_term(g, false, test_defs(), VecDeque::new())
+      arbitrary_term(g, false, Rc::new(test_defs()), Vector::new())
     }
   }
 

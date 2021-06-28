@@ -41,4 +41,5 @@ pub enum IpldError {
   Import(Ipld),
   ImportEntry(Ipld),
   Package(Ipld),
+  ModTerm,
 }

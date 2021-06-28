@@ -31,15 +31,16 @@ use sp_ipld::{
 };
 
 use sp_std::{
+  borrow::ToOwned,
+  boxed::Box,
+  cell::RefCell,
   rc::Rc,
   vec::Vec,
-  boxed::Box,
-  borrow::ToOwned,
-  cell::RefCell,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 use crate::parse::span::Span;
@@ -1259,7 +1260,6 @@ pub mod tests {
   }
   #[test]
   fn test_parse_binders1() {
-    use Term::*;
     fn test(
       nam_opt: bool,
       i: &str,
@@ -1280,15 +1280,14 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, Name::from("_"), Typ(Pos::None)),
-          (Uses::Many, Name::from("_"), LTy(Pos::None, LitType::Text)),
+          (Uses::Many, Name::from("_"), Term::Typ(Pos::None)),
+          (Uses::Many, Name::from("_"), Term::LTy(Pos::None, LitType::Text)),
         ]
     );
   }
 
   #[test]
   fn test_parse_binders() {
-    use Term::*;
     fn test(
       nam_opt: bool,
       i: &str,
@@ -1311,8 +1310,8 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, Name::from("_"), Typ(Pos::None)),
-          (Uses::Many, Name::from("_"), Typ(Pos::None)),
+          (Uses::Many, Name::from("_"), Term::Typ(Pos::None)),
+          (Uses::Many, Name::from("_"), Term::Typ(Pos::None)),
         ]
     );
     let res = test(true, "(A: Type) (a b c: A):");
@@ -1320,10 +1319,22 @@ pub mod tests {
     assert!(
       res.unwrap().1
         == vec![
-          (Uses::Many, Name::from("A"), Typ(Pos::None)),
-          (Uses::Many, Name::from("a"), Var(Pos::None, Name::from("A"), 0)),
-          (Uses::Many, Name::from("b"), Var(Pos::None, Name::from("A"), 1)),
-          (Uses::Many, Name::from("c"), Var(Pos::None, Name::from("A"), 2)),
+          (Uses::Many, Name::from("A"), Term::Typ(Pos::None)),
+          (
+            Uses::Many,
+            Name::from("a"),
+            Term::Var(Pos::None, Name::from("A"), 0)
+          ),
+          (
+            Uses::Many,
+            Name::from("b"),
+            Term::Var(Pos::None, Name::from("A"), 1)
+          ),
+          (
+            Uses::Many,
+            Name::from("c"),
+            Term::Var(Pos::None, Name::from("A"), 2)
+          ),
         ]
     );
     let res = test(true, "(A: Type) (a b c: Unknown):");

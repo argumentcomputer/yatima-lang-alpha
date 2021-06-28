@@ -22,11 +22,11 @@ use core::ptr::NonNull;
 
 use alloc::string::ToString;
 use sp_std::{
+  borrow::ToOwned,
   collections::{
     btree_map::BTreeMap,
     btree_set::BTreeSet,
   },
-  borrow::ToOwned,
   mem,
 };
 
@@ -300,6 +300,7 @@ pub fn infer(
     Term::Dat(..) => {
       Err(CheckError::UntypedData(term.pos(), error_context(&ctx)))
     }
+    _ => todo!(),
   }
 }
 

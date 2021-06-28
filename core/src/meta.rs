@@ -6,9 +6,16 @@ use crate::{
 use sp_cid::Cid;
 use sp_ipld::Ipld;
 
+use sp_im::{
+  OrdMap,
+  Vector,
+};
+
 use sp_std::{
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
+  collections::btree_map::BTreeMap,
+  vec::Vec,
 };
 
 use alloc::string::ToString;
@@ -30,6 +37,10 @@ pub enum Meta {
   LTy(Pos),
   Opr(Pos),
   Rec(Pos),
+  Vec(Pos, Box<Meta>, Vector<Meta>),
+  HVc(Pos, Vector<(Meta, Meta)>),
+  Map(Pos, Box<Meta>, OrdMap<Name, Meta>),
+  Mod(Pos, OrdMap<Name, (Meta, Meta)>),
 }
 
 impl Meta {
@@ -108,6 +119,48 @@ impl Meta {
       Self::LTy(pos) => Ipld::List(vec![Ipld::Integer(12), pos.to_ipld()]),
       Self::Opr(pos) => Ipld::List(vec![Ipld::Integer(13), pos.to_ipld()]),
       Self::Rec(pos) => Ipld::List(vec![Ipld::Integer(14), pos.to_ipld()]),
+      Self::Vec(pos, typ, vec) => Ipld::List(vec![
+        Ipld::Integer(15),
+        pos.to_ipld(),
+        typ.to_ipld(),
+        Ipld::List(vec.into_iter().map(|x| x.to_ipld()).collect()),
+      ]),
+      Self::HVc(pos, arr) => {
+        let mut typs = Vec::new();
+        let mut trms = Vec::new();
+        for (t, x) in arr {
+          typs.push(t.to_ipld());
+          trms.push(x.to_ipld());
+        }
+        Ipld::List(vec![
+          Ipld::Integer(16),
+          pos.to_ipld(),
+          Ipld::List(typs),
+          Ipld::List(trms),
+        ])
+      }
+      Self::Map(pos, typ, mty) => Ipld::List(vec![
+        Ipld::Integer(17),
+        pos.to_ipld(),
+        typ.to_ipld(),
+        Ipld::StringMap(
+          mty.into_iter().map(|(k, v)| (k.to_string(), v.to_ipld())).collect(),
+        ),
+      ]),
+      Self::Mod(pos, mod_) => {
+        let mut typs = BTreeMap::new();
+        let mut trms = BTreeMap::new();
+        for (n, (t, x)) in mod_ {
+          typs.insert(n.to_string(), t.to_ipld());
+          trms.insert(n.to_string(), x.to_ipld());
+        }
+        Ipld::List(vec![
+          Ipld::Integer(18),
+          pos.to_ipld(),
+          Ipld::StringMap(typs),
+          Ipld::StringMap(trms),
+        ])
+      }
     }
   }
 
@@ -186,6 +239,48 @@ impl Meta {
         [Ipld::Integer(14), pos] => {
           let pos = Pos::from_ipld(pos)?;
           Ok(Self::Rec(pos))
+        }
+        [Ipld::Integer(15), pos, typ, Ipld::List(vec)] => {
+          let pos = Pos::from_ipld(pos)?;
+          let typ = Meta::from_ipld(typ)?;
+          let mut res = Vector::new();
+          for x in vec {
+            let x = Meta::from_ipld(x)?;
+            res.push_back(x);
+          }
+          Ok(Self::Vec(pos, Box::new(typ), res))
+        }
+        [Ipld::Integer(16), pos, Ipld::List(typs), Ipld::List(trms)] => {
+          let pos = Pos::from_ipld(pos)?;
+          let mut res = Vector::new();
+          for (t, x) in typs.iter().zip(trms.iter()) {
+            let t = Meta::from_ipld(t)?;
+            let x = Meta::from_ipld(x)?;
+            res.push_back((t, x));
+          }
+          Ok(Self::HVc(pos, res))
+        }
+        [Ipld::Integer(17), pos, typ, Ipld::StringMap(map)] => {
+          let pos = Pos::from_ipld(pos)?;
+          let typ = Meta::from_ipld(typ)?;
+          let mut res = OrdMap::new();
+          for (k, x) in map {
+            let x = Meta::from_ipld(x)?;
+            res.insert(Name::from(k.clone()), x);
+          }
+          Ok(Self::Map(pos, Box::new(typ), res))
+        }
+        [Ipld::Integer(18), pos, Ipld::StringMap(typs), Ipld::StringMap(trms)] =>
+        {
+          let pos = Pos::from_ipld(pos)?;
+          let mut res = OrdMap::new();
+          for (n, t) in typs.iter() {
+            let t = Meta::from_ipld(t)?;
+            let x = trms.get(n).ok_or(IpldError::ModTerm)?;
+            let x = Meta::from_ipld(x)?;
+            res.insert(Name::from(n.clone()), (t, x));
+          }
+          Ok(Self::Mod(pos, res))
         }
         xs => Err(IpldError::Meta(Ipld::List(xs.to_owned()))),
       },

@@ -10,15 +10,25 @@ use crate::{
     LitType,
     Literal,
   },
+  name::Name,
   prim::Op,
   uses::Uses,
 };
 
-use sp_std::{
-  convert::TryInto,
-  boxed::Box,
-  borrow::ToOwned,
+use sp_im::{
+  OrdMap,
+  Vector,
 };
+
+use sp_std::{
+  borrow::ToOwned,
+  boxed::Box,
+  collections::btree_map::BTreeMap,
+  convert::TryInto,
+  vec::Vec,
+};
+
+use alloc::string::ToString;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Anon {
@@ -37,6 +47,10 @@ pub enum Anon {
   LTy(LitType),
   Opr(Op),
   Rec,
+  Vec(Box<Anon>, Vector<Anon>),
+  HVc(Vector<(Anon, Anon)>),
+  Map(Box<Anon>, OrdMap<Name, Anon>),
+  Mod(OrdMap<Name, (Anon, Anon)>),
 }
 
 /// var: [0, idx]
@@ -89,6 +103,40 @@ impl Anon {
       Self::LTy(lty) => Ipld::List(vec![Ipld::Integer(12), lty.to_ipld()]),
       Self::Opr(opr) => Ipld::List(vec![Ipld::Integer(13), opr.to_ipld()]),
       Self::Rec => Ipld::List(vec![Ipld::Integer(14)]),
+      Self::Vec(typ, vec) => Ipld::List(vec![
+        Ipld::Integer(15),
+        typ.to_ipld(),
+        Ipld::List(vec.into_iter().map(|x| x.to_ipld()).collect()),
+      ]),
+      Self::HVc(arr) => {
+        let mut typs = Vec::new();
+        let mut trms = Vec::new();
+        for (t, x) in arr {
+          typs.push(t.to_ipld());
+          trms.push(x.to_ipld());
+        }
+        Ipld::List(vec![Ipld::Integer(16), Ipld::List(typs), Ipld::List(trms)])
+      }
+      Self::Map(typ, mty) => Ipld::List(vec![
+        Ipld::Integer(17),
+        typ.to_ipld(),
+        Ipld::StringMap(
+          mty.into_iter().map(|(k, v)| (k.to_string(), v.to_ipld())).collect(),
+        ),
+      ]),
+      Self::Mod(mod_) => {
+        let mut typs = BTreeMap::new();
+        let mut trms = BTreeMap::new();
+        for (n, (t, x)) in mod_ {
+          typs.insert(n.to_string(), t.to_ipld());
+          trms.insert(n.to_string(), x.to_ipld());
+        }
+        Ipld::List(vec![
+          Ipld::Integer(18),
+          Ipld::StringMap(typs),
+          Ipld::StringMap(trms),
+        ])
+      }
     }
   }
 
@@ -155,6 +203,43 @@ impl Anon {
           Ok(Self::Opr(opr))
         }
         [Ipld::Integer(14)] => Ok(Self::Rec),
+        [Ipld::Integer(15), typ, Ipld::List(vec)] => {
+          let typ = Anon::from_ipld(typ)?;
+          let mut res = Vector::new();
+          for x in vec {
+            let x = Anon::from_ipld(x)?;
+            res.push_back(x);
+          }
+          Ok(Self::Vec(Box::new(typ), res))
+        }
+        [Ipld::Integer(16), Ipld::List(typs), Ipld::List(trms)] => {
+          let mut res = Vector::new();
+          for (t, x) in typs.iter().zip(trms.iter()) {
+            let t = Anon::from_ipld(t)?;
+            let x = Anon::from_ipld(x)?;
+            res.push_back((t, x));
+          }
+          Ok(Self::HVc(res))
+        }
+        [Ipld::Integer(17), typ, Ipld::StringMap(map)] => {
+          let typ = Anon::from_ipld(typ)?;
+          let mut res = OrdMap::new();
+          for (k, x) in map {
+            let x = Anon::from_ipld(x)?;
+            res.insert(Name::from(k.clone()), x);
+          }
+          Ok(Self::Map(Box::new(typ), res))
+        }
+        [Ipld::Integer(18), Ipld::StringMap(typs), Ipld::StringMap(trms)] => {
+          let mut res = OrdMap::new();
+          for (n, t) in typs.iter() {
+            let t = Anon::from_ipld(t)?;
+            let x = trms.get(n).ok_or(IpldError::ModTerm)?;
+            let x = Anon::from_ipld(x)?;
+            res.insert(Name::from(n.clone()), (t, x));
+          }
+          Ok(Self::Mod(res))
+        }
         xs => Err(IpldError::Anon(Ipld::List(xs.to_owned()))),
       },
       xs => Err(IpldError::Anon(xs.to_owned())),

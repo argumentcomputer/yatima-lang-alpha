@@ -14,13 +14,14 @@ use crate::{
 use sp_cid::Cid;
 
 use sp_std::{
+  collections::btree_map::BTreeMap,
   fmt,
   vec::Vec,
-  collections::btree_map::BTreeMap,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(Clone, Debug)]
@@ -104,7 +105,9 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
+  pub fn new() -> Self {
+    Defs { defs: BTreeMap::new(), names: BTreeMap::new() }
+  }
 
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
@@ -185,11 +188,12 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
+  use sp_im::Vector;
+  use sp_std::rc::Rc;
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
-    let term =
-      arbitrary_term(g, true, test_defs(), sp_std::collections::vec_deque::VecDeque::new());
+    let term = arbitrary_term(g, true, Rc::new(test_defs()), Vector::new());
     Def::make(Pos::None, typ_, term)
   }
 

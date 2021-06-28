@@ -340,6 +340,10 @@ pub fn parse_typedef_elaborated(
 pub mod tests {
   use super::*;
   use crate::yatima;
+  use alloc::string::{
+    String,
+    ToString,
+  };
 
   #[test]
   fn variant_parse() {
