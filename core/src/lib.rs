@@ -1,5 +1,7 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 
+#![cfg_attr(test, feature(test))]
+
 #[macro_use]
 extern crate alloc;
 
@@ -10,6 +12,8 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 #[cfg(test)]
 extern crate rand;
+#[cfg(test)]
+extern crate test;
 
 pub mod anon;
 pub mod check;

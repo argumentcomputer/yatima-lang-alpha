@@ -243,6 +243,12 @@ pub fn parse_bool(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
 #[cfg(test)]
 pub mod tests {
   use super::*;
+  use test::{black_box, Bencher};
+
+  #[bench]
+  fn bench_parse_fifteen(b: &mut Bencher) {
+    b.iter(|| parse_nat(black_box(Span::new("15"))))
+  }
 
   #[test]
   fn test_parse_nat() {
