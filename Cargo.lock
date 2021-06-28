@@ -1401,19 +1401,7 @@ source = "git+https://github.com/yatima-inc/sp-cid?branch=main#36c5e19bfd986d24a
 dependencies = [
  "bytecursor",
  "multibase",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "sp-cid"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-cid?branch=master#b80fa29d99a87f8aae46d4a105fcbe9f654a260d"
-dependencies = [
- "bytecursor",
- "multibase",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=master)",
+ "sp-multihash",
  "sp-std",
  "unsigned-varint",
 ]
@@ -1439,21 +1427,8 @@ source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#83e38948923513a5
 dependencies = [
  "bytecursor",
  "byteorder",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "sp-ipld"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=master#af6810d260b8a0422e3a5f86db79f44205c5f943"
-dependencies = [
- "bytecursor",
- "byteorder",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=master)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=master)",
+ "sp-cid",
+ "sp-multihash",
  "sp-std",
  "unsigned-varint",
 ]
@@ -1471,25 +1446,7 @@ dependencies = [
  "generic-array",
  "sha2",
  "sha3",
- "sp-multihash-derive 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
- "sp-std",
- "unsigned-varint",
-]
-
-[[package]]
-name = "sp-multihash"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
-dependencies = [
- "blake2b_simd",
- "blake2s_simd",
- "blake3",
- "bytecursor",
- "digest",
- "generic-array",
- "sha2",
- "sha3",
- "sp-multihash-derive 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=master)",
+ "sp-multihash-derive",
  "sp-std",
  "unsigned-varint",
 ]
@@ -1498,19 +1455,6 @@ dependencies = [
 name = "sp-multihash-derive"
 version = "0.1.0"
 source = "git+https://github.com/yatima-inc/sp-multihash?branch=main#5013731551e5d4e77067e14891dfbdf2a1efe349"
-dependencies = [
- "proc-macro-crate",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
-]
-
-[[package]]
-name = "sp-multihash-derive"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=master#61920fe9b38551badc077c025039b8916e7a4641"
 dependencies = [
  "proc-macro-crate",
  "proc-macro-error",
@@ -2027,9 +1971,9 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
+ "sp-cid",
+ "sp-ipld",
+ "sp-multihash",
  "structopt",
  "tokio",
  "yatima-core",
@@ -2049,10 +1993,10 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "ropey",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
+ "sp-cid",
  "sp-im",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
+ "sp-ipld",
+ "sp-multihash",
  "sp-std",
 ]
 
@@ -2071,10 +2015,10 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=main)",
+ "sp-cid",
  "sp-im",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=main)",
- "sp-multihash 0.1.0 (git+https://github.com/yatima-inc/sp-multihash?branch=main)",
+ "sp-ipld",
+ "sp-multihash",
  "sp-std",
  "yatima-core",
 ]
@@ -2085,8 +2029,8 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
- "sp-cid 0.1.0 (git+https://github.com/yatima-inc/sp-cid?branch=master)",
- "sp-ipld 0.1.0 (git+https://github.com/yatima-inc/sp-ipld?branch=master)",
+ "sp-cid",
+ "sp-ipld",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
