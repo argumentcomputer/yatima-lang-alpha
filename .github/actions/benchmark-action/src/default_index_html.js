@@ -1,4 +1,6 @@
-export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DEFAULT_INDEX_HTML = String.raw `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -274,3 +276,4 @@ export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
   </body>
 </html>
 `;
+//# sourceMappingURL=default_index_html.js.map
