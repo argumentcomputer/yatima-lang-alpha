@@ -35,16 +35,16 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   DAG::dag_ptr_to_term(&dag, &mut map, dep, true).embed().0.cid()
 }
 
-pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
-  a.whnf(defs);
-  b.whnf(defs);
+pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64, should_count: bool) -> bool {
+  a.whnf(defs, should_count);
+  b.whnf(defs, should_count);
   let mut triples = vec![(a.head, b.head, dep)];
   let mut set: BTreeSet<(Cid, Cid)> = BTreeSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
-    a.whnf(defs);
-    b.whnf(defs);
+    a.whnf(defs, should_count);
+    b.whnf(defs, should_count);
     let hash_a = hash(a.head, dep);
     let hash_b = hash(b.head, dep);
     let eq = hash_a == hash_b
@@ -106,19 +106,20 @@ pub fn check(
   uses: Uses,
   term: &Term,
   typ: &mut DAG,
+  should_count: bool,
 ) -> Result<(), CheckError> {
   match term {
     Term::Lam(pos, _, bod) => {
-      check_lam(rec, defs, ctx, uses, term, typ, pos, &**bod)
+      check_lam(rec, defs, ctx, uses, term, typ, pos, &**bod, should_count)
     }
     Term::Dat(pos, bod) => {
-      check_dat(rec, defs, ctx, uses, term, typ, pos, &**bod)
+      check_dat(rec, defs, ctx, uses, term, typ, pos, &**bod, should_count)
     }
     _ => {
       let depth = ctx.len();
       // TODO Should we clone ctx?
-      let mut detected_typ = infer(rec, defs, ctx, uses, term)?;
-      if equal(defs, typ, &mut detected_typ, depth as u64) {
+      let mut detected_typ = infer(rec, defs, ctx, uses, term, should_count)?;
+      if equal(defs, typ, &mut detected_typ, depth as u64, should_count) {
         detected_typ.free();
         Ok(())
       }
@@ -147,10 +148,11 @@ pub fn check_lam(
   typ: &mut DAG,
   pos: &Pos,
   bod: &Term,
+  should_count: bool
 ) -> Result<(), CheckError> {
   // To check whether a lambda is well typed, its type must reduce to a forall;
   // otherwise we fail
-  typ.whnf(defs);
+  typ.whnf(defs, should_count);
   match typ.head {
     DAGPtr::All(all_link) => {
       // Extract the domain and image of the function and also the variable that
@@ -167,7 +169,7 @@ pub fn check_lam(
       let rest_ctx = div_ctx(uses, ctx);
       ctx.push((all_var.nam.to_string(), *lam_uses, dom));
       let mut img = DAG::new(*img);
-      check(rec, defs, ctx, Uses::Once, bod, &mut img)?;
+      check(rec, defs, ctx, Uses::Once, bod, &mut img, should_count)?;
       // Check whether the rest 'contains' zero (i.e., zero is less than or
       // equal to the rest), otherwise the variable was not used enough
       let (_, rest, _) = ctx.last().unwrap();
@@ -211,10 +213,11 @@ pub fn check_dat(
   typ: &mut DAG,
   pos: &Pos,
   bod: &Term,
+  should_count: bool,
 ) -> Result<(), CheckError> {
   // To check whether data is well typed, its type must reduce to a self type;
   // otherwise we fail
-  typ.whnf(defs);
+  typ.whnf(defs, should_count);
   match typ.head {
     DAGPtr::Slf(slf_link) => {
       // Extract the body of the self type
@@ -239,7 +242,7 @@ pub fn check_dat(
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       let mut unrolled_typ =
         DAG::new(DAG::from_subdag(*slf_bod, &mut map, Some(root)));
-      check(rec, defs, ctx, uses, bod, &mut unrolled_typ)?;
+      check(rec, defs, ctx, uses, bod, &mut unrolled_typ, should_count)?;
       // We must free the newly created type as to not leak
       unrolled_typ.free();
       Ok(())
@@ -263,29 +266,30 @@ pub fn infer(
   ctx: &mut Ctx,
   uses: Uses,
   term: &Term,
+  should_count: bool
 ) -> Result<DAG, CheckError> {
   match term {
     Term::Rec(_) => infer_rec(rec, defs),
     Term::Var(pos, nam, idx) => infer_var(rec, defs, ctx, uses, pos, nam, idx),
     Term::Ref(pos, nam, def_link, _) => infer_ref(defs, pos, nam, def_link),
     Term::App(pos, fun_arg) => {
-      infer_app(rec, defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1)
+      infer_app(rec, defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1, should_count)
     }
-    Term::Cse(pos, exp) => infer_cse(rec, defs, ctx, uses, pos, exp),
+    Term::Cse(pos, exp) => infer_cse(rec, defs, ctx, uses, pos, exp, should_count),
     Term::All(_, _, nam, dom_img) => {
-      infer_all(rec, defs, ctx, nam, &dom_img.0, &dom_img.1)
+      infer_all(rec, defs, ctx, nam, &dom_img.0, &dom_img.1, should_count)
     }
-    Term::Slf(_, nam, bod) => infer_slf(rec, defs, ctx, term, nam, bod),
+    Term::Slf(_, nam, bod) => infer_slf(rec, defs, ctx, term, nam, bod, should_count),
     Term::Ann(_, typ_exp) => {
-      infer_ann(rec, defs, ctx, uses, &typ_exp.0, &typ_exp.1)
+      infer_ann(rec, defs, ctx, uses, &typ_exp.0, &typ_exp.1, should_count)
     }
     Term::Let(pos, false, exp_uses, nam, triple) => infer_let(
       rec, defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1,
-      &triple.2,
+      &triple.2, should_count
     ),
     Term::Let(pos, true, exp_uses, nam, triple) => infer_letrec(
       rec, defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1,
-      &triple.2,
+      &triple.2, should_count
     ),
     Term::Typ(_) => {
       let typ = DAG::from_term(&Term::Typ(Pos::None));
@@ -383,14 +387,15 @@ pub fn infer_app(
   pos: &Pos,
   fun: &Term,
   arg: &Term,
+  should_count: bool,
 ) -> Result<DAG, CheckError> {
-  let mut fun_typ = infer(rec, defs, ctx, uses, fun)?;
-  fun_typ.whnf(defs);
+  let mut fun_typ = infer(rec, defs, ctx, uses, fun, should_count)?;
+  fun_typ.whnf(defs, should_count);
   match fun_typ.head {
     DAGPtr::All(link) => {
       let All { uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
       let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
-      check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
+      check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom), should_count)?;
       let mut map = BTreeMap::new();
       if var.parents.is_some() {
         map.insert(
@@ -426,9 +431,10 @@ pub fn infer_cse(
   uses: Uses,
   pos: &Pos,
   exp: &Term,
+  should_count: bool
 ) -> Result<DAG, CheckError> {
-  let mut exp_typ = infer(rec, defs, ctx, uses, exp)?;
-  exp_typ.whnf(defs);
+  let mut exp_typ = infer(rec, defs, ctx, uses, exp, should_count)?;
+  exp_typ.whnf(defs, should_count);
   match exp_typ.head {
     DAGPtr::Slf(link) => {
       let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
@@ -486,9 +492,10 @@ pub fn infer_all(
   nam: &Name,
   dom: &Term,
   img: &Term,
+  should_count: bool,
 ) -> Result<DAG, CheckError> {
   let mut typ = DAG::from_term(&Term::Typ(Pos::None));
-  check(rec, defs, ctx, Uses::None, dom, &mut typ)?;
+  check(rec, defs, ctx, Uses::None, dom, &mut typ, should_count)?;
   let mut dom_dag = DAG::from_term_inner(
     dom,
     ctx.len() as u64,
@@ -497,7 +504,7 @@ pub fn infer_all(
     rec.clone(),
   );
   ctx.push((nam.to_string(), Uses::None, &mut dom_dag));
-  check(rec, defs, ctx, Uses::None, img, &mut typ)?;
+  check(rec, defs, ctx, Uses::None, img, &mut typ, should_count)?;
   ctx.pop();
   free_dead_node(dom_dag);
   Ok(typ)
@@ -511,6 +518,7 @@ pub fn infer_slf(
   term: &Term,
   nam: &Name,
   bod: &Term,
+  should_count: bool
 ) -> Result<DAG, CheckError> {
   let mut typ = DAG::from_term(&Term::Typ(Pos::None));
   let mut term_dag = DAG::from_term_inner(
@@ -521,7 +529,7 @@ pub fn infer_slf(
     rec.clone(),
   );
   ctx.push((nam.to_string(), Uses::None, &mut term_dag));
-  check(rec, defs, ctx, Uses::None, bod, &mut typ)?;
+  check(rec, defs, ctx, Uses::None, bod, &mut typ, should_count)?;
   ctx.pop();
   free_dead_node(term_dag);
   Ok(typ)
@@ -539,6 +547,7 @@ pub fn infer_let(
   exp_typ: &Term,
   exp: &Term,
   bod: &Term,
+  should_count: bool
 ) -> Result<DAG, CheckError> {
   let exp_dag = &mut DAG::new(DAG::from_term_inner(
     exp,
@@ -555,10 +564,10 @@ pub fn infer_let(
     Some(root),
     rec.clone(),
   ));
-  check(rec, defs, ctx, exp_uses * uses, exp, exp_typ_dag)?;
+  check(rec, defs, ctx, exp_uses * uses, exp, exp_typ_dag, should_count)?;
   let rest_ctx = div_ctx(uses, ctx);
   ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
-  let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
+  let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod, should_count)?;
   let (_, rest, _) = ctx.last().unwrap();
   // Have to check whether the rest 'contains' zero (i.e., zero is less than or
   // equal to the rest), otherwise the variable was not used enough
@@ -592,6 +601,7 @@ pub fn infer_letrec(
   exp_typ: &Term,
   exp: &Term,
   bod: &Term,
+  should_count: bool
 ) -> Result<DAG, CheckError> {
   unsafe {
     // Allocates exp as a DAG, must be rootless
@@ -618,13 +628,13 @@ pub fn infer_letrec(
     // Check exp, noting it is a recursive definition
     let rest_ctx = div_ctx(Uses::Many, ctx);
     ctx.push((nam.to_string(), Uses::Many, &mut exp_typ_dag.head));
-    check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag)?; // TODO better error message
+    check(rec, defs, ctx, Uses::Many, exp, exp_typ_dag, should_count)?; // TODO better error message
     ctx.pop();
     // Check bod
     add_ctx(ctx, rest_ctx);
     let rest_ctx = div_ctx(uses, ctx);
     ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
-    let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod)?;
+    let mut bod_typ = infer(rec, defs, ctx, Uses::Once, bod, should_count)?;
     let (_, rest, _) = ctx.last().unwrap();
     // Have to check whether the rest 'contains' zero (i.e., zero is less than
     // or equal to the rest), otherwise the variable was not used enough
@@ -655,6 +665,7 @@ pub fn infer_ann(
   uses: Uses,
   exp: &Term,
   typ: &Term,
+  should_count: bool
 ) -> Result<DAG, CheckError> {
   let root = alloc_val(DLL::singleton(ParentPtr::Root));
   let mut typ_dag = DAG::new(DAG::from_term_inner(
@@ -664,7 +675,7 @@ pub fn infer_ann(
     Some(root),
     rec.clone(),
   ));
-  check(rec, defs, ctx, uses, exp, &mut typ_dag)?;
+  check(rec, defs, ctx, uses, exp, &mut typ_dag, should_count)?;
   Ok(typ_dag)
 }
 
@@ -690,14 +701,14 @@ pub fn infer_lit(lit: Literal) -> Term {
   }
 }
 
-pub fn infer_term(defs: &Defs, term: Term) -> Result<Term, CheckError> {
-  let typ_dag = infer(&None, &defs, &mut vec![].into(), Uses::Once, &term)?;
+pub fn infer_term(defs: &Defs, term: Term, should_count: bool) -> Result<Term, CheckError> {
+  let typ_dag = infer(&None, &defs, &mut vec![].into(), Uses::Once, &term, should_count)?;
   let typ = DAG::to_term(&typ_dag, true);
   typ_dag.free();
   Ok(typ)
 }
 
-pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
+pub fn check_def(defs: &Defs, name: &str, should_count: bool) -> Result<Term, CheckError> {
   let def = defs.get(&Name::from(name)).ok_or_else(|| {
     CheckError::UndefinedReference(Pos::None, name.to_owned())
   })?;
@@ -706,7 +717,7 @@ pub fn check_def(defs: &Defs, name: &str) -> Result<Term, CheckError> {
   let ast_cid = a.cid();
   let rec = Some((Name::from(name), def_cid, ast_cid));
   let mut typ = DAG::from_term(&def.typ_);
-  check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ)?;
+  check(&rec, &defs, &mut vec![].into(), Uses::Once, &def.term, &mut typ, should_count)?;
   typ.free();
   Ok(def.typ_.clone())
 }
