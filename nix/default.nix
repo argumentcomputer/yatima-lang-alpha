@@ -2,15 +2,14 @@
 }:
 let
   # default nixpkgs
-  pkgs = import sources.nixpkgs { };
+  nixpkgs = import sources.nixpkgs { overlays = [ (import ./rust-overlay.nix) ]; };
 
   # gitignore.nix
-  gitignoreSource = (import sources."gitignore.nix" { inherit (pkgs) lib; }).gitignoreSource;
+  gitignoreSource = (import sources."gitignore.nix" { inherit (nixpkgs) lib; }).gitignoreSource;
 
   pre-commit-hooks = (import sources."pre-commit-hooks.nix");
 
-  nixpkgs-mozilla = pkgs.callPackage (sources.nixpkgs-mozilla + "/package-set.nix") { };
-  rust = import ./rust.nix { inherit nixpkgs-mozilla; };
+  rust = import ./rust.nix { inherit nixpkgs; };
 
   # grinProject = import sources.grin { };
   # grin = grinProject.grin.components.exes.grin;
@@ -18,11 +17,11 @@ let
   src = gitignoreSource ./..;
 in
 {
-  inherit pkgs src;
+  inherit nixpkgs src;
 
   # provided by shell.nix
   devTools = {
-    inherit (pkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
+    inherit (nixpkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
     inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter rustfmt clippy;
     inherit rust;
     # inherit grin;
@@ -45,10 +44,10 @@ in
       excludes = [ "^nix/sources\.nix$" ];
     };
     yatima-native = import ../yatima.nix {
-      inherit sources pkgs;
+      inherit sources nixpkgs rust;
     };
     yatima-wasi = import ../yatima.nix {
-      inherit sources pkgs;
+      inherit sources nixpkgs rust;
       target = "wasm32-wasi";
     };
   };
