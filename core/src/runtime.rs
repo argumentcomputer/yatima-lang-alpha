@@ -74,7 +74,7 @@ pub struct Opr {
   pub parents: Option<NonNull<Parents>>,
 }
 
-static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
+pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 // Auxiliary parent functions
 #[inline]

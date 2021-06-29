@@ -33,3 +33,7 @@ sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main"  }
 quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
+
+
+[[bench]]
+name = "runtime"
