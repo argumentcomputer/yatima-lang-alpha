@@ -89,9 +89,9 @@ let
     let
       # match header_pat "a.b.c" == [ "a" ".b" "b" ".c" "c" ]
       header_pat =
-        foldl' (pat: n: "(${ident_pat})([.]${pat})?")
+        foldl' (pat: _n: "(${ident_pat})([.]${pat})?")
           "(${ident_pat})"
-          (genList (n: 0) 10);
+          (genList (_n: 0) 10);
       matchPath = match header_pat token;
       filterDot = filter (s: substring 0 1 s != ".") matchPath;
     in
