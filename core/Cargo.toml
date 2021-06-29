@@ -19,6 +19,7 @@ std = []
 [dependencies]
 sp-std = { version = "3", default-features = false }
 num-bigint = { version = "0.3", default-features = false }
+#nom = { git = "https://github.com/yatima-inc/nom", branch = "master", default-features = false }
 nom = { version = "6", default-features = false, features = ["alloc"] }
 base-x = { version = "0.2.8", default-features = false }
 multibase = { version = "0.9.1", default-features = false }

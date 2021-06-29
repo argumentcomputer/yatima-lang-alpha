@@ -1409,7 +1409,7 @@ dependencies = [
 [[package]]
 name = "sp-im"
 version = "0.0.1"
-source = "git+https://github.com/yatima-inc/sp-im?branch=main#8c0683261b9b85a95eb9c5ea204e31d538ee7ae9"
+source = "git+https://github.com/yatima-inc/sp-im?branch=main#2f8c622d0b175cd85513549e1abb1b0d65678d0d"
 dependencies = [
  "bitmaps",
  "rand_core 0.5.1",
