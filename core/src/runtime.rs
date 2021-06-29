@@ -7,6 +7,7 @@ use crate::{
 };
 
 use core::ptr::NonNull;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use sp_std::{
   boxed::Box,
   vec::Vec,
@@ -72,6 +73,8 @@ pub struct Opr {
   pub opr: Op,
   pub parents: Option<NonNull<Parents>>,
 }
+
+static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 // Auxiliary parent functions
 #[inline]
@@ -291,7 +294,10 @@ pub fn alloc_app(
 
 
 // The core up-copy function.
-pub fn upcopy(new_child: DAG, cc: ParentPtr) {
+pub fn upcopy(new_child: DAG, cc: ParentPtr, should_count: bool) {
+  if should_count {
+    UPCOPY_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
   unsafe {
     match cc {
       ParentPtr::LamBod(link) => {
@@ -301,10 +307,10 @@ pub fn upcopy(new_child: DAG, cc: ParentPtr) {
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_lam.as_ptr()).var;
         for parent in DLL::iter_option(var.parents) {
-          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAG::Lam(new_lam), *parent)
+          upcopy(DAG::Lam(new_lam), *parent, should_count)
         }
       }
       ParentPtr::FixBod(link) => {
@@ -314,10 +320,10 @@ pub fn upcopy(new_child: DAG, cc: ParentPtr) {
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_fix.as_ptr()).var;
         for parent in DLL::iter_option(var.parents) {
-          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAG::Fix(new_fix), *parent)
+          upcopy(DAG::Fix(new_fix), *parent, should_count)
         }
       }
       ParentPtr::AppLam(link) => {
@@ -330,7 +336,7 @@ pub fn upcopy(new_child: DAG, cc: ParentPtr) {
             let new_app = alloc_app(new_child, *arg, None);
             (*link.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAG::App(new_app), *parent)
+              upcopy(DAG::App(new_app), *parent, should_count)
             }
           }
         }
@@ -345,7 +351,7 @@ pub fn upcopy(new_child: DAG, cc: ParentPtr) {
             let new_app = alloc_app(*fun, new_child, None);
             (*link.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAG::App(new_app), *parent)
+              upcopy(DAG::App(new_app), *parent, should_count)
             }
           }
         }
@@ -362,7 +368,7 @@ enum Single {
 
 // Substitute a variable
 #[inline]
-pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool) -> DAG {
+pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool, should_count: bool) -> DAG {
   let mut input = bod;
   let mut top_app = None;
   let mut spine = vec![];
@@ -386,7 +392,7 @@ pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool) -> DAG {
         }
         top_app = Some(link);
         for parent in DLL::iter_option(var.parents) {
-          upcopy(arg, *parent);
+          upcopy(arg, *parent, should_count);
         }
         break DAG::App(new_app);
       }
@@ -404,7 +410,7 @@ pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool) -> DAG {
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
         for parent in DLL::iter_option(var.parents) {
-          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         result = DAG::Lam(new_lam);
       }
@@ -414,7 +420,7 @@ pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool) -> DAG {
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_fix.as_ptr()).var };
         for parent in DLL::iter_option(var.parents) {
-          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAG::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         result = DAG::Fix(new_fix);
       }
@@ -457,7 +463,7 @@ pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool) -> DAG {
 
 // Contract a lambda redex, return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
+pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAG {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -468,14 +474,14 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAG {
     *bod
   }
   else {
-    subst(*bod, var, *arg, false)
+    subst(*bod, var, *arg, false, should_count)
   };
   replace_child(DAG::App(redex), top_node);
   free_dead_node(DAG::App(redex));
   top_node
 }
 
-pub fn whnf(dag: &mut DAG) {
+pub fn whnf(dag: &mut DAG, should_count: bool) {
   let mut node = *dag;
   let mut trail: Vec<NonNull<App>> = vec![];
   loop {
@@ -487,7 +493,7 @@ pub fn whnf(dag: &mut DAG) {
       }
       DAG::Lam(link) => {
         if let Some(app_link) = trail.pop() {
-          node = reduce_lam(app_link, link);
+          node = reduce_lam(app_link, link, should_count);
         }
         else {
           break;
@@ -498,7 +504,7 @@ pub fn whnf(dag: &mut DAG) {
         replace_child(node, *bod);
         if !var.parents.is_none() {
           let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
-          let result = subst(*bod, var, DAG::Var(NonNull::new_unchecked(&mut new_fix.var)), true);
+          let result = subst(*bod, var, DAG::Var(NonNull::new_unchecked(&mut new_fix.var)), true, should_count);
           new_fix.bod = result;
           add_to_parents(result, NonNull::new_unchecked(&mut new_fix.bod_ref));
           replace_child(
@@ -523,7 +529,7 @@ pub fn whnf(dag: &mut DAG) {
         }
         else if len >= 1 && opr.arity() == 1 {
           let arg = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
-          whnf(arg);
+          whnf(arg, should_count);
           match *arg {
             DAG::Lit(link) => {
               let x = unsafe { &(*link.as_ptr()).lit };
@@ -545,8 +551,8 @@ pub fn whnf(dag: &mut DAG) {
         else if len >= 2 && opr.arity() == 2 {
           let arg1 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
           let arg2 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
-          whnf(arg1);
-          whnf(arg2);
+          whnf(arg1, should_count);
+          whnf(arg2, should_count);
           match (*arg1, *arg2) {
             (DAG::Lit(x_link), DAG::Lit(y_link)) => {
               let x = unsafe { &(*x_link.as_ptr()).lit };
@@ -571,9 +577,9 @@ pub fn whnf(dag: &mut DAG) {
           let arg1 = unsafe { &mut (*trail[len - 1].as_ptr()).arg };
           let arg2 = unsafe { &mut (*trail[len - 2].as_ptr()).arg };
           let arg3 = unsafe { &mut (*trail[len - 3].as_ptr()).arg };
-          whnf(arg1);
-          whnf(arg2);
-          whnf(arg3);
+          whnf(arg1, should_count);
+          whnf(arg2, should_count);
+          whnf(arg3, should_count);
           match (*arg1, *arg2, *arg3) {
             (
               DAG::Lit(x_link),
