@@ -27,7 +27,7 @@ pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
     for n in &i.with {
       match yatima_core::check::check_def(
         &ds,
-        &yatima_core::package::import_alias(n.to_owned(), &i),
+        &yatima_core::package::import_alias(n.to_owned(), &i), false
       ) {
         Ok(ty) => {
           println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()), false))
@@ -50,7 +50,7 @@ pub fn check_all(path: PathBuf, store: Rc<dyn Store>) -> std::io::Result<Defs> {
   }
   println!("Checking definitions:");
   for (n, _) in &p.index.0 {
-    match yatima_core::check::check_def(&ds, n) {
+    match yatima_core::check::check_def(&ds, n, false) {
       Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()), false)),
       Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
         println!("✕ {}: {}", n, e);

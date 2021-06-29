@@ -89,10 +89,10 @@ pub trait Repl {
               Command::Eval(term) => {
                 let mut dag = DAG::from_term(&term);
                 if env.type_system {
-                  let res = infer_term(&env.defs, *term);
+                  let res = infer_term(&env.defs, *term, false);
                   match res {
                     Ok(typ) => {
-                      dag.norm(&env.defs);
+                      dag.norm(&env.defs, false);
                       self.println(format!("{}", dag));
                       self.println(format!(": {}", typ));
                     }
@@ -100,12 +100,12 @@ pub trait Repl {
                   }
                 }
                 else {
-                  dag.norm(&env.defs);
+                  dag.norm(&env.defs, false);
                   self.println(format!("{}", dag));
                 }
               }
               Command::Type(term) => {
-                let res = infer_term(&env.defs, *term);
+                let res = infer_term(&env.defs, *term, false);
                 match res {
                   Ok(term) => self.println(format!("{}", term)),
                   Err(e) => self.println(format!("Error: {}", e)),
@@ -115,7 +115,7 @@ pub trait Repl {
                 let (n, def, _) = *boxed;
                 let mut tmp_defs = env.defs.clone();
                 tmp_defs.insert(n.clone(), def);
-                let res = check_def(&tmp_defs, &n);
+                let res = check_def(&tmp_defs, &n, false);
                 match res {
                   Ok(res) => {
                     env.defs = tmp_defs;
