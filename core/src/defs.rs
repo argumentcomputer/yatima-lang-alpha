@@ -17,7 +17,9 @@ use sp_std::{
   fmt,
   vec::Vec,
   rc::Rc,
-  collections::btree_map::BTreeMap,
+};
+use sp_im::{
+  OrdMap,
 };
 
 use alloc::{
@@ -45,8 +47,8 @@ impl PartialEq for Def {
 /// A map of content-ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
-  pub defs: BTreeMap<Cid, Def>,
-  pub names: BTreeMap<Name, Cid>,
+  pub defs: OrdMap<Cid, Def>,
+  pub names: OrdMap<Name, Cid>,
 }
 
 impl Def {
@@ -105,7 +107,7 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
+  pub fn new() -> Self { Defs { defs: OrdMap::new(), names: OrdMap::new() } }
 
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
