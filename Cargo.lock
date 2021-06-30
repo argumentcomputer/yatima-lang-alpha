@@ -83,6 +83,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitmaps"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "303cec55cd9c5fde944b061b902f142b52a8bb5438cc822481ea1e3ebc96bbcb"
+
+[[package]]
 name = "bitvec"
 version = "0.19.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -543,9 +549,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.9.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
 name = "heck"
@@ -653,19 +659,19 @@ version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "111c1983f3c5bb72732df25cddacee9b546d08325fb584b5ebd38148be7b0246"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
  "rand_core 0.5.1",
  "rand_xoshiro",
- "sized-chunks",
+ "sized-chunks 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "typenum",
  "version_check",
 ]
 
 [[package]]
 name = "indexmap"
-version = "1.6.2"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
+checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
  "hashbrown",
@@ -722,6 +728,15 @@ name = "libc"
 version = "0.2.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12b8adadd720df158f4d70dfe7ccc6adb0472d7c55ca83445f6a5ab3e36f8fb6"
+
+[[package]]
+name = "lock_api"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0382880606dff6d15c9476c416d18690b72742aa7b605bb6dd6ec9030fbf07eb"
+dependencies = [
+ "scopeguard",
+]
 
 [[package]]
 name = "log"
@@ -1417,8 +1432,16 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
  "typenum",
+]
+
+[[package]]
+name = "sized-chunks"
+version = "0.6.5"
+source = "git+https://github.com/yatima-inc/sized-chunks?branch=master#ba09facdef63f6150499e7fc7d6a49fba6da3dd5"
+dependencies = [
+ "bitmaps 3.1.0",
 ]
 
 [[package]]
@@ -1446,7 +1469,7 @@ dependencies = [
 [[package]]
 name = "sp-cid"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-cid?branch=main#36c5e19bfd986d24a2890011e036fe8cc728fd47"
+source = "git+https://github.com/yatima-inc/sp-cid?branch=main#f5e9eb55b48b2f6a037198d8f3e96e28fca631cb"
 dependencies = [
  "bytecursor",
  "multibase",
@@ -1458,13 +1481,14 @@ dependencies = [
 [[package]]
 name = "sp-im"
 version = "0.0.1"
-source = "git+https://github.com/yatima-inc/sp-im?branch=main#8c0683261b9b85a95eb9c5ea204e31d538ee7ae9"
+source = "git+https://github.com/yatima-inc/sp-im?branch=main#1eb0e4c92257fe269012af7bdbaeabb642dce3c0"
 dependencies = [
- "bitmaps",
+ "bitmaps 3.1.0",
  "rand_core 0.5.1",
  "rand_xoshiro",
- "sized-chunks",
+ "sized-chunks 0.6.5 (git+https://github.com/yatima-inc/sized-chunks?branch=master)",
  "sp-std",
+ "spin",
  "typenum",
  "version_check",
 ]
@@ -1472,7 +1496,7 @@ dependencies = [
 [[package]]
 name = "sp-ipld"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#ce7e9c98ba89d6bcb762d76dab93ca06c4df678c"
+source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#8e8b698b8ba165475f0a943d155f7d63f60d07a6"
 dependencies = [
  "bytecursor",
  "byteorder",
@@ -1518,6 +1542,15 @@ name = "sp-std"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35391ea974fa5ee869cb094d5b437688fbf3d8127d64d1b9fed5822a1ed39b12"
+
+[[package]]
+name = "spin"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5fdd7196b4ae35a111c6dc97f9cc152ca3ea8ad744f7cb46a9f27b3ef8f2f54"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "static_assertions"
