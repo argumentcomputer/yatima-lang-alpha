@@ -17,10 +17,12 @@ sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "m
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
 bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
 multibase = "0.9.1"
-im  = "15.0.0"
+sp-im  = { git = "https://github.com/yatima-inc/sp-im", branch = "main" }
 structopt = "0.3.21"
-nom = "6.0.1"
-nom_locate = "3.0.1"
+#nom = { git = "https://github.com/yatima-inc/nom", branch = "master", default-features = false }
+nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "sb/std-test" }
+nom = { version = "7.0.0-alpha", default-features = false }
+#nom_locate = "3.0.1"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"
