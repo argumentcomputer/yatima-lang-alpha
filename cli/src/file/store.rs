@@ -108,7 +108,7 @@ pub struct FileStore {
 }
 
 impl FileStore {
-  pub fn new() -> Self { FileStore { use_ipfs_daemon: true } }
+  pub fn new() -> Self { FileStore { use_ipfs_daemon: false } }
 }
 
 impl Store for FileStore {
