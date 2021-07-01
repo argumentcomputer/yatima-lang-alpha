@@ -25,7 +25,7 @@ use alloc::{
   string::{String, ToString},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Term {
   Var(Pos, Name, u64),
   Lam(Pos, Name, Box<Term>),
@@ -42,6 +42,34 @@ pub enum Term {
   LTy(Pos, LitType),
   Opr(Pos, Op),
   Rec(Pos),
+}
+
+impl fmt::Debug for Term {
+  fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Var(_, n, i) => fmt.debug_tuple("Var").field(&n).field(i).finish(),
+      Self::Lam(_, n, b) => fmt.debug_tuple("Lam").field(&n).field(&b).finish(),
+      Self::App(_, t) => fmt.debug_tuple("App").field(&t).finish(),
+      Self::All(_, u, n, t) => {
+        fmt.debug_tuple("All").field(&u).field(&n).field(&t).finish()
+      }
+      Self::Slf(_, n, b) => fmt.debug_tuple("Slf").field(&n).field(&b).finish(),
+      Self::Dat(_, b) => fmt.debug_tuple("Dat").field(&b).finish(),
+      Self::Cse(_, b) => fmt.debug_tuple("Cse").field(&b).finish(),
+      Self::Ref(_, n, d, a) => {
+        fmt.debug_tuple("Ref").field(&n).field(&d).field(&a).finish()
+      }
+      Self::Let(_, r, u, n, t) => {
+        fmt.debug_tuple("Let").field(r).field(&u).field(&n).field(&t).finish()
+      }
+      Self::Typ(_) => write!(fmt, "Typ(..)"),
+      Self::Ann(_, t) => fmt.debug_tuple("Ann").field(&t).finish(),
+      Self::Lit(_, a) => fmt.debug_tuple("Lit").field(&a).finish(),
+      Self::LTy(_, a) => fmt.debug_tuple("LTy").field(&a).finish(),
+      Self::Opr(_, a) => fmt.debug_tuple("Opr").field(&a).finish(),
+      Self::Rec(_) => write!(fmt, "Rec(..)"),
+    }
+  }
 }
 
 impl PartialEq for Term {
