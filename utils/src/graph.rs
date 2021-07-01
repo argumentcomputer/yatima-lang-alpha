@@ -1,4 +1,3 @@
-use sp_cid::Cid;
 use petgraph::{
   dot::Dot,
   graph::{
@@ -7,7 +6,13 @@ use petgraph::{
     NodeIndex,
   },
 };
+use sp_cid::Cid;
 
+use core::ptr::NonNull;
+use std::{
+  collections::HashMap,
+  fmt,
+};
 use yatima_core::{
   dag::*,
   dll::DLL,
@@ -19,10 +24,6 @@ use yatima_core::{
   prim::Op,
   uses::Uses,
 };
-use core::ptr::NonNull;
-use std::collections::HashMap;
-
-use std::fmt;
 
 pub enum Node {
   Var { name: Name, rec: bool, dep: u64 },
@@ -217,8 +218,7 @@ pub fn from_dag_ptr(
         *ix
       }
       else {
-        let ix =
-          graph.add_node(Node::Var { name: nam.clone(), dep: *dep, rec: *rec });
+        let ix = graph.add_node(Node::Var { name: nam.clone(), dep: *dep, rec: *rec });
         map.insert(*node, ix);
         match binder {
           BinderPtr::Free => {
@@ -348,8 +348,7 @@ pub fn from_dag_ptr(
         *ix
       }
       else {
-        let All { uses, dom, img, parents, .. } =
-          unsafe { &mut *link.as_ptr() };
+        let All { uses, dom, img, parents, .. } = unsafe { &mut *link.as_ptr() };
         let ix = graph.add_node(Node::All { uses: *uses });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
@@ -365,10 +364,8 @@ pub fn from_dag_ptr(
         *ix
       }
       else {
-        let Let { uses, typ, exp, bod, parents, .. } =
-          unsafe { &mut *link.as_ptr() };
-        let ix =
-          graph.add_node(Node::Let { uses: *uses });
+        let Let { uses, typ, exp, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+        let ix = graph.add_node(Node::Let { uses: *uses });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         let typ_ix = from_dag_ptr(typ, map, graph);
@@ -433,14 +430,8 @@ pub fn from_dag_ptr(
         *ix
       }
       else {
-        let Ref { nam, exp, ast, rec, parents, .. } =
-          unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Ref {
-          name: nam.clone(),
-          exp: *exp,
-          ast: *ast,
-          rec: *rec,
-        });
+        let Ref { nam, exp, ast, rec, parents, .. } = unsafe { &mut *link.as_ptr() };
+        let ix = graph.add_node(Node::Ref { name: nam.clone(), exp: *exp, ast: *ast, rec: *rec });
         map.insert(*node, ix);
         add_parent_edges(ix, map, graph, *parents);
         ix
@@ -457,10 +448,7 @@ pub fn to_dot<'a>(graph: &'a Graph) -> Dot<'a, &'a Graph> {
       Edge::Root => format!(", weight = 2] {{rankdir = TB}} ["),
       Edge::Downlink => format!(", weight = 2"),
       Edge::Copy => format!(", weight = 0"),
-      Edge::BindFree
-      | Edge::BindLam
-      | Edge::BindSlf
-      | Edge::BindFix => format!(", weight = 0"),
+      Edge::BindFree | Edge::BindLam | Edge::BindSlf | Edge::BindFix => format!(", weight = 0"),
       Edge::LamBod
       | Edge::SlfBod
       | Edge::FixBod
@@ -492,11 +480,8 @@ mod test {
 
   #[test]
   fn test() {
-    let graph = from_dag(
-      &parse("λ f g x y => let x: Type = ∀ (A: Type) -> A; f x (g x)")
-        .unwrap()
-        .1,
-    );
+    let graph =
+      from_dag(&parse("λ f g x y => let x: Type = ∀ (A: Type) -> A; f x (g x)").unwrap().1);
     println!("{}", to_dot(&graph));
     // assert_eq!(true, false)
   }

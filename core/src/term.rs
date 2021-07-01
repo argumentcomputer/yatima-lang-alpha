@@ -498,10 +498,10 @@ pub mod tests {
   use rand::Rng;
 
   use sp_std::{
-    collections::vec_deque::VecDeque,
     vec::Vec,
     boxed::Box,
   };
+  use sp_im::Vector;
 
   use crate::{
     name::Name,
@@ -519,7 +519,7 @@ pub mod tests {
     Name::from(format!("_{}", s))
   }
 
-  fn arbitrary_var(ctx: VecDeque<Name>) -> Box<dyn Fn(&mut Gen) -> Term> {
+  fn arbitrary_var(ctx: Vector<Name>) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       if ctx.len() == 0 {
         return Term::Typ(Pos::None);
@@ -557,7 +557,7 @@ pub mod tests {
 
   fn arbitrary_ref(
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |_g: &mut Gen| {
       let mut rng = rand::thread_rng();
@@ -586,7 +586,7 @@ pub mod tests {
   fn arbitrary_lam(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       let n = arbitrary_name(g);
@@ -599,7 +599,7 @@ pub mod tests {
   fn arbitrary_app(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::App(
@@ -615,7 +615,7 @@ pub mod tests {
   fn arbitrary_ann(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::Ann(
@@ -631,7 +631,7 @@ pub mod tests {
   fn arbitrary_slf(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       let n = arbitrary_name(g);
@@ -644,7 +644,7 @@ pub mod tests {
   fn arbitrary_dat(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::Dat(
@@ -657,7 +657,7 @@ pub mod tests {
   fn arbitrary_cse(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       Term::Cse(
@@ -670,7 +670,7 @@ pub mod tests {
   fn arbitrary_all(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       let n = arbitrary_name(g);
@@ -692,7 +692,7 @@ pub mod tests {
   fn arbitrary_let(
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Box<dyn Fn(&mut Gen) -> Term> {
     Box::new(move |g: &mut Gen| {
       // let rec: bool = Arbitrary::arbitrary(g);
@@ -721,7 +721,7 @@ pub mod tests {
     g: &mut Gen,
     rec: bool,
     defs: Defs,
-    ctx: VecDeque<Name>,
+    ctx: Vector<Name>,
   ) -> Term {
     let len = ctx.len();
     if len == 0 {
@@ -750,7 +750,7 @@ pub mod tests {
 
   impl Arbitrary for Term {
     fn arbitrary(g: &mut Gen) -> Self {
-      arbitrary_term(g, false, test_defs(), VecDeque::new())
+      arbitrary_term(g, false, test_defs(), Vector::new())
     }
   }
 

@@ -16,6 +16,7 @@ use sp_cid::Cid;
 use sp_std::{
   fmt,
   vec::Vec,
+  rc::Rc,
   collections::btree_map::BTreeMap,
 };
 
@@ -132,6 +133,7 @@ impl Defs {
     self.defs.get(&def_cid)
   }
 
+  /// Merge Defs from an Import
   pub fn merge(self, other: Defs, import: &Import) -> Self {
     let mut defs = self.defs;
     for (k, v) in other.defs {
@@ -142,6 +144,29 @@ impl Defs {
       let k = k.clone();
       let v = other.names.get(&k).unwrap();
       names.insert(import_alias(k, import), *v);
+    }
+    Defs { defs, names }
+  }
+
+  /// Merge Defs mutably at the same level like in a REPL env
+  pub fn flat_merge_mut(&mut self, other: Rc<Defs>) {
+    for (k, v) in other.defs.iter() {
+      self.defs.insert(*k, v.clone());
+    }
+    for (k, v) in other.names.iter() {
+      self.names.insert(k.clone(), *v);
+    }
+  }
+
+  /// Merge Defs at the same level like in a REPL env
+  pub fn flat_merge(self, other: Defs) -> Self {
+    let mut defs = self.defs;
+    for (k, v) in other.defs {
+      defs.insert(k, v);
+    }
+    let mut names = self.names;
+    for (k, v) in other.names.iter() {
+      names.insert(k.clone(), *v);
     }
     Defs { defs, names }
   }
@@ -185,11 +210,12 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
+  use sp_im::Vector;
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term =
-      arbitrary_term(g, true, test_defs(), sp_std::collections::vec_deque::VecDeque::new());
+      arbitrary_term(g, true, test_defs(), Vector::new());
     Def::make(Pos::None, typ_, term)
   }
 
