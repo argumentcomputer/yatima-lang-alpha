@@ -17,9 +17,7 @@ use sp_std::{
   fmt,
   vec::Vec,
   rc::Rc,
-};
-use sp_im::{
-  OrdMap,
+  collections::btree_map::BTreeMap,
 };
 
 use alloc::{
@@ -47,8 +45,8 @@ impl PartialEq for Def {
 /// A map of content-ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
-  pub defs: OrdMap<Cid, Def>,
-  pub names: OrdMap<Name, Cid>,
+  pub defs: BTreeMap<Cid, Def>,
+  pub names: BTreeMap<Name, Cid>,
 }
 
 impl Def {
@@ -107,7 +105,7 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: OrdMap::new(), names: OrdMap::new() } }
+  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
 
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
@@ -212,11 +210,12 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
+  use sp_im::Vector;
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term =
-      arbitrary_term(g, true, test_defs(), sp_std::collections::vec_deque::VecDeque::new());
+      arbitrary_term(g, true, test_defs(), Vector::new());
     Def::make(Pos::None, typ_, term)
   }
 
