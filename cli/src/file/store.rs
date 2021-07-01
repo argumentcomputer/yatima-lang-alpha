@@ -9,12 +9,22 @@ use sp_ipld::{
   Codec,
   Ipld,
 };
+use crate::ipfs;
+use yatima_utils::{
+  file::parse,
+};
+use multiaddr::Multiaddr;
 use std::{
   fs,
   path::{
     Path,
     PathBuf,
   },
+  rc::Rc,
+};
+use tokio::{
+  runtime::Handle,
+  task,
 };
 use yatima_utils::store::Store;
 use bytecursor::ByteCursor;
@@ -67,17 +77,16 @@ pub fn hashspace_directory() -> PathBuf {
   PathBuf::from(path)
 }
 
-pub fn get(link: Cid) -> Option<Ipld> {
+pub fn fs_get(link: Cid) -> Option<Ipld> {
   let dir = hashspace_directory();
   let path = dir.as_path().join(Path::new(&link.to_string()));
   let file: Vec<u8> = fs::read(path).ok()?;
-  // println!("file {:?}", file);
   let res: Ipld =
     DagCborCodec.decode(ByteCursor::new(file)).expect("valid cbor bytes");
   Some(res)
 }
 
-pub fn put(expr: Ipld) -> Cid {
+pub fn fs_put(expr: Ipld) -> Cid {
   let dir = hashspace_directory();
   let link = cid(&expr);
   let path = dir.as_path().join(Path::new(&link.to_string()));
@@ -94,14 +103,54 @@ pub fn put(expr: Ipld) -> Cid {
 }
 
 #[derive(Debug, Clone)]
-pub struct FileStore {}
+pub struct FileStore {
+  use_ipfs_daemon: bool,
+}
 
 impl FileStore {
-  pub fn new() -> Self { FileStore {} }
+  pub fn new() -> Self { FileStore { use_ipfs_daemon: false } }
 }
 
 impl Store for FileStore {
-  fn get(&self, link: Cid) -> Option<Ipld> { get(link) }
+  fn get_by_multiaddr(&self, _addr: Multiaddr) -> Result<Ipld, String> {
+    // ipfs::get(addr);
+    // TODO implement
+    Err("Not implemented".to_owned())
+  }
 
-  fn put(&self, expr: Ipld) -> Cid { put(expr) }
+  fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String> {
+    let root = std::env::current_dir().unwrap();
+    let mut fs_path = root.clone();
+    for n in path {
+      fs_path.push(n);
+    }
+    fs_path.set_extension("ya");
+    let env = parse::PackageEnv::new(root, fs_path, Rc::new(self.clone()));
+    let (_cid, p, _ds) = parse::parse_file(env)?;
+    let ipld = p.to_ipld();
+    Ok(ipld)
+  }
+
+  fn get(&self, link: Cid) -> Option<Ipld> {
+    fs_get(link).or_else(||
+      if self.use_ipfs_daemon { 
+        task::block_in_place(move || {
+          Handle::current()
+            .block_on(async move { ipfs::dag_get(link.to_string()).await.ok() })
+        })
+      } else {
+        None
+      })
+  }
+
+  fn put(&self, expr: Ipld) -> Cid { 
+      if self.use_ipfs_daemon {
+        let expr = expr.clone();
+        task::block_in_place(move || {
+          Handle::current()
+            .block_on(async move { ipfs::dag_put(expr).await.unwrap(); })
+        });   
+      }
+      fs_put(expr)
+  }
 }

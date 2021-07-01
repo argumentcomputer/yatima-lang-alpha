@@ -1,9 +1,9 @@
-use sp_cid::Cid;
 use nom::{
   error::ParseError,
   Finish,
 };
 use nom_locate::LocatedSpan;
+use sp_cid::Cid;
 use std::{
   path::PathBuf,
   rc::Rc,
@@ -17,7 +17,10 @@ use yatima_cli::{
 use yatima_core::name::Name;
 use yatima_utils::{
   file,
-  store::Store,
+  store::{
+    show,
+    Store,
+  },
 };
 
 #[derive(Debug, StructOpt)]
@@ -73,7 +76,10 @@ enum ShowType {
 
 fn parse_cid(
   s: &str,
-) -> Result<Cid, yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>> {
+) -> Result<
+  Cid,
+  yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>,
+> {
   let result = yatima_core::parse::package::parse_link(
     yatima_core::parse::span::Span::new(&s),
   )
@@ -95,63 +101,74 @@ async fn main() -> std::io::Result<()> {
       let root = std::env::current_dir()?;
       let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path, store.clone());
-      let (_, pack, _) = file::parse::parse_file(env);
-      println!("{}", pack);
-      Ok(())
+      match file::parse::parse_file(env) {
+        Ok((_, pack, _)) => {
+          println!("{}", pack);
+          Ok(())
+        }
+        Err(_) => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+      }
     }
     Cli::Show { typ: ShowType::Package { input } } => {
       let store = Rc::new(FileStore::new());
-      match store.get(input) {
-        Some(ipld) => match yatima_core::package::Package::from_ipld(&ipld) {
-          Ok(pack) => println!("{}", pack),
-          Err(_) => eprintln!("Expected package ipld"),
-        },
-        None => eprintln!("Found no result for cid"),
-      };
-      Ok(())
+      match show(store, input, "package".to_string(), false) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
     }
     Cli::Show { typ: ShowType::Entry { input, var } } => {
       let store = Rc::new(FileStore::new());
-      match store.get(input) {
-        Some(ipld) => match yatima_core::package::Entry::from_ipld(&ipld) {
-          Ok(entry) => {
-            println!("{}", entry);
-            println!("{}", var);
-            match file::parse::entry_to_def(entry, store) {
-              Ok(def) => println!("{}", def.pretty("#^".to_string(), var)),
-              Err(_) => eprintln!("expected valid def"),
-            }
-          }
-          Err(_) => eprintln!("Expected entry ipld"),
-        },
-        None => eprintln!("Found no result for cid"),
-      };
-      Ok(())
+      match show(store, input, "entry".to_string(), var) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
     }
     Cli::Show { typ: ShowType::Anon { input } } => {
       let store = Rc::new(FileStore::new());
-      match store.get(input) {
-        Some(ipld) => match yatima_core::anon::Anon::from_ipld(&ipld) {
-          Ok(pack) => println!("{:?}", pack),
-          Err(_) => eprintln!("Expected valid anon"),
-        },
-        None => eprintln!("Found no result for cid"),
-      };
-      Ok(())
+      match show(store, input, "anon".to_string(), false) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
     }
     Cli::Show { typ: ShowType::Raw { input } } => {
       let store = Rc::new(FileStore::new());
-      match store.get(input) {
-        Some(ipld) => println!("{:?}", ipld),
-        None => eprintln!("Found no result for cid"),
-      };
-      Ok(())
+      match show(store, input, String::new(), false) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
     }
     Cli::Parse { no_ipfs, path } => {
       let root = std::env::current_dir()?;
       let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path, store.clone());
-      let (cid, p, d) = file::parse::parse_file(env);
+      let (cid, p, d) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
       store.put(p.to_ipld());
 
       let ipld_cid = if !no_ipfs {
@@ -165,15 +182,19 @@ async fn main() -> std::io::Result<()> {
       Ok(())
     }
     Cli::Check { path } => {
-      let store = Rc::new(FileStore {});
-      file::check_all(path, store)?;
+      let store = Rc::new(FileStore::new());
+      file::check_all_in_file(path, store)?;
       Ok(())
     }
     Cli::Run { path } => {
       let root = std::env::current_dir()?;
-      let store = Rc::new(FileStore {});
+      let store = Rc::new(FileStore::new());
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) = file::parse::parse_file(env);
+      let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
+
       let _cid = store.put(p.to_ipld());
       let _ipld_cid =
         ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
