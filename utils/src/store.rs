@@ -15,6 +15,7 @@ use yatima_core::{
 };
 use sp_cid::Cid;
 use sp_ipld::Ipld;
+use crate::graph::PackageGraph;
 
 /// This trait describes the interactions with
 /// externally stored IPLD structures.
@@ -82,6 +83,12 @@ pub fn show(
       "package" => {
         let pack = Package::from_ipld(&ipld)?;
         Ok(format!("{}", pack))
+      }
+      "graph" => {
+        let pack = Package::from_ipld(&ipld)?;
+        let mut graph = PackageGraph::new();
+        graph.add_package(|cid| store.get(cid).and_then(|ref ipld| Package::from_ipld(ipld).ok()), pack);
+        Ok(format!("{}", graph.to_dot()))
       }
       "entry" => {
         let entry = Entry::from_ipld(&ipld)?;
