@@ -81,14 +81,14 @@ pub fn show(
     match typ_.as_str() {
       "package" => {
         let pack = Package::from_ipld(&ipld)?;
-        Ok(format!("{:?}", pack))
+        Ok(format!("{}", pack))
       }
       "entry" => {
         let entry = Entry::from_ipld(&ipld)?;
-        let mut s = format!("{:?}\n", entry);
+        println!("{}", entry);
+        let mut s = format!("{}\n", entry);
         let def = file::parse::entry_to_def(entry, store).expect("valid def");
         s += format!("{}", def.pretty("#^".to_string(), var_index)).as_str();
-
         Ok(s)
       }
       "anon" => {

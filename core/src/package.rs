@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::{
   ipld_error::IpldError,
   meta::Meta,
@@ -89,6 +91,17 @@ impl Entry {
   pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 }
 
+impl fmt::Display for Entry {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    writeln!(f, "Entry")?;
+    writeln!(f, "  Type ({}):", self.type_anon)?;
+    writeln!(f, "  {}", self.type_meta)?;
+    writeln!(f, "  Term ({}):", self.term_anon)?;
+    writeln!(f, "  {}", self.term_meta)?;
+    Ok(())
+  }
+}
+
 impl Index {
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(
@@ -136,6 +149,16 @@ impl Index {
   }
 }
 
+impl fmt::Display for Index {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    writeln!(f, "Exporting")?;
+    for (n, cid) in self.0.clone() {
+      writeln!(f, " {} ({})", n, cid)?;
+    }
+    Ok(())
+  }
+}
+
 impl Import {
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
@@ -173,6 +196,25 @@ impl Import {
       },
       xs => Err(IpldError::Import(xs.to_owned())),
     }
+  }
+}
+
+impl fmt::Display for Import {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.alias.is_empty() {
+      writeln!(f, "Importing from {} ({})", self.name, self.cid)?;
+    }
+    else {
+      writeln!(
+        f,
+        "Importing from {} as {} ({})",
+        self.name, self.alias, self.cid
+      )?;
+    }
+    for withIdent in self.with.clone() {
+      writeln!(f, "  {}", withIdent)?;
+    }
+    Ok(())
   }
 }
 
@@ -220,6 +262,17 @@ impl Package {
   }
 
   pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
+}
+
+impl fmt::Display for Package {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    writeln!(f, "Package \"{}\"", self.name)?;
+    for i in self.imports.clone() {
+      writeln!(f, "{}", i)?;
+    }
+    writeln!(f, "{}", self.index)?;
+    Ok(())
+  }
 }
 
 #[cfg(test)]

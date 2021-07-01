@@ -1,17 +1,20 @@
+use nom::{
+  error::ParseError,
+  Finish,
+};
+use nom_locate::LocatedSpan;
+use sp_cid::Cid;
 use std::{
   path::PathBuf,
   rc::Rc,
 };
-
 use structopt::StructOpt;
 use yatima_cli::{
   file::store::FileStore,
   ipfs,
   repl,
 };
-use yatima_core::{
-  name::Name,
-};
+use yatima_core::name::Name;
 use yatima_utils::{
   file,
   store::{
@@ -35,11 +38,8 @@ enum Cli {
     path: PathBuf,
   },
   Show {
-    input: String,
-    #[structopt(name = "type", default_value = "raw", long, short)]
-    typ_: String,
-    #[structopt(name = "var_index", long, short)]
-    var_index: bool,
+    #[structopt(subcommand)]
+    typ: ShowType,
   },
   Run {
     #[structopt(parse(from_os_str))]
@@ -47,6 +47,47 @@ enum Cli {
   },
   Repl,
 }
+
+#[derive(Debug, StructOpt)]
+enum ShowType {
+  File {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
+  Package {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+  Entry {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+    #[structopt(name = "var", long, short)]
+    var: bool,
+  },
+  Anon {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+  Raw {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
+}
+
+fn parse_cid(
+  s: &str,
+) -> Result<
+  Cid,
+  yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>,
+> {
+  let result = yatima_core::parse::package::parse_link(
+    yatima_core::parse::span::Span::new(&s),
+  )
+  .finish()
+  .map(|(_, x)| x);
+  result
+}
+
 //   Test,
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -56,12 +97,60 @@ async fn main() -> std::io::Result<()> {
       repl::main();
       Ok(())
     }
-    Cli::Show { input, typ_, var_index } => {
-      use yatima_core::parse;
+    Cli::Show { typ: ShowType::File { path } } => {
+      let root = std::env::current_dir()?;
       let store = Rc::new(FileStore::new());
-      let (_, cid) = parse::package::parse_link(parse::span::Span::new(&input))
-        .expect("valid cid");
-      match show(store, cid, typ_, var_index) {
+      let env = file::parse::PackageEnv::new(root, path, store.clone());
+      match file::parse::parse_file(env) {
+        Ok((_, pack, _)) => {
+          println!("{}", pack);
+          Ok(())
+        }
+        Err(_) => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+      }
+    }
+    Cli::Show { typ: ShowType::Package { input } } => {
+      let store = Rc::new(FileStore::new());
+      match show(store, input, "package".to_string(), false) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
+    }
+    Cli::Show { typ: ShowType::Entry { input, var } } => {
+      let store = Rc::new(FileStore::new());
+      match show(store, input, "entry".to_string(), var) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
+    }
+    Cli::Show { typ: ShowType::Anon { input } } => {
+      let store = Rc::new(FileStore::new());
+      match show(store, input, "anon".to_string(), false) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+      }
+    }
+    Cli::Show { typ: ShowType::Raw { input } } => {
+      let store = Rc::new(FileStore::new());
+      match show(store, input, String::new(), false) {
         Ok(s) => {
           println!("{}", s);
           Ok(())
