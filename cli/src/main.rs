@@ -203,7 +203,7 @@ async fn main() -> std::io::Result<()> {
         p.name, path
       ));
       let mut dag = yatima_core::dag::DAG::from_term(&def.to_owned().term);
-      dag.norm(&defs);
+      dag.norm(&defs, false);
       println!("{}", dag);
       Ok(())
     }
