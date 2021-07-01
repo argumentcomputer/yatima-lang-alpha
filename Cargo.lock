@@ -75,12 +75,9 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
 name = "bitmaps"
-version = "2.1.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
-dependencies = [
- "typenum",
-]
+checksum = "303cec55cd9c5fde944b061b902f142b52a8bb5438cc822481ea1e3ebc96bbcb"
 
 [[package]]
 name = "bitvec"
@@ -146,6 +143,12 @@ name = "block-padding"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
+
+[[package]]
+name = "bs58"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "771fe0050b883fcc3ea2359b1a96bcfbc090b7116eae7c3c512c7a083fdf23d3"
 
 [[package]]
 name = "bumpalo"
@@ -537,9 +540,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.9.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
 name = "heck"
@@ -642,24 +645,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "im"
-version = "15.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "111c1983f3c5bb72732df25cddacee9b546d08325fb584b5ebd38148be7b0246"
-dependencies = [
- "bitmaps",
- "rand_core 0.5.1",
- "rand_xoshiro",
- "sized-chunks",
- "typenum",
- "version_check",
-]
-
-[[package]]
 name = "indexmap"
-version = "1.6.2"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
+checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
  "hashbrown",
@@ -716,6 +705,15 @@ name = "libc"
 version = "0.2.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12b8adadd720df158f4d70dfe7ccc6adb0472d7c55ca83445f6a5ab3e36f8fb6"
+
+[[package]]
+name = "lock_api"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0382880606dff6d15c9476c416d18690b72742aa7b605bb6dd6ec9030fbf07eb"
+dependencies = [
+ "scopeguard",
+]
 
 [[package]]
 name = "log"
@@ -777,6 +775,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "multiaddr"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7139982f583d7e53879d9f611fe48ced18e77d684309484f2252c76bcd39f549"
+dependencies = [
+ "arrayref",
+ "bs58",
+ "byteorder",
+ "data-encoding",
+ "multihash",
+ "percent-encoding",
+ "serde",
+ "static_assertions",
+ "unsigned-varint 0.7.0",
+ "url",
+]
+
+[[package]]
 name = "multibase"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,6 +801,31 @@ dependencies = [
  "base-x",
  "data-encoding",
  "data-encoding-macro",
+]
+
+[[package]]
+name = "multihash"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dac63698b887d2d929306ea48b63760431ff8a24fac40ddb22f9c7f49fb7cab"
+dependencies = [
+ "generic-array",
+ "multihash-derive",
+ "unsigned-varint 0.5.1",
+]
+
+[[package]]
+name = "multihash-derive"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "424f6e86263cd5294cbd7f1e95746b95aca0e0d66bff31e5a40d6baa87b4aa99"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]
@@ -1365,11 +1406,9 @@ dependencies = [
 [[package]]
 name = "sized-chunks"
 version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
+source = "git+https://github.com/yatima-inc/sized-chunks?branch=main#ba09facdef63f6150499e7fc7d6a49fba6da3dd5"
 dependencies = [
  "bitmaps",
- "typenum",
 ]
 
 [[package]]
@@ -1403,19 +1442,20 @@ dependencies = [
  "multibase",
  "sp-multihash",
  "sp-std",
- "unsigned-varint",
+ "unsigned-varint 0.7.0",
 ]
 
 [[package]]
 name = "sp-im"
 version = "0.0.1"
-source = "git+https://github.com/yatima-inc/sp-im?branch=main#8c0683261b9b85a95eb9c5ea204e31d538ee7ae9"
+source = "git+https://github.com/yatima-inc/sp-im?branch=main#00cf9a877269e25c5b1b58ea1a867bcda5f1ca37"
 dependencies = [
  "bitmaps",
  "rand_core 0.5.1",
  "rand_xoshiro",
  "sized-chunks",
  "sp-std",
+ "spin",
  "typenum",
  "version_check",
 ]
@@ -1430,7 +1470,7 @@ dependencies = [
  "sp-cid",
  "sp-multihash",
  "sp-std",
- "unsigned-varint",
+ "unsigned-varint 0.7.0",
 ]
 
 [[package]]
@@ -1448,7 +1488,7 @@ dependencies = [
  "sha3",
  "sp-multihash-derive",
  "sp-std",
- "unsigned-varint",
+ "unsigned-varint 0.7.0",
 ]
 
 [[package]]
@@ -1469,6 +1509,15 @@ name = "sp-std"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35391ea974fa5ee869cb094d5b437688fbf3d8127d64d1b9fed5822a1ed39b12"
+
+[[package]]
+name = "spin"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5fdd7196b4ae35a111c6dc97f9cc152ca3ea8ad744f7cb46a9f27b3ef8f2f54"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "static_assertions"
@@ -1745,6 +1794,12 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "unsigned-varint"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7fdeedbf205afadfe39ae559b75c3240f24e257d0ca27e85f85cb82aa19ac35"
+
+[[package]]
+name = "unsigned-varint"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f8d425fafb8cd76bc3f22aace4af471d3156301d7508f2107e98fbeae10bc7f"
@@ -1960,7 +2015,7 @@ dependencies = [
  "bytecursor",
  "directories-next",
  "futures",
- "im",
+ "multiaddr",
  "multibase",
  "nom",
  "nom_locate 3.0.1",
@@ -1971,6 +2026,7 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
+ "sized-chunks",
  "sp-cid",
  "sp-ipld",
  "sp-multihash",
@@ -1993,6 +2049,7 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "ropey",
+ "sized-chunks",
  "sp-cid",
  "sp-im",
  "sp-ipld",
@@ -2006,7 +2063,7 @@ version = "0.1.0"
 dependencies = [
  "base-x",
  "bit-vec",
- "im",
+ "multiaddr",
  "multibase",
  "nom",
  "nom_locate 3.0.1",
@@ -2015,11 +2072,13 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "sized-chunks",
  "sp-cid",
  "sp-im",
  "sp-ipld",
  "sp-multihash",
  "sp-std",
+ "wasm-bindgen",
  "yatima-core",
 ]
 
@@ -2027,8 +2086,12 @@ dependencies = [
 name = "yatima-web"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "bytecursor",
  "console_error_panic_hook",
  "js-sys",
+ "multiaddr",
+ "sized-chunks",
  "sp-cid",
  "sp-ipld",
  "wasm-bindgen",

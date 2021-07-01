@@ -3,6 +3,7 @@ use sp_std::{
   num::TryFromIntError,
   vec::Vec,
 };
+use alloc::string::String;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum IpldError {
@@ -41,4 +42,10 @@ pub enum IpldError {
   Import(Ipld),
   ImportEntry(Ipld),
   Package(Ipld),
+}
+
+impl From<IpldError> for String {
+  fn from(e: IpldError) -> String {
+    format!("{:?}", e)
+  }
 }

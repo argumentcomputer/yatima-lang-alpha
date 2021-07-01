@@ -5,6 +5,8 @@
 , rust ? import ./nix/rust.nix {
     inherit nixpkgs;
   }
+  # Wether to run the tests when building
+, doCheck ? true
   # configure naersk to use our pinned rust compiler
 , naersk ? nixpkgs.callPackage sources.naersk {
     rustc = rust;
@@ -27,6 +29,7 @@ naersk.buildPackage {
   PKG_CONFIG_PATH = "${nixpkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
   src = project;
+  doCheck = doCheck;
   remapPathPrefix =
     true; # remove nix store references for a smaller output package
 }
