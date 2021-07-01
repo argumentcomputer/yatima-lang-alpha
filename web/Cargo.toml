@@ -15,6 +15,7 @@ yatima-utils = { path = "../utils" }
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
 bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
 multiaddr = "*"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 js-sys = "0.3.49"

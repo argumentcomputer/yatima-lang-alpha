@@ -16,9 +16,9 @@ sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
 sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
 bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
 multibase = "0.9.1"
 multiaddr = "*"
-im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"
 nom_locate = "3.0.1"
