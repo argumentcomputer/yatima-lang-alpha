@@ -34,7 +34,7 @@ in
       hooks = {
         shellcheck.enable = true;
         nixpkgs-fmt.enable = true;
-        nix-linter.enable = true;
+        # nix-linter.enable = true;
         # cargo-check.enable = true;
         # rustfmt.enable = true;
         # clippy.enable = true;
