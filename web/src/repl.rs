@@ -233,7 +233,7 @@ impl WebRepl {
         if !line.is_empty() {
           term.writeln("");
           match self.handle_line(Ok(line.clone())) {
-            Ok(()) => term.writeln("Ok"),
+            Ok(_) => term.writeln("Ok"),
             Err(()) => term.writeln("Error"),
           }
           line.clear();
@@ -376,7 +376,7 @@ impl WebRepl {
         if !ss.line.is_empty() {
           self.println("".to_owned());
           match self.handle_line(Ok(ss.line.clone())) {
-            Ok(()) => term.writeln("Ok"),
+            Ok(_) => term.writeln("Ok"),
             Err(()) => term.writeln("Error"),
           }
           ss.line.clear();
