@@ -24,10 +24,10 @@ pub mod error;
 pub mod parse;
 
 pub fn check_all_in_file(
+  root: PathBuf,
   path: PathBuf,
   store: Rc<dyn Store>,
 ) -> io::Result<Rc<Defs>> {
-  let root = std::env::current_dir()?;
   let env = parse::PackageEnv::new(root, path, store.clone());
   let (_, p, ds) =
     parse::parse_file(env).map_err(|e| Error::new(ErrorKind::Other, e))?;

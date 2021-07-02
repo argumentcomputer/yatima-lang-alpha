@@ -203,7 +203,7 @@ async fn main() -> std::io::Result<()> {
       Ok(())
     }
     Command::Check { path } => {
-      file::check_all_in_file(path, store)?;
+      file::check_all_in_file(root, path, store)?;
       Ok(())
     }
     Command::Run { path } => {
