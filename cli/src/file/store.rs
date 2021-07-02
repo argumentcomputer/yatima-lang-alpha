@@ -145,7 +145,7 @@ impl Store for FileStore {
   }
 
   fn get(&self, link: Cid) -> Option<Ipld> {
-    if self.opts.use_file_store {
+    if !self.opts.use_file_store {
       self.mem_store.lock().unwrap().get(&link).map(|ipld| ipld.clone())
     }
     else {
@@ -171,7 +171,7 @@ impl Store for FileStore {
         })
       });
     }
-    if self.opts.use_file_store {
+    if !self.opts.use_file_store {
       let link = cid(&expr);
       self.mem_store.lock().unwrap().insert(link, expr);
       link
