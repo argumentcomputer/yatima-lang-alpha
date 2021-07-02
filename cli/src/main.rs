@@ -1,8 +1,6 @@
 use nom::{
-  error::ParseError,
   Finish,
 };
-use nom_locate::LocatedSpan;
 use sp_cid::Cid;
 use std::{
   path::PathBuf,
@@ -10,8 +8,10 @@ use std::{
 };
 use structopt::StructOpt;
 use yatima_cli::{
-  file::store::FileStore,
-  ipfs,
+  file::store::{
+    FileStore,
+    FileStoreOpts,
+  },
   repl,
 };
 use yatima_core::name::Name;
@@ -25,11 +25,29 @@ use yatima_utils::{
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "A programming language for the decentralized web")]
-enum Cli {
+struct Cli {
+  /// Pin data to the local IPFS daemon
+  #[structopt(short, long, help = "Turn on adding data to the IPFS daemon.")]
+  use_ipfs_daemon: bool,
+
+  #[structopt(
+    long,
+    help = "Turn off writing to the file system. Data will only be kept in memory."
+  )]
+  no_file_store: bool,
+
+  #[structopt(long, help = "The root directory we are reading files relative to.")]
+  root: Option<PathBuf>,
+
+  /// Command to execute
+  #[structopt(subcommand)]
+  command: Command,
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "command")]
+enum Command {
   Parse {
-    /// Pin data to the local IPFS daemon
-    #[structopt(short, long)]
-    no_ipfs: bool,
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
@@ -80,30 +98,29 @@ enum ShowType {
 
 fn parse_cid(
   s: &str,
-) -> Result<
-  Cid,
-  yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>,
-> {
-  let result = yatima_core::parse::package::parse_link(
-    yatima_core::parse::span::Span::new(&s),
-  )
-  .finish()
-  .map(|(_, x)| x);
+) -> Result<Cid, yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>> {
+  let result = yatima_core::parse::package::parse_link(yatima_core::parse::span::Span::new(&s))
+    .finish()
+    .map(|(_, x)| x);
   result
 }
 
 //   Test,
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-  let command = Cli::from_args();
-  match command {
-    Cli::Repl => {
-      repl::main();
+  let cli = Cli::from_args();
+  let root = cli.root.unwrap_or_else(|| std::env::current_dir().unwrap());
+  let store = Rc::new(FileStore::new(FileStoreOpts {
+    use_ipfs_daemon: cli.use_ipfs_daemon,
+    use_file_store: !cli.no_file_store,
+    root: root.clone(),
+  }));
+  match cli.command {
+    Command::Repl => {
+      repl::main(store);
       Ok(())
     }
-    Cli::Show { typ: ShowType::File { path } } => {
-      let root = std::env::current_dir()?;
-      let store = Rc::new(FileStore::new());
+    Command::Show { typ: ShowType::File { path } } => {
       let env = file::parse::PackageEnv::new(root, path, store.clone());
       match file::parse::parse_file(env) {
         Ok((_, pack, _)) => {
@@ -113,8 +130,7 @@ async fn main() -> std::io::Result<()> {
         Err(_) => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
       }
     }
-    Cli::Show { typ: ShowType::Graph { input } } => {
-      let store = Rc::new(FileStore::new());
+    Command::Show { typ: ShowType::Graph { input } } => {
       match show(store, input, "graph".to_string(), false) {
         Ok(s) => {
           println!("{}", s);
@@ -126,8 +142,7 @@ async fn main() -> std::io::Result<()> {
         }
       }
     }
-    Cli::Show { typ: ShowType::Package { input } } => {
-      let store = Rc::new(FileStore::new());
+    Command::Show { typ: ShowType::Package { input } } => {
       match show(store, input, "package".to_string(), false) {
         Ok(s) => {
           println!("{}", s);
@@ -139,8 +154,7 @@ async fn main() -> std::io::Result<()> {
         }
       }
     }
-    Cli::Show { typ: ShowType::Entry { input, var } } => {
-      let store = Rc::new(FileStore::new());
+    Command::Show { typ: ShowType::Entry { input, var } } => {
       match show(store, input, "entry".to_string(), var) {
         Ok(s) => {
           println!("{}", s);
@@ -152,8 +166,7 @@ async fn main() -> std::io::Result<()> {
         }
       }
     }
-    Cli::Show { typ: ShowType::Anon { input } } => {
-      let store = Rc::new(FileStore::new());
+    Command::Show { typ: ShowType::Anon { input } } => {
       match show(store, input, "anon".to_string(), false) {
         Ok(s) => {
           println!("{}", s);
@@ -165,8 +178,7 @@ async fn main() -> std::io::Result<()> {
         }
       }
     }
-    Cli::Show { typ: ShowType::Raw { input } } => {
-      let store = Rc::new(FileStore::new());
+    Command::Show { typ: ShowType::Raw { input } } => {
       match show(store, input, String::new(), false) {
         Ok(s) => {
           println!("{}", s);
@@ -178,9 +190,7 @@ async fn main() -> std::io::Result<()> {
         }
       }
     }
-    Cli::Parse { no_ipfs, path } => {
-      let root = std::env::current_dir()?;
-      let store = Rc::new(FileStore::new());
+    Command::Parse { path } => {
       let env = file::parse::PackageEnv::new(root, path, store.clone());
       let (cid, p, d) = file::parse::parse_file(env).map_err(|e| {
         eprintln!("{}", e);
@@ -188,24 +198,15 @@ async fn main() -> std::io::Result<()> {
       })?;
       store.put(p.to_ipld());
 
-      let ipld_cid = if !no_ipfs {
-        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.")
-      }
-      else {
-        "Not using ipfs".to_string()
-      };
-      println!("Package parsed:\n{} ipld_cid={}", cid, ipld_cid);
+      println!("Package parsed:\n{}", cid);
       println!("{}", d);
       Ok(())
     }
-    Cli::Check { path } => {
-      let store = Rc::new(FileStore::new());
+    Command::Check { path } => {
       file::check_all_in_file(path, store)?;
       Ok(())
     }
-    Cli::Run { path } => {
-      let root = std::env::current_dir()?;
-      let store = Rc::new(FileStore::new());
+    Command::Run { path } => {
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
       let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
         eprintln!("{}", e);
@@ -213,12 +214,9 @@ async fn main() -> std::io::Result<()> {
       })?;
 
       let _cid = store.put(p.to_ipld());
-      let _ipld_cid =
-        ipfs::dag_put(p.to_ipld()).await.expect("Failed to put to ipfs.");
-      let def = defs.get(&Name::from("main")).expect(&format!(
-        "No `main` expression in package {} from file {:?}",
-        p.name, path
-      ));
+      let def = defs
+        .get(&Name::from("main"))
+        .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
       let mut dag = yatima_core::dag::DAG::from_term(&def.to_owned().term);
       dag.norm(&defs, false);
       println!("{}", dag);
@@ -228,7 +226,7 @@ async fn main() -> std::io::Result<()> {
 }
 
 // for valgrind testing
-// Cli::Test => {
+// Command::Test => {
 //  use im::HashMap;
 //  use yatima::{
 //    core::dag::DAG,

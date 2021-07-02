@@ -36,12 +36,11 @@ struct RustyLineRepl {
 }
 
 impl RustyLineRepl {
-  pub fn new() -> Self {
+  pub fn new(store: Rc<FileStore>) -> Self {
     let config = Config::builder().edit_mode(EditMode::Vi).build();
     let mut rl = Editor::<()>::with_config(config);
     rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
     rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
-    let store = Rc::new(FileStore::new());
     RustyLineRepl {
       rl: rl,
       env: Arc::new(Mutex::new(ReplEnv::default())),
@@ -80,4 +79,4 @@ impl Repl for RustyLineRepl {
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 }
 
-pub fn main() { run_repl(&mut RustyLineRepl::new()); }
+pub fn main(store: Rc<FileStore>) { run_repl(&mut RustyLineRepl::new(store)); }
