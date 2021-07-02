@@ -37,9 +37,21 @@ pub trait Store: std::fmt::Debug {
 pub fn load_package_defs(
   store: Rc<dyn Store>,
   package: Rc<Package>,
-) -> Result<Rc<Defs>, String> {
+) -> Result<Defs, String> {
   let Index(def_refs) = &package.index;
+  let imports = &package.imports;
   let mut defs = Defs::new();
+  for import in imports {
+    if let Some(package_ipld) = store.get(import.cid.clone()) {
+      let imported_package = Package::from_ipld(&package_ipld)
+        .map_err(|e| format!("{:?}", e))?;
+      let imported_defs = load_package_defs(store.clone(), Rc::new(imported_package))?;
+      defs = defs.merge(imported_defs, &import);
+    }
+    else {
+      return Err(format!("Failed to load {} at {}", import.name, import.cid));
+    }
+  }
   for (name, cid) in def_refs {
     if let Some(entry_ipld) = store.get(cid.clone()) {
       let entry =
@@ -68,7 +80,7 @@ pub fn load_package_defs(
       return Err(format!("Failed to load {} at {}", name, package.cid()));
     }
   }
-  Ok(Rc::new(defs))
+  Ok(defs)
 }
 
 /// Show the contents of a link
