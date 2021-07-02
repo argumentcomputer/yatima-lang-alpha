@@ -17,21 +17,23 @@
     "webpack"
   ],
   "dependencies": {
-    "yatima-web": "file:./pkg",
-    "ipfs-core": "^0.7.0",
-    "xterm": "^4.5.0",
+    "ipfs-core": "^0.7.1",
+    "xterm": "^4.13.0",
     "xterm-addon-fit": "^0.3.0",
     "xterm-addon-search": "^0.3.0",
-    "xterm-addon-web-links": "^0.3.0"
+    "xterm-addon-web-links": "^0.3.0",
+    "yatima-web": "file:./pkg"
   },
   "devDependencies": {
-    "copy-webpack-plugin": "^5.0.0",
+    "copy-webpack-plugin": "^9.0.1",
     "css-loader": "^5.2.6",
     "file-loader": "^6.0.0",
-    "postcss": ">=8.2.10",
+    "glob-parent": ">=5.1.2",
+    "chokidar": ">= 3.5.2",
+    "postcss": "^8.3.5",
     "style-loader": "^1.2.1",
-    "webpack": "^4.29.3",
-    "webpack-cli": "^3.1.0",
+    "webpack": "^5.42.0",
+    "webpack-cli": "^4.7.2",
     "webpack-dev-server": "^3.11.2"
   }
 }
