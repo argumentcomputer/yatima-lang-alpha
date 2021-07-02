@@ -45,7 +45,7 @@ pub fn check_all_in_ipld(
   let p = Rc::new(Package::from_ipld(&ipld)?);
   let ds = store::load_package_defs(store.clone(), p.clone())?;
   println!("Checking package {} at {}", p.name, p.cid());
-  check_all(p.clone(), ds, store).map(|defs| (p, defs))
+  check_all(p.clone(), Rc::new(ds), store).map(|defs| (p, defs))
 }
 
 pub fn check_all(
