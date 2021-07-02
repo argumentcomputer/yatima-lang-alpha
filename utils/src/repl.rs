@@ -151,10 +151,10 @@ pub trait Repl {
             Command::Eval(term) => {
               let mut dag = DAG::from_term(&term);
               if env.type_system {
-                let res = infer_term(&env.defs, *term);
+                let res = infer_term(&env.defs, *term, false);
                 match res {
                   Ok(typ) => {
-                    dag.norm(&env.defs);
+                    dag.norm(&env.defs, false);
                     self.println(format!("{}", dag));
                     self.println(format!(": {}", typ));
                     Ok(())
@@ -166,13 +166,13 @@ pub trait Repl {
                 }
               }
               else {
-                dag.norm(&env.defs);
+                dag.norm(&env.defs, false);
                 self.println(format!("{}", dag));
                 Ok(())
               }
             }
             Command::Type(term) => {
-              let res = infer_term(&env.defs, *term);
+              let res = infer_term(&env.defs, *term, false);
               match res {
                 Ok(term) => self.println(format!("{}", term)),
                 Err(e) => self.println(format!("Error: {}", e)),
@@ -184,7 +184,7 @@ pub trait Repl {
               let mut tmp_defs = env.defs.clone();
               tmp_defs.insert(n.clone(), def);
               let re = Rc::new(tmp_defs);
-              let res = check_def(re.clone(), &n);
+              let res = check_def(re.clone(), &n, false);
               match res {
                 Ok(res) => {
                   env.defs.flat_merge_mut(re);

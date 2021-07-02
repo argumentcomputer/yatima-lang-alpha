@@ -15,7 +15,7 @@ pub struct Name {
 }
 impl fmt::Debug for Name {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.inner)
+    write!(f, "\"{}\"", self.inner)
   }
 }
 

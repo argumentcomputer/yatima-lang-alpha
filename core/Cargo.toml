@@ -34,3 +34,7 @@ sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "m
 quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
+
+
+[[bench]]
+name = "runtime"

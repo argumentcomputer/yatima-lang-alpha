@@ -54,6 +54,10 @@ enum ShowType {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
+  Graph {
+    #[structopt(parse(try_from_str = parse_cid))]
+    input: Cid,
+  },
   Package {
     #[structopt(parse(try_from_str = parse_cid))]
     input: Cid,
@@ -107,6 +111,19 @@ async fn main() -> std::io::Result<()> {
           Ok(())
         }
         Err(_) => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+      }
+    }
+    Cli::Show { typ: ShowType::Graph { input } } => {
+      let store = Rc::new(FileStore::new());
+      match show(store, input, "graph".to_string(), false) {
+        Ok(s) => {
+          println!("{}", s);
+          Ok(())
+        }
+        Err(s) => {
+          eprintln!("{}", s);
+          Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
       }
     }
     Cli::Show { typ: ShowType::Package { input } } => {
@@ -203,7 +220,7 @@ async fn main() -> std::io::Result<()> {
         p.name, path
       ));
       let mut dag = yatima_core::dag::DAG::from_term(&def.to_owned().term);
-      dag.norm(&defs);
+      dag.norm(&defs, false);
       println!("{}", dag);
       Ok(())
     }
