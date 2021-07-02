@@ -116,7 +116,7 @@ pub struct FileStoreOpts {
 
 #[derive(Debug, Clone)]
 pub struct FileStore {
-  opts: FileStoreOpts,
+  pub opts: FileStoreOpts,
   /// This is used when use_file_store is false
   mem_store: Arc<Mutex<HashMap<Cid, Ipld>>>,
 }
