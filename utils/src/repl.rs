@@ -43,6 +43,11 @@ pub struct ReplEnv {
   defs: Defs,
 }
 
+pub enum LineResult {
+  Success,
+  Quit,
+}
+
 impl Default for ReplEnv {
   fn default() -> Self {
     ReplEnv { type_system: true, var_index: false, defs: Defs::new() }
@@ -80,7 +85,7 @@ pub trait Repl {
   fn handle_line(
     &mut self,
     readline: Result<String, ReplError>,
-  ) -> Result<(), ()> {
+  ) -> Result<LineResult, ()> {
     let mutex_env = self.get_env();
     let mut env = mutex_env.lock().unwrap();
     let store = self.get_store();
@@ -107,7 +112,7 @@ pub trait Repl {
 
               if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
                 env.defs.flat_merge_mut(ds);
-                Ok(())
+                Ok(LineResult::Success)
               }
               else {
                 Err(())
@@ -118,7 +123,7 @@ pub trait Repl {
               match store::show(store, link, typ_, var_index) {
                 Ok(s) => {
                   self.println(format!("{}", s));
-                  Ok(())
+                  Ok(LineResult::Success)
                 }
                 Err(s) => {
                   self.println(format!("{}", s));
@@ -133,7 +138,7 @@ pub trait Repl {
                   "type-system: {}",
                   if setting { "on" } else { "off" }
                 ));
-                Ok(())
+                Ok(LineResult::Success)
               }
               "var-index" => {
                 env.var_index = setting;
@@ -141,7 +146,7 @@ pub trait Repl {
                   "var-index: {}",
                   if setting { "on" } else { "off" }
                 ));
-                Ok(())
+                Ok(LineResult::Success)
               }
               _ => {
                 self.println(format!("Error: Unknown setting {}", field));
@@ -157,7 +162,7 @@ pub trait Repl {
                     dag.norm(&env.defs, false);
                     self.println(format!("{}", dag));
                     self.println(format!(": {}", typ));
-                    Ok(())
+                    Ok(LineResult::Success)
                   }
                   Err(e) => {
                     self.println(format!("Type Error: {}", e));
@@ -168,7 +173,7 @@ pub trait Repl {
               else {
                 dag.norm(&env.defs, false);
                 self.println(format!("{}", dag));
-                Ok(())
+                Ok(LineResult::Success)
               }
             }
             Command::Type(term) => {
@@ -177,7 +182,7 @@ pub trait Repl {
                 Ok(term) => self.println(format!("{}", term)),
                 Err(e) => self.println(format!("Error: {}", e)),
               }
-              Ok(())
+              Ok(LineResult::Success)
             }
             Command::Define(boxed) => {
               let (n, def, _) = *boxed;
@@ -196,17 +201,17 @@ pub trait Repl {
                 }
                 Err(e) => self.println(format!("Error: {}", e)),
               }
-              Ok(())
+              Ok(LineResult::Success)
             }
             Command::Browse => {
               for (n, d) in env.defs.named_defs() {
                 self.println(format!("{}", d.pretty(n.to_string(), false)))
               }
-              Ok(())
+              Ok(LineResult::Success)
             }
             Command::Quit => {
               self.println(format!("Goodbye."));
-              Ok(())
+              Ok(LineResult::Quit)
             }
           },
           Err(e) => {
@@ -227,11 +232,11 @@ pub trait Repl {
       }
       Err(ReplError::Interrupted) => {
         self.println(format!("CTRL-C"));
-        Err(())
+        Ok(LineResult::Quit)
       }
       Err(ReplError::Eof) => {
         self.println(format!("CTRL-D"));
-        Err(())
+        Ok(LineResult::Quit)
       }
       Err(ReplError::Other(err)) => {
         self.println(format!("Error: {}", err));
@@ -246,8 +251,9 @@ pub fn run_repl(rl: &mut dyn Repl) {
   loop {
     let readline = rl.readline("⅄ ");
     match rl.handle_line(readline) {
-      Ok(()) => continue,
-      Err(()) => break,
+      Ok(LineResult::Success) => continue,
+      Ok(LineResult::Quit) => break,
+      Err(()) => continue,
     }
   }
   rl.save_history();
