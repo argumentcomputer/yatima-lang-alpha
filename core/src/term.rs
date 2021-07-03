@@ -15,14 +15,15 @@ pub use crate::{
 use sp_cid::Cid;
 
 use sp_std::{
-  fmt,
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
+  fmt,
   rc::Rc,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(Clone)]
@@ -508,6 +509,7 @@ impl fmt::Display for Term {
 
 #[cfg(test)]
 pub mod tests {
+
   use super::{
     Term::*,
     *,
@@ -523,18 +525,17 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use rand::Rng;
+  use sp_std::ops::Range;
 
-  use sp_std::{
-    vec::Vec,
-    boxed::Box,
-  };
   use sp_im::Vector;
+  use sp_std::{
+    boxed::Box,
+    vec::Vec,
+  };
 
   use crate::{
     name::Name,
     parse::term::is_valid_symbol_char,
-    tests::frequency,
   };
 
   pub fn arbitrary_name(g: &mut Gen) -> Name {
@@ -545,19 +546,6 @@ pub mod tests {
       .collect();
     s.truncate(1);
     Name::from(format!("_{}", s))
-  }
-
-  fn arbitrary_var(ctx: Vector<Name>) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |_g: &mut Gen| {
-      if ctx.len() == 0 {
-        return Term::Typ(Pos::None);
-      }
-      let mut rng = rand::thread_rng();
-      let gen = rng.gen_range(0..ctx.len());
-      let n = &ctx[gen];
-      let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
-      Var(Pos::None, n.clone(), i as u64)
-    })
   }
 
   pub fn test_defs() -> Defs {
@@ -583,197 +571,300 @@ pub mod tests {
     defs
   }
 
-  fn arbitrary_ref(
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |_g: &mut Gen| {
-      let mut rng = rand::thread_rng();
-      let refs: Vec<(Name, Cid)> = defs
-        .names
-        .clone()
-        .into_iter()
-        .filter(|(n, _)| !ctx.contains(n))
-        .collect();
-      println!("refs {:?}", refs);
-      let len = refs.len();
-      println!("len {}", len);
-      if len == 0 {
-        return Term::Typ(Pos::None);
+  fn arbitrary_ref(g: &mut Gen, defs: Defs, ctx: Vector<Name>) -> Tree {
+    let refs: Vec<(Name, Cid)> = defs
+      .names
+      .clone()
+      .into_iter()
+      .filter(|(n, _)| !ctx.contains(n))
+      .collect();
+    let len = refs.len();
+    if len == 0 {
+      return Tree::Typ;
+    };
+    let gen = gen_range(g, 0..(len - 1));
+    let (n, _) = refs[gen].clone();
+    let def = defs.get(&n).unwrap();
+    Tree::Ref(n.clone(), def.def_cid, def.ast_cid)
+  }
+
+  #[derive(Debug, Clone)]
+  pub enum Tree {
+    Var(Name, u64),
+    Typ,
+    Rec,
+    Ref(Name, Cid, Cid),
+    Opr(Op),
+    Lit(Literal),
+    LTy(LitType),
+    Lam(Name, usize),
+    Slf(Name, usize),
+    App(usize, usize),
+    Ann(usize, usize),
+    Cse(usize),
+    Dat(usize),
+    All(Uses, Name, usize, usize),
+    Let(bool, Uses, Name, usize, usize, usize),
+  }
+
+  impl Tree {
+    pub fn into_term(&self, arena: &Vec<Tree>) -> Term {
+      match self {
+        Self::Var(n, i) => Term::Var(Pos::None, n.clone(), *i),
+        Self::Rec => Term::Rec(Pos::None),
+        Self::Typ => Term::Typ(Pos::None),
+        Self::Ref(n, d, a) => Term::Ref(Pos::None, n.clone(), *d, *a),
+        Self::Opr(x) => Term::Opr(Pos::None, *x),
+        Self::Lit(x) => Term::Lit(Pos::None, x.clone()),
+        Self::LTy(x) => Term::LTy(Pos::None, *x),
+        Self::Lam(n, bod) => {
+          let bod = arena[*bod].into_term(&arena);
+          Term::Lam(Pos::None, n.clone(), Box::new(bod))
+        }
+        Self::Slf(n, bod) => {
+          let bod = arena[*bod].into_term(&arena);
+          Term::Slf(Pos::None, n.clone(), Box::new(bod))
+        }
+        Self::Cse(bod) => {
+          let bod = arena[*bod].into_term(&arena);
+          Term::Cse(Pos::None, Box::new(bod))
+        }
+        Self::Dat(bod) => {
+          let bod = arena[*bod].into_term(&arena);
+          Term::Dat(Pos::None, Box::new(bod))
+        }
+        Self::App(fun, arg) => {
+          let fun = arena[*fun].into_term(&arena);
+          let arg = arena[*arg].into_term(&arena);
+          Term::App(Pos::None, Box::new((fun, arg)))
+        }
+        Self::Ann(typ, trm) => {
+          let typ = arena[*typ].into_term(&arena);
+          let trm = arena[*trm].into_term(&arena);
+          Term::Ann(Pos::None, Box::new((typ, trm)))
+        }
+        Self::All(uses, n, dom, img) => {
+          let dom = arena[*dom].into_term(&arena);
+          let img = arena[*img].into_term(&arena);
+          Term::All(Pos::None, *uses, n.clone(), Box::new((dom, img)))
+        }
+        Self::Let(rec, uses, n, typ, trm, bod) => {
+          let typ = arena[*typ].into_term(&arena);
+          let trm = arena[*trm].into_term(&arena);
+          let bod = arena[*bod].into_term(&arena);
+          Term::Let(
+            Pos::None,
+            *rec,
+            *uses,
+            n.clone(),
+            Box::new((typ, trm, bod)),
+          )
+        }
       }
-      let gen = rng.gen_range(0..(len - 1));
-      println!("gen {:?}", gen);
-      let (n, _) = refs[gen].clone();
-      let def = defs.get(&n).unwrap();
-      let ref_ = Ref(Pos::None, n.clone(), def.def_cid, def.ast_cid);
-      println!("ref {}", ref_);
-      ref_
-    })
+    }
   }
 
-  fn arbitrary_lam(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      let n = arbitrary_name(g);
-      let mut ctx2 = ctx.clone();
-      ctx2.push_front(n.clone());
-      Lam(Pos::None, n, Box::new(arbitrary_term(g, rec, defs.clone(), ctx2)))
-    })
+  #[derive(Debug, Clone, Copy)]
+  pub enum Case {
+    VAR,
+    TYP,
+    REC,
+    REF,
+    LIT,
+    LTY,
+    OPR,
+    LAM,
+    APP,
+    ANN,
+    SLF,
+    CSE,
+    DAT,
+    ALL,
+    LET,
   }
 
-  fn arbitrary_app(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      Term::App(
-        Pos::None,
-        Box::new((
-          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
-          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
-        )),
-      )
-    })
+  pub fn gen_range(g: &mut Gen, range: Range<usize>) -> usize {
+    let res: usize = Arbitrary::arbitrary(g);
+    (res % (range.end - range.start)) + range.start
   }
 
-  fn arbitrary_ann(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      Term::Ann(
-        Pos::None,
-        Box::new((
-          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
-          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
-        )),
-      )
-    })
-  }
-
-  fn arbitrary_slf(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      let n = arbitrary_name(g);
-      let mut ctx2 = ctx.clone();
-      ctx2.push_front(n.clone());
-      Slf(Pos::None, n, Box::new(arbitrary_term(g, rec, defs.clone(), ctx2)))
-    })
-  }
-
-  fn arbitrary_dat(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      Term::Dat(
-        Pos::None,
-        Box::new(arbitrary_term(g, rec, defs.clone(), ctx.clone())),
-      )
-    })
-  }
-
-  fn arbitrary_cse(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      Term::Cse(
-        Pos::None,
-        Box::new(arbitrary_term(g, rec, defs.clone(), ctx.clone())),
-      )
-    })
-  }
-
-  fn arbitrary_all(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      let n = arbitrary_name(g);
-      let u: Uses = Arbitrary::arbitrary(g);
-      let mut ctx2 = ctx.clone();
-      ctx2.push_front(n.clone());
-      All(
-        Pos::None,
-        u,
-        n,
-        Box::new((
-          arbitrary_term(g, rec, defs.clone(), ctx.clone()),
-          arbitrary_term(g, rec, defs.clone(), ctx2),
-        )),
-      )
-    })
-  }
-
-  fn arbitrary_let(
-    rec: bool,
-    defs: Defs,
-    ctx: Vector<Name>,
-  ) -> Box<dyn Fn(&mut Gen) -> Term> {
-    Box::new(move |g: &mut Gen| {
-      // let rec: bool = Arbitrary::arbitrary(g);
-      let letrec: bool = false;
-      let n = arbitrary_name(g);
-      let u: Uses = Arbitrary::arbitrary(g);
-      let typ = arbitrary_term(g, rec, defs.clone(), ctx.clone());
-      if letrec {
-        let mut ctx2 = ctx.clone();
-        ctx2.push_front(n.clone());
-        let exp = arbitrary_term(g, rec, defs.clone(), ctx2.clone());
-        let bod = arbitrary_term(g, rec, defs.clone(), ctx2);
-        Let(Pos::None, letrec, u, n, Box::new((typ, exp, bod)))
+  pub fn next_case(g: &mut Gen, gens: &Vec<(usize, Case)>) -> Case {
+    let sum: usize = gens.iter().map(|x| x.0).sum();
+    let mut weight: usize = gen_range(g, 1..(sum + 1));
+    for gen in gens {
+      match weight.checked_sub(gen.0 + 1) {
+        None | Some(0) => {
+          return gen.1;
+        }
+        _ => {
+          weight -= gen.0;
+        }
       }
-      else {
-        let mut ctx2 = ctx.clone();
-        ctx2.push_front(n.clone());
-        let exp = arbitrary_term(g, rec, defs.clone(), ctx.clone());
-        let bod = arbitrary_term(g, rec, defs.clone(), ctx2);
-        Let(Pos::None, letrec, u, n, Box::new((typ, exp, bod)))
-      }
-    })
+    }
+    panic!("Calculation error for weight = {}", weight);
   }
 
   pub fn arbitrary_term(
     g: &mut Gen,
     rec: bool,
     defs: Defs,
-    ctx: Vector<Name>,
+    ctx0: Vector<Name>,
   ) -> Term {
-    let len = ctx.len();
-    if len == 0 {
-      arbitrary_lam(rec, defs, ctx)(g)
+    let name = Name::from("_r");
+    let mut ctx1 = ctx0.clone();
+    ctx1.push_front(name.clone());
+    let mut ctxs: Vec<Vector<Name>> = vec![ctx0, ctx1];
+    let mut arena: Vec<Option<Tree>> = vec![Some(Tree::Lam(name, 1)), None];
+    let mut todo: Vec<usize> = vec![1];
+
+    while let Some(idx) = todo.pop() {
+      let ctx: Vector<Name> = ctxs[idx].clone();
+      let depth = ctx.len();
+      let gens: Vec<(usize, Case)> = vec![
+        (100, Case::VAR),
+        (100, Case::TYP),
+        (100, Case::REF),
+        (100, Case::LIT),
+        (100, Case::LTY),
+        (100, Case::OPR),
+        (if rec { 100 } else { 0 }, Case::REC),
+        (90usize.saturating_sub(depth), Case::LAM),
+        (90usize.saturating_sub(depth), Case::SLF),
+        (90usize.saturating_sub(depth), Case::CSE),
+        (90usize.saturating_sub(depth), Case::DAT),
+        (80usize.saturating_sub(2 * depth), Case::APP),
+        (80usize.saturating_sub(2 * depth), Case::ANN),
+        (80usize.saturating_sub(2 * depth), Case::ALL),
+        (30usize.saturating_sub(3 * depth), Case::LET),
+      ];
+
+      match next_case(g, &gens) {
+        Case::TYP => {
+          arena[idx] = Some(Tree::Typ);
+        }
+        Case::REC => {
+          arena[idx] = Some(Tree::Rec);
+        }
+        Case::LTY => {
+          arena[idx] = Some(Tree::LTy(Arbitrary::arbitrary(g)));
+        }
+        Case::LIT => {
+          arena[idx] = Some(Tree::Lit(Arbitrary::arbitrary(g)));
+        }
+        Case::OPR => {
+          arena[idx] = Some(Tree::Opr(Arbitrary::arbitrary(g)));
+        }
+        Case::REF => {
+          arena[idx] = Some(arbitrary_ref(g, defs.clone(), ctx.clone()));
+        }
+        Case::VAR => {
+          let gen = gen_range(g, 0..ctx.len());
+          let n = &ctx[gen];
+          let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
+          arena[idx] = Some(Tree::Var(n.clone(), i as u64));
+        }
+        Case::LAM => {
+          let n = arbitrary_name(g);
+          let mut ctx2 = ctx.clone();
+          ctx2.push_front(n.clone());
+          let bod = arena.len();
+          todo.push(bod);
+          ctxs.push(ctx2);
+          arena.push(None);
+          arena[idx] = Some(Tree::Lam(n, bod));
+        }
+        Case::SLF => {
+          let n = arbitrary_name(g);
+          let mut ctx2 = ctx.clone();
+          ctx2.push_front(n.clone());
+          let bod = arena.len();
+          todo.push(bod);
+          ctxs.push(ctx2);
+          arena.push(None);
+          arena[idx] = Some(Tree::Slf(n, bod));
+        }
+        Case::CSE => {
+          let bod = arena.len();
+          todo.push(bod);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          arena[idx] = Some(Tree::Cse(bod));
+        }
+        Case::DAT => {
+          let bod = arena.len();
+          todo.push(bod);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          arena[idx] = Some(Tree::Dat(bod));
+        }
+        Case::APP => {
+          let fun = arena.len();
+          todo.push(fun);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          let arg = arena.len();
+          todo.push(arg);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          arena[idx] = Some(Tree::App(fun, arg));
+        }
+        Case::ANN => {
+          let typ = arena.len();
+          todo.push(typ);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          let trm = arena.len();
+          todo.push(trm);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          arena[idx] = Some(Tree::Ann(typ, trm));
+        }
+        Case::ALL => {
+          let uses: Uses = Arbitrary::arbitrary(g);
+          let n = arbitrary_name(g);
+          let mut ctx2 = ctx.clone();
+          ctx2.push_front(n.clone());
+          let dom = arena.len();
+          todo.push(dom);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          let img = arena.len();
+          todo.push(img);
+          ctxs.push(ctx2);
+          arena.push(None);
+          arena[idx] = Some(Tree::All(uses, n, dom, img));
+        }
+        Case::LET => {
+          let letrec: bool = Arbitrary::arbitrary(g);
+          let uses: Uses = Arbitrary::arbitrary(g);
+          let n = arbitrary_name(g);
+          let mut ctx2 = ctx.clone();
+          ctx2.push_front(n.clone());
+          let typ = arena.len();
+          todo.push(typ);
+          ctxs.push(ctx.clone());
+          arena.push(None);
+          let trm = arena.len();
+          todo.push(trm);
+          if letrec {
+            ctxs.push(ctx2.clone());
+          }
+          else {
+            ctxs.push(ctx.clone())
+          };
+          arena.push(None);
+          let bod = arena.len();
+          todo.push(bod);
+          ctxs.push(ctx2.clone());
+          arena.push(None);
+          arena[idx] = Some(Tree::Let(letrec, uses, n, typ, trm, bod));
+        }
+      }
     }
-    else {
-      frequency(g, vec![
-        (100, arbitrary_var(ctx.clone())),
-        (100, arbitrary_ref(defs.clone(), ctx.clone())),
-        (100, Box::new(|_| Term::Typ(Pos::None))),
-        (if rec { 100 } else { 0 }, Box::new(|_| Term::Rec(Pos::None))),
-        (100, Box::new(|g| Term::Lit(Pos::None, Arbitrary::arbitrary(g)))),
-        (100, Box::new(|g| Term::LTy(Pos::None, Arbitrary::arbitrary(g)))),
-        (100, Box::new(|g| Term::Opr(Pos::None, Arbitrary::arbitrary(g)))),
-        (90, arbitrary_lam(rec, defs.clone(), ctx.clone())),
-        (90, arbitrary_dat(rec, defs.clone(), ctx.clone())),
-        (90, arbitrary_cse(rec, defs.clone(), ctx.clone())),
-        (90, arbitrary_slf(rec, defs.clone(), ctx.clone())),
-        (80, arbitrary_all(rec, defs.clone(), ctx.clone())),
-        (80, arbitrary_app(rec, defs.clone(), ctx.clone())),
-        (80, arbitrary_ann(rec, defs.clone(), ctx.clone())),
-        (30, arbitrary_let(rec, defs.clone(), ctx.clone())),
-      ])
-    }
+    //    println!("arena: {:?}", arena);
+    let arena: Vec<Tree> = arena.into_iter().map(|x| x.unwrap()).collect();
+    //    println!("arena: {:?}", arena);
+    arena[0].into_term(&arena)
   }
 
   impl Arbitrary for Term {
@@ -785,6 +876,7 @@ pub mod tests {
   #[quickcheck]
   fn term_embed_unembed(x: Term) -> bool {
     let (a, m) = x.clone().embed();
+    println!("x: {}", x);
     match Term::unembed(&a, &m) {
       Ok(y) => {
         if x == y {
