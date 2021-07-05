@@ -528,240 +528,237 @@ enum State { A, B, C, D }
 // Free parentless nodes.
 pub fn free_dead_node(node: DAGPtr) {
   unsafe {
-    let mut stack: Vec<(DAGPtr, State)> = vec![(node, State::A)];
-    while !stack.is_empty() {
-      match stack.pop() {
-        None => (),
-        Some((node, state)) => match node {
-          DAGPtr::Lam(link) => match state {
-            State::A => {
-              let Lam { bod, bod_ref, .. } = &link.as_ref();
-              let new_bod_parents = bod_ref.unlink_node();
-              set_parents(*bod, new_bod_parents);
-              if new_bod_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*bod, State::A));
-              } else {
-                stack.push((node, State::B));
-              }
-            },
-            _ => {
-              Box::from_raw(link.as_ptr());
+    let mut stack = vec![(node, State::A)];
+    while let Some ((node, state)) = stack.pop() {
+      match node {
+        DAGPtr::Lam(link) => match state {
+          State::A => {
+            let Lam { bod, bod_ref, .. } = &link.as_ref();
+            let new_bod_parents = bod_ref.unlink_node();
+            set_parents(*bod, new_bod_parents);
+            if new_bod_parents.is_none() {
+              stack.push((node, State::B));
+              stack.push((*bod, State::A));
+            } else {
+              stack.push((node, State::B));
             }
           },
-          DAGPtr::Slf(mut link) => match state {
-            State::A => {
-              let Slf { bod, bod_ref, .. } = &link.as_mut();
-              let new_bod_parents = bod_ref.unlink_node();
-              set_parents(*bod, new_bod_parents);
-              if new_bod_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*bod, State::A));
-              } else {
-                stack.push((node, State::B));
-              }
-            },
-            _ => {
-              Box::from_raw(link.as_ptr());
-            }
-          },
-          DAGPtr::Fix(mut link) => match state {
-            State::A => {
-              let Fix { bod, bod_ref, .. } = &link.as_mut();
-              let new_bod_parents = bod_ref.unlink_node();
-              set_parents(*bod, new_bod_parents);
-              if new_bod_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*bod, State::A));
-              } else {
-                stack.push((node, State::B));
-              }
-            },
-            _ => {
-              Box::from_raw(link.as_ptr());
-            }
-          },
-          DAGPtr::Cse(link) => match state {
-            State::A => {
-              let Cse { bod, bod_ref, .. } = link.as_ref();
-              let new_bod_parents = bod_ref.unlink_node();
-              set_parents(*bod, new_bod_parents);
-              if new_bod_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*bod, State::A));
-              } else {
-                stack.push((node, State::B));
-              }
-            },
-            _ => {
-              Box::from_raw(link.as_ptr());
-            }
-          },
-          DAGPtr::Dat(link) => match state {
-            State::A => {
-              let Dat { bod, bod_ref, .. } = &link.as_ref();
-              let new_bod_parents = bod_ref.unlink_node();
-              set_parents(*bod, new_bod_parents);
-              if new_bod_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*bod, State::A));
-              } else {
-                stack.push((node, State::B));
-              }
-            },
-            _ => {
-              Box::from_raw(link.as_ptr());
-            }
-          },
-          DAGPtr::All(link) => {
-            let All { dom, img, dom_ref, img_ref, .. } = link.as_ref();
-            match state {
-              State::A => {
-                let new_dom_parents = dom_ref.unlink_node();
-                set_parents(*dom, new_dom_parents);
-                if new_dom_parents.is_none() {
-                  stack.push((node, State::B));
-                  stack.push((*dom, State::A));
-                } else {
-                  stack.push((node, State::B));
-                }
-              },
-              State::B => {
-                let img = DAGPtr::Lam(*img);
-                let new_img_parents = img_ref.unlink_node();
-                set_parents(img, new_img_parents);
-                if new_img_parents.is_none() {
-                  stack.push((node, State::C));
-                  stack.push((img, State::A));
-                } else {
-                  stack.push((node, State::C));
-                }
-              },
-              _ => {
-                Box::from_raw(link.as_ptr());
-              },
-            }
-          },
-          DAGPtr::App(link) => {
-            let App { fun, arg, fun_ref, arg_ref, .. } = link.as_ref();
-            match state {
-              State::A => {
-                let new_fun_parents = fun_ref.unlink_node();
-                set_parents(*fun, new_fun_parents);
-                if new_fun_parents.is_none() {
-                  stack.push((node, State::B));
-                  stack.push((*fun, State::A));
-                } else {
-                  stack.push((node, State::B));
-                }
-              },
-              State::B => {
-                let new_arg_parents = arg_ref.unlink_node();
-                set_parents(*arg, new_arg_parents);
-                if new_arg_parents.is_none() {
-                  stack.push((node, State::C));
-                  stack.push((*arg, State::A));
-                } else {
-                  stack.push((node, State::C));
-                }
-              },
-              _ => {
-                Box::from_raw(link.as_ptr());
-              },
-            }
-          },
-          DAGPtr::Ann(link) => {
-            let Ann { exp, typ, exp_ref, typ_ref, .. } = link.as_ref();
-            match state {
-              State::A => {
-                let new_exp_parents = exp_ref.unlink_node();
-                set_parents(*exp, new_exp_parents);
-                if new_exp_parents.is_none() {
-                  stack.push((node, State::B));
-                  stack.push((*exp, State::A));
-                } else {
-                  stack.push((node, State::B));
-                }
-              },
-              State::B => {
-                let new_typ_parents = typ_ref.unlink_node();
-                set_parents(*typ, new_typ_parents);
-                if new_typ_parents.is_none() {
-                  stack.push((node, State::C));
-                  stack.push((*typ, State::A));
-                } else {
-                  stack.push((node, State::C));
-                }
-              },
-              _ => {
-                Box::from_raw(link.as_ptr());
-              },
-            }
-          },
-          DAGPtr::Let(link) => {
-            let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
-              link.as_ref();
-            match state {
-              State::A => {
-                let new_exp_parents = exp_ref.unlink_node();
-                set_parents(*exp, new_exp_parents);
-                if new_exp_parents.is_none() {
-                  stack.push((node, State::B));
-                  stack.push((*exp, State::A));
-                } else {
-                  stack.push((node, State::B));
-                }
-              },
-              State::B => {
-                let new_typ_parents = typ_ref.unlink_node();
-                set_parents(*typ, new_typ_parents);
-                if new_typ_parents.is_none() {
-                  stack.push((node, State::C));
-                  stack.push((*typ, State::A));
-                } else {
-                  stack.push((node, State::C));
-                }
-              },
-              State::C => {
-                let bod = DAGPtr::Lam(*bod);
-                let new_bod_parents = bod_ref.unlink_node();
-                set_parents(bod, new_bod_parents);
-                if new_bod_parents.is_none() {
-                  stack.push((node, State::D));
-                  stack.push((bod, State::A));
-                } else {
-                  stack.push((node, State::D));
-                }
-              },
-              _ => {
-                Box::from_raw(link.as_ptr());
-              },
-            }
-          },
-          DAGPtr::Var(link) => {
-            let Var { binder, .. } = link.as_ref();
-            // only free Free variables, bound variables are freed with their binder
-            if let BinderPtr::Free = binder {
-              Box::from_raw(link.as_ptr());
-            }
-          },
-          DAGPtr::Ref(link) => {
-            Box::from_raw(link.as_ptr());
-          }
-          DAGPtr::Typ(link) => {
-            Box::from_raw(link.as_ptr());
-          }
-          DAGPtr::Lit(link) => {
-            Box::from_raw(link.as_ptr());
-          }
-          DAGPtr::LTy(link) => {
-            Box::from_raw(link.as_ptr());
-          }
-          DAGPtr::Opr(link) => {
+          _ => {
             Box::from_raw(link.as_ptr());
           }
         },
-      };
+        DAGPtr::Slf(mut link) => match state {
+          State::A => {
+            let Slf { bod, bod_ref, .. } = &link.as_mut();
+            let new_bod_parents = bod_ref.unlink_node();
+            set_parents(*bod, new_bod_parents);
+            if new_bod_parents.is_none() {
+              stack.push((node, State::B));
+              stack.push((*bod, State::A));
+            } else {
+              stack.push((node, State::B));
+            }
+          },
+          _ => {
+            Box::from_raw(link.as_ptr());
+          }
+        },
+        DAGPtr::Fix(mut link) => match state {
+          State::A => {
+            let Fix { bod, bod_ref, .. } = &link.as_mut();
+            let new_bod_parents = bod_ref.unlink_node();
+            set_parents(*bod, new_bod_parents);
+            if new_bod_parents.is_none() {
+              stack.push((node, State::B));
+              stack.push((*bod, State::A));
+            } else {
+              stack.push((node, State::B));
+            }
+          },
+          _ => {
+            Box::from_raw(link.as_ptr());
+          }
+        },
+        DAGPtr::Cse(link) => match state {
+          State::A => {
+            let Cse { bod, bod_ref, .. } = link.as_ref();
+            let new_bod_parents = bod_ref.unlink_node();
+            set_parents(*bod, new_bod_parents);
+            if new_bod_parents.is_none() {
+              stack.push((node, State::B));
+              stack.push((*bod, State::A));
+            } else {
+              stack.push((node, State::B));
+            }
+          },
+          _ => {
+            Box::from_raw(link.as_ptr());
+          }
+        },
+        DAGPtr::Dat(link) => match state {
+          State::A => {
+            let Dat { bod, bod_ref, .. } = &link.as_ref();
+            let new_bod_parents = bod_ref.unlink_node();
+            set_parents(*bod, new_bod_parents);
+            if new_bod_parents.is_none() {
+              stack.push((node, State::B));
+              stack.push((*bod, State::A));
+            } else {
+              stack.push((node, State::B));
+            }
+          },
+          _ => {
+            Box::from_raw(link.as_ptr());
+          }
+        },
+        DAGPtr::All(link) => {
+          let All { dom, img, dom_ref, img_ref, .. } = link.as_ref();
+          match state {
+            State::A => {
+              let new_dom_parents = dom_ref.unlink_node();
+              set_parents(*dom, new_dom_parents);
+              if new_dom_parents.is_none() {
+                stack.push((node, State::B));
+                stack.push((*dom, State::A));
+              } else {
+                stack.push((node, State::B));
+              }
+            },
+            State::B => {
+              let img = DAGPtr::Lam(*img);
+              let new_img_parents = img_ref.unlink_node();
+              set_parents(img, new_img_parents);
+              if new_img_parents.is_none() {
+                stack.push((node, State::C));
+                stack.push((img, State::A));
+              } else {
+                stack.push((node, State::C));
+              }
+            },
+            _ => {
+              Box::from_raw(link.as_ptr());
+            },
+          }
+        },
+        DAGPtr::App(link) => {
+          let App { fun, arg, fun_ref, arg_ref, .. } = link.as_ref();
+          match state {
+            State::A => {
+              let new_fun_parents = fun_ref.unlink_node();
+              set_parents(*fun, new_fun_parents);
+              if new_fun_parents.is_none() {
+                stack.push((node, State::B));
+                stack.push((*fun, State::A));
+              } else {
+                stack.push((node, State::B));
+              }
+            },
+            State::B => {
+              let new_arg_parents = arg_ref.unlink_node();
+              set_parents(*arg, new_arg_parents);
+              if new_arg_parents.is_none() {
+                stack.push((node, State::C));
+                stack.push((*arg, State::A));
+              } else {
+                stack.push((node, State::C));
+              }
+            },
+            _ => {
+              Box::from_raw(link.as_ptr());
+            },
+          }
+        },
+        DAGPtr::Ann(link) => {
+          let Ann { exp, typ, exp_ref, typ_ref, .. } = link.as_ref();
+          match state {
+            State::A => {
+              let new_exp_parents = exp_ref.unlink_node();
+              set_parents(*exp, new_exp_parents);
+              if new_exp_parents.is_none() {
+                stack.push((node, State::B));
+                stack.push((*exp, State::A));
+              } else {
+                stack.push((node, State::B));
+              }
+            },
+            State::B => {
+              let new_typ_parents = typ_ref.unlink_node();
+              set_parents(*typ, new_typ_parents);
+              if new_typ_parents.is_none() {
+                stack.push((node, State::C));
+                stack.push((*typ, State::A));
+              } else {
+                stack.push((node, State::C));
+              }
+            },
+            _ => {
+              Box::from_raw(link.as_ptr());
+            },
+          }
+        },
+        DAGPtr::Let(link) => {
+          let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
+            link.as_ref();
+          match state {
+            State::A => {
+              let new_exp_parents = exp_ref.unlink_node();
+              set_parents(*exp, new_exp_parents);
+              if new_exp_parents.is_none() {
+                stack.push((node, State::B));
+                stack.push((*exp, State::A));
+              } else {
+                stack.push((node, State::B));
+              }
+            },
+            State::B => {
+              let new_typ_parents = typ_ref.unlink_node();
+              set_parents(*typ, new_typ_parents);
+              if new_typ_parents.is_none() {
+                stack.push((node, State::C));
+                stack.push((*typ, State::A));
+              } else {
+                stack.push((node, State::C));
+              }
+            },
+            State::C => {
+              let bod = DAGPtr::Lam(*bod);
+              let new_bod_parents = bod_ref.unlink_node();
+              set_parents(bod, new_bod_parents);
+              if new_bod_parents.is_none() {
+                stack.push((node, State::D));
+                stack.push((bod, State::A));
+              } else {
+                stack.push((node, State::D));
+              }
+            },
+            _ => {
+              Box::from_raw(link.as_ptr());
+            },
+          }
+        },
+        DAGPtr::Var(link) => {
+          let Var { binder, .. } = link.as_ref();
+          // only free Free variables, bound variables are freed with their binder
+          if let BinderPtr::Free = binder {
+            Box::from_raw(link.as_ptr());
+          }
+        },
+        DAGPtr::Ref(link) => {
+          Box::from_raw(link.as_ptr());
+        }
+        DAGPtr::Typ(link) => {
+          Box::from_raw(link.as_ptr());
+        }
+        DAGPtr::Lit(link) => {
+          Box::from_raw(link.as_ptr());
+        }
+        DAGPtr::LTy(link) => {
+          Box::from_raw(link.as_ptr());
+        }
+        DAGPtr::Opr(link) => {
+          Box::from_raw(link.as_ptr());
+        }
+      }
     }
   }
 }
