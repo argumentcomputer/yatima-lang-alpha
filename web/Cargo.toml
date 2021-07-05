@@ -1,0 +1,46 @@
+[package]
+name = "yatima-web"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+yatima-core = { path = "../core" }
+yatima-utils = { path = "../utils" }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
+bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
+multiaddr = "*"
+wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
+js-sys = "0.3.49"
+base64 = "0.13.0"
+wasm-bindgen-futures = "0.4.22"
+xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
+console_error_panic_hook = { version = "0.1.6", optional = true }
+
+[dependencies.web-sys]
+version = "0.3.49"
+features = [
+  'Document',
+  'Element',
+  'HtmlElement',
+  'Node',
+  'Headers',
+  'Request',
+  'RequestInit',
+  'RequestMode',
+  'Response',
+  'Window',
+  'Storage',
+  'console',
+]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.12"
+#Also do you know how to pipe cargo commands into a file, grep etc? The usual bash commands don't work on it

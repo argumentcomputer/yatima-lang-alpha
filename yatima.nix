@@ -1,27 +1,35 @@
 # import niv sources and the pinned nixpkgs
 { sources ? import ./nix/sources.nix
-, pkgs ? import sources.nixpkgs { }
+, nixpkgs ? import sources.nixpkgs { overlays = [ (import ./nix/rust-overlay.nix) ]; }
 , target ? null
+, rust ? import ./nix/rust.nix {
+    inherit nixpkgs;
+  }
+  # Wether to run the tests when building
+, doCheck ? true
+  # configure naersk to use our pinned rust compiler
+, naersk ? nixpkgs.callPackage sources.naersk {
+    rustc = rust;
+    cargo = rust;
+  }
 }:
 with builtins;
 let
   # import rust compiler
-  rust = import ./nix/rust.nix { inherit sources; };
-
-  # configure naersk to use our pinned rust compiler
-  naersk = pkgs.callPackage sources.naersk {
-    rustc = rust;
-    cargo = rust;
-  };
 
   # tell nix-build to ignore the `target` directory
-  src = builtins.filterSource
+  project = builtins.filterSource
     (path: type: type != "directory" || builtins.baseNameOf path != "target")
     ./.;
 in
 naersk.buildPackage {
+  name = "yatima";
+  version = "0.1.0";
+  buildInputs = with nixpkgs; [ openssl pkg-config project ];
+  PKG_CONFIG_PATH = "${nixpkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
-  inherit src;
+  src = project;
+  doCheck = doCheck;
   remapPathPrefix =
     true; # remove nix store references for a smaller output package
 }

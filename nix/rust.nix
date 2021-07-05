@@ -1,10 +1,16 @@
-{ sources ? import ./sources.nix }:
+{ nixpkgs
+, channel ? "nightly"
+, date ? "2021-05-30"
+}:
 let
-  pkgs =
-    import sources.nixpkgs { overlays = [ (import sources.nixpkgs-mozilla) ]; };
-  channel = "nightly";
-  date = "2021-03-18";
+  inherit channel date;
   targets = [ "wasm32-unknown-unknown" "wasm32-wasi" ];
-  chan = pkgs.rustChannelOfTargets channel date targets;
+  sha256 = "N+G7d3+glt0O5n1yFRJdwFGg2xHRLl31YbxNRzwXP2w=";
+  rust = (nixpkgs.rustChannelOf {
+    inherit channel date sha256;
+  }).rust.override {
+    inherit targets;
+    extensions = [ "rust-src" "rust-analysis" ];
+  };
 in
-chan
+rust

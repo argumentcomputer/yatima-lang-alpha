@@ -2,25 +2,29 @@
 }:
 let
   # default nixpkgs
-  pkgs = import sources.nixpkgs { };
+  nixpkgs = import sources.nixpkgs { overlays = [ (import ./rust-overlay.nix) ]; };
 
-  # gitignore.nix 
-  gitignoreSource = (import sources."gitignore.nix" { inherit (pkgs) lib; }).gitignoreSource;
+  # gitignore.nix
+  gitignoreSource = (import sources."gitignore.nix" { inherit (nixpkgs) lib; }).gitignoreSource;
 
   pre-commit-hooks = (import sources."pre-commit-hooks.nix");
 
-  rust = (import ./rust.nix { inherit sources; });
+  rust = import ./rust.nix { inherit nixpkgs; };
+
+  # grinProject = import sources.grin { };
+  # grin = grinProject.grin.components.exes.grin;
 
   src = gitignoreSource ./..;
 in
 {
-  inherit pkgs src;
+  inherit nixpkgs src;
 
   # provided by shell.nix
   devTools = {
-    inherit (pkgs) niv wasm-pack wasmtime valgrind;
-    inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter;
+    inherit (nixpkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
+    inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter rustfmt clippy;
     inherit rust;
+    # inherit grin;
   };
 
   # to be built by github actions
@@ -30,7 +34,7 @@ in
       hooks = {
         shellcheck.enable = true;
         nixpkgs-fmt.enable = true;
-        nix-linter.enable = true;
+        # nix-linter.enable = true;
         # cargo-check.enable = true;
         # rustfmt.enable = true;
         # clippy.enable = true;
@@ -40,10 +44,10 @@ in
       excludes = [ "^nix/sources\.nix$" ];
     };
     yatima-native = import ../yatima.nix {
-      inherit sources pkgs;
+      inherit sources nixpkgs rust;
     };
     yatima-wasi = import ../yatima.nix {
-      inherit sources pkgs;
+      inherit sources nixpkgs rust;
       target = "wasm32-wasi";
     };
   };
