@@ -7,9 +7,13 @@ use crate::{
   upcopy::*,
 };
 
-use std::collections::HashMap;
+use sp_std::{
+  collections::btree_map::BTreeMap,
+  vec::Vec,
+  mem,
+};
 
-use sp_std::mem;
+use alloc::string::String;
 
 enum Single {
   Lam(Var),
@@ -340,7 +344,7 @@ impl DAG {
                   let expand = DAG::from_term_inner(
                     expand,
                     0,
-                    HashMap::new(),
+                    BTreeMap::new(),
                     *parents,
                     None,
                   );
@@ -561,7 +565,7 @@ impl DAG {
   }
 }
 
-#[cfg(test)]
+//#[cfg(test)]
 pub mod test {
   use super::DAG;
   use crate::{

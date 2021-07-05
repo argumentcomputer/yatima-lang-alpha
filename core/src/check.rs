@@ -16,18 +16,22 @@ use crate::{
   yatima,
 };
 
-use std::collections::HashMap;
-
-use cid::Cid;
+use sp_cid::Cid;
 
 use core::ptr::NonNull;
-use std::{
-  collections::HashSet,
+
+use alloc::string::ToString;
+use sp_std::{
+  collections::{
+    btree_map::BTreeMap,
+    btree_set::BTreeSet,
+  },
+  borrow::ToOwned,
   mem,
 };
 
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
-  let mut map = HashMap::new();
+  let mut map = BTreeMap::new();
   DAG::dag_ptr_to_term(&dag, &mut map, dep, true).embed().0.cid()
 }
 
@@ -35,7 +39,7 @@ pub fn equal(defs: &Defs, a: &mut DAG, b: &mut DAG, dep: u64) -> bool {
   a.whnf(defs);
   b.whnf(defs);
   let mut triples = vec![(a.head, b.head, dep)];
-  let mut set: HashSet<(Cid, Cid)> = HashSet::new();
+  let mut set: BTreeSet<(Cid, Cid)> = BTreeSet::new();
   while let Some((a, b, dep)) = triples.pop() {
     let mut a = DAG::new(a);
     let mut b = DAG::new(b);
@@ -219,14 +223,14 @@ pub fn check_dat(
       // substituted for its variable. To do this we copy the body of the
       // self with a mapping from the variable to the term as a DAG. The
       // copied type must be rooted
-      let mut map = HashMap::new();
+      let mut map = BTreeMap::new();
       if var.parents.is_some() {
         map.insert(
           DAGPtr::Var(NonNull::new(var).unwrap()),
           DAG::from_term_inner(
             term,
             ctx.len() as u64,
-            HashMap::new(),
+            BTreeMap::new(),
             None,
             rec.clone(),
           ),
@@ -387,14 +391,14 @@ pub fn infer_app(
       let All { uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
       let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
       check(rec, defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
-      let mut map = HashMap::new();
+      let mut map = BTreeMap::new();
       if var.parents.is_some() {
         map.insert(
           DAGPtr::Var(NonNull::new(var).unwrap()),
           DAG::from_term_inner(
             arg,
             ctx.len() as u64,
-            HashMap::new(),
+            BTreeMap::new(),
             None,
             rec.clone(),
           ),
@@ -428,14 +432,14 @@ pub fn infer_cse(
   match exp_typ.head {
     DAGPtr::Slf(link) => {
       let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
-      let mut map = HashMap::new();
+      let mut map = BTreeMap::new();
       if var.parents.is_some() {
         map.insert(
           DAGPtr::Var(NonNull::new(var).unwrap()),
           DAG::from_term_inner(
             exp,
             ctx.len() as u64,
-            HashMap::new(),
+            BTreeMap::new(),
             None,
             rec.clone(),
           ),
@@ -457,7 +461,7 @@ pub fn infer_cse(
           let induction = DAG::from_term_inner(
             &ind,
             ctx.len() as u64,
-            HashMap::new(),
+            BTreeMap::new(),
             Some(root),
             None,
           );
@@ -488,7 +492,7 @@ pub fn infer_all(
   let mut dom_dag = DAG::from_term_inner(
     dom,
     ctx.len() as u64,
-    HashMap::new(),
+    BTreeMap::new(),
     None,
     rec.clone(),
   );
@@ -512,7 +516,7 @@ pub fn infer_slf(
   let mut term_dag = DAG::from_term_inner(
     term,
     ctx.len() as u64,
-    HashMap::new(),
+    BTreeMap::new(),
     None,
     rec.clone(),
   );
@@ -539,7 +543,7 @@ pub fn infer_let(
   let exp_dag = &mut DAG::new(DAG::from_term_inner(
     exp,
     ctx.len() as u64,
-    HashMap::new(),
+    BTreeMap::new(),
     None,
     rec.clone(),
   ));
@@ -547,7 +551,7 @@ pub fn infer_let(
   let exp_typ_dag = &mut DAG::new(DAG::from_term_inner(
     exp_typ,
     ctx.len() as u64,
-    HashMap::new(),
+    BTreeMap::new(),
     Some(root),
     rec.clone(),
   ));
@@ -593,7 +597,7 @@ pub fn infer_letrec(
     // Allocates exp as a DAG, must be rootless
     let fix = alloc_fix(nam.clone(), 0, mem::zeroed(), None);
     let Fix { var: fix_var, bod_ref: fix_bod_ref, .. } = &mut *fix.as_ptr();
-    let mut exp_map = HashMap::new();
+    let mut exp_map = BTreeMap::new();
     exp_map.insert(ctx.len(), DAGPtr::Var(NonNull::new_unchecked(fix_var)));
     let exp_dag = &mut DAG::new(DAG::from_term_inner(
       exp,
@@ -607,7 +611,7 @@ pub fn infer_letrec(
     let exp_typ_dag = &mut DAG::new(DAG::from_term_inner(
       exp_typ,
       ctx.len() as u64,
-      HashMap::new(),
+      BTreeMap::new(),
       Some(root),
       rec.clone(),
     ));
@@ -656,7 +660,7 @@ pub fn infer_ann(
   let mut typ_dag = DAG::new(DAG::from_term_inner(
     typ,
     ctx.len() as u64,
-    HashMap::new(),
+    BTreeMap::new(),
     Some(root),
     rec.clone(),
   ));

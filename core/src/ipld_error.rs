@@ -1,9 +1,12 @@
 use sp_ipld::Ipld;
-use std::num::TryFromIntError;
+use sp_std::{
+  num::TryFromIntError,
+  vec::Vec,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum IpldError {
-  Utf8(Vec<u8>, std::string::FromUtf8Error),
+  Utf8(Vec<u8>, alloc::string::FromUtf8Error),
   ByteCount(Vec<u8>, u64),
   UnicodeChar(u32),
   U64(TryFromIntError),

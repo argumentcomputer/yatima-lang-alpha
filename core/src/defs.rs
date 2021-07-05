@@ -11,11 +11,17 @@ use crate::{
   term::Term,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 
-use std::collections::HashMap;
+use sp_std::{
+  fmt,
+  vec::Vec,
+  collections::btree_map::BTreeMap,
+};
 
-use std::fmt;
+use alloc::{
+  string::{String, ToString},
+};
 
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -38,8 +44,8 @@ impl PartialEq for Def {
 /// A map of content-ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
-  pub defs: HashMap<Cid, Def>,
-  pub names: HashMap<Name, Cid>,
+  pub defs: BTreeMap<Cid, Def>,
+  pub names: BTreeMap<Name, Cid>,
 }
 
 impl Def {
@@ -87,18 +93,18 @@ impl Def {
     })
   }
 
-  pub fn pretty(&self, name: String) -> String {
+  pub fn pretty(&self, name: String, ind: bool) -> String {
     format!(
       "def {} : {} = {}",
       name,
-      self.typ_.pretty(Some(&name)),
-      self.term.pretty(Some(&name))
+      self.typ_.pretty(Some(&name), ind),
+      self.term.pretty(Some(&name), ind)
     )
   }
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: HashMap::new(), names: HashMap::new() } }
+  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
 
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
@@ -147,7 +153,7 @@ impl Default for Defs {
 
 impl fmt::Display for Def {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.pretty("#^".to_string()))
+    write!(f, "{}", self.pretty("#^".to_string(), false))
   }
 }
 impl fmt::Display for Defs {
@@ -159,8 +165,8 @@ impl fmt::Display for Defs {
         f,
         "def {} : {} = {}",
         k.clone(),
-        def.typ_.pretty(Some(&k.to_string())),
-        def.term.pretty(Some(&k.to_string())),
+        def.typ_.pretty(Some(&k.to_string()), false),
+        def.term.pretty(Some(&k.to_string()), false),
       )?;
       writeln!(f)?;
     }
@@ -183,7 +189,7 @@ pub mod tests {
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
     let term =
-      arbitrary_term(g, true, test_defs(), std::collections::VecDeque::new());
+      arbitrary_term(g, true, test_defs(), sp_std::collections::vec_deque::VecDeque::new());
     Def::make(Pos::None, typ_, term)
   }
 

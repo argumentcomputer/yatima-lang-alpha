@@ -3,13 +3,16 @@ use crate::{
   parse::span::Span,
 };
 
-use cid::Cid;
+use sp_cid::Cid;
 use sp_ipld::Ipld;
 
-use std::{
+use sp_std::{
   convert::TryInto,
   fmt,
+  borrow::ToOwned,
 };
+
+use alloc::string::String;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Position {
@@ -22,10 +25,13 @@ pub struct Position {
   pub upto_column: u64,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Pos {
   None,
   Some(Position),
+}
+impl fmt::Debug for Pos {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "") }
 }
 
 impl Position {

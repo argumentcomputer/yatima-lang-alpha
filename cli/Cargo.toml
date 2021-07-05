@@ -1,8 +1,8 @@
 [package]
-name = "yatima_cli"
+name = "yatima-cli"
 description = "A dependently typed programming language for the decentralized web"
 version = "0.1.0"
-authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <samuel@yatima.io>"]
+authors = ["John C. Burnham <john@yatima.io>", "Anders C. Sørby <anders@yatima.io>", "Gabriel Barreto <gabriel@yatima.io>", "Samuel Burnham <sam@yatima.io>"]
 edition = "2018"
 
 [[bin]]
@@ -10,16 +10,17 @@ name = "yatima"
 path = "src/main.rs"
 
 [dependencies]
-yatima_core = { path = "../core"}
-yatima_utils = { path = "../utils"}
-cid = "0.6.1"
-multihash = "0.13.2"
+yatima-core = { path = "../core"}
+yatima-utils = { path = "../utils"}
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
+sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
+bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
 multibase = "0.9.1"
-sp-ipld = { path = "../sp_ipld" }
 im  = "15.0.0"
 structopt = "0.3.21"
 nom = "6.0.1"
-nom_locate = "3.0.0"
+nom_locate = "3.0.1"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"

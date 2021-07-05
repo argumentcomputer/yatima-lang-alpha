@@ -1,9 +1,12 @@
 use sp_ipld::Ipld;
 
-use std::{
+use sp_std::{
   convert::TryFrom,
   fmt,
+  borrow::ToOwned,
 };
+
+use alloc::string::String;
 
 use crate::{
   ipld_error::IpldError,
@@ -411,7 +414,7 @@ pub mod tests {
     I32Op,
     I64Op,
   };
-  use std::{
+  use sp_std::{
     convert::TryInto,
     mem
   };

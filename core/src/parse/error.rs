@@ -17,14 +17,18 @@ use nom::{
   IResult,
   InputLength,
 };
-use sp_im::ConsList;
-use std::{
+
+use sp_std::{
   cmp::Ordering,
   fmt,
   fmt::Write,
   num::ParseIntError,
-  string::String,
+  vec::Vec,
 };
+
+use sp_im::conslist::ConsList;
+
+use alloc::string::String;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseErrorKind {
@@ -60,6 +64,7 @@ pub enum ParseErrorKind {
   UnknownI32Op(Name),
   UnknownI64Op(Name),
   UnknownI128Op(Name),
+  TypeDefConstructorMustReturnItsType,
   InvalidSymbol(String),
   Nom(ErrorKind),
 }

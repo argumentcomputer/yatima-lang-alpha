@@ -8,10 +8,10 @@ use sp_ipld::{
     cid,
     DagCborCodec,
   },
-  ByteCursor,
   Codec,
   Ipld,
 };
+use bytecursor::ByteCursor;
 
 pub async fn dag_put(dag: Ipld) -> Result<String, reqwest::Error> {
   let host = "http://127.0.0.1:5001";
