@@ -5,10 +5,10 @@ use crate::{
   term::*,
 };
 use sp_std::{
+  boxed::Box,
   iter::once,
   rc::Rc,
   vec::Vec,
-  boxed::Box,
 };
 
 /// A type declaration syntax that allows for convenient expression of Yatima's
@@ -26,7 +26,7 @@ use sp_std::{
 ///
 /// ```yatima
 /// // `Vector` type
-/// def Vector (0 A: Type) (0 k: Nat): Type =
+/// def Vector (A: Type) (k: Nat): Type =
 ///  @Vector.self ∀
 ///  (0 P : ∀ (k: Nat) (self: Vector A k) -> Type)
 ///  (& Nil : P 0 (data λ Vector.Motive Vector.Nil Vector.Cons => Vector.Nil))
@@ -91,7 +91,6 @@ pub struct Variant {
 impl TypeDef {
   /// Constructs the type of the `type` declaration
   /// e.g. `Vector : ∀ (0 A: Type) (0 k: Nat) -> Type`
-  //
   pub fn type_of(&self) -> Term {
     self.typ_params.iter().chain(self.typ_indices.iter()).rev().fold(
       Term::Typ(Pos::None),
@@ -114,7 +113,7 @@ impl TypeDef {
     // the dependent `self` binder. This is structurally a recursion on the self
     // type saturated with variables binding to all the types parameters and
     // indices.
-
+    //
     // Count the number of type indices
     let i_len = self.typ_indices.len();
     // Construct an iterator of variables pointing the the type parameters
@@ -344,40 +343,6 @@ impl TypeDef {
     // structs for the datatype type definitions versus the constructors. This
     // is because the different contexts for both cases cause the De Bruijn
     // indices to differ significantly.
-    //
-    // Nevertheless it is possible to use the `self.typ_variants` to
-    // compute the `self.cons_variants` and to avoid needing a second parsing
-    // pass.
-    //
-    // ```rust
-    // for (i, v) in self.typ_variants.iter().enumerate() {
-    //   let offset = -((self.typ_indices.len() + 2 + i) as i64);
-    //   let v_params: Vec<Term> =
-    //     v.params.clone().into_iter().map(|t| t.shift(offset, None)).collect();
-    //   let v_indices: Vec<Term> = v
-    //     .indices
-    //     .clone()
-    //     .into_iter()
-    //     .map(|t| t.shift(offset, Some(v.bind.len() as u64)))
-    //     .collect();
-    //   let v_bind: Vec<(Uses, Name, Term)> = v
-    //     .bind
-    //     .clone()
-    //     .into_iter()
-    //     .enumerate()
-    //     .map(|(i, (u, n, t))| (u, n, t.shift(offset, Some(i as u64))))
-    //     .collect();
-    // }
-    // ```
-    //
-    // This technique is likely more performant, but is complex
-    // and presents a danger in its use of a potentially large negative offset.
-    // While integrating the above code does successfully pass the test-suite
-    // and typecheck introit, a subtle bug could easily create negative De
-    // Bruijn indices which can crash the language. Even just having an
-    // *incorrect* offset can cause typechecking or evaluation to behave in
-    // frustrating and unpredictable ways.
-    // ---
     let mut res = Vec::new();
     let data = self.data_terms();
     for (i, v) in self.cons_variants.iter().enumerate() {
@@ -410,12 +375,17 @@ impl TypeDef {
         .fold(self.type_ref(), |acc, arg| {
           Term::App(Pos::None, Box::new((acc, arg.clone())))
         });
-      let typ = self.typ_params.iter().chain(v.bind.iter()).rev().fold(
-        img,
-        |acc, (u, n, t)| {
-          Term::All(Pos::None, *u, n.clone(), Box::new((t.clone(), acc)))
-        },
-      );
+      let typ = self
+        .typ_params
+        .clone()
+        .into_iter()
+        // The multiplicities of the typ_params are set to 0 in constructors
+        .map(|(u, n, t)| (Uses::None, n, t))
+        .chain(v.bind.clone().into_iter())
+        .rev()
+        .fold(img, |acc, (u, n, t)| {
+          Term::All(Pos::None, u, n, Box::new((t, acc)))
+        });
       // Replace `Term::Rec` with the reference to the type definition
       let typ = typ.un_rec(Rc::new(self.type_ref()));
       // Build the constructor definition
