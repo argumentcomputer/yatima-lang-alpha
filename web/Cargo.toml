@@ -10,19 +10,20 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-yatima-core = { path = "../core" }
-yatima-utils = { path = "../utils" }
+base64 = "0.13.0"
+bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+console_error_panic_hook = { version = "0.1.6", optional = true }
+js-sys = "0.3.49"
+multiaddr = "*"
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
-bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
-sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
-multiaddr = "*"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
-js-sys = "0.3.49"
-base64 = "0.13.0"
 wasm-bindgen-futures = "0.4.22"
+unicode-segmentation = "1.8.0"
 xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
-console_error_panic_hook = { version = "0.1.6", optional = true }
+yatima-core = { path = "../core" }
+yatima-utils = { path = "../utils" }
 
 [dependencies.web-sys]
 version = "0.3.49"
