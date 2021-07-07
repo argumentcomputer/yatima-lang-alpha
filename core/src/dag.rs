@@ -805,35 +805,35 @@ impl DAG {
             DAGPtr::Var(link) => {
               let Var { nam, dep: var_depth, rec, .. } = unsafe { link.as_ref() };
               if *rec && re_rec {
-                stack.push(Frame::Return (Term::Rec(Pos::None)));
+                ret_stack.push(Term::Rec(Pos::None));
               }
               else if let Some(level) = map.get(&link.as_ptr()) {
-                stack.push(Frame::Return (Term::Var(Pos::None, nam.clone(), depth - level - 1)));
+                ret_stack.push(Term::Var(Pos::None, nam.clone(), depth - level - 1));
               }
               else {
-                stack.push(Frame::Return (Term::Var(Pos::None, nam.clone(), *var_depth)));
+                ret_stack.push(Term::Var(Pos::None, nam.clone(), *var_depth));
               }
             }
-            DAGPtr::Typ(_) => stack.push(Frame::Return (Term::Typ(Pos::None))),
+            DAGPtr::Typ(_) => ret_stack.push(Term::Typ(Pos::None)),
             DAGPtr::LTy(link) => {
               let LTy { lty, .. } = unsafe { link.as_ref() };
-              stack.push(Frame::Return (Term::LTy(Pos::None, *lty)));
+              ret_stack.push(Term::LTy(Pos::None, *lty));
             }
             DAGPtr::Lit(link) => {
               let Lit { lit, .. } = unsafe { link.as_ref() };
-              stack.push(Frame::Return (Term::Lit(Pos::None, lit.clone())));
+              ret_stack.push(Term::Lit(Pos::None, lit.clone()));
             }
             DAGPtr::Opr(link) => {
               let Opr { opr, .. } = unsafe { link.as_ref() };
-              stack.push(Frame::Return (Term::Opr(Pos::None, *opr)));
+              ret_stack.push(Term::Opr(Pos::None, *opr));
             }
             DAGPtr::Ref(link) => {
               let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
               if *rec && re_rec {
-                stack.push(Frame::Return (Term::Rec(Pos::None)));
+                ret_stack.push(Term::Rec(Pos::None));
               }
               else {
-                stack.push(Frame::Return (Term::Ref(Pos::None, nam.clone(), *exp, *ast)));
+                ret_stack.push(Term::Ref(Pos::None, nam.clone(), *exp, *ast));
               }
             }
             DAGPtr::Lam(link) => {
@@ -1325,7 +1325,7 @@ impl DAG {
               });
               let new_node = DAGPtr::Var(var);
               map.insert(node, new_node);
-              stack.push(Frame::Return(new_node));
+              ret_stack.push(new_node);
             },
             DAGPtr::Ref(link) => unsafe {
               let Ref { nam, exp, ast, rec, .. } = &*link.as_ptr();
@@ -1338,7 +1338,7 @@ impl DAG {
               });
               let new_node = DAGPtr::Ref(ref_);
               map.insert(node, new_node);
-              stack.push(Frame::Return(new_node));
+              ret_stack.push(new_node);
             },
             DAGPtr::Lam(link) => unsafe {
               let Lam { var, bod, .. } = &mut *link.as_ptr();
@@ -1449,27 +1449,27 @@ impl DAG {
               let lit = alloc_val(Lit { lit: lit.clone(), parents });
               let new_node = DAGPtr::Lit(lit);
               map.insert(node, new_node);
-              stack.push(Frame::Return(new_node));
+              ret_stack.push(new_node);
             },
             DAGPtr::LTy(link) => unsafe {
               let LTy { lty, .. } = *link.as_ptr();
               let lty = alloc_val(LTy { lty, parents });
               let new_node = DAGPtr::LTy(lty);
               map.insert(node, new_node);
-              stack.push(Frame::Return(new_node));
+              ret_stack.push(new_node);
             },
             DAGPtr::Opr(link) => unsafe {
               let Opr { opr, .. } = *link.as_ptr();
               let opr = alloc_val(Opr { opr, parents });
               let new_node = DAGPtr::Opr(opr);
               map.insert(node, new_node);
-              stack.push(Frame::Return(new_node));
+              ret_stack.push(new_node);
             },
             DAGPtr::Typ(_) => {
               let typ = alloc_val(Typ { parents });
               let new_node = DAGPtr::Typ(typ);
               map.insert(node, new_node);
-              stack.push(Frame::Return(new_node));
+              ret_stack.push(new_node);
             } // _ => panic!("TODO"),
           };
         }
