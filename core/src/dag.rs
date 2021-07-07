@@ -771,6 +771,11 @@ pub fn free_dead_node(node: DAGPtr) {
   }
 }
 
+enum Frame<A, B> {
+  Enter(A),
+  Return(B),
+}
+
 impl DAG {
   pub fn new(head: DAGPtr) -> DAG { DAG { head } }
 
@@ -791,142 +796,205 @@ impl DAG {
     depth: u64,
     re_rec: bool,
   ) -> Term {
-    match node {
-      DAGPtr::Var(link) => {
-        let Var { nam, dep: var_depth, rec, .. } = unsafe { link.as_ref() };
-        if *rec && re_rec {
-          Term::Rec(Pos::None)
-        }
-        else if let Some(level) = map.get(&link.as_ptr()) {
-          Term::Var(Pos::None, nam.clone(), depth - level - 1)
-        }
-        else {
-          Term::Var(Pos::None, nam.clone(), *var_depth)
-        }
-      }
-      DAGPtr::Typ(_) => Term::Typ(Pos::None),
-      DAGPtr::LTy(link) => {
-        let LTy { lty, .. } = unsafe { link.as_ref() };
-        Term::LTy(Pos::None, *lty)
-      }
-      DAGPtr::Lit(link) => {
-        let Lit { lit, .. } = unsafe { link.as_ref() };
-        Term::Lit(Pos::None, lit.clone())
-      }
-      DAGPtr::Opr(link) => {
-        let Opr { opr, .. } = unsafe { link.as_ref() };
-        Term::Opr(Pos::None, *opr)
-      }
-      DAGPtr::Ref(link) => {
-        let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
-        if *rec && re_rec {
-          Term::Rec(Pos::None)
-        }
-        else {
-          Term::Ref(Pos::None, nam.clone(), *exp, *ast)
-        }
-      }
-      DAGPtr::Lam(link) => {
-        let Lam { var, bod, .. } = unsafe { &mut *link.as_ptr() };
-        let nam = var.nam.clone();
-        map.insert(var, depth);
-        let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
-        Term::Lam(Pos::None, nam, Box::new(body))
-      }
-      DAGPtr::Slf(link) => {
-        let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
-        let nam = var.nam.clone();
-        map.insert(var, depth);
-        let body = DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec);
-        Term::Slf(Pos::None, nam, Box::new(body))
-      }
-      DAGPtr::Fix(_) => {
-        panic!("Fix conversion TODO")
-      }
-      DAGPtr::Cse(link) => {
-        let Cse { bod, .. } = unsafe { link.as_ref() };
-        Term::Cse(
-          Pos::None,
-          Box::new(DAG::dag_ptr_to_term(bod, map, depth, re_rec)),
-        )
-      }
-      DAGPtr::Dat(link) => {
-        let Dat { bod, .. } = unsafe { link.as_ref() };
-        Term::Dat(
-          Pos::None,
-          Box::new(DAG::dag_ptr_to_term(bod, map, depth, re_rec)),
-        )
-      }
-      DAGPtr::App(link) => {
-        let App { fun, arg, .. } = unsafe { link.as_ref() };
-        let fun_map = &mut map.clone();
-        Term::App(
-          Pos::None,
-          Box::new((
-            DAG::dag_ptr_to_term(fun, fun_map, depth, re_rec),
-            DAG::dag_ptr_to_term(arg, map, depth, re_rec),
-          )),
-        )
-      }
-      DAGPtr::Ann(link) => {
-        let Ann { typ, exp, .. } = unsafe { link.as_ref() };
-        let typ_map = &mut map.clone();
-        Term::Ann(
-          Pos::None,
-          Box::new((
-            DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
-            DAG::dag_ptr_to_term(exp, map, depth, re_rec),
-          )),
-        )
-      }
-      DAGPtr::All(link) => {
-        let All { uses, dom, img: lam_link, .. } =
-          unsafe { &mut *link.as_ptr() };
-        let Lam { var, bod: img, .. } = unsafe { &mut *lam_link.as_ptr() };
-        let nam = var.nam.clone();
-        let dom_map = &mut map.clone();
-        map.insert(var, depth);
-        Term::All(
-          Pos::None,
-          *uses,
-          nam,
-          Box::new((
-            DAG::dag_ptr_to_term(dom, dom_map, depth, re_rec),
-            DAG::dag_ptr_to_term(img, map, depth + 1, re_rec),
-          )),
-        )
-      }
-      DAGPtr::Let(link) => {
-        let Let { uses, typ, exp, bod: lam_link, .. } =
-          unsafe { &mut *link.as_ptr() };
-        let Lam { var, bod, .. } = unsafe { &mut *lam_link.as_ptr() };
-        let nam = var.nam.clone();
-        let typ_map = &mut map.clone();
-        let exp_map = &mut map.clone();
-        let mut exp_depth = depth;
-        let (rec, exp) = match exp {
-          DAGPtr::Fix(link) => unsafe {
-            let Fix { var, bod, .. } = &mut *link.as_ptr();
-            exp_map.insert(var, depth);
-            exp_depth += 1;
-            (true, bod)
+    let mut stack = vec![Frame::Enter((node, map.clone(), depth, re_rec))];
+    let mut ret_stack = vec![];
+    while let Some(either) = stack.pop() {
+      match either {
+        Frame::Enter((node, mut map, depth, re_rec)) => {
+          match node {
+            DAGPtr::Var(link) => {
+              let Var { nam, dep: var_depth, rec, .. } = unsafe { link.as_ref() };
+              if *rec && re_rec {
+                stack.push(Frame::Return (Term::Rec(Pos::None)));
+              }
+              else if let Some(level) = map.get(&link.as_ptr()) {
+                stack.push(Frame::Return (Term::Var(Pos::None, nam.clone(), depth - level - 1)));
+              }
+              else {
+                stack.push(Frame::Return (Term::Var(Pos::None, nam.clone(), *var_depth)));
+              }
+            }
+            DAGPtr::Typ(_) => stack.push(Frame::Return (Term::Typ(Pos::None))),
+            DAGPtr::LTy(link) => {
+              let LTy { lty, .. } = unsafe { link.as_ref() };
+              stack.push(Frame::Return (Term::LTy(Pos::None, *lty)));
+            }
+            DAGPtr::Lit(link) => {
+              let Lit { lit, .. } = unsafe { link.as_ref() };
+              stack.push(Frame::Return (Term::Lit(Pos::None, lit.clone())));
+            }
+            DAGPtr::Opr(link) => {
+              let Opr { opr, .. } = unsafe { link.as_ref() };
+              stack.push(Frame::Return (Term::Opr(Pos::None, *opr)));
+            }
+            DAGPtr::Ref(link) => {
+              let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
+              if *rec && re_rec {
+                stack.push(Frame::Return (Term::Rec(Pos::None)));
+              }
+              else {
+                stack.push(Frame::Return (Term::Ref(Pos::None, nam.clone(), *exp, *ast)));
+              }
+            }
+            DAGPtr::Lam(link) => {
+              let Lam { var, bod, .. } = unsafe { &mut *link.as_ptr() };
+              let nam = var.nam.clone();
+              map.insert(var, depth);
+              stack.push(Frame::Return (Term::Lam(Pos::None, nam, Box::new(Term::Typ(Pos::None)))));
+              stack.push(Frame::Enter ((bod, map, depth + 1, re_rec)));
+            }
+            DAGPtr::Slf(link) => {
+              let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
+              let nam = var.nam.clone();
+              map.insert(var, depth);
+              stack.push(Frame::Return (Term::Slf(Pos::None, nam, Box::new(Term::Typ(Pos::None)))));
+              stack.push(Frame::Enter ((bod, map, depth + 1, re_rec)));
+            }
+            DAGPtr::Fix(_) => {
+              panic!("Fix conversion TODO")
+            }
+            DAGPtr::Cse(link) => {
+              let Cse { bod, .. } = unsafe { link.as_ref() };
+              stack.push(Frame::Return (Term::Cse(
+                Pos::None,
+                Box::new(Term::Typ(Pos::None)),
+              )));
+              stack.push(Frame::Enter ((bod, map, depth, re_rec)));
+            }
+            DAGPtr::Dat(link) => {
+              let Dat { bod, .. } = unsafe { link.as_ref() };
+              stack.push(Frame::Return (Term::Dat(
+                Pos::None,
+                Box::new(Term::Typ(Pos::None)),
+              )));
+              stack.push(Frame::Enter ((bod, map, depth, re_rec)));
+            }
+            DAGPtr::App(link) => {
+              let App { fun, arg, .. } = unsafe { link.as_ref() };
+              let fun_map = map.clone();
+              stack.push(Frame::Return (Term::App(
+                Pos::None,
+                Box::new((
+                  Term::Typ(Pos::None),
+                  Term::Typ(Pos::None)
+                )),
+              )));
+              stack.push(Frame::Enter ((fun, fun_map, depth, re_rec)));
+              stack.push(Frame::Enter ((arg, map, depth, re_rec)));
+            }
+            DAGPtr::Ann(link) => {
+              let Ann { typ, exp, .. } = unsafe { link.as_ref() };
+              let typ_map = map.clone();
+              stack.push(Frame::Return (Term::Ann(
+                Pos::None,
+                Box::new((
+                  Term::Typ(Pos::None),
+                  Term::Typ(Pos::None)
+                )),
+              )));
+              stack.push(Frame::Enter ((typ, typ_map, depth, re_rec)));
+              stack.push(Frame::Enter ((exp, map, depth, re_rec)));
+            }
+            DAGPtr::All(link) => {
+              let All { uses, dom, img: lam_link, .. } =
+                unsafe { &mut *link.as_ptr() };
+              let Lam { var, bod: img, .. } = unsafe { &mut *lam_link.as_ptr() };
+              let nam = var.nam.clone();
+              let dom_map = map.clone();
+              map.insert(var, depth);
+              stack.push(Frame::Return (Term::All(
+                Pos::None,
+                *uses,
+                nam,
+                Box::new((
+                  Term::Typ(Pos::None),
+                  Term::Typ(Pos::None)
+                )),
+              )));
+              stack.push(Frame::Enter ((dom, dom_map, depth, re_rec)));
+              stack.push(Frame::Enter ((img, map, depth + 1, re_rec)));
+            }
+            DAGPtr::Let(link) => {
+              let Let { uses, typ, exp, bod: lam_link, .. } =
+                unsafe { &mut *link.as_ptr() };
+              let Lam { var, bod, .. } = unsafe { &mut *lam_link.as_ptr() };
+              let nam = var.nam.clone();
+              let typ_map = map.clone();
+              let mut exp_map = map.clone();
+              let mut exp_depth = depth;
+              let (rec, exp) = match exp {
+                DAGPtr::Fix(link) => unsafe {
+                  let Fix { var, bod, .. } = &mut *link.as_ptr();
+                  exp_map.insert(var, depth);
+                  exp_depth += 1;
+                  (true, bod)
+                }
+                _ => (false, exp)
+              };
+              map.insert(var, depth);
+              stack.push(Frame::Return (Term::Let(
+                Pos::None,
+                rec,
+                *uses,
+                nam,
+                Box::new((
+                  Term::Typ(Pos::None),
+                  Term::Typ(Pos::None),
+                  Term::Typ(Pos::None)
+                )),
+              )));
+              stack.push(Frame::Enter ((typ, typ_map, depth, re_rec)));
+              stack.push(Frame::Enter ((exp, exp_map, exp_depth, re_rec)));
+              stack.push(Frame::Enter ((bod, map, depth + 1, re_rec)));
+            }
           }
-          _ => (false, exp)
-        };
-        map.insert(var, depth);
-        Term::Let(
-          Pos::None,
-          rec,
-          *uses,
-          nam,
-          Box::new((
-            DAG::dag_ptr_to_term(typ, typ_map, depth, re_rec),
-            DAG::dag_ptr_to_term(exp, exp_map, exp_depth, re_rec),
-            DAG::dag_ptr_to_term(bod, map, depth + 1, re_rec),
-          )),
-        )
+        }
+        Frame::Return(mut term) => {
+          match &mut term {
+            Term::Lam(_, _, bod) => {
+              let new_bod = Box::new(ret_stack.pop().unwrap());
+              *bod = new_bod;
+            },
+            Term::App(_, fun_arg) => {
+              let fun = ret_stack.pop().unwrap();
+              let arg = ret_stack.pop().unwrap();
+              *fun_arg = Box::new((fun, arg));
+            },
+            Term::All(_, _, _, dom_img) => {
+              let dom = ret_stack.pop().unwrap();
+              let img = ret_stack.pop().unwrap();
+              *dom_img = Box::new((dom, img));
+            },
+            Term::Slf(_, _, bod) => {
+              let new_bod = Box::new(ret_stack.pop().unwrap());
+              *bod = new_bod;
+            },
+            Term::Dat(_, bod) => {
+              let new_bod = Box::new(ret_stack.pop().unwrap());
+              *bod = new_bod;
+            },
+            Term::Cse(_, bod) => {
+              let new_bod = Box::new(ret_stack.pop().unwrap());
+              *bod = new_bod;
+            },
+            Term::Let(_, _, _, _, typ_exp_bod) => {
+              let typ = ret_stack.pop().unwrap();
+              let exp = ret_stack.pop().unwrap();
+              let bod = ret_stack.pop().unwrap();
+              *typ_exp_bod = Box::new((typ, exp, bod));
+            },
+            Term::Ann(_, typ_exp) => {
+              let typ = ret_stack.pop().unwrap();
+              let exp = ret_stack.pop().unwrap();
+              *typ_exp = Box::new((typ, exp));
+            },
+            _ => (),
+          }
+          ret_stack.push(term);
+        }
       }
     }
+    ret_stack.pop().unwrap()
   }
 
   pub fn to_term(&self, re_rec: bool) -> Term {
