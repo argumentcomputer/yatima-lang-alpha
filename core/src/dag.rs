@@ -1309,7 +1309,7 @@ impl DAG {
               DLL::concat(parents, get_parents(*copy));
               set_parents(*copy, Some(parents));
             }
-            stack.push(Frame::Return(*copy));
+            ret_stack.push(*copy);
             continue;
           }
           // Otherwise create a new DAG node and add it to the map
