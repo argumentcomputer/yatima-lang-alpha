@@ -14,12 +14,13 @@ use sp_ipld::{
 };
 
 use sp_std::{
-  vec::Vec,
   borrow::ToOwned,
+  vec::Vec,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -285,7 +286,10 @@ pub mod tests {
 
   use crate::{
     defs::tests::arbitrary_def,
-    term::tests::arbitrary_name,
+    term::tests::{
+      arbitrary_name,
+      gen_range,
+    },
     tests::arbitrary_cid,
   };
 
@@ -295,25 +299,27 @@ pub mod tests {
 
   impl Arbitrary for Index {
     fn arbitrary(g: &mut Gen) -> Self {
-      let vec: Vec<()> = Arbitrary::arbitrary(g);
-      Index(
-        vec
-          .into_iter()
-          .map(|_| (arbitrary_name(g), arbitrary_cid(g)))
-          .collect(),
-      )
+      let len = gen_range(g, 0..5);
+      let mut res = vec![];
+      for _ in 0..len {
+        res.push((arbitrary_name(g), arbitrary_cid(g)));
+      }
+      Index(res)
     }
   }
 
   impl Arbitrary for Import {
     fn arbitrary(g: &mut Gen) -> Self {
-      let vec: Vec<()> = Arbitrary::arbitrary(g);
-      let vec: Vec<Name> = vec.into_iter().map(|_| arbitrary_name(g)).collect();
+      let len = gen_range(g, 0..5);
+      let mut res = vec![];
+      for _ in 0..len {
+        res.push(arbitrary_name(g));
+      }
       Self {
         name: Name::from("Test"),
         cid: arbitrary_cid(g),
         alias: arbitrary_name(g),
-        with: vec,
+        with: res,
       }
     }
   }

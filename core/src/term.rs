@@ -509,7 +509,6 @@ impl fmt::Display for Term {
 
 #[cfg(test)]
 pub mod tests {
-
   use super::{
     Term::*,
     *,
@@ -526,6 +525,14 @@ pub mod tests {
     Gen,
   };
   use sp_std::ops::Range;
+
+  use sp_std::{
+    mem::MaybeUninit,
+    ptr::{
+      addr_of_mut,
+      NonNull,
+    },
+  };
 
   use sp_im::Vector;
   use sp_std::{
@@ -571,7 +578,7 @@ pub mod tests {
     defs
   }
 
-  fn arbitrary_ref(g: &mut Gen, defs: Defs, ctx: Vector<Name>) -> Tree {
+  fn arbitrary_ref(g: &mut Gen, defs: Defs, ctx: Vector<Name>) -> Term {
     let refs: Vec<(Name, Cid)> = defs
       .names
       .clone()
@@ -580,88 +587,12 @@ pub mod tests {
       .collect();
     let len = refs.len();
     if len == 0 {
-      return Tree::Typ;
+      return Term::Typ(Pos::None);
     };
     let gen = gen_range(g, 0..(len - 1));
     let (n, _) = refs[gen].clone();
     let def = defs.get(&n).unwrap();
-    Tree::Ref(n.clone(), def.def_cid, def.ast_cid)
-  }
-
-  #[derive(Debug, Clone)]
-  pub enum Tree {
-    Var(Name, u64),
-    Typ,
-    Rec,
-    Ref(Name, Cid, Cid),
-    Opr(Op),
-    Lit(Literal),
-    LTy(LitType),
-    Lam(Name, usize),
-    Slf(Name, usize),
-    App(usize, usize),
-    Ann(usize, usize),
-    Cse(usize),
-    Dat(usize),
-    All(Uses, Name, usize, usize),
-    Let(bool, Uses, Name, usize, usize, usize),
-  }
-
-  impl Tree {
-    pub fn into_term(&self, arena: &Vec<Tree>) -> Term {
-      match self {
-        Self::Var(n, i) => Term::Var(Pos::None, n.clone(), *i),
-        Self::Rec => Term::Rec(Pos::None),
-        Self::Typ => Term::Typ(Pos::None),
-        Self::Ref(n, d, a) => Term::Ref(Pos::None, n.clone(), *d, *a),
-        Self::Opr(x) => Term::Opr(Pos::None, *x),
-        Self::Lit(x) => Term::Lit(Pos::None, x.clone()),
-        Self::LTy(x) => Term::LTy(Pos::None, *x),
-        Self::Lam(n, bod) => {
-          let bod = arena[*bod].into_term(&arena);
-          Term::Lam(Pos::None, n.clone(), Box::new(bod))
-        }
-        Self::Slf(n, bod) => {
-          let bod = arena[*bod].into_term(&arena);
-          Term::Slf(Pos::None, n.clone(), Box::new(bod))
-        }
-        Self::Cse(bod) => {
-          let bod = arena[*bod].into_term(&arena);
-          Term::Cse(Pos::None, Box::new(bod))
-        }
-        Self::Dat(bod) => {
-          let bod = arena[*bod].into_term(&arena);
-          Term::Dat(Pos::None, Box::new(bod))
-        }
-        Self::App(fun, arg) => {
-          let fun = arena[*fun].into_term(&arena);
-          let arg = arena[*arg].into_term(&arena);
-          Term::App(Pos::None, Box::new((fun, arg)))
-        }
-        Self::Ann(typ, trm) => {
-          let typ = arena[*typ].into_term(&arena);
-          let trm = arena[*trm].into_term(&arena);
-          Term::Ann(Pos::None, Box::new((typ, trm)))
-        }
-        Self::All(uses, n, dom, img) => {
-          let dom = arena[*dom].into_term(&arena);
-          let img = arena[*img].into_term(&arena);
-          Term::All(Pos::None, *uses, n.clone(), Box::new((dom, img)))
-        }
-        Self::Let(rec, uses, n, typ, trm, bod) => {
-          let typ = arena[*typ].into_term(&arena);
-          let trm = arena[*trm].into_term(&arena);
-          let bod = arena[*bod].into_term(&arena);
-          Term::Let(
-            Pos::None,
-            *rec,
-            *uses,
-            n.clone(),
-            Box::new((typ, trm, bod)),
-          )
-        }
-      }
-    }
+    Term::Ref(Pos::None, n.clone(), def.def_cid, def.ast_cid)
   }
 
   #[derive(Debug, Clone, Copy)]
@@ -713,12 +644,11 @@ pub mod tests {
     let name = Name::from("_r");
     let mut ctx1 = ctx0.clone();
     ctx1.push_front(name.clone());
-    let mut ctxs: Vec<Vector<Name>> = vec![ctx0, ctx1];
-    let mut arena: Vec<Option<Tree>> = vec![Some(Tree::Lam(name, 1)), None];
-    let mut todo: Vec<usize> = vec![1];
 
-    while let Some(idx) = todo.pop() {
-      let ctx: Vector<Name> = ctxs[idx].clone();
+    let mut bod = Term::Typ(Pos::None);
+    let mut stack = vec![(ctx1, &mut bod as *mut Term)];
+    let term: Term = Term::Lam(Pos::None, name.clone(), Box::new(bod));
+    while let Some((ctx, ptr)) = stack.pop() {
       let depth = ctx.len();
       let gens: Vec<(usize, Case)> = vec![
         (100, Case::VAR),
@@ -734,105 +664,101 @@ pub mod tests {
         (90usize.saturating_sub(depth), Case::DAT),
         (80usize.saturating_sub(2 * depth), Case::APP),
         (80usize.saturating_sub(2 * depth), Case::ANN),
-        (80usize.saturating_sub(2 * depth), Case::ALL),
-        (30usize.saturating_sub(3 * depth), Case::LET),
+        //(80usize.saturating_sub(2 * depth), Case::ALL),
+        //(30usize.saturating_sub(3 * depth), Case::LET),
       ];
 
       match next_case(g, &gens) {
-        Case::TYP => {
-          arena[idx] = Some(Tree::Typ);
-        }
-        Case::REC => {
-          arena[idx] = Some(Tree::Rec);
-        }
-        Case::LTY => {
-          arena[idx] = Some(Tree::LTy(Arbitrary::arbitrary(g)));
-        }
-        Case::LIT => {
-          arena[idx] = Some(Tree::Lit(Arbitrary::arbitrary(g)));
-        }
-        Case::OPR => {
-          arena[idx] = Some(Tree::Opr(Arbitrary::arbitrary(g)));
-        }
-        Case::REF => {
-          arena[idx] = Some(arbitrary_ref(g, defs.clone(), ctx.clone()));
-        }
+        Case::TYP => unsafe {
+          *ptr = Term::Typ(Pos::None);
+        },
+        Case::REC => unsafe {
+          *ptr = Term::Rec(Pos::None);
+        },
+        Case::LTY => unsafe {
+          *ptr = Term::LTy(Pos::None, Arbitrary::arbitrary(g));
+        },
+        Case::LIT => unsafe {
+          *ptr = Term::Lit(Pos::None, Arbitrary::arbitrary(g));
+        },
+        Case::OPR => unsafe {
+          *ptr = Term::Opr(Pos::None, Arbitrary::arbitrary(g));
+        },
+        Case::REF => unsafe {
+          *ptr = arbitrary_ref(g, defs.clone(), ctx.clone());
+        },
         Case::VAR => {
           let gen = gen_range(g, 0..ctx.len());
           let n = &ctx[gen];
           let (i, _) = ctx.iter().enumerate().find(|(_, x)| *x == n).unwrap();
-          arena[idx] = Some(Tree::Var(n.clone(), i as u64));
+          unsafe {
+            *ptr = Term::Var(Pos::None, n.clone(), i as u64);
+          }
         }
         Case::LAM => {
           let n = arbitrary_name(g);
           let mut ctx2 = ctx.clone();
           ctx2.push_front(n.clone());
-          let bod = arena.len();
-          todo.push(bod);
-          ctxs.push(ctx2);
-          arena.push(None);
-          arena[idx] = Some(Tree::Lam(n, bod));
+          let mut bod = Term::Typ(Pos::None);
+          stack.push((ctx2, &mut bod as *mut Term));
+          unsafe {
+            *ptr = Term::Lam(Pos::None, name.clone(), Box::new(bod));
+          }
         }
         Case::SLF => {
           let n = arbitrary_name(g);
           let mut ctx2 = ctx.clone();
           ctx2.push_front(n.clone());
-          let bod = arena.len();
-          todo.push(bod);
-          ctxs.push(ctx2);
-          arena.push(None);
-          arena[idx] = Some(Tree::Slf(n, bod));
+          let mut bod = Term::Typ(Pos::None);
+          stack.push((ctx2, &mut bod as *mut Term));
+          unsafe {
+            *ptr = Term::Slf(Pos::None, name.clone(), Box::new(bod));
+          }
         }
         Case::CSE => {
-          let bod = arena.len();
-          todo.push(bod);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          arena[idx] = Some(Tree::Cse(bod));
+          let mut bod = Term::Typ(Pos::None);
+          stack.push((ctx, &mut bod as *mut Term));
+          unsafe {
+            *ptr = Term::Cse(Pos::None, Box::new(bod));
+          }
         }
         Case::DAT => {
-          let bod = arena.len();
-          todo.push(bod);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          arena[idx] = Some(Tree::Dat(bod));
+          let mut bod = Term::Typ(Pos::None);
+          stack.push((ctx, &mut bod as *mut Term));
+          unsafe {
+            *ptr = Term::Dat(Pos::None, Box::new(bod));
+          }
         }
         Case::APP => {
-          let fun = arena.len();
-          todo.push(fun);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          let arg = arena.len();
-          todo.push(arg);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          arena[idx] = Some(Tree::App(fun, arg));
+          let mut fun = Term::Typ(Pos::None);
+          let mut arg = Term::Typ(Pos::None);
+          stack.push((ctx.clone(), &mut fun as *mut Term));
+          stack.push((ctx.clone(), &mut arg as *mut Term));
+          unsafe {
+            *ptr = Term::App(Pos::None, Box::new((fun, arg)));
+          }
         }
         Case::ANN => {
-          let typ = arena.len();
-          todo.push(typ);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          let trm = arena.len();
-          todo.push(trm);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          arena[idx] = Some(Tree::Ann(typ, trm));
+          let mut fun = Term::Typ(Pos::None);
+          let mut arg = Term::Typ(Pos::None);
+          stack.push((ctx.clone(), &mut fun as *mut Term));
+          stack.push((ctx.clone(), &mut arg as *mut Term));
+          unsafe {
+            *ptr = Term::Ann(Pos::None, Box::new((fun, arg)));
+          }
         }
         Case::ALL => {
           let uses: Uses = Arbitrary::arbitrary(g);
           let n = arbitrary_name(g);
           let mut ctx2 = ctx.clone();
           ctx2.push_front(n.clone());
-          let dom = arena.len();
-          todo.push(dom);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          let img = arena.len();
-          todo.push(img);
-          ctxs.push(ctx2);
-          arena.push(None);
-          arena[idx] = Some(Tree::All(uses, n, dom, img));
+          let mut dom = Term::Typ(Pos::None);
+          let mut img = Term::Typ(Pos::None);
+          stack.push((ctx.clone(), &mut dom as *mut Term));
+          stack.push((ctx2.clone(), &mut img as *mut Term));
+          unsafe {
+            *ptr = Term::All(Pos::None, uses, n.clone(), Box::new((dom, img)));
+          }
         }
         Case::LET => {
           let letrec: bool = Arbitrary::arbitrary(g);
@@ -840,31 +766,25 @@ pub mod tests {
           let n = arbitrary_name(g);
           let mut ctx2 = ctx.clone();
           ctx2.push_front(n.clone());
-          let typ = arena.len();
-          todo.push(typ);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          let trm = arena.len();
-          todo.push(trm);
+          let mut typ = Term::Typ(Pos::None);
+          let mut trm = Term::Typ(Pos::None);
+          let mut bod = Term::Typ(Pos::None);
+          stack.push((ctx.clone(), &mut typ as *mut Term));
           if letrec {
-            ctxs.push(ctx2.clone());
+            stack.push((ctx2.clone(), &mut trm as *mut Term));
           }
           else {
-            ctxs.push(ctx.clone())
+            stack.push((ctx.clone(), &mut trm as *mut Term));
           };
-          arena.push(None);
-          let bod = arena.len();
-          todo.push(bod);
-          ctxs.push(ctx2.clone());
-          arena.push(None);
-          arena[idx] = Some(Tree::Let(letrec, uses, n, typ, trm, bod));
+          stack.push((ctx2.clone(), &mut bod as *mut Term));
+          unsafe {
+            *ptr =
+              Term::Let(Pos::None, letrec, uses, n, Box::new((typ, trm, bod)));
+          }
         }
       }
     }
-    //    println!("arena: {:?}", arena);
-    let arena: Vec<Tree> = arena.into_iter().map(|x| x.unwrap()).collect();
-    //    println!("arena: {:?}", arena);
-    arena[0].into_term(&arena)
+    term
   }
 
   impl Arbitrary for Term {
