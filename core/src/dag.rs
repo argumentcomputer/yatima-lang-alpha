@@ -525,11 +525,19 @@ pub fn add_to_parents(node: DAGPtr, plink: NonNull<Parents>) {
 
 enum State { A, B, C, D }
 
+/// Frees this pointer
+/// For more readability of the code
+fn free<T>(link: NonNull<T>) {
+  unsafe {
+    Box::from_raw(link.as_ptr());
+  }
+}
+
 // Free parentless nodes.
 pub fn free_dead_node(node: DAGPtr) {
   unsafe {
     let mut stack = vec![(node, State::A)];
-    while let Some ((node, state)) = stack.pop() {
+    while let Some((node, state)) = stack.pop() {
       match node {
         DAGPtr::Lam(link) => match state {
           State::A => {
@@ -544,7 +552,7 @@ pub fn free_dead_node(node: DAGPtr) {
             }
           },
           _ => {
-            Box::from_raw(link.as_ptr());
+            free(link);
           }
         },
         DAGPtr::Slf(mut link) => match state {
@@ -560,7 +568,7 @@ pub fn free_dead_node(node: DAGPtr) {
             }
           },
           _ => {
-            Box::from_raw(link.as_ptr());
+            free(link);
           }
         },
         DAGPtr::Fix(mut link) => match state {
@@ -576,7 +584,7 @@ pub fn free_dead_node(node: DAGPtr) {
             }
           },
           _ => {
-            Box::from_raw(link.as_ptr());
+            free(link);
           }
         },
         DAGPtr::Cse(link) => match state {
@@ -592,7 +600,7 @@ pub fn free_dead_node(node: DAGPtr) {
             }
           },
           _ => {
-            Box::from_raw(link.as_ptr());
+            free(link);
           }
         },
         DAGPtr::Dat(link) => match state {
@@ -608,7 +616,7 @@ pub fn free_dead_node(node: DAGPtr) {
             }
           },
           _ => {
-            Box::from_raw(link.as_ptr());
+            free(link);
           }
         },
         DAGPtr::All(link) => {
@@ -636,7 +644,7 @@ pub fn free_dead_node(node: DAGPtr) {
               }
             },
             _ => {
-              Box::from_raw(link.as_ptr());
+              free(link);
             },
           }
         },
@@ -664,7 +672,7 @@ pub fn free_dead_node(node: DAGPtr) {
               }
             },
             _ => {
-              Box::from_raw(link.as_ptr());
+              free(link);
             },
           }
         },
@@ -692,7 +700,7 @@ pub fn free_dead_node(node: DAGPtr) {
               }
             },
             _ => {
-              Box::from_raw(link.as_ptr());
+              free(link);
             },
           }
         },
@@ -732,7 +740,7 @@ pub fn free_dead_node(node: DAGPtr) {
               }
             },
             _ => {
-              Box::from_raw(link.as_ptr());
+              free(link);
             },
           }
         },
@@ -740,23 +748,23 @@ pub fn free_dead_node(node: DAGPtr) {
           let Var { binder, .. } = link.as_ref();
           // only free Free variables, bound variables are freed with their binder
           if let BinderPtr::Free = binder {
-            Box::from_raw(link.as_ptr());
+            free(link);
           }
         },
         DAGPtr::Ref(link) => {
-          Box::from_raw(link.as_ptr());
+          free(link);
         }
         DAGPtr::Typ(link) => {
-          Box::from_raw(link.as_ptr());
+          free(link);
         }
         DAGPtr::Lit(link) => {
-          Box::from_raw(link.as_ptr());
+          free(link);
         }
         DAGPtr::LTy(link) => {
-          Box::from_raw(link.as_ptr());
+          free(link);
         }
         DAGPtr::Opr(link) => {
-          Box::from_raw(link.as_ptr());
+          free(link);
         }
       }
     }
