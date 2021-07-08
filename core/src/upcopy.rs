@@ -4,6 +4,9 @@ use crate::{
 };
 
 use core::ptr::NonNull;
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub fn clean_up(cc: &ParentPtr) {
   let mut stack = vec![cc];
@@ -106,10 +109,13 @@ pub fn clean_up(cc: &ParentPtr) {
 }
 
 // The core up-copy function.
-pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
+pub fn upcopy(new_child: DAGPtr, cc: ParentPtr, should_count: bool) {
   unsafe {
     let mut stack = vec![(new_child, cc)];
     while let Some((new_child, cc)) = stack.pop() {
+      if should_count {
+        UPCOPY_COUNT.fetch_add(1, Ordering::SeqCst);
+      }
       match cc {
         ParentPtr::LamBod(link) => {
           let Lam { var, parents, .. } = link.as_ref();

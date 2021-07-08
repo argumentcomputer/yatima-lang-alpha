@@ -26,10 +26,15 @@ nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "main"
 ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
 sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main" }
-sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
-sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main"  }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
+sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main" }
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
 
 [dev-dependencies]
 quickcheck = "1.0.3"
 rand = "0.8.3"
 quickcheck_macros = "1.0.0"
+
+
+[[bench]]
+name = "runtime"

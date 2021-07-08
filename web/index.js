@@ -1,1 +1,1 @@
-import * as wasm from "example";
+import * as wasm from "yatima-web";

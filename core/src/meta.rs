@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::{
   ipld_error::IpldError,
   name::Name,
@@ -190,6 +192,31 @@ impl Meta {
         xs => Err(IpldError::Meta(Ipld::List(xs.to_owned()))),
       },
       xs => Err(IpldError::Meta(xs.to_owned())),
+    }
+  }
+}
+
+impl fmt::Display for Meta {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use Meta::*;
+    match self.clone() {
+      Var(_, name) => write!(f, "Var({})", name),
+      Lam(_, name, b) => write!(f, "Lam({}, {}", name, *b),
+      App(_, b) => write!(f, "App({}, {})", (*b).0, (*b).1),
+      All(_, name, b) => write!(f, "All({}, {}, {})", name, (*b).0, (*b).1),
+      Slf(_, name, b) => writeln!(f, "Slf({}, {})", name, *b),
+      Dat(_, b) => write!(f, "Dat({})", *b),
+      Cse(_, b) => write!(f, "Cse({})", *b),
+      Ref(_, name, cid) => write!(f, "Ref({}, {})", name, cid),
+      Let(_, name, b) => {
+        write!(f, "Let({}, {}, {}, {})", name, (*b).0, (*b).1, (*b).2)
+      }
+      Typ(_) => write!(f, "Typ"),
+      Ann(_, b) => write!(f, "Ann({}, {})", (*b).0, (*b).1),
+      Lit(_) => write!(f, "Lit"),
+      LTy(_) => write!(f, "LTy"),
+      Opr(_) => write!(f, "Opr"),
+      Rec(_) => write!(f, "Rec"),
     }
   }
 }

@@ -104,34 +104,27 @@ impl PackageEnv {
     let cid = done.get(path);
     cid.cloned()
   }
-
-  // pub fn insert_source(&self, cid: Cid, path: PathBuf) {
-  //  let mut sources = self.sources.borrow_mut();
-  //  sources.insert(cid, path);
-  //}
 }
 
-pub fn parse_file(env: PackageEnv) -> (Cid, Package, Defs) {
-  let path = env.path.clone();
-  let txt = fs::read_to_string(&path).expect("file not found");
-  parse_text(txt, env)
+pub fn parse_file(env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
+  let mut path = env.root.clone();
+  path.push(env.path.clone());
+  let txt = fs::read_to_string(&path).map_err(|e| format!("file {:?} not found {:?}", &path, e))?;
+  parse_text(txt.as_str(), env)
 }
 
-pub fn parse_text(txt: String, env: PackageEnv) -> (Cid, Package, Defs) {
+pub fn parse_text(txt: &str, env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
   let path = env.path.clone();
-  let input_cid = env.store.put(Ipld::String(txt.clone()));
-  // env.insert_source(input_cid, path.clone());
+  let input_cid = env.store.put(Ipld::String(txt.to_owned()));
   match parse_package(input_cid, env)(Span::new(&txt)) {
-    Ok((_, p)) => p,
+    Ok((_, p)) => Ok(p),
     Err(e) => match e {
-      Err::Incomplete(_) => panic!("Incomplete"),
+      Err::Incomplete(_) => Err("Incomplete".to_owned()),
       Err::Failure(e) => {
-        println!("Parse Failure in {}:\n{}", path.to_string_lossy(), e);
-        panic!()
+        Err(format!("Parse Failure in {}:\n{}", path.to_string_lossy(), e))
       }
       Err::Error(e) => {
-        println!("Parse Error in {}:\n{}", path.to_string_lossy(), e);
-        panic!()
+        Err(format!("Parse Error in {}:\n{}", path.to_string_lossy(), e))
       }
     },
   }
@@ -230,7 +223,8 @@ pub fn parse_import(
           done: env.done.clone(),
           store: env.store.clone(),
         };
-        let (from, pack, defs) = parse_file(env.clone());
+        let (from, pack, defs) = parse_file(env.clone())
+            .map_err(|e| nom::Err::Error(error::FileError::new(i, error::FileErrorKind::SystemError(e))))?;
         env.remove_open(import_path.clone());
         env.insert_done(import_path, from);
         let names = pack.index.keys();

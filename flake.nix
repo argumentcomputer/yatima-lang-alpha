@@ -50,9 +50,10 @@
 
       # `nix run`
       apps.${crateName} = utils.lib.mkApp {
+        name = "yatima";
         drv = self.packages.${system}.${crateName};
       };
-      defaultApp = self.packages.${system}.${crateName};
+      defaultApp = self.apps.${system}.${crateName};
 
       # `nix develop`
       devShell = pkgs.mkShell {
