@@ -4,6 +4,7 @@
     utils.url = "github:numtide/flake-utils";
     # grin.url = "github:yatima-inc/grin";
     naersk-lib.url = "github:nmattia/naersk";
+    pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
   outputs =
@@ -12,11 +13,14 @@
     , utils
     , naersk-lib
       # , grin
+    , pre-commit-hooks
     }:
     utils.lib.eachDefaultSystem (system:
     let
       overlays = [ (import ./nix/rust-overlay.nix) ];
       pkgs = import nixpkgs { inherit system overlays; };
+      pre-commit = import pre-commit-hooks;
+      lib = pkgs.lib;
       rust = import ./nix/rust.nix { nixpkgs = pkgs; };
       naersk = naersk-lib.lib."${system}".override {
         rustc = rust;
@@ -38,6 +42,7 @@
         buildInputs = [ rust project ];
         args = [ "-c" command ];
       };
+      devTools = import ./nix/devTools.nix { inherit rust; pre-commit-hooks = pre-commit; nixpkgs = pkgs; };
 
     in
     {
@@ -59,12 +64,7 @@
       devShell = pkgs.mkShell {
         inputsFrom = builtins.attrValues self.packages.${system};
         nativeBuildInputs = [ rust ];
-        buildInputs = with pkgs; [
-          rust-analyzer
-          clippy
-          rustfmt
-          # grin
-        ];
+        buildInputs = lib.attrsets.attrValues devTools;
       };
     });
 }
