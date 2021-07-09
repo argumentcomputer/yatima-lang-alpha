@@ -57,7 +57,7 @@ pub fn parse_motive_binders(
         Rc::new(VecDeque::new()),
         true,
         vec!['-'],
-        Uses::None,
+        Uses::Many,
       )(i)?;
       let (i, _) = tag("->")(i)?;
       let (i, _) = parse_space(i)?;
@@ -153,7 +153,7 @@ pub fn parse_typedef(
         Rc::new(VecDeque::new()),
         false,
         vec![':', '{'],
-        Uses::None,
+        Uses::Many,
       )(i)?;
 
       let mut ctx = ConsList::new();
@@ -589,7 +589,7 @@ pub mod tests {
     );
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A: Type) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A: Type) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A => @List.self ∀\
@@ -666,11 +666,11 @@ pub mod tests {
     );
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A: Type) (0 k: #Nat) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A: Type) (k: #Nat) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A k => @Vector.self ∀\
-      (0 P: ∀ (0 k: #Nat) (self: #$0 A k) -> Type)
+      (0 P: ∀ (k: #Nat) (self: #$0 A k) -> Type)
       (& Nil: P 0 (data λ P Vector.Nil Vector.Cons => Vector.Nil))
       (& Cons : ∀ (0 k: #Nat) (x: A) (xs: (#$0 A k))
         -> P (#Nat.suc k) (data λ P Vector.Nil Vector.Cons => Vector.Cons k x xs))
@@ -710,11 +710,11 @@ pub mod tests {
     );
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A B: Type) (0 x y: #Nat) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A B: Type) (x y: #Nat) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A B x y => @Chain.self ∀ \
-      (0 P: ∀ (0 x y: #Nat) (self: #$0 A B x y) -> Type) \
+      (0 P: ∀ (x y: #Nat) (self: #$0 A B x y) -> Type) \
       (& Nil: P 0 0 (data λ P Chain.Nil Chain.Lft Chain.Rgt => Chain.Nil))\
       (& Lft : ∀ (0 x y: #Nat) (a: A) (as: (#$0 A B x y)) \
         -> P (#Nat.suc x) y \
@@ -759,7 +759,7 @@ pub mod tests {
     println!("{:?}", res);
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A B: Type) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A B: Type) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A B => @Pair.self ∀ \
@@ -792,11 +792,11 @@ pub mod tests {
     println!("{:?}", res);
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A: Type) (0 a b: A) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A: Type) (a b: A) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A a b => @Equal.self ∀ \
-      (0 P: ∀ (0 b: A) (self: #$0 A a b) -> Type) \
+      (0 P: ∀ (b: A) (self: #$0 A a b) -> Type) \
       (& Refl: P a (data λ P Equal.Refl => Equal.Refl)) \
       -> P b Equal.self
     ", Term::Rec(Pos::None));
@@ -823,7 +823,7 @@ pub mod tests {
     println!("{:?}", res);
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A B C: Type) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A B C: Type) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A B C => @Triple.self ∀ \
@@ -857,7 +857,7 @@ pub mod tests {
     println!("{:?}", res);
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A B C D: Type) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A B C D: Type) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A B C D => @Tuple4.self ∀ \
@@ -892,7 +892,7 @@ pub mod tests {
     println!("{:?}", res);
     assert!(res.is_ok());
     let res = res.unwrap().1;
-    assert_eq!(res.type_of(), yatima!("∀ (0 A B C D E: Type) -> Type"));
+    assert_eq!(res.type_of(), yatima!("∀ (A B C D E: Type) -> Type"));
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A B C D E => @Tuple5.self ∀ \
@@ -940,12 +940,12 @@ pub mod tests {
     let res = res.unwrap().1;
     assert_eq!(
       res.type_of(),
-      yatima!("∀ (0 A B C D E: Type) (0 a b c d e: #Nat) -> Type")
+      yatima!("∀ (A B C D E: Type) (a b c d e: #Nat) -> Type")
     );
     let res1 = res.term_of();
     #[rustfmt::skip]
     let res2 = yatima!("λ A B C D E a b c d e => @Crazy.self ∀ \
-      (0 P: ∀ (0 a b c d e: #Nat) (self: #$0 A B C D E a b c d e) -> Type) \
+      (0 P: ∀ (a b c d e: #Nat) (self: #$0 A B C D E a b c d e) -> Type) \
       (& Nil: P 0 0 0 0 0 \
         (data λ P Crazy.Nil Crazy.ConsA Crazy.ConsB Crazy.ConsC Crazy.ConsD Crazy.ConsE => Crazy.Nil))\
       (& ConsA : ∀ (0 a b c d e: #Nat) (x: A) (xs: (#$0 A B C D E a b c d e)) \

@@ -1,18 +1,16 @@
+use sp_cid::Cid;
 use petgraph::{
-  dot::Dot,
+  dot::{
+    Config,
+    Dot,
+  },
   graph::{
     DefaultIx,
     DiGraph,
     NodeIndex,
   },
 };
-use sp_cid::Cid;
 
-use core::ptr::NonNull;
-use std::{
-  collections::HashMap,
-  fmt,
-};
 use yatima_core::{
   dag::*,
   dll::DLL,
@@ -21,11 +19,451 @@ use yatima_core::{
     Literal,
   },
   name::Name,
+  package::Package,
   prim::Op,
   uses::Uses,
 };
+use core::ptr::NonNull;
+use std::collections::{
+  HashMap,
+  HashSet,
+};
 
-pub enum Node {
+use std::fmt;
+
+#[derive(Debug, Clone, Default)]
+pub struct PackageGraph {
+  inner: DiGraph<Name, String>,
+}
+
+impl PackageGraph {
+  pub fn new() -> Self { Self::default() }
+
+  pub fn add_package<F>(&mut self, resolver: F, package: Package) -> bool
+  where F: FnMut(Cid) -> Option<Package> + Clone {
+    if let Some((nodes, edges)) = self.traverse_package(resolver, package) {
+      let mut map = HashMap::new();
+      for name in nodes {
+        let node = self.inner.add_node(name.clone());
+        map.insert(name.clone(), node);
+      }
+      for t in
+        edges.iter().map(|(f, t)| (map.get(f).cloned(), map.get(t).cloned()))
+      {
+        if let (Some(from), Some(to)) = t {
+          self.inner.add_edge(from, to, String::new());
+        }
+        else {
+          return false;
+        }
+      }
+      true
+    }
+    else {
+      false
+    }
+  }
+
+  pub fn to_dot<'a>(&'a self) -> Dot<'a, &'a DiGraph<Name, String>> {
+    Dot::with_config(&self.inner, &[Config::EdgeNoLabel])
+  }
+
+  fn traverse_package<F>(
+    &self,
+    resolver: F,
+    package: Package,
+  ) -> Option<(HashSet<Name>, HashSet<(Name, Name)>)>
+  where
+    F: FnMut(Cid) -> Option<Package> + Clone,
+  {
+    let mut nodes = HashSet::new();
+    let mut edges = HashSet::new();
+    nodes.insert(package.name.clone());
+    for import in
+      package.imports.iter().flat_map(|import| resolver.clone()(import.cid))
+    {
+      if let Some((new_nodes, new_edges)) =
+        self.traverse_package(resolver.clone(), package.clone())
+      {
+        nodes = nodes.union(&new_nodes).cloned().collect();
+        edges = edges.union(&new_edges).cloned().collect();
+        edges.insert((import.name.clone(), package.name.clone()));
+      }
+      else {
+        return None;
+      }
+    }
+    Some((nodes, edges))
+  }
+}
+
+pub struct DagGraph {
+  inner: DiGraph<DagNode, DagEdge>,
+}
+
+impl DagGraph {
+  pub fn from_dag(dag: &DAG) -> Self {
+    let mut graph = Self { inner: DiGraph::new() };
+    graph.from_dag_ptr(&dag.head, &mut HashMap::new());
+    graph
+  }
+
+  pub fn from_dag_ptr(
+    &mut self,
+    node: &DAGPtr,
+    map: &mut HashMap<DAGPtr, NodeIndex<DefaultIx>>,
+  ) -> NodeIndex<DefaultIx> {
+    match node {
+      DAGPtr::Var(link) => {
+        let Var { nam, dep, rec, binder, parents, .. } =
+          unsafe { link.as_ref() };
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let ix = self.inner.add_node(DagNode::Var {
+            name: nam.clone(),
+            dep: *dep,
+            rec: *rec,
+          });
+          map.insert(*node, ix);
+          match binder {
+            BinderPtr::Free => {
+              self.inner.add_edge(ix, ix, DagEdge::BindFree);
+            }
+            BinderPtr::Lam(link) => {
+              let bind_ix = self.from_dag_ptr(&DAGPtr::Lam(*link), map);
+              self.inner.add_edge(ix, bind_ix, DagEdge::BindLam);
+            }
+            BinderPtr::Slf(link) => {
+              let bind_ix = self.from_dag_ptr(&DAGPtr::Slf(*link), map);
+              self.inner.add_edge(ix, bind_ix, DagEdge::BindSlf);
+            }
+            BinderPtr::Fix(link) => {
+              let bind_ix = self.from_dag_ptr(&DAGPtr::Fix(*link), map);
+              self.inner.add_edge(ix, bind_ix, DagEdge::BindFix);
+            }
+          }
+          self.add_parent_edges(ix, map, *parents);
+          ix
+        }
+      }
+      DAGPtr::Lam(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Lam { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Lam { name: var.nam.clone() });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let bod_ix = self.from_dag_ptr(bod, map);
+          self.inner.add_edge(ix, bod_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Slf(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Slf { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Slf { name: var.nam.clone() });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let bod_ix = self.from_dag_ptr(bod, map);
+          self.inner.add_edge(ix, bod_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Fix(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Fix { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Fix { name: var.nam.clone() });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let bod_ix = self.from_dag_ptr(bod, map);
+          self.inner.add_edge(ix, bod_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Cse(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Cse { bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Cse);
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let bod_ix = self.from_dag_ptr(bod, map);
+          self.inner.add_edge(ix, bod_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Dat(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Dat { bod, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Dat);
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let bod_ix = self.from_dag_ptr(bod, map);
+          self.inner.add_edge(ix, bod_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::App(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let App { fun, arg, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::App);
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let fun_ix = self.from_dag_ptr(fun, map);
+          self.inner.add_edge(ix, fun_ix, DagEdge::Downlink);
+          let arg_ix = self.from_dag_ptr(arg, map);
+          self.inner.add_edge(ix, arg_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Ann(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Ann { typ, exp, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Ann);
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let typ_ix = self.from_dag_ptr(typ, map);
+          self.inner.add_edge(ix, typ_ix, DagEdge::Downlink);
+          let exp_ix = self.from_dag_ptr(exp, map);
+          self.inner.add_edge(ix, exp_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::All(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let All { uses, dom, img, parents, .. } =
+            unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::All { uses: *uses });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let dom_ix = self.from_dag_ptr(dom, map);
+          self.inner.add_edge(ix, dom_ix, DagEdge::Downlink);
+          let img_ix = self.from_dag_ptr(&DAGPtr::Lam(*img), map);
+          self.inner.add_edge(ix, img_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Let(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Let { uses, typ, exp, bod, parents, .. } =
+            unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Let { uses: *uses });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          let typ_ix = self.from_dag_ptr(typ, map);
+          self.inner.add_edge(ix, typ_ix, DagEdge::Downlink);
+          let exp_ix = self.from_dag_ptr(exp, map);
+          self.inner.add_edge(ix, exp_ix, DagEdge::Downlink);
+          let bod_ix = self.from_dag_ptr(&DAGPtr::Lam(*bod), map);
+          self.inner.add_edge(ix, bod_ix, DagEdge::Downlink);
+          ix
+        }
+      }
+      DAGPtr::Typ(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Typ { parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Typ);
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          ix
+        }
+      }
+      DAGPtr::Lit(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Lit { lit, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Lit { lit: lit.clone() });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          ix
+        }
+      }
+      DAGPtr::LTy(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let LTy { lty, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::LTy { lty: *lty });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          ix
+        }
+      }
+      DAGPtr::Opr(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Opr { opr, parents, .. } = unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Opr { opr: *opr });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          ix
+        }
+      }
+      DAGPtr::Ref(link) => {
+        if let Some(ix) = map.get(node) {
+          *ix
+        }
+        else {
+          let Ref { nam, exp, ast, rec, parents, .. } =
+            unsafe { &mut *link.as_ptr() };
+          let ix = self.inner.add_node(DagNode::Ref {
+            name: nam.clone(),
+            exp: *exp,
+            ast: *ast,
+            rec: *rec,
+          });
+          map.insert(*node, ix);
+          self.add_parent_edges(ix, map, *parents);
+          ix
+        }
+      }
+    }
+  }
+
+  pub fn add_parent_edges(
+    &mut self,
+    ix: NodeIndex<DefaultIx>,
+    map: &mut HashMap<DAGPtr, NodeIndex<DefaultIx>>,
+    parents: Option<NonNull<Parents>>,
+  ) {
+    for p in DLL::iter_option(parents) {
+      match *p {
+        ParentPtr::Root => {
+          self.inner.add_edge(ix, ix, DagEdge::Root);
+        }
+        ParentPtr::LamBod(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Lam(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::LamBod);
+        }
+        ParentPtr::SlfBod(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Slf(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::SlfBod);
+        }
+        ParentPtr::FixBod(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Fix(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::FixBod);
+        }
+        ParentPtr::DatBod(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Dat(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::DatBod);
+        }
+        ParentPtr::CseBod(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Cse(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::CseBod);
+        }
+        ParentPtr::AppFun(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::App(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::AppFun);
+        }
+        ParentPtr::AppArg(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::App(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::AppArg);
+        }
+        ParentPtr::AllDom(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::All(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::AllDom);
+        }
+        ParentPtr::AllImg(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::All(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::AllImg);
+        }
+        ParentPtr::AnnTyp(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Ann(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::AnnTyp);
+        }
+        ParentPtr::AnnExp(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Ann(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::AnnExp);
+        }
+        ParentPtr::LetTyp(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Let(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::LetTyp);
+        }
+        ParentPtr::LetExp(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Let(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::LetExp);
+        }
+        ParentPtr::LetBod(link) => {
+          let p_ix = self.from_dag_ptr(&DAGPtr::Let(link), map);
+          self.inner.add_edge(ix, p_ix, DagEdge::LetBod);
+        }
+      }
+    }
+  }
+
+  pub fn to_dot(&self) -> Dot<&DiGraph<DagNode, DagEdge>> {
+    Dot::with_attr_getters(
+      &self.inner,
+      &[],
+      &|_, e| match e.weight() {
+        DagEdge::Root => ", weight = 2] {{rankdir = TB}} [".to_string(),
+        DagEdge::Downlink => ", weight = 2".to_string(),
+        DagEdge::Copy => ", weight = 0".to_string(),
+        DagEdge::BindFree
+        | DagEdge::BindLam
+        | DagEdge::BindSlf
+        | DagEdge::BindFix => ", weight = 0".to_string(),
+        DagEdge::LamBod
+        | DagEdge::SlfBod
+        | DagEdge::FixBod
+        | DagEdge::DatBod
+        | DagEdge::CseBod
+        | DagEdge::AppFun
+        | DagEdge::AppArg
+        | DagEdge::AllDom
+        | DagEdge::AllImg
+        | DagEdge::AnnTyp
+        | DagEdge::AnnExp
+        | DagEdge::LetTyp
+        | DagEdge::LetExp
+        | DagEdge::LetBod => ", weight = 1".to_string(),
+      },
+      &|_, n| match n.1 {
+        DagNode::Var { .. } | DagNode::Ref { .. } => {
+          format!("] {{rank = max; {}}} [", n.0.index())
+        }
+        _ => "".to_string(),
+      },
+    )
+  }
+}
+
+pub enum DagNode {
   Var { name: Name, rec: bool, dep: u64 },
   Lam { name: Name },
   App,
@@ -43,7 +481,7 @@ pub enum Node {
   Opr { opr: Op },
 }
 
-impl fmt::Display for Node {
+impl fmt::Display for DagNode {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Var { name, rec: false, .. } => write!(f, "{}", name),
@@ -74,7 +512,7 @@ impl fmt::Display for Node {
 }
 
 #[derive(Debug)]
-pub enum Edge {
+pub enum DagEdge {
   Root,
   Copy,
   Downlink,
@@ -98,7 +536,7 @@ pub enum Edge {
   BindFix,
 }
 
-impl fmt::Display for Edge {
+impl fmt::Display for DagEdge {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Root => write!(f, "Root"),
@@ -126,353 +564,6 @@ impl fmt::Display for Edge {
   }
 }
 
-pub type Graph = DiGraph<Node, Edge>;
-
-pub fn from_dag(dag: &DAG) -> Graph {
-  let mut graph = Graph::new();
-  let mut map: HashMap<DAGPtr, NodeIndex<DefaultIx>> = HashMap::new();
-  from_dag_ptr(&dag.head, &mut map, &mut graph);
-  graph
-}
-
-pub fn add_parent_edges(
-  ix: NodeIndex<DefaultIx>,
-  map: &mut HashMap<DAGPtr, NodeIndex<DefaultIx>>,
-  graph: &mut Graph,
-  parents: Option<NonNull<Parents>>,
-) {
-  for p in DLL::iter_option(parents) {
-    match *p {
-      ParentPtr::Root => {
-        graph.add_edge(ix, ix, Edge::Root);
-      }
-      ParentPtr::LamBod(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Lam(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::LamBod);
-      }
-      ParentPtr::SlfBod(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Slf(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::SlfBod);
-      }
-      ParentPtr::FixBod(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Fix(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::FixBod);
-      }
-      ParentPtr::DatBod(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Dat(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::DatBod);
-      }
-      ParentPtr::CseBod(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Cse(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::CseBod);
-      }
-      ParentPtr::AppFun(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::App(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::AppFun);
-      }
-      ParentPtr::AppArg(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::App(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::AppArg);
-      }
-      ParentPtr::AllDom(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::All(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::AllDom);
-      }
-      ParentPtr::AllImg(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::All(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::AllImg);
-      }
-      ParentPtr::AnnTyp(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Ann(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::AnnTyp);
-      }
-      ParentPtr::AnnExp(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Ann(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::AnnExp);
-      }
-      ParentPtr::LetTyp(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Let(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::LetTyp);
-      }
-      ParentPtr::LetExp(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Let(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::LetExp);
-      }
-      ParentPtr::LetBod(link) => {
-        let p_ix = from_dag_ptr(&DAGPtr::Let(link), map, graph);
-        graph.add_edge(ix, p_ix, Edge::LetBod);
-      }
-    }
-  }
-}
-
-pub fn from_dag_ptr(
-  node: &DAGPtr,
-  map: &mut HashMap<DAGPtr, NodeIndex<DefaultIx>>,
-  graph: &mut Graph,
-) -> NodeIndex<DefaultIx> {
-  match node {
-    DAGPtr::Var(link) => {
-      let Var { nam, dep, rec, binder, parents, .. } = unsafe { link.as_ref() };
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let ix = graph.add_node(Node::Var { name: nam.clone(), dep: *dep, rec: *rec });
-        map.insert(*node, ix);
-        match binder {
-          BinderPtr::Free => {
-            graph.add_edge(ix, ix, Edge::BindFree);
-          }
-          BinderPtr::Lam(link) => {
-            let bind_ix = from_dag_ptr(&DAGPtr::Lam(*link), map, graph);
-            graph.add_edge(ix, bind_ix, Edge::BindLam);
-          }
-          BinderPtr::Slf(link) => {
-            let bind_ix = from_dag_ptr(&DAGPtr::Slf(*link), map, graph);
-            graph.add_edge(ix, bind_ix, Edge::BindSlf);
-          }
-          BinderPtr::Fix(link) => {
-            let bind_ix = from_dag_ptr(&DAGPtr::Fix(*link), map, graph);
-            graph.add_edge(ix, bind_ix, Edge::BindFix);
-          }
-        }
-        add_parent_edges(ix, map, graph, *parents);
-        ix
-      }
-    }
-    DAGPtr::Lam(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Lam { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Lam { name: var.nam.clone() });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let bod_ix = from_dag_ptr(bod, map, graph);
-        graph.add_edge(ix, bod_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Slf(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Slf { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Slf { name: var.nam.clone() });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let bod_ix = from_dag_ptr(bod, map, graph);
-        graph.add_edge(ix, bod_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Fix(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Fix { var, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Fix { name: var.nam.clone() });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let bod_ix = from_dag_ptr(bod, map, graph);
-        graph.add_edge(ix, bod_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Cse(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Cse { bod, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Cse);
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let bod_ix = from_dag_ptr(bod, map, graph);
-        graph.add_edge(ix, bod_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Dat(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Dat { bod, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Dat);
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let bod_ix = from_dag_ptr(bod, map, graph);
-        graph.add_edge(ix, bod_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::App(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let App { fun, arg, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::App);
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let fun_ix = from_dag_ptr(fun, map, graph);
-        graph.add_edge(ix, fun_ix, Edge::Downlink);
-        let arg_ix = from_dag_ptr(arg, map, graph);
-        graph.add_edge(ix, arg_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Ann(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Ann { typ, exp, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Ann);
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let typ_ix = from_dag_ptr(typ, map, graph);
-        graph.add_edge(ix, typ_ix, Edge::Downlink);
-        let exp_ix = from_dag_ptr(exp, map, graph);
-        graph.add_edge(ix, exp_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::All(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let All { uses, dom, img, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::All { uses: *uses });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let dom_ix = from_dag_ptr(dom, map, graph);
-        graph.add_edge(ix, dom_ix, Edge::Downlink);
-        let img_ix = from_dag_ptr(&DAGPtr::Lam(*img), map, graph);
-        graph.add_edge(ix, img_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Let(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Let { uses, typ, exp, bod, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Let { uses: *uses });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        let typ_ix = from_dag_ptr(typ, map, graph);
-        graph.add_edge(ix, typ_ix, Edge::Downlink);
-        let exp_ix = from_dag_ptr(exp, map, graph);
-        graph.add_edge(ix, exp_ix, Edge::Downlink);
-        let bod_ix = from_dag_ptr(&DAGPtr::Lam(*bod), map, graph);
-        graph.add_edge(ix, bod_ix, Edge::Downlink);
-        ix
-      }
-    }
-    DAGPtr::Typ(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Typ { parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Typ);
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        ix
-      }
-    }
-    DAGPtr::Lit(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Lit { lit, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Lit { lit: lit.clone() });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        ix
-      }
-    }
-    DAGPtr::LTy(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let LTy { lty, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::LTy { lty: *lty });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        ix
-      }
-    }
-    DAGPtr::Opr(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Opr { opr, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Opr { opr: opr.clone() });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        ix
-      }
-    }
-    DAGPtr::Ref(link) => {
-      if let Some(ix) = map.get(node) {
-        *ix
-      }
-      else {
-        let Ref { nam, exp, ast, rec, parents, .. } = unsafe { &mut *link.as_ptr() };
-        let ix = graph.add_node(Node::Ref { name: nam.clone(), exp: *exp, ast: *ast, rec: *rec });
-        map.insert(*node, ix);
-        add_parent_edges(ix, map, graph, *parents);
-        ix
-      }
-    }
-  }
-}
-
-pub fn to_dot<'a>(graph: &'a Graph) -> Dot<'a, &'a Graph> {
-  Dot::with_attr_getters(
-    graph,
-    &[],
-    &|_, e| match e.weight() {
-      Edge::Root => format!(", weight = 2] {{rankdir = TB}} ["),
-      Edge::Downlink => format!(", weight = 2"),
-      Edge::Copy => format!(", weight = 0"),
-      Edge::BindFree | Edge::BindLam | Edge::BindSlf | Edge::BindFix => format!(", weight = 0"),
-      Edge::LamBod
-      | Edge::SlfBod
-      | Edge::FixBod
-      | Edge::DatBod
-      | Edge::CseBod
-      | Edge::AppFun
-      | Edge::AppArg
-      | Edge::AllDom
-      | Edge::AllImg
-      | Edge::AnnTyp
-      | Edge::AnnExp
-      | Edge::LetTyp
-      | Edge::LetExp
-      | Edge::LetBod => format!(", weight = 1"),
-    },
-    &|_, n| match n.1 {
-      Node::Var { .. } | Node::Ref { .. } => {
-        format!("] {{rank = max; {}}} [", n.0.index())
-      }
-      _ => "".to_string(),
-    },
-  )
-}
-
 #[cfg(test)]
 mod test {
   use super::*;
@@ -480,9 +571,12 @@ mod test {
 
   #[test]
   fn test() {
-    let graph =
-      from_dag(&parse("λ f g x y => let x: Type = ∀ (A: Type) -> A; f x (g x)").unwrap().1);
-    println!("{}", to_dot(&graph));
+    let graph = DagGraph::from_dag(
+      &parse("λ f g x y => let x: Type = ∀ (A: Type) -> A; f x (g x)")
+        .unwrap()
+        .1,
+    );
+    println!("{}", graph.to_dot());
     // assert_eq!(true, false)
   }
 }

@@ -15,6 +15,7 @@ use yatima_core::{
 };
 use sp_cid::Cid;
 use sp_ipld::Ipld;
+use crate::graph::PackageGraph;
 
 /// This trait describes the interactions with
 /// externally stored IPLD structures.
@@ -36,9 +37,21 @@ pub trait Store: std::fmt::Debug {
 pub fn load_package_defs(
   store: Rc<dyn Store>,
   package: Rc<Package>,
-) -> Result<Rc<Defs>, String> {
+) -> Result<Defs, String> {
   let Index(def_refs) = &package.index;
+  let imports = &package.imports;
   let mut defs = Defs::new();
+  for import in imports {
+    if let Some(package_ipld) = store.get(import.cid.clone()) {
+      let imported_package = Package::from_ipld(&package_ipld)
+        .map_err(|e| format!("{:?}", e))?;
+      let imported_defs = load_package_defs(store.clone(), Rc::new(imported_package))?;
+      defs = defs.merge(imported_defs, &import);
+    }
+    else {
+      return Err(format!("Failed to load {} at {}", import.name, import.cid));
+    }
+  }
   for (name, cid) in def_refs {
     if let Some(entry_ipld) = store.get(cid.clone()) {
       let entry =
@@ -67,7 +80,7 @@ pub fn load_package_defs(
       return Err(format!("Failed to load {} at {}", name, package.cid()));
     }
   }
-  Ok(Rc::new(defs))
+  Ok(defs)
 }
 
 /// Show the contents of a link
@@ -81,14 +94,20 @@ pub fn show(
     match typ_.as_str() {
       "package" => {
         let pack = Package::from_ipld(&ipld)?;
-        Ok(format!("{:?}", pack))
+        Ok(format!("{}", pack))
+      }
+      "graph" => {
+        let pack = Package::from_ipld(&ipld)?;
+        let mut graph = PackageGraph::new();
+        graph.add_package(|cid| store.get(cid).and_then(|ref ipld| Package::from_ipld(ipld).ok()), pack);
+        Ok(format!("{}", graph.to_dot()))
       }
       "entry" => {
         let entry = Entry::from_ipld(&ipld)?;
-        let mut s = format!("{:?}\n", entry);
+        println!("{}", entry);
+        let mut s = format!("{}\n", entry);
         let def = file::parse::entry_to_def(entry, store).expect("valid def");
         s += format!("{}", def.pretty("#^".to_string(), var_index)).as_str();
-
         Ok(s)
       }
       "anon" => {

@@ -15,21 +15,26 @@ use yatima_core::{
   position::Pos,
 };
 
-use crate::store::{self, Store};
+use crate::store::{
+  self,
+  Store,
+};
 
 pub mod error;
 pub mod parse;
 
 pub fn check_all_in_file(
+  root: PathBuf,
   path: PathBuf,
   store: Rc<dyn Store>,
 ) -> io::Result<Rc<Defs>> {
-  let root = std::env::current_dir()?;
   let env = parse::PackageEnv::new(root, path, store.clone());
-  let (_, p, ds) = parse::parse_file(env).map_err(|e| Error::new(ErrorKind::Other, e))?;
+  let (_, p, ds) =
+    parse::parse_file(env).map_err(|e| Error::new(ErrorKind::Other, e))?;
   let cid = store.put(p.to_ipld());
   println!("Checking package {} at {}", p.name, cid);
-  check_all(Rc::new(p), Rc::new(ds), store).map_err(|e| Error::new(ErrorKind::Other, e))
+  check_all(Rc::new(p), Rc::new(ds), store)
+    .map_err(|e| Error::new(ErrorKind::Other, e))
 }
 
 /// Type check all in an IPLD representation of a package
@@ -40,7 +45,7 @@ pub fn check_all_in_ipld(
   let p = Rc::new(Package::from_ipld(&ipld)?);
   let ds = store::load_package_defs(store.clone(), p.clone())?;
   println!("Checking package {} at {}", p.name, p.cid());
-  check_all(p.clone(), ds, store).map(|defs| (p, defs))
+  check_all(p.clone(), Rc::new(ds), store).map(|defs| (p, defs))
 }
 
 pub fn check_all(
@@ -54,6 +59,7 @@ pub fn check_all(
       match yatima_core::check::check_def(
         ds.clone(),
         &yatima_core::package::import_alias(n.to_owned(), &i),
+        false,
       ) {
         Ok(ty) => {
           println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()), false))
@@ -76,7 +82,7 @@ pub fn check_all(
   }
   println!("Checking definitions:");
   for (n, _) in &p.index.0 {
-    match yatima_core::check::check_def(ds.clone(), n) {
+    match yatima_core::check::check_def(ds.clone(), n, false) {
       Ok(ty) => println!("✓ {}: {}", n, ty.pretty(Some(&n.to_string()), false)),
       Err(e @ CheckError::UndefinedReference(Pos::None, _)) => {
         println!("✕ {}: {}", n, e);

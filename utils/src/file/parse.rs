@@ -107,8 +107,9 @@ impl PackageEnv {
 }
 
 pub fn parse_file(env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
-  let path = env.path.clone();
-  let txt = fs::read_to_string(&path).map_err(|_| "file not found")?;
+  let mut path = env.root.clone();
+  path.push(env.path.clone());
+  let txt = fs::read_to_string(&path).map_err(|e| format!("file {:?} not found {:?}", &path, e))?;
   parse_text(txt.as_str(), env)
 }
 

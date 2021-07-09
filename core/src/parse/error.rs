@@ -18,6 +18,15 @@ use nom::{
   InputLength,
 };
 
+#[cfg(feature = "std")]
+use std::{
+  cmp::Ordering,
+  fmt,
+  fmt::Write,
+  num::ParseIntError,
+  vec::Vec,
+};
+#[cfg(not(feature = "std"))]
 use sp_std::{
   cmp::Ordering,
   fmt,

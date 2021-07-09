@@ -6,22 +6,36 @@ use std::{
 };
 use unicode_segmentation::GraphemeCursor;
 use yatima_utils::{
-  file::parse::{self, PackageEnv},
   log,
   logging::log,
-  repl::{error::ReplError, Repl, ReplEnv},
+  file::parse::{
+    self,
+    PackageEnv,
+  },
+  repl::{
+    error::ReplError,
+    Repl,
+    ReplEnv,
+    LineResult,
+  },
   store::Store,
 };
 // use wasm_bindgen_futures::JsFuture;
 use crate::{
   store::WebStore,
   terminal_sequences::terminal_sequences,
-  utils::{self},
+  utils::{
+    self,
+  },
 };
 use wasm_bindgen::{prelude::*, JsCast};
 use xterm_js_rs::{
-  addons::{fit::FitAddon, search::SearchAddon, web_links::WebLinksAddon},
   Terminal, TerminalOptions, Theme,
+  addons::{
+    fit::FitAddon,
+    search::SearchAddon,
+    web_links::WebLinksAddon,
+  },
 };
 
 const PROMPT: &str = "⅄ ";
@@ -268,7 +282,8 @@ impl WebRepl {
         if !ss.line.is_empty() {
           self.println("".to_owned());
           match self.handle_line(Ok(ss.line.clone())) {
-            Ok(()) => term.writeln("Ok"),
+            Ok(LineResult::Success) => term.writeln("Ok"),
+            Ok(LineResult::Quit) => term.writeln("Quit"),
             Err(()) => term.writeln("Error"),
           }
           ss.line.clear();
@@ -324,6 +339,7 @@ impl WebRepl {
     log!("is_boundary: {:X?}", ss.cursor.is_boundary(&ss.line, 0));
     log!("prev_boundary: {:X?}", ss.cursor.clone().prev_boundary(&ss.line, 0));
     log!("next_boundary: {:X?}", ss.cursor.clone().next_boundary(&ss.line, 0));
+    self.save_history();
     self.update_shell_state(ss);
   }
 }

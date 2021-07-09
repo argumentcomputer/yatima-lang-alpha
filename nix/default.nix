@@ -20,12 +20,7 @@ in
   inherit nixpkgs src;
 
   # provided by shell.nix
-  devTools = {
-    inherit (nixpkgs) niv wasm-pack wasmtime valgrind openssl pkg-config;
-    inherit (pre-commit-hooks) pre-commit nixpkgs-fmt nix-linter rustfmt clippy;
-    inherit rust;
-    # inherit grin;
-  };
+  devTools = import ./devTools.nix { inherit nixpkgs rust pre-commit-hooks; };
 
   # to be built by github actions
   ci = {

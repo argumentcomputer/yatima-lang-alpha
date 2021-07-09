@@ -32,7 +32,7 @@ enum Branch {
 
 // Substitute a variable
 #[inline]
-pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
+pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
   let mut result = arg;
@@ -72,7 +72,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         top_branch = Some(Branch::App(link));
         for parent in DLL::iter_option(var.parents) {
-          upcopy(arg, *parent);
+          upcopy(arg, *parent, should_count);
         }
         result = DAGPtr::App(new_app);
         break;
@@ -85,7 +85,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         top_branch = Some(Branch::All(link));
         for parent in DLL::iter_option(var.parents) {
-          upcopy(arg, *parent);
+          upcopy(arg, *parent, should_count);
         }
         result = DAGPtr::All(new_all);
         break;
@@ -98,7 +98,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         top_branch = Some(Branch::Ann(link));
         for parent in DLL::iter_option(var.parents) {
-          upcopy(arg, *parent);
+          upcopy(arg, *parent, should_count);
         }
         result = DAGPtr::Ann(new_ann);
         break;
@@ -111,7 +111,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         }
         top_branch = Some(Branch::Let(link));
         for parent in DLL::iter_option(var.parents) {
-          upcopy(arg, *parent);
+          upcopy(arg, *parent, should_count);
         }
         result = DAGPtr::Let(new_let);
         break;
@@ -133,7 +133,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         result = DAGPtr::Lam(new_lam);
       }
@@ -144,7 +144,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         result = DAGPtr::Slf(new_slf);
       }
@@ -155,7 +155,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_fix.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         result = DAGPtr::Fix(new_fix);
       }
@@ -253,7 +253,7 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool) -> DAGPtr {
 
 // Contract a lambda redex, return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
+pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -264,7 +264,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
     *bod
   }
   else {
-    subst(*bod, var, *arg, false)
+    subst(*bod, var, *arg, false, should_count)
   };
   replace_child(DAGPtr::App(redex), top_node);
   free_dead_node(DAGPtr::App(redex));
@@ -273,7 +273,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>) -> DAGPtr {
 
 // Contract a let redex, return the body.
 #[inline]
-pub fn reduce_let(redex: NonNull<Let>) -> DAGPtr {
+pub fn reduce_let(redex: NonNull<Let>, should_count: bool) -> DAGPtr {
   let Let { bod: lam, exp: arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -284,7 +284,7 @@ pub fn reduce_let(redex: NonNull<Let>) -> DAGPtr {
     *bod
   }
   else {
-    subst(*bod, var, *arg, false)
+    subst(*bod, var, *arg, false, should_count)
   };
   replace_child(DAGPtr::Let(redex), top_node);
   free_dead_node(DAGPtr::Let(redex));
@@ -302,7 +302,7 @@ pub fn print_trail(trail: &Vec<NonNull<App>>) -> Vec<String> {
 
 impl DAG {
   // Reduce term to its weak head normal form
-  pub fn whnf(&mut self, defs: &Defs) {
+  pub fn whnf(&mut self, defs: &Defs, should_count: bool) {
     let mut node = self.head;
     let mut trail: Vec<NonNull<App>> = vec![];
     loop {
@@ -314,7 +314,7 @@ impl DAG {
         }
         DAGPtr::Lam(link) => {
           if let Some(app_link) = trail.pop() {
-            node = reduce_lam(app_link, link);
+            node = reduce_lam(app_link, link, should_count);
           }
           else {
             break;
@@ -328,7 +328,7 @@ impl DAG {
         }
         DAGPtr::Cse(link) => {
           let mut body = unsafe { DAG::new((*link.as_ptr()).bod) };
-          body.whnf(defs);
+          body.whnf(defs, should_count);
           match body.head {
             DAGPtr::Dat(body_link) => {
               let bod = unsafe { body_link.as_ref().bod };
@@ -358,7 +358,7 @@ impl DAG {
           }
         }
         DAGPtr::Let(link) => {
-          node = reduce_let(link);
+          node = reduce_let(link, should_count);
         }
         DAGPtr::Fix(link) => unsafe {
           let Fix { var, bod, .. } = &mut *link.as_ptr();
@@ -370,7 +370,7 @@ impl DAG {
               *bod,
               var,
               DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
-              true,
+              true, should_count
             );
             new_fix.bod = result;
             add_to_parents(
@@ -416,7 +416,7 @@ impl DAG {
           }
           else if len >= 1 && opr.arity() == 1 {
             let mut arg = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
-            arg.whnf(defs);
+            arg.whnf(defs, should_count);
             match arg.head {
               DAGPtr::Lit(link) => {
                 let x = unsafe { &(*link.as_ptr()).lit };
@@ -439,8 +439,8 @@ impl DAG {
           else if len >= 2 && opr.arity() == 2 {
             let mut arg1 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
             let mut arg2 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
-            arg1.whnf(defs);
-            arg2.whnf(defs);
+            arg1.whnf(defs, should_count);
+            arg2.whnf(defs, should_count);
             match (arg1.head, arg2.head) {
               (DAGPtr::Lit(x_link), DAGPtr::Lit(y_link)) => {
                 let x = unsafe { &(*x_link.as_ptr()).lit };
@@ -466,9 +466,9 @@ impl DAG {
             let mut arg1 = unsafe { DAG::new((*trail[len - 1].as_ptr()).arg) };
             let mut arg2 = unsafe { DAG::new((*trail[len - 2].as_ptr()).arg) };
             let mut arg3 = unsafe { DAG::new((*trail[len - 3].as_ptr()).arg) };
-            arg1.whnf(defs);
-            arg2.whnf(defs);
-            arg3.whnf(defs);
+            arg1.whnf(defs, should_count);
+            arg2.whnf(defs, should_count);
+            arg3.whnf(defs, should_count);
             match (arg1.head, arg2.head, arg3.head) {
               (
                 DAGPtr::Lit(x_link),
@@ -512,8 +512,8 @@ impl DAG {
   }
 
   // Reduce term to its normal form
-  pub fn norm(&mut self, defs: &Defs) {
-    self.whnf(defs);
+  pub fn norm(&mut self, defs: &Defs, should_count: bool) {
+    self.whnf(defs, should_count);
     let mut trail = vec![self.head];
     while let Some(node) = trail.pop() {
       match node {
@@ -521,8 +521,8 @@ impl DAG {
           let app = link.as_ptr();
           let mut fun = DAG::new((*app).fun);
           let mut arg = DAG::new((*app).arg);
-          fun.whnf(defs);
-          arg.whnf(defs);
+          fun.whnf(defs, should_count);
+          arg.whnf(defs, should_count);
           trail.push(fun.head);
           trail.push(arg.head);
         },
@@ -530,33 +530,33 @@ impl DAG {
           let all = link.as_ptr();
           let mut dom = DAG::new((*all).dom);
           let mut img = DAG::new(DAGPtr::Lam((*all).img));
-          dom.whnf(defs);
-          img.whnf(defs);
+          dom.whnf(defs, should_count);
+          img.whnf(defs, should_count);
           trail.push(dom.head);
           trail.push(img.head);
         },
         DAGPtr::Lam(link) => unsafe {
           let lam = link.as_ptr();
           let mut body = DAG::new((*lam).bod);
-          body.whnf(defs);
+          body.whnf(defs, should_count);
           trail.push(body.head);
         },
         DAGPtr::Slf(link) => unsafe {
           let slf = link.as_ptr();
           let mut body = DAG::new((*slf).bod);
-          body.whnf(defs);
+          body.whnf(defs, should_count);
           trail.push(body.head);
         },
         DAGPtr::Cse(link) => unsafe {
           let cse = link.as_ptr();
           let mut body = DAG::new((*cse).bod);
-          body.whnf(defs);
+          body.whnf(defs, should_count);
           trail.push(body.head);
         },
         DAGPtr::Dat(link) => unsafe {
           let dat = link.as_ptr();
           let mut body = DAG::new((*dat).bod);
-          body.whnf(defs);
+          body.whnf(defs, should_count);
           trail.push(body.head);
         },
         _ => (),
@@ -611,7 +611,7 @@ pub mod test {
   fn norm_assert(input: &str, result: &str) {
     match parse(&input) {
       Ok((_, mut dag)) => {
-        dag.norm(&Defs::new());
+        dag.norm(&Defs::new(), false);
         assert_eq!(format!("{}", dag), result)
       }
       Err(_) => panic!("Did not parse."),
@@ -620,7 +620,7 @@ pub mod test {
   fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
     match parse(&input) {
       Ok((_, mut dag)) => {
-        dag.norm(&defs);
+        dag.norm(&defs, false);
         assert_eq!(format!("{}", dag), result)
       }
       Err(_) => panic!("Did not parse."),

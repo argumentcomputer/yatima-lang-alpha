@@ -4,6 +4,9 @@ use crate::{
 };
 
 use core::ptr::NonNull;
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub fn clean_up(cc: &ParentPtr) {
   match cc {
@@ -103,7 +106,10 @@ pub fn clean_up(cc: &ParentPtr) {
 }
 
 // The core up-copy function.
-pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
+pub fn upcopy(new_child: DAGPtr, cc: ParentPtr, should_count: bool) {
+  if should_count {
+    UPCOPY_COUNT.fetch_add(1, Ordering::SeqCst);
+  }
   unsafe {
     match cc {
       ParentPtr::LamBod(link) => {
@@ -114,10 +120,10 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_lam.as_ptr()).var;
         for parent in DLL::iter_option(*var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAGPtr::Lam(new_lam), *parent)
+          upcopy(DAGPtr::Lam(new_lam), *parent, should_count)
         }
       }
       ParentPtr::SlfBod(link) => {
@@ -128,10 +134,10 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_slf.as_ptr()).var;
         for parent in DLL::iter_option(*var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAGPtr::Slf(new_slf), *parent)
+          upcopy(DAGPtr::Slf(new_slf), *parent, should_count)
         }
       }
       ParentPtr::FixBod(link) => {
@@ -142,10 +148,10 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = &mut (*new_fix.as_ptr()).var;
         for parent in DLL::iter_option(*var_parents) {
-          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent)
+          upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAGPtr::Fix(new_fix), *parent)
+          upcopy(DAGPtr::Fix(new_fix), *parent, should_count)
         }
       }
       ParentPtr::DatBod(link) => {
@@ -154,7 +160,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         let ptr: *mut Parents = &mut (*new_dat.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAGPtr::Dat(new_dat), *parent)
+          upcopy(DAGPtr::Dat(new_dat), *parent, should_count)
         }
       }
       ParentPtr::CseBod(link) => {
@@ -163,7 +169,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
         let ptr: *mut Parents = &mut (*new_cse.as_ptr()).bod_ref;
         add_to_parents(new_child, NonNull::new(ptr).unwrap());
         for parent in DLL::iter_option(*parents) {
-          upcopy(DAGPtr::Cse(new_cse), *parent)
+          upcopy(DAGPtr::Cse(new_cse), *parent, should_count)
         }
       }
       ParentPtr::AppFun(link) => {
@@ -176,7 +182,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_app = alloc_app(new_child, *arg, None);
             (*link.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::App(new_app), *parent)
+              upcopy(DAGPtr::App(new_app), *parent, should_count)
             }
           }
         }
@@ -191,7 +197,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_app = alloc_app(*fun, new_child, None);
             (*link.as_ptr()).copy = Some(new_app);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::App(new_app), *parent)
+              upcopy(DAGPtr::App(new_app), *parent, should_count)
             }
           }
         }
@@ -206,7 +212,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_ann = alloc_ann(new_child, *exp, None);
             (*link.as_ptr()).copy = Some(new_ann);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::Ann(new_ann), *parent)
+              upcopy(DAGPtr::Ann(new_ann), *parent, should_count)
             }
           }
         }
@@ -221,7 +227,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_ann = alloc_ann(*typ, new_child, None);
             (*link.as_ptr()).copy = Some(new_ann);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::Ann(new_ann), *parent)
+              upcopy(DAGPtr::Ann(new_ann), *parent, should_count)
             }
           }
         }
@@ -236,7 +242,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_all = alloc_all(*uses, new_child, *img, None);
             (*link.as_ptr()).copy = Some(new_all);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::All(new_all), *parent)
+              upcopy(DAGPtr::All(new_all), *parent, should_count)
             }
           }
         }
@@ -255,7 +261,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_all = alloc_all(*uses, *dom, new_child, None);
             (*link.as_ptr()).copy = Some(new_all);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::All(new_all), *parent)
+              upcopy(DAGPtr::All(new_all), *parent, should_count)
             }
           }
         }
@@ -270,7 +276,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_let = alloc_let(*uses, new_child, *exp, *bod, None);
             (*link.as_ptr()).copy = Some(new_let);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::Let(new_let), *parent)
+              upcopy(DAGPtr::Let(new_let), *parent, should_count)
             }
           }
         }
@@ -285,7 +291,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_let = alloc_let(*uses, *typ, new_child, *bod, None);
             (*link.as_ptr()).copy = Some(new_let);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::Let(new_let), *parent)
+              upcopy(DAGPtr::Let(new_let), *parent, should_count)
             }
           }
         }
@@ -304,7 +310,7 @@ pub fn upcopy(new_child: DAGPtr, cc: ParentPtr) {
             let new_let = alloc_let(*uses, *typ, *exp, new_child, None);
             (*link.as_ptr()).copy = Some(new_let);
             for parent in DLL::iter_option(*parents) {
-              upcopy(DAGPtr::Let(new_let), *parent)
+              upcopy(DAGPtr::Let(new_let), *parent, should_count)
             }
           }
         }
