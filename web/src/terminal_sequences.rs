@@ -1,22 +1,26 @@
 pub mod terminal_sequences {
   // Keyboard keys
+  pub const CTRL_C: &str = "\u{3}";
+  pub const CTRL_LEFT: &str = "\u{1B}[1;5D";
+  pub const CTRL_L: &str = "\u{C}";
+  pub const CTRL_RIGHT: &str = "\u{1B}[1;5C";
+  pub const DOWN: &str = "\u{1B}[B";
+  pub const DELETE: &str = "\u{1B}[3~";
+  pub const END: &str = "\u{1B}[F";
+  pub const HOME: &str = "\u{1B}[H";
   pub const INSERT: &str = "\u{1B}[2~";
   pub const LEFT: &str = "\u{1B}[D";
   pub const RIGHT: &str = "\u{1B}[C";
   pub const UP: &str = "\u{1B}[A";
-  pub const DOWN: &str = "\u{1B}[B";
-  pub const DELETE: &str = "\u{1B}[3~";
-  pub const HOME: &str = "\u{1B}[H";
-  pub const END: &str = "\u{1B}[F";
-  pub const PG_UP: &str = "\u{1B}[5~";
-  pub const PG_DOWN: &str = "\u{1B}[6~";
+  pub const PAGE_UP: &str = "\u{1B}[5~";
+  pub const PAGE_DOWN: &str = "\u{1B}[6~";
 
   // xterm.js Terminal Sequences
   // See https://xtermjs.org/docs/api/vtfeatures/ for missing documentation (`SP` is ` `)
   // See https://vt100.net/docs/vt510-rm/chapter4.html for more information on terminal sequences
   // See https://notes.burke.libbey.me/ansi-escape-codes/ for more information on terminal sequences
 
-  // Constant sequences (no parameters ``ps``, `Pm` or `Pt`)
+  // Constant sequences (no parameters `Ps`, `Pm` or `Pt`)
   // C0
   /// NUL is ignored.
   pub const NUL: &str = "\u{00}";

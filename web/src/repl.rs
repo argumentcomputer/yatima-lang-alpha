@@ -1,44 +1,33 @@
 use std::{
   collections::VecDeque,
+  convert::TryInto,
   path::PathBuf,
   rc::Rc,
   sync::{Arc, Mutex},
 };
-use unicode_segmentation::GraphemeCursor;
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
+use wasm_bindgen::{prelude::*, JsCast};
+use xterm_js_rs::{
+  addons::{fit::FitAddon, search::SearchAddon, web_links::WebLinksAddon},
+  Terminal, TerminalOptions, Theme,
+};
 use yatima_utils::{
+  file::parse::{self, PackageEnv},
   log,
   logging::log,
-  file::parse::{
-    self,
-    PackageEnv,
-  },
-  repl::{
-    error::ReplError,
-    Repl,
-    ReplEnv,
-    LineResult,
-  },
+  repl::{error::ReplError, LineResult, Repl, ReplEnv},
   store::Store,
 };
 // use wasm_bindgen_futures::JsFuture;
 use crate::{
   store::WebStore,
   terminal_sequences::terminal_sequences,
-  utils::{
-    self,
-  },
-};
-use wasm_bindgen::{prelude::*, JsCast};
-use xterm_js_rs::{
-  Terminal, TerminalOptions, Theme,
-  addons::{
-    fit::FitAddon,
-    search::SearchAddon,
-    web_links::WebLinksAddon,
-  },
+  utils::{self},
 };
 
+// Assumes this has no tab graphemes.
 const PROMPT: &str = "⅄ ";
+const TAB_WIDTH: usize = 2;
 
 fn prompt(term: &Terminal) {
   term.writeln("");
@@ -61,17 +50,17 @@ fn replace_mode(term: &Terminal) {
 
 #[derive(Debug, Clone)]
 struct ShellState {
-  line: String,
   cursor: GraphemeCursor,
+  line: String,
   history_index: usize,
 }
 
 impl Default for ShellState {
   fn default() -> Self {
     ShellState {
+      cursor: GraphemeCursor::new(0, 0, true),
       line: String::new(),
       history_index: 0,
-      cursor: GraphemeCursor::new(0, 0, true),
     }
   }
 }
@@ -153,7 +142,8 @@ impl WebRepl {
         .with_right_click_selects_word(true)
         .with_theme(
           Theme::new().with_foreground("#98FB98").with_background("#000000"),
-        ),
+        )
+        .with_tab_stop_width(TAB_WIDTH.try_into().unwrap()),
     );
 
     let elem = web_sys::window()
@@ -167,7 +157,7 @@ impl WebRepl {
     terminal.writeln("Supported keys in this example:");
     terminal.writeln(
       " <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> \
-       <Ctrl-C> <Ctrl-L>",
+       <Ctrl-C> <Ctrl-L> <Ctrl-Left> <Ctrl-Right> <Home> <End>",
     );
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
@@ -208,27 +198,135 @@ impl WebRepl {
     shell_state.clone()
   }
 
+  // TODO: (properly) handle newline graphemes in handling of left, right, ^left, ^right, home, end, delete and backspace keys.
   pub fn handle_data(&mut self, data: String) {
     log("");
     let mut ss = self.read_shell_state();
     let term: Terminal = self.get_terminal();
     match data.as_str() {
+      // Move one grapheme forwards.
       terminal_sequences::RIGHT => {
-        if ss.cursor.cur_cursor() < ss.line.len() {
-          if let Ok(Some(next)) = ss.cursor.clone().next_boundary(&ss.line, 0) {
-            term.write(&terminal_sequences::cursor_forwards(1));
-            ss.cursor.set_cursor(next);
+        if let (true, Ok(Some(next_boundary))) = (
+          ss.cursor.cur_cursor() < ss.line.len(),
+          ss.cursor.clone().next_boundary(&ss.line, 0),
+        ) {
+          match &ss.line[ss.cursor.cur_cursor()..next_boundary] {
+            terminal_sequences::HT => {
+              term.write(&terminal_sequences::cursor_forwards(TAB_WIDTH));
+            }
+            _ => {
+              term.write(&terminal_sequences::cursor_forwards(1));
+            }
           }
+          ss.cursor.set_cursor(next_boundary);
         }
       }
+      // Move one grapheme backwards.
       terminal_sequences::LEFT => {
+        if let (true, Ok(Some(prev_boundary))) = (
+          ss.cursor.cur_cursor() > 0,
+          ss.cursor.clone().prev_boundary(&ss.line, 0),
+        ) {
+          match &ss.line[prev_boundary..ss.cursor.cur_cursor()] {
+            terminal_sequences::HT => {
+              term.write(&terminal_sequences::cursor_backwards(TAB_WIDTH));
+            }
+            _ => {
+              term.write(&terminal_sequences::cursor_backwards(1));
+            }
+          }
+          ss.cursor.set_cursor(prev_boundary);
+        }
+      }
+      // Move one word boundary backwards.
+      terminal_sequences::CTRL_LEFT => {
         if ss.cursor.cur_cursor() > 0 {
-          if let Ok(Some(prev)) = ss.cursor.clone().prev_boundary(&ss.line, 0) {
-            term.write(&terminal_sequences::cursor_backwards(1));
-            ss.cursor.set_cursor(prev);
+          let mut word_bound_index =
+            ss.line.split_word_bound_indices().rev().peekable();
+          while let Some(&(prev_boundary, _)) = word_bound_index.peek() {
+            if prev_boundary < ss.cursor.cur_cursor() {
+              if &ss.line[prev_boundary..ss.cursor.cur_cursor()]
+                == terminal_sequences::HT
+              {
+                term.write(&terminal_sequences::cursor_backwards(TAB_WIDTH));
+              } else {
+                term.write(&terminal_sequences::cursor_backwards(
+                  ss.cursor.cur_cursor() - prev_boundary,
+                ));
+              }
+              ss.cursor.set_cursor(prev_boundary);
+              break;
+            } else {
+              word_bound_index.next();
+            }
           }
         }
       }
+      // Move one word boundary forwards.
+      terminal_sequences::CTRL_RIGHT => {
+        if ss.cursor.cur_cursor() < ss.line.len() {
+          let mut word_bound_index =
+            ss.line.split_word_bound_indices().peekable();
+          while let Some(&(next_boundary, _)) = word_bound_index.peek() {
+            if next_boundary > ss.cursor.cur_cursor() {
+              if &ss.line[ss.cursor.cur_cursor()..next_boundary]
+                == terminal_sequences::HT
+              {
+                term.write(&terminal_sequences::cursor_forwards(TAB_WIDTH));
+              } else {
+                term.write(&terminal_sequences::cursor_forwards(
+                  next_boundary - ss.cursor.cur_cursor(),
+                ));
+              }
+              ss.cursor.set_cursor(next_boundary);
+              break;
+            } else {
+              word_bound_index.next();
+            }
+          }
+          if word_bound_index.peek().is_none() {
+            term.write(&terminal_sequences::cursor_forwards(
+              UnicodeSegmentation::graphemes(
+                &ss.line[ss.cursor.cur_cursor()..ss.line.len()],
+                true,
+              )
+              .count(),
+            ));
+            ss.cursor.set_cursor(ss.line.len());
+          }
+        }
+      }
+      // Move to start of line.
+      terminal_sequences::HOME => {
+        if ss.cursor.cur_cursor() > 0 {
+          term.write(&terminal_sequences::cursor_horizontal_absolute(0));
+          term.write(&terminal_sequences::cursor_forwards(
+            UnicodeSegmentation::graphemes(PROMPT, true).count(),
+          ));
+          ss.cursor.set_cursor(0);
+        }
+      }
+      // Move to end of line.
+      terminal_sequences::END => {
+        if ss.cursor.cur_cursor() < ss.line.len() {
+          let (tabs, non_tabs) = UnicodeSegmentation::graphemes(
+            &ss.line[ss.cursor.cur_cursor()..ss.line.len()],
+            true,
+          )
+          .fold((0, 0), |acc, grapheme| {
+            if grapheme == terminal_sequences::HT {
+              (acc.0 + 1, acc.1)
+            } else {
+              (acc.0, acc.1 + 1)
+            }
+          });
+          term.write(&terminal_sequences::cursor_forwards(
+            (tabs * TAB_WIDTH) + non_tabs,
+          ));
+          ss.cursor.set_cursor(ss.line.len());
+        }
+      }
+      // Load previous saved line.
       terminal_sequences::UP => {
         if ss.history_index < self.history.len() - 1 {
           ss.history_index += 1;
@@ -236,14 +334,12 @@ impl WebRepl {
             ss.line = l.clone();
             clear_line(&term);
             term.write(&ss.line);
-            ss.cursor = GraphemeCursor::new(
-              ss.line.len(),
-              ss.line.len(),
-              true,
-            );
+            ss.cursor = GraphemeCursor::new(ss.line.len(), ss.line.len(), true);
           }
         }
+        self.save_history();
       }
+      // Load next saved line.
       terminal_sequences::DOWN => {
         if ss.history_index > 0 {
           ss.history_index -= 1;
@@ -251,33 +347,35 @@ impl WebRepl {
             ss.line = l.clone();
             clear_line(&term);
             term.write(&ss.line);
-            ss.cursor = GraphemeCursor::new(
-              ss.line.len(),
-              ss.line.len(),
-              true,
-            );
+            ss.cursor = GraphemeCursor::new(ss.line.len(), ss.line.len(), true);
           }
         }
+        self.save_history();
       }
+      // Delete previous grapheme.
       terminal_sequences::BS | "\u{7f}" => {
-        log("backspace");
         // Backspace should only work if the cursor is on a grapheme boundary > the first grapheme boundary (which should be the beginning of the line).
-        if let (
-          Ok(true),
-          Ok(Some(prev_boundary)),
-        ) = (
+        if let (true, Ok(true), Ok(Some(prev_boundary))) = (
+          ss.cursor.cur_cursor() > 0,
           ss.cursor.is_boundary(&ss.line, 0),
           ss.cursor.clone().prev_boundary(&ss.line, 0),
         ) {
-          if ss.cursor.cur_cursor() > 0 {
-            term.write(&terminal_sequences::cursor_backwards(1));
-            term.write(&terminal_sequences::delete_characters(1));
-            ss.line.replace_range(prev_boundary..ss.cursor.cur_cursor() , "");
-            ss.cursor =
-              GraphemeCursor::new(prev_boundary, ss.line.len(), true);
+          match &ss.line[prev_boundary..ss.cursor.cur_cursor()] {
+            terminal_sequences::HT => {
+              term.write(&terminal_sequences::cursor_backwards(TAB_WIDTH));
+              term.write(&terminal_sequences::delete_characters(TAB_WIDTH));
+            }
+            _ => {
+              term.write(&terminal_sequences::cursor_backwards(1));
+              term.write(&terminal_sequences::delete_characters(1));
+            }
           }
+          ss.line.replace_range(prev_boundary..ss.cursor.cur_cursor(), "");
+          ss.cursor = GraphemeCursor::new(prev_boundary, ss.line.len(), true);
+          self.save_history();
         }
       }
+      // Evaluate and save line.
       terminal_sequences::CR => {
         if !ss.line.is_empty() {
           self.println("".to_owned());
@@ -291,36 +389,51 @@ impl WebRepl {
           ss.history_index = 0;
         }
         prompt(&term);
+        self.save_history();
       }
+      // Delete current grapheme.
       terminal_sequences::DELETE => {
-        log("delete");
         // Delete should only work if the cursor is on a grapheme boundary < the last grapheme boundary (which should be the end of the line).
-        if let (
-          Ok(true),
-          Ok(Some(next_boundary)),
-        ) = (
+        if let (true, Ok(true), Ok(Some(next_boundary))) = (
+          ss.cursor.cur_cursor() < ss.line.len(),
           ss.cursor.is_boundary(&ss.line, 0),
           ss.cursor.clone().next_boundary(&ss.line, 0),
         ) {
-          if ss.cursor.cur_cursor() < ss.line.len() {
-            term.write(&terminal_sequences::delete_characters(1));
-            ss.line.replace_range(
-              ss.cursor.cur_cursor()..next_boundary,
-              "",
-            );
-            ss.cursor = GraphemeCursor::new(
-              ss.cursor.cur_cursor(),
-              ss.line.len(),
-              true,
-            );
+          match &ss.line[ss.cursor.cur_cursor()..next_boundary] {
+            terminal_sequences::HT => {
+              term.write(&terminal_sequences::delete_characters(TAB_WIDTH));
+            }
+            _ => {
+              term.write(&terminal_sequences::delete_characters(1));
+            }
           }
+          ss.line.replace_range(ss.cursor.cur_cursor()..next_boundary, "");
+          ss.cursor =
+            GraphemeCursor::new(ss.cursor.cur_cursor(), ss.line.len(), true);
+          self.save_history();
         }
       }
-      _ if data.starts_with(terminal_sequences::ESC) => {
-        log("ESC");
+      // Cancel current evaluation.
+      terminal_sequences::CTRL_C => {
+        term.write(&data);
+        ss.line.clear();
+        clear_line(&term);
+        ss.cursor = GraphemeCursor::new(0, 0, true);
+        self.save_history();
+      }
+      // Clear line.
+      terminal_sequences::CTRL_L => {
+        ss.line.clear();
+        clear_line(&term);
+        ss.cursor = GraphemeCursor::new(0, 0, true);
+        self.save_history();
       }
       _ => {
-        term.write(&data);
+        if &data == terminal_sequences::HT {
+          term.write(&" ".repeat(TAB_WIDTH));
+        } else {
+          term.write(&data);
+        }
         ss.line.insert_str(ss.cursor.cur_cursor(), &data);
         ss.cursor = GraphemeCursor::new(
           ss.cursor.cur_cursor() + data.len(),
@@ -329,6 +442,7 @@ impl WebRepl {
         );
         self.history.pop_front();
         self.history.push_front(ss.line.clone());
+        self.save_history();
       }
     }
     log!("cursor: {:X?}", ss.cursor.cur_cursor());
@@ -339,7 +453,6 @@ impl WebRepl {
     log!("is_boundary: {:X?}", ss.cursor.is_boundary(&ss.line, 0));
     log!("prev_boundary: {:X?}", ss.cursor.clone().prev_boundary(&ss.line, 0));
     log!("next_boundary: {:X?}", ss.cursor.clone().next_boundary(&ss.line, 0));
-    self.save_history();
     self.update_shell_state(ss);
   }
 }
@@ -371,7 +484,7 @@ pub fn main() -> Result<(), JsValue> {
 pub fn parse_source(source: &str) -> Result<JsValue, JsValue> {
   let store = Rc::new(WebStore::new());
   let env = PackageEnv::new(PathBuf::new(), PathBuf::new(), store.clone());
-  let (cid, p, _d) = parse::parse_text(&source, env)?;
+  let (cid, p, _) = parse::parse_text(&source, env)?;
   log(&format!("parsed {} {:#?}", cid, p));
   Ok("ok".into())
 }
