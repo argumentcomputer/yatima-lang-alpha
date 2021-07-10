@@ -9,8 +9,8 @@ use sp_cid::Cid;
 use sp_ipld::Ipld;
 
 use sp_std::{
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
 };
 
 use alloc::string::ToString;
@@ -18,16 +18,15 @@ use alloc::string::ToString;
 #[derive(PartialEq, Clone, Debug)]
 pub enum Meta {
   Var(Pos, Name),
-  Lam(Pos, Name, Box<Meta>),
+  Lam(Pos, Name, Box<(Meta, Meta)>),
   App(Pos, Box<(Meta, Meta)>),
   All(Pos, Name, Box<(Meta, Meta)>),
   Slf(Pos, Name, Box<Meta>),
-  Dat(Pos, Box<Meta>),
+  Dat(Pos, Box<(Meta, Meta)>),
   Cse(Pos, Box<Meta>),
   Ref(Pos, Name, Cid),
   Let(Pos, Name, Box<(Meta, Meta, Meta)>),
   Typ(Pos),
-  Ann(Pos, Box<(Meta, Meta)>),
   Lit(Pos),
   LTy(Pos),
   Opr(Pos),
@@ -42,12 +41,16 @@ impl Meta {
         pos.to_ipld(),
         Ipld::String(nam.to_string()),
       ]),
-      Self::Lam(pos, nam, bod) => Ipld::List(vec![
-        Ipld::Integer(1),
-        pos.to_ipld(),
-        Ipld::String(nam.to_string()),
-        bod.to_ipld(),
-      ]),
+      Self::Lam(pos, nam, typ_bod) => {
+        let (typ, bod) = (*typ_bod).as_ref();
+        Ipld::List(vec![
+          Ipld::Integer(1),
+          pos.to_ipld(),
+          Ipld::String(nam.to_string()),
+          typ.to_ipld(),
+          bod.to_ipld(),
+        ])
+      }
       Self::App(pos, fun_arg) => {
         let (fun, arg) = (*fun_arg).as_ref();
         Ipld::List(vec![
@@ -73,8 +76,14 @@ impl Meta {
         Ipld::String(nam.to_string()),
         bod.to_ipld(),
       ]),
-      Self::Dat(pos, bod) => {
-        Ipld::List(vec![Ipld::Integer(5), pos.to_ipld(), bod.to_ipld()])
+      Self::Dat(pos, typ_bod) => {
+        let (typ, bod) = (*typ_bod).as_ref();
+        Ipld::List(vec![
+          Ipld::Integer(5),
+          pos.to_ipld(),
+          typ.to_ipld(),
+          bod.to_ipld(),
+        ])
       }
       Self::Cse(pos, bod) => {
         Ipld::List(vec![Ipld::Integer(6), pos.to_ipld(), bod.to_ipld()])
@@ -97,19 +106,10 @@ impl Meta {
         ])
       }
       Self::Typ(pos) => Ipld::List(vec![Ipld::Integer(9), pos.to_ipld()]),
-      Self::Ann(pos, typ_exp) => {
-        let (typ, exp) = (*typ_exp).as_ref();
-        Ipld::List(vec![
-          Ipld::Integer(10),
-          pos.to_ipld(),
-          typ.to_ipld(),
-          exp.to_ipld(),
-        ])
-      }
-      Self::Lit(pos) => Ipld::List(vec![Ipld::Integer(11), pos.to_ipld()]),
-      Self::LTy(pos) => Ipld::List(vec![Ipld::Integer(12), pos.to_ipld()]),
-      Self::Opr(pos) => Ipld::List(vec![Ipld::Integer(13), pos.to_ipld()]),
-      Self::Rec(pos) => Ipld::List(vec![Ipld::Integer(14), pos.to_ipld()]),
+      Self::Lit(pos) => Ipld::List(vec![Ipld::Integer(10), pos.to_ipld()]),
+      Self::LTy(pos) => Ipld::List(vec![Ipld::Integer(11), pos.to_ipld()]),
+      Self::Opr(pos) => Ipld::List(vec![Ipld::Integer(12), pos.to_ipld()]),
+      Self::Rec(pos) => Ipld::List(vec![Ipld::Integer(13), pos.to_ipld()]),
     }
   }
 
@@ -120,10 +120,11 @@ impl Meta {
           let pos = Pos::from_ipld(pos)?;
           Ok(Meta::Var(pos, Name::from(nam.clone())))
         }
-        [Ipld::Integer(1), pos, Ipld::String(nam), bod] => {
+        [Ipld::Integer(1), pos, Ipld::String(nam), typ, bod] => {
           let pos = Pos::from_ipld(pos)?;
+          let typ = Meta::from_ipld(typ)?;
           let bod = Meta::from_ipld(bod)?;
-          Ok(Meta::Lam(pos, Name::from(nam.clone()), Box::new(bod)))
+          Ok(Meta::Lam(pos, Name::from(nam.clone()), Box::new((typ, bod))))
         }
         [Ipld::Integer(2), pos, fun, arg] => {
           let pos = Pos::from_ipld(pos)?;
@@ -142,10 +143,11 @@ impl Meta {
           let bod = Meta::from_ipld(bod)?;
           Ok(Meta::Slf(pos, Name::from(nam.clone()), Box::new(bod)))
         }
-        [Ipld::Integer(5), pos, bod] => {
+        [Ipld::Integer(5), pos, typ, bod] => {
           let pos = Pos::from_ipld(pos)?;
+          let typ = Meta::from_ipld(typ)?;
           let bod = Meta::from_ipld(bod)?;
-          Ok(Meta::Dat(pos, Box::new(bod)))
+          Ok(Meta::Dat(pos, Box::new((typ, bod))))
         }
         [Ipld::Integer(6), pos, bod] => {
           let pos = Pos::from_ipld(pos)?;
@@ -167,25 +169,19 @@ impl Meta {
           let pos = Pos::from_ipld(pos)?;
           Ok(Meta::Typ(pos))
         }
-        [Ipld::Integer(10), pos, typ, exp] => {
-          let pos = Pos::from_ipld(pos)?;
-          let typ = Meta::from_ipld(typ)?;
-          let exp = Meta::from_ipld(exp)?;
-          Ok(Meta::Ann(pos, Box::new((typ, exp))))
-        }
-        [Ipld::Integer(11), pos] => {
+        [Ipld::Integer(10), pos] => {
           let pos = Pos::from_ipld(pos)?;
           Ok(Self::Lit(pos))
         }
-        [Ipld::Integer(12), pos] => {
+        [Ipld::Integer(11), pos] => {
           let pos = Pos::from_ipld(pos)?;
           Ok(Self::LTy(pos))
         }
-        [Ipld::Integer(13), pos] => {
+        [Ipld::Integer(12), pos] => {
           let pos = Pos::from_ipld(pos)?;
           Ok(Self::Opr(pos))
         }
-        [Ipld::Integer(14), pos] => {
+        [Ipld::Integer(13), pos] => {
           let pos = Pos::from_ipld(pos)?;
           Ok(Self::Rec(pos))
         }
@@ -201,18 +197,17 @@ impl fmt::Display for Meta {
     use Meta::*;
     match self.clone() {
       Var(_, name) => write!(f, "Var({})", name),
-      Lam(_, name, b) => write!(f, "Lam({}, {}", name, *b),
+      Lam(_, name, b) => write!(f, "Lam({}, {}, {})", name, (*b).0, (*b).1),
       App(_, b) => write!(f, "App({}, {})", (*b).0, (*b).1),
       All(_, name, b) => write!(f, "All({}, {}, {})", name, (*b).0, (*b).1),
       Slf(_, name, b) => writeln!(f, "Slf({}, {})", name, *b),
-      Dat(_, b) => write!(f, "Dat({})", *b),
+      Dat(_, b) => write!(f, "Dat({}, {})", (*b).0, (*b).1),
       Cse(_, b) => write!(f, "Cse({})", *b),
       Ref(_, name, cid) => write!(f, "Ref({}, {})", name, cid),
       Let(_, name, b) => {
         write!(f, "Let({}, {}, {}, {})", name, (*b).0, (*b).1, (*b).2)
       }
       Typ(_) => write!(f, "Typ"),
-      Ann(_, b) => write!(f, "Ann({}, {})", (*b).0, (*b).1),
       Lit(_) => write!(f, "Lit"),
       LTy(_) => write!(f, "LTy"),
       Opr(_) => write!(f, "Opr"),

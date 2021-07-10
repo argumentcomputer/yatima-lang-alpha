@@ -1,6 +1,10 @@
 use crate::{
   defs::Defs,
-  name::Name,
+  name::{
+    is_valid_symbol_char,
+    is_valid_symbol_string,
+    Name,
+  },
   parse::{
     error::{
       throw_err,
@@ -31,15 +35,16 @@ use sp_ipld::{
 };
 
 use sp_std::{
+  borrow::ToOwned,
+  boxed::Box,
+  cell::RefCell,
   rc::Rc,
   vec::Vec,
-  boxed::Box,
-  borrow::ToOwned,
-  cell::RefCell,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 use crate::parse::span::Span;
@@ -189,26 +194,6 @@ pub fn is_numeric_symbol_string2(s: &str) -> bool {
     || s.starts_with("+9")
 }
 
-pub fn is_valid_symbol_char(c: char) -> bool {
-  c != ':'
-    && c != ';'
-    && c != '('
-    && c != ')'
-    && c != '{'
-    && c != '}'
-    && c != ','
-    && !char::is_whitespace(c)
-    && !char::is_control(c)
-}
-
-pub fn is_valid_symbol_string(s: &str) -> bool {
-  let invalid_chars = s.starts_with('"')
-    || s.starts_with('\'')
-    || s.starts_with('#')
-    || s.chars().any(|x| !is_valid_symbol_char(x));
-  !s.is_empty() && !invalid_chars
-}
-
 pub fn parse_antiquote(
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
@@ -276,26 +261,34 @@ pub fn parse_lam(
   move |from: Span| {
     let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, ns) = separated_list1(multispace1, parse_name)(i)?;
-    let (i, _) = parse_space(i)?;
+    let (i, bs) = parse_binders1(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.clone(),
+      true,
+      vec!['-'],
+      Uses::Many,
+    )(i)?;
     let (i, _) = tag("=>")(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
-    for n in ns.clone().into_iter() {
-      ctx2 = ctx2.cons(n);
+    for (_, n, _) in bs.iter() {
+      ctx2 = ctx2.cons(n.clone());
     }
     let (upto, bod) = parse_expression(
       input,
-      defs.clone(),
+      defs.to_owned(),
       rec.clone(),
       ctx2,
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    let trm = ns
-      .iter()
+    let trm = bs
+      .into_iter()
       .rev()
-      .fold(bod, |acc, n| Term::Lam(pos, n.clone(), Box::new(acc)));
+      .fold(bod, |acc, (u, n, t)| Term::Lam(pos, u, n, Box::new((t, acc))));
     Ok((upto, trm))
   }
 }
@@ -339,7 +332,7 @@ pub fn parse_binder_full(
     let (i, _) = tag(")")(i)?;
     let mut res = Vec::new();
     for (i, n) in ns.iter().enumerate() {
-      res.push((u, n.to_owned(), typ.clone().shift(i as i64, Some(0))))
+      res.push((u, n.to_owned(), typ.clone().shift(i as u64, Some(0))))
     }
     Ok((i, res))
   }
@@ -615,15 +608,17 @@ pub fn parse_data(
   move |from: Span| {
     let (i, _) = tag("data")(from)?;
     let (i, _) = parse_space(i)?;
-    let (upto, bod) = parse_expression(
-      input,
-      defs.to_owned(),
-      rec.clone(),
-      ctx.clone(),
-      quasi.to_owned(),
-    )(i)?;
+    let (i, typ) =
+      parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
+        i,
+      )?;
+    let (i, _) = parse_space(i)?;
+    let (upto, bod) =
+      parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
+        i,
+      )?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Dat(pos, Box::new(bod))))
+    Ok((upto, Term::Dat(pos, Box::new((typ, bod)))))
   }
 }
 
@@ -684,9 +679,10 @@ pub fn parse_bound_expression(
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = bs
-      .iter()
+      .clone()
+      .into_iter()
       .rev()
-      .fold(trm, |acc, (_, n, _)| Term::Lam(pos, n.clone(), Box::new(acc)));
+      .fold(trm, |acc, (u, n, t)| Term::Lam(pos, u, n, Box::new((t, acc))));
     let typ = bs
       .into_iter()
       .rev()
@@ -834,24 +830,7 @@ pub fn parse_expression(
       parse_apps(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
         from,
       )?;
-    let (i, has_ann) = opt(tag("::"))(i)?;
-    if has_ann.is_some() {
-      let (i, typ) = context(
-        "type annotation",
-        parse_apps(
-          input,
-          defs.clone(),
-          rec.clone(),
-          ctx.clone(),
-          quasi.clone(),
-        ),
-      )(i)?;
-      let pos = Pos::from_upto(input, from, i);
-      Ok((i, Term::Ann(pos, Box::new((typ, trm)))))
-    }
-    else {
-      Ok((i, trm))
-    }
+    Ok((i, trm))
   }
 }
 

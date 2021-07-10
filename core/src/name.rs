@@ -5,14 +5,36 @@ use sp_std::{
   rc::Rc,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Name {
   inner: Rc<str>,
 }
+
+pub fn is_valid_symbol_char(c: char) -> bool {
+  c != ':'
+    && c != ';'
+    && c != '('
+    && c != ')'
+    && c != '{'
+    && c != '}'
+    && c != ','
+    && !char::is_whitespace(c)
+    && !char::is_control(c)
+}
+
+pub fn is_valid_symbol_string(s: &str) -> bool {
+  let invalid_chars = s.starts_with('"')
+    || s.starts_with('\'')
+    || s.starts_with('#')
+    || s.chars().any(|x| !is_valid_symbol_char(x));
+  !s.is_empty() && !invalid_chars
+}
+
 impl fmt::Debug for Name {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "\"{}\"", self.inner)

@@ -17,8 +17,8 @@ pub mod u64;
 pub mod u8;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;
@@ -239,27 +239,27 @@ impl Op {
     }
   }
 
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Nat(op) => op.type_of(),
-      Self::Int(op) => op.type_of(),
-      Self::Bits(op) => op.type_of(),
-      Self::Bytes(op) => op.type_of(),
-      Self::Text(op) => op.type_of(),
-      Self::Char(op) => op.type_of(),
-      Self::Bool(op) => op.type_of(),
-      Self::U8(op) => op.type_of(),
-      Self::U16(op) => op.type_of(),
-      Self::U32(op) => op.type_of(),
-      Self::U64(op) => op.type_of(),
-      // Self::U128(op) => op.type_of(),
-      Self::I8(op) => op.type_of(),
-      Self::I16(op) => op.type_of(),
-      Self::I32(op) => op.type_of(),
-      Self::I64(op) => op.type_of(),
-      // Self::I128(op) => op.type_of(),
-    }
-  }
+  // pub fn type_of(self) -> Term {
+  //  match self {
+  //    Self::Nat(op) => op.type_of(),
+  //    Self::Int(op) => op.type_of(),
+  //    Self::Bits(op) => op.type_of(),
+  //    Self::Bytes(op) => op.type_of(),
+  //    Self::Text(op) => op.type_of(),
+  //    Self::Char(op) => op.type_of(),
+  //    Self::Bool(op) => op.type_of(),
+  //    Self::U8(op) => op.type_of(),
+  //    Self::U16(op) => op.type_of(),
+  //    Self::U32(op) => op.type_of(),
+  //    Self::U64(op) => op.type_of(),
+  //    // Self::U128(op) => op.type_of(),
+  //    Self::I8(op) => op.type_of(),
+  //    Self::I16(op) => op.type_of(),
+  //    Self::I32(op) => op.type_of(),
+  //    Self::I64(op) => op.type_of(),
+  //    // Self::I128(op) => op.type_of(),
+  //  }
+  //}
 }
 
 impl fmt::Display for Op {

@@ -6,4 +6,4 @@ pub mod package;
 pub mod span;
 pub mod string;
 pub mod term;
-pub mod typedef;
+// pub mod typedef;

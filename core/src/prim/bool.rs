@@ -1,8 +1,8 @@
 use sp_ipld::Ipld;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;
@@ -150,11 +150,11 @@ pub mod tests {
   use quickcheck::{
     Arbitrary,
     Gen,
-    TestResult
+    TestResult,
   };
   use rand::Rng;
-  use Literal::Bool;
   use sp_std::mem;
+  use Literal::Bool;
   impl Arbitrary for BoolOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -182,30 +182,13 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: BoolOp,
-    a: bool,
-    b: bool
-  ) -> TestResult {
+  fn test_apply(op: BoolOp, a: bool, b: bool) -> TestResult {
     let apply1_bool = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        BoolOp::apply1(
-          op,
-          &Bool(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(BoolOp::apply1(op, &Bool(a)) == expected)
     };
 
     let apply2_bool_bool = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        BoolOp::apply2(
-          op,
-          &Bool(a),
-          &Bool(b)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(BoolOp::apply2(op, &Bool(a), &Bool(b)) == expected)
     };
 
     match op {
@@ -228,236 +211,138 @@ pub mod tests {
     b: bool,
     test_arg_2: bool,
   ) -> TestResult {
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          BoolOp::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(BoolOp::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        BoolOp::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(BoolOp::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 1, valid is Bool.
       BoolOp::Not => test_apply1_none_on_invalid(Bool(b)),
       // Arity 2, valid are Bool on a and b.
-      BoolOp::Eql |
-      BoolOp::Lte |
-      BoolOp::Lth |
-      BoolOp::Gte |
-      BoolOp::Gth |
-      BoolOp::And |
-      BoolOp::Or |
-      BoolOp::Xor => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          Bool(b),
-          a,
-          Bool(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          Bool(b),
-          Bool(b),
-          a
-        )
+      BoolOp::Eql
+      | BoolOp::Lte
+      | BoolOp::Lth
+      | BoolOp::Gte
+      | BoolOp::Gth
+      | BoolOp::And
+      | BoolOp::Or
+      | BoolOp::Xor => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(Bool(b), a, Bool(b))
+        }
+        else {
+          test_apply2_none_on_invalid(Bool(b), Bool(b), a)
+        }
       }
     }
   }
 
   #[quickcheck]
-  fn test_associativity(
-    op: BoolOp,
-    a: bool,
-    b: bool,
-    c: bool
-  ) -> TestResult {
+  fn test_associativity(op: BoolOp, a: bool, b: bool, c: bool) -> TestResult {
     match op {
-      BoolOp::Or |
-      BoolOp::And => TestResult::from_bool(
+      BoolOp::Or | BoolOp::And => TestResult::from_bool(
         BoolOp::apply2(
           op,
           &Bool(a),
-          &BoolOp::apply2(op, &Bool(b), &Bool(c)).unwrap()
-        ) ==
-        BoolOp::apply2(
+          &BoolOp::apply2(op, &Bool(b), &Bool(c)).unwrap(),
+        ) == BoolOp::apply2(
           op,
           &BoolOp::apply2(op, &Bool(a), &Bool(b)).unwrap(),
-          &Bool(c)
-        )
+          &Bool(c),
+        ),
       ),
-      _ => TestResult::discard()
+      _ => TestResult::discard(),
     }
   }
 
   #[quickcheck]
-  fn test_commutativity(
-    op: BoolOp,
-    left: bool,
-    right: bool
-  ) -> TestResult {
+  fn test_commutativity(op: BoolOp, left: bool, right: bool) -> TestResult {
     match op {
-      BoolOp::Or |
-      BoolOp::And => TestResult::from_bool(
-        BoolOp::apply2(
-          op,
-          &Bool(left),
-          &Bool(right)
-        ) ==
-        BoolOp::apply2(
-          op,
-          &Bool(left),
-          &Bool(right)
-        )
+      BoolOp::Or | BoolOp::And => TestResult::from_bool(
+        BoolOp::apply2(op, &Bool(left), &Bool(right))
+          == BoolOp::apply2(op, &Bool(left), &Bool(right)),
       ),
-      _ => TestResult::discard()
+      _ => TestResult::discard(),
     }
   }
 
   #[quickcheck]
-  fn test_distributivity_of_and_over_or(
-    a: bool,
-    b: bool,
-    c: bool
-  ) -> bool {
+  fn test_distributivity_of_and_over_or(a: bool, b: bool, c: bool) -> bool {
     BoolOp::apply2(
       BoolOp::And,
       &Bool(a),
-      &BoolOp::apply2(
-        BoolOp::Or,
-        &Bool(b),
-        &Bool(c)
-      ).unwrap()
-    ) ==
-    BoolOp::apply2(
+      &BoolOp::apply2(BoolOp::Or, &Bool(b), &Bool(c)).unwrap(),
+    ) == BoolOp::apply2(
       BoolOp::Or,
-      &BoolOp::apply2(
-        BoolOp::And,
-        &Bool(a),
-        &Bool(b)
-      ).unwrap(),
-      &BoolOp::apply2(
-        BoolOp::And,
-        &Bool(a),
-        &Bool(c)
-      ).unwrap()
+      &BoolOp::apply2(BoolOp::And, &Bool(a), &Bool(b)).unwrap(),
+      &BoolOp::apply2(BoolOp::And, &Bool(a), &Bool(c)).unwrap(),
     )
   }
 
   #[quickcheck]
-  fn test_idempotence(
-    op: BoolOp,
-    input: bool
-  ) -> TestResult {
+  fn test_idempotence(op: BoolOp, input: bool) -> TestResult {
     match op {
-      BoolOp::Or |
-      BoolOp::And => TestResult::from_bool(
-        BoolOp::apply2(
-          op,
-          &Bool(input),
-          &Bool(input)
-        ) ==
-        Some(Bool(input))
+      BoolOp::Or | BoolOp::And => TestResult::from_bool(
+        BoolOp::apply2(op, &Bool(input), &Bool(input)) == Some(Bool(input)),
       ),
-      _ => TestResult::discard()
+      _ => TestResult::discard(),
     }
   }
 
   #[quickcheck]
-  fn test_absorption_1(
-    a: bool,
-    b: bool
-  ) -> bool {
+  fn test_absorption_1(a: bool, b: bool) -> bool {
     BoolOp::apply2(
       BoolOp::And,
       &Bool(a),
-      &BoolOp::apply2(
-        BoolOp::Or,
-        &Bool(a),
-        &Bool(b)
-      ).unwrap()
-    ) ==
-    Some(Bool(a))
+      &BoolOp::apply2(BoolOp::Or, &Bool(a), &Bool(b)).unwrap(),
+    ) == Some(Bool(a))
   }
 
   #[quickcheck]
-  fn test_absorption_2(
-    a: bool,
-    b: bool
-  ) -> bool {
+  fn test_absorption_2(a: bool, b: bool) -> bool {
     BoolOp::apply2(
       BoolOp::Or,
       &Bool(a),
-      &BoolOp::apply2(
-        BoolOp::And,
-        &Bool(a),
-        &Bool(b)
-      ).unwrap()
-    ) ==
-    Some(Bool(a))
+      &BoolOp::apply2(BoolOp::And, &Bool(a), &Bool(b)).unwrap(),
+    ) == Some(Bool(a))
   }
 
   #[quickcheck]
-  fn test_distributivity_of_or_over_and(
-    a: bool,
-    b: bool,
-    c: bool
-  ) -> bool {
+  fn test_distributivity_of_or_over_and(a: bool, b: bool, c: bool) -> bool {
     BoolOp::apply2(
       BoolOp::Or,
       &Bool(a),
-      &BoolOp::apply2(
-        BoolOp::And,
-        &Bool(b),
-        &Bool(c)
-      ).unwrap()
-    ) ==
-    BoolOp::apply2(
+      &BoolOp::apply2(BoolOp::And, &Bool(b), &Bool(c)).unwrap(),
+    ) == BoolOp::apply2(
       BoolOp::And,
-      &BoolOp::apply2(
-        BoolOp::Or,
-        &Bool(a),
-        &Bool(b)
-      ).unwrap(),
-      &BoolOp::apply2(
-        BoolOp::Or,
-        &Bool(a),
-        &Bool(c)
-      ).unwrap()
+      &BoolOp::apply2(BoolOp::Or, &Bool(a), &Bool(b)).unwrap(),
+      &BoolOp::apply2(BoolOp::Or, &Bool(a), &Bool(c)).unwrap(),
     )
   }
 
@@ -465,63 +350,31 @@ pub mod tests {
   fn test_double_negation(input: bool) -> bool {
     BoolOp::apply1(
       BoolOp::Not,
-      &BoolOp::apply1(
-        BoolOp::Not,
-        &Bool(input)
-      ).unwrap()
-    ) ==
-    Some(Bool(input))
+      &BoolOp::apply1(BoolOp::Not, &Bool(input)).unwrap(),
+    ) == Some(Bool(input))
   }
 
   #[quickcheck]
-  fn test_de_morgan_1(
-    a: bool,
-    b: bool
-  ) -> bool {
+  fn test_de_morgan_1(a: bool, b: bool) -> bool {
     BoolOp::apply2(
       BoolOp::And,
-      &BoolOp::apply1(
-        BoolOp::Not,
-        &Bool(a)
-      ).unwrap(),
-      &BoolOp::apply1(
-        BoolOp::Not,
-        &Bool(b)
-      ).unwrap()
-    ) ==
-    BoolOp::apply1(
+      &BoolOp::apply1(BoolOp::Not, &Bool(a)).unwrap(),
+      &BoolOp::apply1(BoolOp::Not, &Bool(b)).unwrap(),
+    ) == BoolOp::apply1(
       BoolOp::Not,
-      &BoolOp::apply2(
-        BoolOp::Or,
-        &Bool(a),
-        &Bool(b)
-      ).unwrap()
+      &BoolOp::apply2(BoolOp::Or, &Bool(a), &Bool(b)).unwrap(),
     )
   }
 
   #[quickcheck]
-  fn test_de_morgan_2(
-    a: bool,
-    b: bool
-  ) -> bool {
+  fn test_de_morgan_2(a: bool, b: bool) -> bool {
     BoolOp::apply2(
       BoolOp::Or,
-      &BoolOp::apply1(
-        BoolOp::Not,
-        &Bool(a)
-      ).unwrap(),
-      &BoolOp::apply1(
-        BoolOp::Not,
-        &Bool(b)
-      ).unwrap()
-    ) ==
-    BoolOp::apply1(
+      &BoolOp::apply1(BoolOp::Not, &Bool(a)).unwrap(),
+      &BoolOp::apply1(BoolOp::Not, &Bool(b)).unwrap(),
+    ) == BoolOp::apply1(
       BoolOp::Not,
-      &BoolOp::apply2(
-        BoolOp::And,
-        &Bool(a),
-        &Bool(b)
-      ).unwrap()
+      &BoolOp::apply2(BoolOp::And, &Bool(a), &Bool(b)).unwrap(),
     )
   }
 

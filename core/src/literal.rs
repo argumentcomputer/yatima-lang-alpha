@@ -21,14 +21,15 @@ use num_bigint::{
 };
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryInto,
   fmt,
   vec::Vec,
-  borrow::ToOwned,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -537,8 +538,8 @@ pub mod tests {
 
   use crate::tests::frequency;
   use sp_std::{
-    vec::Vec,
     boxed::Box,
+    vec::Vec,
   };
 
   pub fn arbitrary_nat() -> Box<dyn Fn(&mut Gen) -> Literal> {
@@ -707,11 +708,11 @@ pub mod tests {
     }
   }
 
-  #[test]
-  fn test_expand() {
-    assert_eq!(
-      Literal::Nat(BigUint::from(1u64)).expand(),
-      Some(yatima!("λ P z s => s 0"))
-    )
-  }
+  //#[test]
+  // fn test_expand() {
+  //  assert_eq!(
+  //    Literal::Nat(BigUint::from(1u64)).expand(),
+  //    Some(yatima!("λ P z s => s 0"))
+  //  )
+  //}
 }

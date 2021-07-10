@@ -29,16 +29,15 @@ use alloc::string::{
 #[derive(Clone)]
 pub enum Term {
   Var(Pos, Name, u64),
-  Lam(Pos, Name, Box<Term>),
+  Lam(Pos, Uses, Name, Box<(Term, Term)>),
   App(Pos, Box<(Term, Term)>),
   All(Pos, Uses, Name, Box<(Term, Term)>),
   Slf(Pos, Name, Box<Term>),
-  Dat(Pos, Box<Term>),
+  Dat(Pos, Box<(Term, Term)>),
   Cse(Pos, Box<Term>),
   Ref(Pos, Name, Cid, Cid),
   Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
   Typ(Pos),
-  Ann(Pos, Box<(Term, Term)>),
   Lit(Pos, Literal),
   LTy(Pos, LitType),
   Opr(Pos, Op),
@@ -49,7 +48,9 @@ impl fmt::Debug for Term {
   fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Var(_, n, i) => fmt.debug_tuple("Var").field(&n).field(i).finish(),
-      Self::Lam(_, n, b) => fmt.debug_tuple("Lam").field(&n).field(&b).finish(),
+      Self::Lam(_, u, n, b) => {
+        fmt.debug_tuple("Lam").field(&u).field(&n).field(&b).finish()
+      }
       Self::App(_, t) => fmt.debug_tuple("App").field(&t).finish(),
       Self::All(_, u, n, t) => {
         fmt.debug_tuple("All").field(&u).field(&n).field(&t).finish()
@@ -64,7 +65,6 @@ impl fmt::Debug for Term {
         fmt.debug_tuple("Let").field(r).field(&u).field(&n).field(&t).finish()
       }
       Self::Typ(_) => write!(fmt, "Typ(..)"),
-      Self::Ann(_, t) => fmt.debug_tuple("Ann").field(&t).finish(),
       Self::Lit(_, a) => fmt.debug_tuple("Lit").field(&a).finish(),
       Self::LTy(_, a) => fmt.debug_tuple("LTy").field(&a).finish(),
       Self::Opr(_, a) => fmt.debug_tuple("Opr").field(&a).finish(),
@@ -72,12 +72,13 @@ impl fmt::Debug for Term {
     }
   }
 }
-
 impl PartialEq for Term {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
       (Self::Var(_, na, ia), Self::Var(_, nb, ib)) => na == nb && ia == ib,
-      (Self::Lam(_, na, ba), Self::Lam(_, nb, bb)) => na == nb && ba == bb,
+      (Self::Lam(_, ua, na, ba), Self::Lam(_, ub, nb, bb)) => {
+        ua == ub && na == nb && ba.0 == bb.0 && ba.1 == bb.1
+      }
       (Self::App(_, ta), Self::App(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::All(_, ua, na, ta), Self::All(_, ub, nb, tb)) => {
         ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1
@@ -98,7 +99,6 @@ impl PartialEq for Term {
       }
       (Self::Typ(_), Self::Typ(_)) => true,
       (Self::Rec(_), Self::Rec(_)) => true,
-      (Self::Ann(_, ta), Self::Ann(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
       (Self::Lit(_, a), Self::Lit(_, b)) => a == b,
       (Self::LTy(_, a), Self::LTy(_, b)) => a == b,
       (Self::Opr(_, a), Self::Opr(_, b)) => a == b,
@@ -106,49 +106,52 @@ impl PartialEq for Term {
     }
   }
 }
-
 impl Term {
   pub fn pos(&self) -> Pos {
     match self {
-      Term::Var(pos, ..) => *pos,
-      Term::Ref(pos, ..) => *pos,
-      Term::Lam(pos, ..) => *pos,
-      Term::App(pos, _) => *pos,
-      Term::Ann(pos, _) => *pos,
-      Term::All(pos, ..) => *pos,
-      Term::Slf(pos, ..) => *pos,
-      Term::Dat(pos, _) => *pos,
-      Term::Cse(pos, _) => *pos,
-      Term::Let(pos, ..) => *pos,
-      Term::Typ(pos) => *pos,
-      Term::LTy(pos, _) => *pos,
-      Term::Lit(pos, _) => *pos,
-      Term::Opr(pos, _) => *pos,
-      Term::Rec(pos) => *pos,
+      Self::Var(pos, ..) => *pos,
+      Self::Ref(pos, ..) => *pos,
+      Self::Lam(pos, ..) => *pos,
+      Self::App(pos, ..) => *pos,
+      Self::All(pos, ..) => *pos,
+      Self::Slf(pos, ..) => *pos,
+      Self::Dat(pos, ..) => *pos,
+      Self::Cse(pos, ..) => *pos,
+      Self::Let(pos, ..) => *pos,
+      Self::Typ(pos) => *pos,
+      Self::LTy(pos, ..) => *pos,
+      Self::Lit(pos, ..) => *pos,
+      Self::Opr(pos, ..) => *pos,
+      Self::Rec(pos) => *pos,
     }
   }
 
-  pub fn shift(self, inc: i64, dep: Option<u64>) -> Self {
+  pub fn shift(self, inc: u64, dep: Option<u64>) -> Self {
     match self {
       Self::Var(pos, nam, idx) => match dep {
         Some(dep) if idx < dep => Self::Var(pos, nam, idx),
-        _ => Self::Var(pos, nam, ((idx as i64) + inc) as u64),
+        _ => Self::Var(pos, nam, (idx as u64) + inc),
       },
-      Self::Lam(pos, nam, bod) => {
-        Self::Lam(pos, nam, Box::new((*bod).shift(inc, dep.map(|x| x + 1))))
+      Self::Lam(pos, uses, nam, typ_bod) => {
+        let (typ, bod) = *typ_bod;
+        Self::Lam(
+          pos,
+          uses,
+          nam,
+          Box::new((typ.shift(inc, dep), bod.shift(inc, dep.map(|x| x + 1)))),
+        )
       }
       Self::Slf(pos, nam, bod) => {
         Self::Slf(pos, nam, Box::new((*bod).shift(inc, dep.map(|x| x + 1))))
       }
       Self::Cse(pos, bod) => Self::Cse(pos, Box::new((*bod).shift(inc, dep))),
-      Self::Dat(pos, bod) => Self::Dat(pos, Box::new((*bod).shift(inc, dep))),
+      Self::Dat(pos, typ_bod) => {
+        let (typ, bod) = *typ_bod;
+        Self::Dat(pos, Box::new((typ.shift(inc, dep), bod.shift(inc, dep))))
+      }
       Self::App(pos, fun_arg) => {
         let (fun, arg) = *fun_arg;
         Self::App(pos, Box::new((fun.shift(inc, dep), arg.shift(inc, dep))))
-      }
-      Self::Ann(pos, typ_exp) => {
-        let (typ, exp) = *typ_exp;
-        Self::Ann(pos, Box::new((typ.shift(inc, dep), exp.shift(inc, dep))))
       }
       Self::All(pos, uses, nam, dom_img) => {
         let (dom, img) = *dom_img;
@@ -180,21 +183,26 @@ impl Term {
   pub fn un_rec(self, trm: Rc<Term>) -> Self {
     match self {
       Self::Rec(_) => trm.as_ref().clone(),
-      Self::Lam(pos, nam, bod) => {
-        Self::Lam(pos, nam, Box::new((*bod).un_rec(trm)))
+      Self::Lam(pos, uses, nam, typ_bod) => {
+        let (typ, bod) = *typ_bod;
+        Self::Lam(
+          pos,
+          uses,
+          nam,
+          Box::new((typ.un_rec(trm.clone()), bod.un_rec(trm))),
+        )
       }
       Self::Slf(pos, nam, bod) => {
         Self::Slf(pos, nam, Box::new((*bod).un_rec(trm)))
       }
       Self::Cse(pos, bod) => Self::Cse(pos, Box::new((*bod).un_rec(trm))),
-      Self::Dat(pos, bod) => Self::Dat(pos, Box::new((*bod).un_rec(trm))),
+      Self::Dat(pos, typ_bod) => {
+        let (typ, bod) = *typ_bod;
+        Self::Dat(pos, Box::new((typ.un_rec(trm.clone()), bod.un_rec(trm))))
+      }
       Self::App(pos, fun_arg) => {
         let (fun, arg) = *fun_arg;
         Self::App(pos, Box::new((fun.un_rec(trm.clone()), arg.un_rec(trm))))
-      }
-      Self::Ann(pos, typ_exp) => {
-        let (typ, exp) = *typ_exp;
-        Self::Ann(pos, Box::new((typ.un_rec(trm.clone()), exp.un_rec(trm))))
       }
       Self::All(pos, uses, nam, dom_img) => {
         let (dom, img) = *dom_img;
@@ -236,11 +244,12 @@ impl Term {
       Self::Opr(pos, opr) => (Anon::Opr(*opr), Meta::Opr(*pos)),
       Self::Rec(pos) => (Anon::Rec, Meta::Rec(*pos)),
       Self::Typ(pos) => (Anon::Typ, Meta::Typ(*pos)),
-      Self::Lam(pos, name, body) => {
-        let (anon, meta) = (*body).embed();
+      Self::Lam(pos, uses, name, terms) => {
+        let (typ_anon, typ_meta) = terms.0.embed();
+        let (bod_anon, bod_meta) = terms.1.embed();
         (
-          Anon::Lam(Box::new(anon)),
-          Meta::Lam(*pos, name.clone(), Box::new(meta)),
+          Anon::Lam(*uses, Box::new((typ_anon, bod_anon))),
+          Meta::Lam(*pos, name.clone(), Box::new((typ_meta, bod_meta))),
         )
       }
       Self::Slf(pos, name, body) => {
@@ -258,17 +267,13 @@ impl Term {
           Meta::App(*pos, Box::new((fun_meta, arg_meta))),
         )
       }
-      Self::Ann(pos, terms) => {
+      Self::Dat(pos, terms) => {
         let (typ_anon, typ_meta) = terms.0.embed();
-        let (exp_anon, exp_meta) = terms.1.embed();
+        let (bod_anon, bod_meta) = terms.1.embed();
         (
-          Anon::Ann(Box::new((typ_anon, exp_anon))),
-          Meta::Ann(*pos, Box::new((typ_meta, exp_meta))),
+          Anon::Dat(Box::new((typ_anon, bod_anon))),
+          Meta::Dat(*pos, Box::new((typ_meta, bod_meta))),
         )
-      }
-      Self::Dat(pos, body) => {
-        let (anon, meta) = (*body).embed();
-        (Anon::Dat(Box::new(anon)), Meta::Dat(*pos, Box::new(meta)))
       }
       Self::Cse(pos, body) => {
         let (anon, meta) = (*body).embed();
@@ -311,17 +316,23 @@ impl Term {
       (Anon::Opr(opr), Meta::Opr(pos)) => Ok(Self::Opr(*pos, *opr)),
       (Anon::Typ, Meta::Typ(pos)) => Ok(Self::Typ(*pos)),
       (Anon::Rec, Meta::Rec(pos)) => Ok(Self::Rec(*pos)),
-      (Anon::Lam(anon_bod), Meta::Lam(pos, nam, meta_bod)) => {
-        let bod = Term::unembed(anon_bod, meta_bod)?;
-        Ok(Self::Lam(*pos, nam.clone(), Box::new(bod)))
+      (Anon::Lam(uses, anon), Meta::Lam(pos, nam, meta)) => {
+        let (typ_anon, bod_anon) = anon.as_ref();
+        let (typ_meta, bod_meta) = meta.as_ref();
+        let typ = Term::unembed(typ_anon, typ_meta)?;
+        let bod = Term::unembed(bod_anon, bod_meta)?;
+        Ok(Self::Lam(*pos, *uses, nam.clone(), Box::new((typ, bod))))
       }
       (Anon::Slf(anon_bod), Meta::Slf(pos, nam, meta_bod)) => {
         let bod = Term::unembed(anon_bod, meta_bod)?;
         Ok(Self::Slf(*pos, nam.clone(), Box::new(bod)))
       }
-      (Anon::Dat(anon_bod), Meta::Dat(pos, meta_bod)) => {
-        let bod = Term::unembed(anon_bod, meta_bod)?;
-        Ok(Self::Dat(*pos, Box::new(bod)))
+      (Anon::Dat(anon), Meta::Dat(pos, meta)) => {
+        let (typ_anon, bod_anon) = anon.as_ref();
+        let (typ_meta, bod_meta) = meta.as_ref();
+        let typ = Term::unembed(typ_anon, typ_meta)?;
+        let bod = Term::unembed(bod_anon, bod_meta)?;
+        Ok(Self::Dat(*pos, Box::new((typ, bod))))
       }
       (Anon::Cse(anon_bod), Meta::Cse(pos, meta_bod)) => {
         let bod = Term::unembed(anon_bod, meta_bod)?;
@@ -333,13 +344,6 @@ impl Term {
         let fun = Term::unembed(fun_anon, fun_meta)?;
         let arg = Term::unembed(arg_anon, arg_meta)?;
         Ok(Self::App(*pos, Box::new((fun, arg))))
-      }
-      (Anon::Ann(anon), Meta::Ann(pos, meta)) => {
-        let (typ_anon, exp_anon) = anon.as_ref();
-        let (typ_meta, exp_meta) = meta.as_ref();
-        let typ = Term::unembed(typ_anon, typ_meta)?;
-        let exp = Term::unembed(exp_anon, exp_meta)?;
-        Ok(Self::Ann(*pos, Box::new((typ, exp))))
       }
       (Anon::All(uses, anon), Meta::All(pos, name, meta)) => {
         let (dom_anon, img_anon) = anon.as_ref();
@@ -385,12 +389,31 @@ impl Term {
       matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
     }
 
-    fn lams(rec: Option<&String>, ind: bool, nam: &str, bod: &Term) -> String {
+    fn lams(
+      rec: Option<&String>,
+      ind: bool,
+      use_: &Uses,
+      nam: &str,
+      typ: &Term,
+      bod: &Term,
+    ) -> String {
       match bod {
-        Lam(_, nam2, bod2) => {
-          format!("{} {}", name(nam), lams(rec, ind, nam2, bod2))
+        Lam(_, bod_use, bod_nam, bod) => {
+          format!(
+            " ({}{}: {}){}",
+            uses(use_),
+            name(nam),
+            typ.pretty(rec, ind),
+            lams(rec, ind, bod_use, bod_nam, &bod.0, &bod.1)
+          )
         }
-        _ => format!("{} => {}", nam, bod.pretty(rec, ind)),
+        _ => format!(
+          " ({}{}: {}) => {}",
+          uses(use_),
+          name(nam),
+          typ.pretty(rec, ind),
+          bod.pretty(rec, ind)
+        ),
       }
     }
 
@@ -467,7 +490,9 @@ impl Term {
         _ => "#^".to_string(),
       },
 
-      Lam(_, nam, term) => format!("λ {}", lams(rec, ind, nam, term)),
+      Lam(_, us_, nam, terms) => {
+        format!("λ{}", lams(rec, ind, us_, nam, &terms.0, &terms.1))
+      }
       App(_, terms) => apps(rec, ind, &terms.0, &terms.1),
       Let(_, letrec, u, n, terms) => {
         format!(
@@ -484,14 +509,11 @@ impl Term {
       All(_, us_, nam, terms) => {
         format!("∀{}", alls(rec, ind, us_, nam, &terms.0, &terms.1))
       }
-      Ann(_, terms) => {
-        format!(
-          "{} :: {}",
-          parens(rec, ind, &terms.1),
-          parens(rec, ind, &terms.0)
-        )
-      }
-      Dat(_, bod) => format!("data {}", bod.pretty(rec, ind)),
+      Dat(_, terms) => format!(
+        "data {} {}",
+        &terms.0.pretty(rec, ind),
+        &terms.1.pretty(rec, ind)
+      ),
       Cse(_, bod) => format!("case {}", bod.pretty(rec, ind)),
       Typ(_) => "Type".to_string(),
       Lit(_, lit) => format!("{}", lit),
@@ -514,12 +536,9 @@ pub mod tests {
     Term::*,
     *,
   };
-  use crate::{
-    defs::{
-      Def,
-      Defs,
-    },
-    yatima,
+  use crate::defs::{
+    Def,
+    Defs,
   };
   use quickcheck::{
     Arbitrary,
@@ -533,9 +552,9 @@ pub mod tests {
     vec::Vec,
   };
 
-  use crate::{
-    name::Name,
-    parse::term::is_valid_symbol_char,
+  use crate::name::{
+    is_valid_symbol_char,
+    Name,
   };
 
   pub fn arbitrary_name(g: &mut Gen) -> Name {
@@ -548,28 +567,30 @@ pub mod tests {
     Name::from(format!("_{}", s))
   }
 
-  pub fn test_defs() -> Defs {
-    let mut defs = Defs::new();
-    let (id, _) = Def::make(
-      Pos::None,
-      yatima!("∀ (A: Type) (x: A) -> A"),
-      yatima!("λ A x => x"),
-    );
-    let (fst, _) = Def::make(
-      Pos::None,
-      yatima!("∀ (A: Type) (x y: A) -> A"),
-      yatima!("λ A x y => x"),
-    );
-    let (snd, _) = Def::make(
-      Pos::None,
-      yatima!("∀ (A: Type) (x y: A) -> A"),
-      yatima!("λ A x y => y"),
-    );
-    defs.insert(Name::from("id"), id);
-    defs.insert(Name::from("fst"), fst);
-    defs.insert(Name::from("snd"), snd);
-    defs
-  }
+  pub fn test_defs() -> Defs { Defs::new() }
+
+  // pub fn test_defs() -> Defs {
+  //  let mut defs = Defs::new();
+  //  let (id, _) = Def::make(
+  //    Pos::None,
+  //    yatima!("∀ (A: Type) (x: A) -> A"),
+  //    yatima!("λ A x => x"),
+  //  );
+  //  let (fst, _) = Def::make(
+  //    Pos::None,
+  //    yatima!("∀ (A: Type) (x y: A) -> A"),
+  //    yatima!("λ A x y => x"),
+  //  );
+  //  let (snd, _) = Def::make(
+  //    Pos::None,
+  //    yatima!("∀ (A: Type) (x y: A) -> A"),
+  //    yatima!("λ A x y => y"),
+  //  );
+  //  defs.insert(Name::from("id"), id);
+  //  defs.insert(Name::from("fst"), fst);
+  //  defs.insert(Name::from("snd"), snd);
+  //  defs
+  //}
 
   fn arbitrary_ref(g: &mut Gen, defs: Defs, ctx: Vector<Name>) -> Tree {
     let refs: Vec<(Name, Cid)> = defs
@@ -597,12 +618,11 @@ pub mod tests {
     Opr(Op),
     Lit(Literal),
     LTy(LitType),
-    Lam(Name, usize),
+    Lam(Uses, Name, usize, usize),
     Slf(Name, usize),
-    App(usize, usize),
-    Ann(usize, usize),
+    App(Uses, usize, usize),
     Cse(usize),
-    Dat(usize),
+    Dat(usize, usize),
     All(Uses, Name, usize, usize),
     Let(bool, Uses, Name, usize, usize, usize),
   }
@@ -617,9 +637,10 @@ pub mod tests {
         Self::Opr(x) => Term::Opr(Pos::None, *x),
         Self::Lit(x) => Term::Lit(Pos::None, x.clone()),
         Self::LTy(x) => Term::LTy(Pos::None, *x),
-        Self::Lam(n, bod) => {
+        Self::Lam(uses, n, typ, bod) => {
+          let typ = arena[*typ].into_term(&arena);
           let bod = arena[*bod].into_term(&arena);
-          Term::Lam(Pos::None, n.clone(), Box::new(bod))
+          Term::Lam(Pos::None, *uses, n.clone(), Box::new((typ, bod)))
         }
         Self::Slf(n, bod) => {
           let bod = arena[*bod].into_term(&arena);
@@ -629,19 +650,15 @@ pub mod tests {
           let bod = arena[*bod].into_term(&arena);
           Term::Cse(Pos::None, Box::new(bod))
         }
-        Self::Dat(bod) => {
+        Self::Dat(typ, bod) => {
+          let typ = arena[*typ].into_term(&arena);
           let bod = arena[*bod].into_term(&arena);
-          Term::Dat(Pos::None, Box::new(bod))
+          Term::Dat(Pos::None, Box::new((typ, bod)))
         }
-        Self::App(fun, arg) => {
+        Self::App(uses, fun, arg) => {
           let fun = arena[*fun].into_term(&arena);
           let arg = arena[*arg].into_term(&arena);
-          Term::App(Pos::None, Box::new((fun, arg)))
-        }
-        Self::Ann(typ, trm) => {
-          let typ = arena[*typ].into_term(&arena);
-          let trm = arena[*trm].into_term(&arena);
-          Term::Ann(Pos::None, Box::new((typ, trm)))
+          Term::App(Pos::None, *uses, Box::new((fun, arg)))
         }
         Self::All(uses, n, dom, img) => {
           let dom = arena[*dom].into_term(&arena);
@@ -675,7 +692,6 @@ pub mod tests {
     OPR,
     LAM,
     APP,
-    ANN,
     SLF,
     CSE,
     DAT,
@@ -713,9 +729,10 @@ pub mod tests {
     let name = Name::from("_r");
     let mut ctx1 = ctx0.clone();
     ctx1.push_front(name.clone());
-    let mut ctxs: Vec<Vector<Name>> = vec![ctx0, ctx1];
-    let mut arena: Vec<Option<Tree>> = vec![Some(Tree::Lam(name, 1)), None];
-    let mut todo: Vec<usize> = vec![1];
+    let mut ctxs: Vec<Vector<Name>> = vec![ctx0.clone(), ctx0, ctx1];
+    let mut arena: Vec<Option<Tree>> =
+      vec![Some(Tree::Typ), Some(Tree::Lam(Uses::Many, name, 1, 2)), None];
+    let mut todo: Vec<usize> = vec![2];
 
     while let Some(idx) = todo.pop() {
       let ctx: Vector<Name> = ctxs[idx].clone();
@@ -733,7 +750,6 @@ pub mod tests {
         (90usize.saturating_sub(depth), Case::CSE),
         (90usize.saturating_sub(depth), Case::DAT),
         (80usize.saturating_sub(2 * depth), Case::APP),
-        (80usize.saturating_sub(2 * depth), Case::ANN),
         (80usize.saturating_sub(2 * depth), Case::ALL),
         (30usize.saturating_sub(3 * depth), Case::LET),
       ];
@@ -764,14 +780,19 @@ pub mod tests {
           arena[idx] = Some(Tree::Var(n.clone(), i as u64));
         }
         Case::LAM => {
+          let uses: Uses = Arbitrary::arbitrary(g);
           let n = arbitrary_name(g);
           let mut ctx2 = ctx.clone();
           ctx2.push_front(n.clone());
+          let typ = arena.len();
+          todo.push(typ);
+          ctxs.push(ctx);
+          arena.push(None);
           let bod = arena.len();
           todo.push(bod);
           ctxs.push(ctx2);
           arena.push(None);
-          arena[idx] = Some(Tree::Lam(n, bod));
+          arena[idx] = Some(Tree::Lam(uses, n, typ, bod));
         }
         Case::SLF => {
           let n = arbitrary_name(g);
@@ -791,13 +812,18 @@ pub mod tests {
           arena[idx] = Some(Tree::Cse(bod));
         }
         Case::DAT => {
+          let typ = arena.len();
+          todo.push(typ);
+          ctxs.push(ctx.clone());
+          arena.push(None);
           let bod = arena.len();
           todo.push(bod);
           ctxs.push(ctx.clone());
           arena.push(None);
-          arena[idx] = Some(Tree::Dat(bod));
+          arena[idx] = Some(Tree::Dat(typ, bod));
         }
         Case::APP => {
+          let uses: Uses = Arbitrary::arbitrary(g);
           let fun = arena.len();
           todo.push(fun);
           ctxs.push(ctx.clone());
@@ -806,18 +832,7 @@ pub mod tests {
           todo.push(arg);
           ctxs.push(ctx.clone());
           arena.push(None);
-          arena[idx] = Some(Tree::App(fun, arg));
-        }
-        Case::ANN => {
-          let typ = arena.len();
-          todo.push(typ);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          let trm = arena.len();
-          todo.push(trm);
-          ctxs.push(ctx.clone());
-          arena.push(None);
-          arena[idx] = Some(Tree::Ann(typ, trm));
+          arena[idx] = Some(Tree::App(uses, fun, arg));
         }
         Case::ALL => {
           let uses: Uses = Arbitrary::arbitrary(g);
@@ -876,7 +891,7 @@ pub mod tests {
   #[quickcheck]
   fn term_embed_unembed(x: Term) -> bool {
     let (a, m) = x.clone().embed();
-    println!("x: {}", x);
+    // println!("x: {}", x);
     match Term::unembed(&a, &m) {
       Ok(y) => {
         if x == y {

@@ -17,10 +17,10 @@ use crate::{
     },
     span::Span,
     term::*,
-    typedef::parse_typedef_elaborated,
   },
   term::*,
 };
+// typedef::parse_typedef_elaborated,
 
 use sp_std::{
   cell::RefCell,
@@ -132,10 +132,11 @@ pub fn parse_defs(
         return Ok((i2, (defs.as_ref().clone().into_inner(), Index(ind))));
       }
       else {
-        let (i2, entries) = alt((
-          parse_entry(input, defs.clone()),
-          parse_typedef_elaborated(input, defs.clone()),
-        ))(i)?;
+        // let (i2, entries) = alt((
+        //  parse_entry(input, defs.clone()),
+        //  parse_typedef_elaborated(input, defs.clone()),
+        //))(i)?;
+        let (i2, entries) = parse_entry(input, defs.clone())(i)?;
         for (name, def, _) in entries {
           ind.push((name.clone(), def.def_cid));
           defs.borrow_mut().insert(name, def);

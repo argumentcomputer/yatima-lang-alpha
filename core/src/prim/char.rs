@@ -1,12 +1,13 @@
 use sp_ipld::Ipld;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 use crate::{

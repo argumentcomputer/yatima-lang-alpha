@@ -15,24 +15,23 @@ use crate::{
 };
 
 use sp_std::{
-  convert::TryInto,
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
+  convert::TryInto,
 };
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Anon {
   Var(u64),
-  Lam(Box<Anon>),
+  Lam(Uses, Box<(Anon, Anon)>),
   App(Box<(Anon, Anon)>),
   All(Uses, Box<(Anon, Anon)>),
   Slf(Box<Anon>),
-  Dat(Box<Anon>),
+  Dat(Box<(Anon, Anon)>),
   Cse(Box<Anon>),
   Ref(Cid),
   Let(bool, Uses, Box<(Anon, Anon, Anon)>),
   Typ,
-  Ann(Box<(Anon, Anon)>),
   Lit(Literal),
   LTy(LitType),
   Opr(Op),
@@ -49,7 +48,15 @@ impl Anon {
       Self::Var(idx) => {
         Ipld::List(vec![Ipld::Integer(0), Ipld::Integer(*idx as i128)])
       }
-      Self::Lam(bod) => Ipld::List(vec![Ipld::Integer(1), bod.to_ipld()]),
+      Self::Lam(uses, typ_bod) => {
+        let (typ, bod) = (*typ_bod).as_ref();
+        Ipld::List(vec![
+          Ipld::Integer(1),
+          uses.to_ipld(),
+          typ.to_ipld(),
+          bod.to_ipld(),
+        ])
+      }
       Self::App(fun_arg) => {
         let (fun, arg) = (*fun_arg).as_ref();
         Ipld::List(vec![Ipld::Integer(2), fun.to_ipld(), arg.to_ipld()])
@@ -64,7 +71,11 @@ impl Anon {
         ])
       }
       Self::Slf(bod) => Ipld::List(vec![Ipld::Integer(4), bod.to_ipld()]),
-      Self::Dat(bod) => Ipld::List(vec![Ipld::Integer(5), bod.to_ipld()]),
+      Self::Dat(typ_bod) => {
+        let (typ, bod) = (*typ_bod).as_ref();
+        Ipld::List(vec![Ipld::Integer(5), typ.to_ipld(), bod.to_ipld()])
+      }
+
       Self::Cse(bod) => Ipld::List(vec![Ipld::Integer(6), bod.to_ipld()]),
       Self::Ref(cid) => Ipld::List(vec![Ipld::Integer(7), Ipld::Link(*cid)]),
       Self::Let(rec, uses, typ_exp_bod) => {
@@ -79,16 +90,12 @@ impl Anon {
         ])
       }
       Self::Typ => Ipld::List(vec![Ipld::Integer(9)]),
-      Self::Ann(typ_exp) => {
-        let (typ, exp) = (*typ_exp).as_ref();
-        Ipld::List(vec![Ipld::Integer(10), typ.to_ipld(), exp.to_ipld()])
-      }
       Self::Lit(lit) => {
-        Ipld::List(vec![Ipld::Integer(11), lit.clone().to_ipld()])
+        Ipld::List(vec![Ipld::Integer(10), lit.clone().to_ipld()])
       }
-      Self::LTy(lty) => Ipld::List(vec![Ipld::Integer(12), lty.to_ipld()]),
-      Self::Opr(opr) => Ipld::List(vec![Ipld::Integer(13), opr.to_ipld()]),
-      Self::Rec => Ipld::List(vec![Ipld::Integer(14)]),
+      Self::LTy(lty) => Ipld::List(vec![Ipld::Integer(11), lty.to_ipld()]),
+      Self::Opr(opr) => Ipld::List(vec![Ipld::Integer(12), opr.to_ipld()]),
+      Self::Rec => Ipld::List(vec![Ipld::Integer(13)]),
     }
   }
 
@@ -101,9 +108,11 @@ impl Anon {
           let idx: u64 = (*x).try_into().map_err(IpldError::U64)?;
           Ok(Anon::Var(idx))
         }
-        [Ipld::Integer(1), bod] => {
+        [Ipld::Integer(1), uses, typ, bod] => {
+          let uses = Uses::from_ipld(uses)?;
+          let typ = Anon::from_ipld(typ)?;
           let bod = Anon::from_ipld(bod)?;
-          Ok(Anon::Lam(Box::new(bod)))
+          Ok(Anon::Lam(uses, Box::new((typ, bod))))
         }
         [Ipld::Integer(2), fun, arg] => {
           let fun = Anon::from_ipld(fun)?;
@@ -120,9 +129,10 @@ impl Anon {
           let bod = Anon::from_ipld(bod)?;
           Ok(Anon::Slf(Box::new(bod)))
         }
-        [Ipld::Integer(5), bod] => {
+        [Ipld::Integer(5), typ, bod] => {
+          let typ = Anon::from_ipld(typ)?;
           let bod = Anon::from_ipld(bod)?;
-          Ok(Anon::Dat(Box::new(bod)))
+          Ok(Anon::Dat(Box::new((typ, bod))))
         }
         [Ipld::Integer(6), bod] => {
           let bod = Anon::from_ipld(bod)?;
@@ -137,24 +147,19 @@ impl Anon {
           Ok(Anon::Let(*rec, uses, Box::new((typ, exp, bod))))
         }
         [Ipld::Integer(9)] => Ok(Anon::Typ),
-        [Ipld::Integer(10), typ, exp] => {
-          let typ = Anon::from_ipld(typ)?;
-          let exp = Anon::from_ipld(exp)?;
-          Ok(Anon::Ann(Box::new((typ, exp))))
-        }
-        [Ipld::Integer(11), lit] => {
+        [Ipld::Integer(10), lit] => {
           let lit = Literal::from_ipld(&lit)?;
           Ok(Self::Lit(lit))
         }
-        [Ipld::Integer(12), lty] => {
+        [Ipld::Integer(11), lty] => {
           let lty = LitType::from_ipld(&lty)?;
           Ok(Self::LTy(lty))
         }
-        [Ipld::Integer(13), opr] => {
+        [Ipld::Integer(12), opr] => {
           let opr = Op::from_ipld(&opr)?;
           Ok(Self::Opr(opr))
         }
-        [Ipld::Integer(14)] => Ok(Self::Rec),
+        [Ipld::Integer(13)] => Ok(Self::Rec),
         xs => Err(IpldError::Anon(Ipld::List(xs.to_owned()))),
       },
       xs => Err(IpldError::Anon(xs.to_owned())),

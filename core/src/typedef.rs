@@ -160,7 +160,7 @@ impl TypeDef {
       .typ_indices
       .clone()
       .into_iter()
-      .map(|(u, n, t)| (u, n, t.shift((1 + i_len) as i64, Some(0))));
+      .map(|(u, n, t)| (u, n, t.shift((1 + i_len) as u64, Some(0))));
     // Finally, fold the index binders plus the self binder over the `img` into
     // a telescope of `forall` quantifiers
     index_binders.chain(once(slf)).rev().fold(img, |acc, (u, n, t)| {

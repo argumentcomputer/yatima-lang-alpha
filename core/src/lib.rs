@@ -12,39 +12,39 @@ extern crate quickcheck_macros;
 extern crate rand;
 
 pub mod anon;
-pub mod check;
-pub mod dag;
+// pub mod check;
+// pub mod dag;
 pub mod defs;
-pub mod dll;
+// pub mod dll;
 pub mod embed_error;
-pub mod eval;
+// pub mod eval;
 pub mod ipld_error;
 pub mod literal;
 pub mod meta;
 pub mod name;
 pub mod package;
-pub mod typedef;
+// pub mod typedef;
 #[macro_use]
 pub mod parse;
 pub mod position;
 pub mod prim;
-pub mod runtime;
+// pub mod runtime;
 pub mod term;
-pub mod upcopy;
+// pub mod upcopy;
 pub mod uses;
 
 #[cfg(test)]
 pub mod tests {
-  use sp_cid::Cid;
-  use sp_multihash::{
-    Code,
-    MultihashDigest,
-  };
   use quickcheck::{
     Arbitrary,
     Gen,
   };
   use rand::Rng;
+  use sp_cid::Cid;
+  use sp_multihash::{
+    Code,
+    MultihashDigest,
+  };
 
   pub fn arbitrary_cid(g: &mut Gen) -> Cid {
     let mut bytes: [u8; 32] = [0; 32];
