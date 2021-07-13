@@ -1,4 +1,7 @@
-use std::cmp::Ordering::*;
+use sp_std::{
+  cmp::Ordering::*,
+  vec::Vec,
+};
 
 #[derive(Clone, Debug)]
 pub struct FreeVars {

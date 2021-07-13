@@ -1,12 +1,15 @@
 use crate::machine::{
-  freevars::FreeVars, 
+  freevars::FreeVars,
   ir::*,
   machine::*,
 };
 use crate::name::Name;
 
-use std::rc::Rc;
-use std::cell::RefCell;
+use sp_std::{
+  vec::Vec,
+  rc::Rc,
+  cell::RefCell,
+};
 
 pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
   match ir {
@@ -111,17 +114,20 @@ pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCel
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::parse::term::parse;
+  use crate::{
+    defs::Defs,
+    parse::term::parse,
+  };
 
   #[test]
   fn compilation_test() {
-    let (_, x) = parse("λ x y z => y (λ w => w x z) z").unwrap();
+    let (_, x) = parse("λ x y z => y (λ w => w x z) z", Defs::new()).unwrap();
     let string = "(Lam x (Lam y (Lam z (App (App (Var y) (Lam w (App (App (Var w) (Var x)) (Var z)))) (Var z)))))";
     let x = term_to_ir(&x);
     let mut fun_defs = vec![];
     let graph = ir_to_graph(&x, &mut fun_defs);
     assert_eq!(string, stringify_graph(&fun_defs, graph));
-    let (_, x) = parse("λ x y => y (λ z w => w x z y) x").unwrap();
+    let (_, x) = parse("λ x y => y (λ z w => w x z y) x", Defs::new()).unwrap();
     let string = "(Lam x (Lam y (App (App (Var y) (Lam z (Lam w (App (App (App (Var w) (Var x)) (Var z)) (Var y))))) (Var x))))";
     let x = term_to_ir(&x);
     let mut fun_defs = vec![];

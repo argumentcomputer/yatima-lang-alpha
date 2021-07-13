@@ -4,10 +4,11 @@ use crate::machine::freevars::{
 
 use crate::{
   name::Name,
+  defs::Defs,
   term::Term,
 };
 
-use std::rc::Rc;
+use sp_std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub enum IR {
@@ -17,8 +18,8 @@ pub enum IR {
 }
 
 
-pub fn term_to_ir(term: &Term) -> Rc<IR> {
-  fn go(term: &Term) -> (Rc<IR>, FreeVars) {
+pub fn term_to_ir(term: &Term, defs: &Defs) -> Rc<IR> {
+  fn go(term: &Term, defs: &Defs) -> (Rc<IR>, FreeVars) {
     // TODO: add sharing
     match term {
       Term::Var(_, name, idx) => {
@@ -29,7 +30,7 @@ pub fn term_to_ir(term: &Term) -> Rc<IR> {
       },
       Term::Lam(_, nam, link) => {
         let bod = &**link;
-        let (bod, mut set) = go(bod);
+        let (bod, mut set) = go(bod, defs);
         set.bind();
         let ir =
           Rc::new(IR::Lam(nam.clone(), set.clone(), bod));
@@ -37,15 +38,24 @@ pub fn term_to_ir(term: &Term) -> Rc<IR> {
       },
       Term::App(_, link) => {
         let (fun, arg) = &**link;
-        let (fun, fun_set) = go(fun);
-        let (arg, arg_set) = go(arg);
+        let (fun, fun_set) = go(fun, defs);
+        let (arg, arg_set) = go(arg, defs);
         let ir = Rc::new(IR::App(fun, arg));
         let set = FreeVars::union(&fun_set, &arg_set);
         (ir, set)
       },
-      _ => todo!()
+      Term::Ref(_, nam, def_link, _) => {
+        let def = defs
+          .defs
+          .get(def_link)
+          .unwrap(); // TODO better error
+        let set = FreeVars::new();
+        // TODO add to globals instead of dereferencing
+        (term_to_ir(&def.term, defs), set)
+      },
+      _ => panic!("Not yet implemented {}", term)
     }
   }
-  let (ir, _) = go(term);
+  let (ir, _) = go(term, defs);
   ir
 }

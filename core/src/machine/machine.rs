@@ -1,16 +1,20 @@
 // A G-machine like graph reducer using closures instead of supercombinators, reference counting,
-// and a bottom-up, hash-consed, construction of graphs 
+// and a bottom-up, hash-consed, construction of graphs
 
 // In this initial draft, each function will take exactly one argument. The elements of the stack
 // will be copied as needed to the environment of closures.
 
 use crate::name::Name;
 
-use std::convert::TryInto;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use alloc::string::String;
+
+use sp_std::{
+  vec::Vec,
+  convert::TryInto,
+  rc::Rc,
+  cell::RefCell,
+  hash::{Hash, Hasher},
+};
 
 // The maximum byte size of the environment
 pub const ENV_SIZE: usize = 4;
@@ -52,9 +56,10 @@ pub struct FunCell {
 
 #[inline]
 pub fn make_hash<T: Hash>(x: &T) -> u64 {
-  let mut hasher = DefaultHasher::new();
-  x.hash(&mut hasher);
-  hasher.finish()
+  // let mut hasher = DefaultHasher::new();
+  // x.hash(&mut hasher);
+  // hasher.finish()
+  0
 }
 
 #[inline]
@@ -195,11 +200,11 @@ pub fn reduce(fun_defs: &Vec<FunCell>, top_node: Link<Graph>) -> Link<Graph> {
         if let Some(redex) = trail.pop() {
           // Since we know these are app nodes, can't we extract the field without matching
           // i.e., without double checking the tag?
-          let arg = match &*redex.borrow() { 
+          let arg = match &*redex.borrow() {
             Graph::App(_,_,arg) => {
               arg.clone()
             }
-            _ => panic!("Implementation of reduce incorrect")
+            _ => unreachable!()
           };
           build_graph(fun_defs, *idx, env, arg, redex)
         }

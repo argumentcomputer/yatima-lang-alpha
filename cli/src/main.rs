@@ -63,6 +63,10 @@ enum Command {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
+  Machine {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
   Repl,
 }
 
@@ -204,6 +208,25 @@ async fn main() -> std::io::Result<()> {
     }
     Command::Check { path } => {
       file::check_all_in_file(root, path, store)?;
+      Ok(())
+    }
+    Command::Machine { path } => {
+      let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
+      let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
+
+      let _cid = store.put(p.to_ipld());
+      let def = defs
+        .get(&Name::from("main"))
+        .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
+      let ir = yatima_core::machine::ir::term_to_ir(&def.to_owned().term, &defs);
+      let mut fun_defs = vec![];
+      let graph = yatima_core::machine::compilation::ir_to_graph(&ir, &mut fun_defs);
+      println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&fun_defs, graph.clone()));
+      let graph = yatima_core::machine::machine::reduce(&fun_defs, graph);
+      println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&fun_defs, graph));
       Ok(())
     }
     Command::Run { path } => {
