@@ -19,7 +19,7 @@ use alloc::string::ToString;
 pub enum Meta {
   Var(Pos, Name),
   Lam(Pos, Name, Box<(Meta, Meta)>),
-  App(Pos, Box<(Meta, Meta)>),
+  App(Pos, Box<(Meta, Meta, Meta)>),
   All(Pos, Name, Box<(Meta, Meta)>),
   Slf(Pos, Name, Box<Meta>),
   Dat(Pos, Box<(Meta, Meta)>),
@@ -51,12 +51,13 @@ impl Meta {
           bod.to_ipld(),
         ])
       }
-      Self::App(pos, fun_arg) => {
-        let (fun, arg) = (*fun_arg).as_ref();
+      Self::App(pos, fun_typ_arg) => {
+        let (fun, typ, arg) = (*fun_typ_arg).as_ref();
         Ipld::List(vec![
           Ipld::Integer(2),
           pos.to_ipld(),
           fun.to_ipld(),
+          typ.to_ipld(),
           arg.to_ipld(),
         ])
       }
@@ -126,11 +127,12 @@ impl Meta {
           let bod = Meta::from_ipld(bod)?;
           Ok(Meta::Lam(pos, Name::from(nam.clone()), Box::new((typ, bod))))
         }
-        [Ipld::Integer(2), pos, fun, arg] => {
+        [Ipld::Integer(2), pos, fun, typ, arg] => {
           let pos = Pos::from_ipld(pos)?;
           let fun = Meta::from_ipld(fun)?;
+          let typ = Meta::from_ipld(typ)?;
           let arg = Meta::from_ipld(arg)?;
-          Ok(Meta::App(pos, Box::new((fun, arg))))
+          Ok(Meta::App(pos, Box::new((fun, typ, arg))))
         }
         [Ipld::Integer(3), pos, Ipld::String(nam), dom, img] => {
           let pos = Pos::from_ipld(pos)?;

@@ -10,8 +10,6 @@ use alloc::string::String;
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
-  term::Term,
-  yatima,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -54,20 +52,6 @@ impl BoolOp {
       "xor" => Some(Self::Xor),
       "not" => Some(Self::Not),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Eql => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Lte => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Lth => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Gte => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Gth => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::And => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Or => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Xor => yatima!("∀ #Bool #Bool -> #Bool"),
-      Self::Not => yatima!("∀ #Bool -> #Bool"),
     }
   }
 

@@ -13,8 +13,6 @@ use alloc::string::{
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
-  term::Term,
-  yatima,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -126,43 +124,6 @@ impl CharOp {
       "gth" => Some(Self::Gth),
       "gte" => Some(Self::Gte),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::FromU32 => yatima!("∀ #U32 -> #Char"),
-      Self::ToU32 => yatima!("∀ #Char -> #U32"),
-      Self::IsAlphabetic => yatima!("∀ #Char -> #Bool"),
-      Self::IsAlphanumeric => yatima!("∀ #Char -> #Bool"),
-      Self::IsAscii => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiAlphabetic => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiAlphanumeric => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiControl => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiDigit => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiGraphic => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiHexDigit => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiLowerCase => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiPunctuation => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiUpperCase => yatima!("∀ #Char -> #Bool"),
-      Self::IsAsciiWhitespace => yatima!("∀ #Char -> #Bool"),
-      Self::IsControl => yatima!("∀ #Char -> #Bool"),
-      Self::IsDigit => yatima!("∀ #Char -> #Bool"),
-      Self::IsLowercase => yatima!("∀ #Char -> #Bool"),
-      Self::IsNumeric => yatima!("∀ #Char -> #Bool"),
-      Self::IsUppercase => yatima!("∀ #Char -> #Bool"),
-      Self::IsWhitespace => yatima!("∀ #Char -> #Bool"),
-      Self::LenUTF8 => yatima!("∀ #Char -> #Nat"),
-      Self::LenUTF16 => yatima!("∀ #Char -> #Nat"),
-      Self::ToAsciiLowercase => yatima!("∀ #Char -> #Bool"),
-      Self::ToAsciiUppercase => yatima!("∀ #Char -> #Bool"),
-      Self::ToLowercase => yatima!("∀ #Char -> #Bool"),
-      Self::ToUppercase => yatima!("∀ #Char -> #Bool"),
-      Self::Eql => yatima!("∀ #Char #Char -> #Bool"),
-      Self::Lte => yatima!("∀ #Char #Char -> #Bool"),
-      Self::Lth => yatima!("∀ #Char #Char -> #Bool"),
-      Self::Gth => yatima!("∀ #Char #Char -> #Bool"),
-      Self::Gte => yatima!("∀ #Char #Char -> #Bool"),
     }
   }
 

@@ -1,13 +1,7 @@
 use crate::{
   ipld_error::IpldError,
   parse::base,
-  position::Pos,
-  prim::{
-    bits,
-    text,
-  },
-  term::Term,
-  yatima,
+  prim::bits,
 };
 
 use sp_ipld::Ipld;
@@ -165,56 +159,6 @@ impl fmt::Display for Literal {
 }
 
 impl Literal {
-  pub fn expand(self) -> Option<Term> {
-    match self {
-      Self::Nat(n) => {
-        if n == BigUint::from(0u64) {
-          Some(yatima!("λ P z s => z"))
-        }
-        else {
-          Some(yatima!(
-            "λ P z s => s #$0",
-            Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
-          ))
-        }
-      }
-      Self::Int(_) => Some(yatima!("λ P i => i")),
-      Self::Bits(mut t) => {
-        let c = t.pop();
-        match c {
-          None => Some(yatima!("λ P n c => n")),
-          Some(c) => Some(yatima!(
-            "λ P n c => c #$0 #$1",
-            Term::Lit(Pos::None, Literal::Bool(c)),
-            Term::Lit(Pos::None, Literal::Bits(t))
-          )),
-        }
-      }
-      Self::Bytes(mut t) => {
-        let c = t.pop();
-        match c {
-          None => Some(yatima!("λ P n c => n")),
-          Some(c) => Some(yatima!(
-            "λ P n c => c #$0 #$1",
-            Term::Lit(Pos::None, Literal::U8(c)),
-            Term::Lit(Pos::None, Literal::Bytes(t))
-          )),
-        }
-      }
-      Self::Text(t) => match text::safe_head(t) {
-        None => Some(yatima!("λ P n c => n")),
-        Some((c, t)) => Some(yatima!(
-          "λ P n c => c #$0 #$1",
-          Term::Lit(Pos::None, Literal::Char(c)),
-          Term::Lit(Pos::None, Literal::Text(t))
-        )),
-      },
-      Self::Bool(true) => Some(yatima!("λ P t f => t")),
-      Self::Bool(false) => Some(yatima!("λ P t f => f")),
-      _ => None,
-    }
-  }
-
   pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Nat(x) => {
@@ -404,59 +348,6 @@ impl Literal {
 }
 
 impl LitType {
-  pub fn induction(self, val: Term) -> Option<Term> {
-    match self {
-      Self::Nat => Some(yatima!(
-        "∀ (0 P: ∀ #Nat -> Type)
-             (& zero: P 0)
-             (& succ: ∀ (pred: #Nat) -> P (#Nat.suc pred))
-           -> P #$0
-          ",
-        val
-      )),
-      Self::Int => Some(yatima!(
-        "∀ (0 P: ∀ #Int -> Type)
-             (& int: ∀ (sign: #Bool) (abs: #Nat) -> P (#Int.new sign abs))
-           -> P #$0
-          ",
-        val
-      )),
-      Self::Bytes => Some(yatima!(
-        "∀ (0 P: ∀ #Bytes -> Type)
-             (& nil: P \"\")
-             (& cons: ∀ (x: #U8) (xs: #Bytes) -> P (#Bytes.cons x xs))
-           -> P #$0
-          ",
-        val
-      )),
-      Self::Bits => Some(yatima!(
-        "∀ (0 P: ∀ #Bits -> Type)
-             (& nil: P #b)
-             (& cons: ∀ (x: #Bool) (xs: #Bits) -> P (#Bits.cons x xs))
-           -> P #$0
-          ",
-        val
-      )),
-      Self::Text => Some(yatima!(
-        "∀ (0 P: ∀ #Text -> Type)
-             (& nil: P \"\")
-             (& cons: ∀ (x: #Char) (xs: #Text) -> P (#Text.cons x xs))
-           -> P #$0
-          ",
-        val
-      )),
-      Self::Bool => Some(yatima!(
-        "∀ (0 P: ∀ #Bool -> Type)
-             (& t: P #Bool.true)
-             (& f: P #Bool.false)
-           -> P #$0
-          ",
-        val
-      )),
-      _ => None,
-    }
-  }
-
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Nat => Ipld::List(vec![Ipld::Integer(0)]),

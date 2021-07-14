@@ -11,8 +11,6 @@ use alloc::string::String;
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
-  term::Term,
-  yatima,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -64,23 +62,6 @@ impl NatOp {
       "div" => Some(Self::Div),
       "mod" => Some(Self::Mod),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Suc => yatima!("∀ #Nat -> #Nat"),
-      Self::Pre => yatima!("∀ #Nat -> #Nat"),
-      Self::Eql => yatima!("∀ #Nat #Nat -> #Bool"),
-      Self::Lte => yatima!("∀ #Nat #Nat -> #Bool"),
-      Self::Lth => yatima!("∀ #Nat #Nat -> #Bool"),
-      Self::Gte => yatima!("∀ #Nat #Nat -> #Bool"),
-      Self::Gth => yatima!("∀ #Nat #Nat -> #Bool"),
-      Self::Add => yatima!("∀ #Nat #Nat -> #Nat"),
-      Self::Sub => yatima!("∀ #Nat #Nat -> #Nat"),
-      Self::Mul => yatima!("∀ #Nat #Nat -> #Nat"),
-      Self::Div => yatima!("∀ #Nat #Nat -> #Nat"),
-      Self::Mod => yatima!("∀ #Nat #Nat -> #Nat"),
     }
   }
 

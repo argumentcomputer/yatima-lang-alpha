@@ -2058,6 +2058,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "yatima-lang"
+version = "0.1.0"
+dependencies = [
+ "base-x",
+ "multibase",
+ "nom",
+ "nom_locate 3.0.0",
+ "num-bigint",
+ "quickcheck",
+ "quickcheck_macros",
+ "rand",
+ "ropey",
+ "sized-chunks",
+ "sp-cid",
+ "sp-im",
+ "sp-ipld",
+ "sp-multihash",
+ "sp-std",
+ "yatima-core",
+]
+
+[[package]]
 name = "yatima-utils"
 version = "0.1.0"
 dependencies = [

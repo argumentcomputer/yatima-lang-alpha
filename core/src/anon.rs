@@ -24,7 +24,7 @@ use sp_std::{
 pub enum Anon {
   Var(u64),
   Lam(Uses, Box<(Anon, Anon)>),
-  App(Box<(Anon, Anon)>),
+  App(Uses, Box<(Anon, Anon, Anon)>),
   All(Uses, Box<(Anon, Anon)>),
   Slf(Box<Anon>),
   Dat(Box<(Anon, Anon)>),
@@ -57,9 +57,15 @@ impl Anon {
           bod.to_ipld(),
         ])
       }
-      Self::App(fun_arg) => {
-        let (fun, arg) = (*fun_arg).as_ref();
-        Ipld::List(vec![Ipld::Integer(2), fun.to_ipld(), arg.to_ipld()])
+      Self::App(uses, fun_typ_arg) => {
+        let (fun, typ, arg) = (*fun_typ_arg).as_ref();
+        Ipld::List(vec![
+          Ipld::Integer(2),
+          uses.to_ipld(),
+          fun.to_ipld(),
+          typ.to_ipld(),
+          arg.to_ipld(),
+        ])
       }
       Self::All(uses, dom_img) => {
         let (dom, img) = (*dom_img).as_ref();
@@ -114,10 +120,12 @@ impl Anon {
           let bod = Anon::from_ipld(bod)?;
           Ok(Anon::Lam(uses, Box::new((typ, bod))))
         }
-        [Ipld::Integer(2), fun, arg] => {
+        [Ipld::Integer(2), uses, fun, typ, arg] => {
+          let uses = Uses::from_ipld(uses)?;
           let fun = Anon::from_ipld(fun)?;
+          let typ = Anon::from_ipld(typ)?;
           let arg = Anon::from_ipld(arg)?;
-          Ok(Anon::App(Box::new((fun, arg))))
+          Ok(Anon::App(uses, Box::new((fun, typ, arg))))
         }
         [Ipld::Integer(3), uses, dom, img] => {
           let uses = Uses::from_ipld(uses)?;

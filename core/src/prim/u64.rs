@@ -12,8 +12,6 @@ use crate::{
   ipld_error::IpldError,
   literal::Literal,
   prim::bits,
-  term::Term,
-  yatima,
 };
 
 use num_bigint::BigUint;
@@ -139,47 +137,6 @@ impl U64Op {
       "to_Bits" => Some(Self::ToBits),
       "to_Bytes" => Some(Self::ToBytes),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Max => yatima!("#U64"),
-      Self::Min => yatima!("#U64"),
-      Self::Eql => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Lte => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Lth => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Gth => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Gte => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Not => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::And => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Or => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Xor => yatima!("∀ #U64 #U64 -> #Bool"),
-      Self::Add => yatima!("∀ #U64 #U64 -> #U64"),
-      Self::Sub => yatima!("∀ #U64 #U64 -> #U64"),
-      Self::Mul => yatima!("∀ #U64 #U64 -> #U64"),
-      Self::Div => yatima!("∀ #U64 #U64 -> #U64"),
-      Self::Mod => yatima!("∀ #U64 #U64 -> #U64"),
-      Self::Pow => yatima!("∀ #U64 #U32 -> #U64"),
-      Self::Shl => yatima!("∀ #U32 #U64 -> #U64"),
-      Self::Shr => yatima!("∀ #U32 #U64 -> #U64"),
-      Self::Rol => yatima!("∀ #U32 #U64 -> #U64"),
-      Self::Ror => yatima!("∀ #U32 #U64 -> #U64"),
-      Self::CountZeros => yatima!("∀ #U64 -> #U32"),
-      Self::CountOnes => yatima!("∀ #U64 -> #U32"),
-      Self::ToU8 => yatima!("∀ #U64 -> #U8"),
-      Self::ToU16 => yatima!("∀ #U64 -> #U16"),
-      Self::ToU32 => yatima!("∀ #U64 -> #U32"),
-      Self::ToU128 => yatima!("∀ #U64 -> #U128"),
-      Self::ToNat => yatima!("∀ #U64 -> #Nat"),
-      Self::ToI8 => yatima!("∀ #U64 -> #I8"),
-      Self::ToI16 => yatima!("∀ #U64 -> #I16"),
-      Self::ToI32 => yatima!("∀ #U64 -> #I32"),
-      Self::ToI64 => yatima!("∀ #U64 -> #I64"),
-      Self::ToI128 => yatima!("∀ #U64 -> #I128"),
-      Self::ToInt => yatima!("∀ #U64 -> #Int"),
-      Self::ToBits => yatima!("∀ #U64 -> #Bits"),
-      Self::ToBytes => yatima!("∀ #U64 -> #Bytes"),
     }
   }
 

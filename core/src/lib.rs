@@ -23,7 +23,6 @@ pub mod literal;
 pub mod meta;
 pub mod name;
 pub mod package;
-// pub mod typedef;
 #[macro_use]
 pub mod parse;
 pub mod position;

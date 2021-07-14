@@ -12,8 +12,6 @@ use crate::{
   ipld_error::IpldError,
   literal::Literal,
   prim::bits,
-  term::Term,
-  yatima,
 };
 
 use core::convert::TryFrom;
@@ -64,22 +62,6 @@ impl BytesOp {
       "index" => Some(Self::Index),
       "to_Bits" => Some(Self::ToBits),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Cons => yatima!("∀ #U8 #Bytes -> #Bytes"),
-      Self::Len => yatima!("∀ #Bytes -> #Nat"),
-      Self::Head => yatima!("∀ #Bytes -> #U8"),
-      Self::Tail => yatima!("∀ #Bytes -> #Bytes"),
-      Self::Take => yatima!("∀ #Nat #Bytes -> #Bytes"),
-      Self::Drop => yatima!("∀ #Nat #Bytes -> #Bytes"),
-      Self::Append => yatima!("∀ #Bytes #Bytes -> #Bytes"),
-      Self::Insert => yatima!("∀ #U8 #Nat #Bytes -> #Bytes"),
-      Self::Remove => yatima!("∀ #Nat #Bytes -> #Bytes"),
-      Self::Index => yatima!("∀ #Nat #Bytes -> #U8"),
-      Self::ToBits => yatima!("∀ #Nat #Bytes -> #Bits"),
     }
   }
 

@@ -16,8 +16,6 @@ use alloc::string::{
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
-  term::Term,
-  yatima,
 };
 
 use core::convert::{
@@ -110,35 +108,6 @@ impl TextOp {
       "line_start_char" => Some(Self::LineStartChar),
       "to_bytes" => Some(Self::ToBytes),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Cons => yatima!("∀ #Char #Text -> #Text"),
-      Self::LenChars => yatima!("∀ #Text -> #Nat"),
-      Self::LenLines => yatima!("∀ #Text -> #Nat"),
-      Self::LenBytes => yatima!("∀ #Text -> #Nat"),
-      Self::Append => yatima!("∀ #Text #Text -> #Text"),
-      Self::Insert => yatima!("∀ #Nat #Text #Text -> #Text"),
-      Self::Remove => yatima!("∀ #Nat #Nat #Text -> #Text"),
-      Self::Take => yatima!("∀ #Nat #Text -> #Text"),
-      Self::Drop => yatima!("∀ #Nat #Text -> #Text"),
-      Self::Eql => yatima!("∀ #Text #Text -> #Bool"),
-      Self::Lte => yatima!("∀ #Text #Text -> #Bool"),
-      Self::Lth => yatima!("∀ #Text #Text -> #Bool"),
-      Self::Gte => yatima!("∀ #Text #Text -> #Bool"),
-      Self::Gth => yatima!("∀ #Text #Text -> #Bool"),
-      Self::Char => yatima!("∀ #Nat #Text -> #Char"),
-      Self::Byte => yatima!("∀ #Nat #Text -> #U8"),
-      Self::Line => yatima!("∀ #Nat #Text -> #Text"),
-      Self::CharAtByte => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::ByteAtChar => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::LineAtByte => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::LineAtChar => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::LineStartChar => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::LineStartByte => yatima!("∀ #Nat #Text -> #Nat"),
-      Self::ToBytes => yatima!("∀ #Text -> #Bytes"),
     }
   }
 

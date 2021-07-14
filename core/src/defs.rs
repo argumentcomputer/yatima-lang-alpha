@@ -13,8 +13,9 @@ use crate::{
 
 use sp_cid::Cid;
 
+use sp_im::ordmap::OrdMap;
+
 use sp_std::{
-  collections::btree_map::BTreeMap,
   fmt,
   rc::Rc,
   vec::Vec,
@@ -46,8 +47,8 @@ impl PartialEq for Def {
 /// A map of content-ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
-  pub defs: BTreeMap<Cid, Def>,
-  pub names: BTreeMap<Name, Cid>,
+  pub defs: OrdMap<Cid, Def>,
+  pub names: OrdMap<Name, Cid>,
 }
 
 impl Def {
@@ -106,9 +107,7 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self {
-    Defs { defs: BTreeMap::new(), names: BTreeMap::new() }
-  }
+  pub fn new() -> Self { Defs { defs: OrdMap::new(), names: OrdMap::new() } }
 
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();

@@ -30,7 +30,7 @@ use alloc::string::{
 pub enum Term {
   Var(Pos, Name, u64),
   Lam(Pos, Uses, Name, Box<(Term, Term)>),
-  App(Pos, Box<(Term, Term)>),
+  App(Pos, Uses, Box<(Term, Term, Term)>),
   All(Pos, Uses, Name, Box<(Term, Term)>),
   Slf(Pos, Name, Box<Term>),
   Dat(Pos, Box<(Term, Term)>),
@@ -51,7 +51,7 @@ impl fmt::Debug for Term {
       Self::Lam(_, u, n, b) => {
         fmt.debug_tuple("Lam").field(&u).field(&n).field(&b).finish()
       }
-      Self::App(_, t) => fmt.debug_tuple("App").field(&t).finish(),
+      Self::App(_, u, t) => fmt.debug_tuple("App").field(&u).field(&t).finish(),
       Self::All(_, u, n, t) => {
         fmt.debug_tuple("All").field(&u).field(&n).field(&t).finish()
       }
@@ -79,7 +79,9 @@ impl PartialEq for Term {
       (Self::Lam(_, ua, na, ba), Self::Lam(_, ub, nb, bb)) => {
         ua == ub && na == nb && ba.0 == bb.0 && ba.1 == bb.1
       }
-      (Self::App(_, ta), Self::App(_, tb)) => ta.0 == tb.0 && ta.1 == tb.1,
+      (Self::App(_, ua, ta), Self::App(_, ub, tb)) => {
+        ua == ub && ta.0 == tb.0 && ta.1 == tb.1 && ta.2 == tb.2
+      }
       (Self::All(_, ua, na, ta), Self::All(_, ub, nb, tb)) => {
         ua == ub && na == nb && ta.0 == tb.0 && ta.1 == tb.1
       }
@@ -106,6 +108,7 @@ impl PartialEq for Term {
     }
   }
 }
+
 impl Term {
   pub fn pos(&self) -> Pos {
     match self {
@@ -149,9 +152,17 @@ impl Term {
         let (typ, bod) = *typ_bod;
         Self::Dat(pos, Box::new((typ.shift(inc, dep), bod.shift(inc, dep))))
       }
-      Self::App(pos, fun_arg) => {
-        let (fun, arg) = *fun_arg;
-        Self::App(pos, Box::new((fun.shift(inc, dep), arg.shift(inc, dep))))
+      Self::App(pos, uses, fun_typ_arg) => {
+        let (fun, typ, arg) = *fun_typ_arg;
+        Self::App(
+          pos,
+          uses,
+          Box::new((
+            fun.shift(inc, dep),
+            typ.shift(inc, dep),
+            arg.shift(inc, dep),
+          )),
+        )
       }
       Self::All(pos, uses, nam, dom_img) => {
         let (dom, img) = *dom_img;
@@ -200,9 +211,17 @@ impl Term {
         let (typ, bod) = *typ_bod;
         Self::Dat(pos, Box::new((typ.un_rec(trm.clone()), bod.un_rec(trm))))
       }
-      Self::App(pos, fun_arg) => {
-        let (fun, arg) = *fun_arg;
-        Self::App(pos, Box::new((fun.un_rec(trm.clone()), arg.un_rec(trm))))
+      Self::App(pos, uses, fun_arg) => {
+        let (fun, typ, arg) = *fun_arg;
+        Self::App(
+          pos,
+          uses,
+          Box::new((
+            fun.un_rec(trm.clone()),
+            typ.un_rec(trm.clone()),
+            arg.un_rec(trm),
+          )),
+        )
       }
       Self::All(pos, uses, nam, dom_img) => {
         let (dom, img) = *dom_img;
@@ -259,12 +278,13 @@ impl Term {
           Meta::Slf(*pos, name.clone(), Box::new(meta)),
         )
       }
-      Self::App(pos, terms) => {
+      Self::App(pos, uses, terms) => {
         let (fun_anon, fun_meta) = terms.0.embed();
-        let (arg_anon, arg_meta) = terms.1.embed();
+        let (typ_anon, typ_meta) = terms.1.embed();
+        let (arg_anon, arg_meta) = terms.2.embed();
         (
-          Anon::App(Box::new((fun_anon, arg_anon))),
-          Meta::App(*pos, Box::new((fun_meta, arg_meta))),
+          Anon::App(*uses, Box::new((fun_anon, typ_anon, arg_anon))),
+          Meta::App(*pos, Box::new((fun_meta, typ_meta, arg_meta))),
         )
       }
       Self::Dat(pos, terms) => {
@@ -338,12 +358,13 @@ impl Term {
         let bod = Term::unembed(anon_bod, meta_bod)?;
         Ok(Self::Cse(*pos, Box::new(bod)))
       }
-      (Anon::App(anon), Meta::App(pos, meta)) => {
-        let (fun_anon, arg_anon) = anon.as_ref();
-        let (fun_meta, arg_meta) = meta.as_ref();
+      (Anon::App(uses, anon), Meta::App(pos, meta)) => {
+        let (fun_anon, typ_anon, arg_anon) = anon.as_ref();
+        let (fun_meta, typ_meta, arg_meta) = meta.as_ref();
         let fun = Term::unembed(fun_anon, fun_meta)?;
+        let typ = Term::unembed(typ_anon, typ_meta)?;
         let arg = Term::unembed(arg_anon, arg_meta)?;
-        Ok(Self::App(*pos, Box::new((fun, arg))))
+        Ok(Self::App(*pos, *uses, Box::new((fun, typ, arg))))
       }
       (Anon::All(uses, anon), Meta::All(pos, name, meta)) => {
         let (dom_anon, img_anon) = anon.as_ref();
@@ -374,105 +395,8 @@ impl Term {
     use Term::*;
     const WILDCARD: &str = "_";
 
-    fn name(nam: &str) -> &str { if nam.is_empty() { WILDCARD } else { nam } }
-
-    fn uses(uses: &Uses) -> &str {
-      match uses {
-        Uses::None => "0 ",
-        Uses::Affi => "& ",
-        Uses::Once => "1 ",
-        Uses::Many => "",
-      }
-    }
-
-    fn is_atom(term: &Term) -> bool {
-      matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
-    }
-
-    fn lams(
-      rec: Option<&String>,
-      ind: bool,
-      use_: &Uses,
-      nam: &str,
-      typ: &Term,
-      bod: &Term,
-    ) -> String {
-      match bod {
-        Lam(_, bod_use, bod_nam, bod) => {
-          format!(
-            " ({}{}: {}){}",
-            uses(use_),
-            name(nam),
-            typ.pretty(rec, ind),
-            lams(rec, ind, bod_use, bod_nam, &bod.0, &bod.1)
-          )
-        }
-        _ => format!(
-          " ({}{}: {}) => {}",
-          uses(use_),
-          name(nam),
-          typ.pretty(rec, ind),
-          bod.pretty(rec, ind)
-        ),
-      }
-    }
-
-    fn alls(
-      rec: Option<&String>,
-      ind: bool,
-      use_: &Uses,
-      nam: &str,
-      typ: &Term,
-      bod: &Term,
-    ) -> String {
-      match bod {
-        All(_, bod_use, bod_nam, bod) => {
-          format!(
-            " ({}{}: {}){}",
-            uses(use_),
-            name(nam),
-            typ.pretty(rec, ind),
-            alls(rec, ind, bod_use, bod_nam, &bod.0, &bod.1)
-          )
-        }
-        _ => format!(
-          " ({}{}: {}) -> {}",
-          uses(use_),
-          name(nam),
-          typ.pretty(rec, ind),
-          bod.pretty(rec, ind)
-        ),
-      }
-    }
-
-    fn parens(rec: Option<&String>, ind: bool, term: &Term) -> String {
-      if is_atom(term) {
-        term.pretty(rec, ind)
-      }
-      else {
-        format!("({})", term.pretty(rec, ind))
-      }
-    }
-
-    fn apps(rec: Option<&String>, ind: bool, fun: &Term, arg: &Term) -> String {
-      match (fun, arg) {
-        (App(_, f), App(_, a)) => {
-          format!(
-            "{} ({})",
-            apps(rec, ind, &f.0, &f.1),
-            apps(rec, ind, &a.0, &a.1)
-          )
-        }
-        (App(_, f), arg) => {
-          format!("{} {}", apps(rec, ind, &f.0, &f.1), parens(rec, ind, arg))
-        }
-        (fun, App(_, a)) => {
-          format!("{} ({})", parens(rec, ind, fun), apps(rec, ind, &a.0, &a.1))
-        }
-        (fun, arg) => {
-          format!("{} {}", parens(rec, ind, fun), parens(rec, ind, arg))
-        }
-      }
+    fn pretty_name(nam: &str) -> &str {
+      if nam.is_empty() { WILDCARD } else { nam }
     }
 
     match self {
@@ -490,31 +414,53 @@ impl Term {
         _ => "#^".to_string(),
       },
 
-      Lam(_, us_, nam, terms) => {
-        format!("λ{}", lams(rec, ind, us_, nam, &terms.0, &terms.1))
-      }
-      App(_, terms) => apps(rec, ind, &terms.0, &terms.1),
-      Let(_, letrec, u, n, terms) => {
+      Lam(_, uses, name, terms) => {
         format!(
-          "let{} {}{}: {} = {}; {}",
-          if *letrec { "rec" } else { "" },
-          uses(u),
-          name(n),
+          "(λ ({} {}: {}) => {})",
+          uses,
+          pretty_name(name),
+          terms.0.pretty(rec, ind),
+          terms.1.pretty(rec, ind)
+        )
+      }
+      App(_, uses, terms) => {
+        format!(
+          "({} ({} :: {} {}))",
+          terms.0.pretty(rec, ind),
+          terms.2.pretty(rec, ind),
+          uses,
+          terms.1.pretty(rec, ind)
+        )
+      }
+      Let(_, letrec, uses, name, terms) => {
+        format!(
+          "({} {} {}: {} = {} in {})",
+          if *letrec { "letrec" } else { "let" },
+          uses,
+          pretty_name(name),
           terms.0.pretty(rec, ind),
           terms.1.pretty(rec, ind),
           terms.2.pretty(rec, ind),
         )
       }
-      Slf(_, nam, bod) => format!("@{} {}", name(nam), bod.pretty(rec, ind)),
-      All(_, us_, nam, terms) => {
-        format!("∀{}", alls(rec, ind, us_, nam, &terms.0, &terms.1))
+      Slf(_, name, bod) => {
+        format!("(self {} {})", pretty_name(name), bod.pretty(rec, ind))
+      }
+      All(_, uses, name, terms) => {
+        format!(
+          "(∀ ({} {}: {}) -> {})",
+          uses,
+          pretty_name(name),
+          terms.0.pretty(rec, ind),
+          terms.1.pretty(rec, ind)
+        )
       }
       Dat(_, terms) => format!(
-        "data {} {}",
+        "(data {} {})",
         &terms.0.pretty(rec, ind),
         &terms.1.pretty(rec, ind)
       ),
-      Cse(_, bod) => format!("case {}", bod.pretty(rec, ind)),
+      Cse(_, bod) => format!("(case {})", bod.pretty(rec, ind)),
       Typ(_) => "Type".to_string(),
       Lit(_, lit) => format!("{}", lit),
       LTy(_, lty) => format!("{}", lty),
@@ -544,6 +490,7 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
+  use rand::Rng;
   use sp_std::ops::Range;
 
   use sp_im::Vector;
@@ -620,7 +567,7 @@ pub mod tests {
     LTy(LitType),
     Lam(Uses, Name, usize, usize),
     Slf(Name, usize),
-    App(Uses, usize, usize),
+    App(Uses, usize, usize, usize),
     Cse(usize),
     Dat(usize, usize),
     All(Uses, Name, usize, usize),
@@ -655,10 +602,11 @@ pub mod tests {
           let bod = arena[*bod].into_term(&arena);
           Term::Dat(Pos::None, Box::new((typ, bod)))
         }
-        Self::App(uses, fun, arg) => {
+        Self::App(uses, fun, typ, arg) => {
           let fun = arena[*fun].into_term(&arena);
+          let typ = arena[*typ].into_term(&arena);
           let arg = arena[*arg].into_term(&arena);
-          Term::App(Pos::None, *uses, Box::new((fun, arg)))
+          Term::App(Pos::None, *uses, Box::new((fun, typ, arg)))
         }
         Self::All(uses, n, dom, img) => {
           let dom = arena[*dom].into_term(&arena);
@@ -700,15 +648,20 @@ pub mod tests {
   }
 
   pub fn gen_range(g: &mut Gen, range: Range<usize>) -> usize {
-    let res: usize = Arbitrary::arbitrary(g);
-    (res % (range.end - range.start)) + range.start
+    if range.end <= range.start {
+      range.start
+    }
+    else {
+      let res: usize = Arbitrary::arbitrary(g);
+      (res % (range.end - range.start)) + range.start
+    }
   }
 
   pub fn next_case(g: &mut Gen, gens: &Vec<(usize, Case)>) -> Case {
     let sum: usize = gens.iter().map(|x| x.0).sum();
-    let mut weight: usize = gen_range(g, 1..(sum + 1));
+    let mut weight: usize = gen_range(g, 1..sum);
     for gen in gens {
-      match weight.checked_sub(gen.0 + 1) {
+      match weight.checked_sub(gen.0) {
         None | Some(0) => {
           return gen.1;
         }
@@ -726,19 +679,15 @@ pub mod tests {
     defs: Defs,
     ctx0: Vector<Name>,
   ) -> Term {
-    let name = Name::from("_r");
-    let mut ctx1 = ctx0.clone();
-    ctx1.push_front(name.clone());
-    let mut ctxs: Vec<Vector<Name>> = vec![ctx0.clone(), ctx0, ctx1];
-    let mut arena: Vec<Option<Tree>> =
-      vec![Some(Tree::Typ), Some(Tree::Lam(Uses::Many, name, 1, 2)), None];
-    let mut todo: Vec<usize> = vec![2];
+    let mut ctxs: Vec<Vector<Name>> = vec![ctx0];
+    let mut arena: Vec<Option<Tree>> = vec![None];
+    let mut todo: Vec<usize> = vec![0];
 
     while let Some(idx) = todo.pop() {
       let ctx: Vector<Name> = ctxs[idx].clone();
       let depth = ctx.len();
       let gens: Vec<(usize, Case)> = vec![
-        (100, Case::VAR),
+        (if depth == 0 { 0 } else { 100 }, Case::VAR),
         (100, Case::TYP),
         (100, Case::REF),
         (100, Case::LIT),
@@ -753,8 +702,9 @@ pub mod tests {
         (80usize.saturating_sub(2 * depth), Case::ALL),
         (30usize.saturating_sub(3 * depth), Case::LET),
       ];
+      let case = next_case(g, &gens);
 
-      match next_case(g, &gens) {
+      match case {
         Case::TYP => {
           arena[idx] = Some(Tree::Typ);
         }
@@ -828,11 +778,15 @@ pub mod tests {
           todo.push(fun);
           ctxs.push(ctx.clone());
           arena.push(None);
+          let typ = arena.len();
+          todo.push(typ);
+          ctxs.push(ctx.clone());
+          arena.push(None);
           let arg = arena.len();
           todo.push(arg);
           ctxs.push(ctx.clone());
           arena.push(None);
-          arena[idx] = Some(Tree::App(uses, fun, arg));
+          arena[idx] = Some(Tree::App(uses, fun, typ, arg));
         }
         Case::ALL => {
           let uses: Uses = Arbitrary::arbitrary(g);
@@ -876,10 +830,13 @@ pub mod tests {
         }
       }
     }
-    //    println!("arena: {:?}", arena);
+    // println!("arena: {:?}", arena);
     let arena: Vec<Tree> = arena.into_iter().map(|x| x.unwrap()).collect();
-    //    println!("arena: {:?}", arena);
-    arena[0].into_term(&arena)
+    // println!("arena: {:?}", arena);
+    let x = arena[0].into_term(&arena);
+    // println!("term: {:?}", x);
+    // println!("term: {}", x);
+    x
   }
 
   impl Arbitrary for Term {
@@ -888,18 +845,28 @@ pub mod tests {
     }
   }
 
+  //#[quickcheck]
+  // fn term_gen(x: Term) -> bool {
+  //  println!("x: {}", x);
+  //  use rand;
+  //  let mut rng = rand::thread_rng();
+  //  let a = rng.gen_bool(0.9);
+  //  a
+  //}
+
   #[quickcheck]
   fn term_embed_unembed(x: Term) -> bool {
     let (a, m) = x.clone().embed();
-    // println!("x: {}", x);
     match Term::unembed(&a, &m) {
       Ok(y) => {
         if x == y {
           true
         }
         else {
-          // println!("x: {:?}", x);
-          // println!("y: {:?}", y);
+          println!("x: {:?}", x);
+          println!("x: {}", x);
+          println!("y: {:?}", y);
+          println!("y: {}", y);
           false
         }
       }

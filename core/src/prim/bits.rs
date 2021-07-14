@@ -11,8 +11,6 @@ use alloc::string::String;
 use crate::{
   ipld_error::IpldError,
   literal::Literal,
-  term::Term,
-  yatima,
 };
 
 use core::convert::TryFrom;
@@ -63,22 +61,6 @@ impl BitsOp {
       "index" => Some(Self::Index),
       "to_Bytes" => Some(Self::ToBytes),
       _ => None,
-    }
-  }
-
-  pub fn type_of(self) -> Term {
-    match self {
-      Self::Cons => yatima!("∀ #Bool #Bits -> #Bits"),
-      Self::Len => yatima!("∀ #Bits -> #Nat"),
-      Self::Head => yatima!("∀ #Bits -> #U8"),
-      Self::Tail => yatima!("∀ #Bits -> #Bits"),
-      Self::Take => yatima!("∀ #Nat #Bits -> #Bits"),
-      Self::Drop => yatima!("∀ #Nat #Bits -> #Bits"),
-      Self::Append => yatima!("∀ #Bits #Bits -> #Bits"),
-      Self::Insert => yatima!("∀ #Bool #Nat #Bits -> #Bits"),
-      Self::Remove => yatima!("∀ #Nat #Bits -> #Bits"),
-      Self::Index => yatima!("∀ #Nat #Bits -> #U8"),
-      Self::ToBytes => yatima!("∀ #Bits -> #Bytes"),
     }
   }
 
