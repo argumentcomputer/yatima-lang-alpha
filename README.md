@@ -129,7 +129,7 @@ cachix use yatima
 Assuming you have activated flakes for your nix, otherwise [see here](https://nixos.wiki/wiki/Flakes).
 
 ```bash
-# Run standalonw
+# Run standalone
 nix run
 # Build
 nix build
