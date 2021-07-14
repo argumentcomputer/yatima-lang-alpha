@@ -32,7 +32,8 @@ sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "m
 
 [dev-dependencies]
 quickcheck = "1.0.3"
-rand = "0.8.3"
+rand = {version = "0.8.3"}
+getrandom = {version = "0.2", features = ["js"]}
 quickcheck_macros = "1.0.0"
 
 

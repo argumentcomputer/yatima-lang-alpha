@@ -17,8 +17,8 @@ pub mod u64;
 pub mod u8;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;

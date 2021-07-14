@@ -5,8 +5,8 @@ use num_bigint::{
 use sp_ipld::Ipld;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;
@@ -163,7 +163,8 @@ impl IntOp {
     match (self, x, y) {
       (Self::New, Bool(x), Nat(y)) => Some(Int(if *x {
         BigInt::from(y.clone())
-      } else {
+      }
+      else {
         BigInt::from(y.clone()) * -1
       })),
       (Self::Eql, Int(x), Int(y)) => Some(ite(x == y)),
@@ -190,22 +191,22 @@ impl fmt::Display for IntOp {
 #[cfg(test)]
 pub mod tests {
   use super::*;
+  use num_bigint::{
+    BigInt,
+    BigUint,
+  };
   use quickcheck::{
     Arbitrary,
     Gen,
-    TestResult
+    TestResult,
   };
   use rand::Rng;
-  use Literal::{
-    Int,
-    Bool,
-    Nat
-  };
-  use num_bigint::{
-    BigInt,
-    BigUint
-  };
   use sp_std::mem;
+  use Literal::{
+    Bool,
+    Int,
+    Nat,
+  };
   impl Arbitrary for IntOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -237,51 +238,30 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: IntOp,
-    a: i64,
-    b: i64,
-    c: bool,
-    d: u64
-  ) -> TestResult {
+  fn test_apply(op: IntOp, a: i64, b: i64, c: bool, d: u64) -> TestResult {
     let big_int = BigInt::from;
     let big_uint = BigUint::from;
     let apply1_int = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        IntOp::apply1(
-          op,
-          &Int(big_int(a))
-        ) ==
-        expected
-      )
+      TestResult::from_bool(IntOp::apply1(op, &Int(big_int(a))) == expected)
     };
 
     let apply2_bool_nat = |expected: Option<Literal>| -> TestResult {
       TestResult::from_bool(
-        IntOp::apply2(
-          op,
-          &Bool(c),
-          &Nat(big_uint(d))
-        ) ==
-        expected
+        IntOp::apply2(op, &Bool(c), &Nat(big_uint(d))) == expected,
       )
     };
 
     let apply2_int_int = |expected: Option<Literal>| -> TestResult {
       TestResult::from_bool(
-        IntOp::apply2(
-          op,
-          &Int(big_int(a)),
-          &Int(big_int(b))
-        ) ==
-        expected
+        IntOp::apply2(op, &Int(big_int(a)), &Int(big_int(b))) == expected,
       )
     };
 
     match op {
       IntOp::New => apply2_bool_nat(Some(Int(if c {
         BigInt::from(d)
-      } else {
+      }
+      else {
         BigInt::from(d) * -1
       }))),
       IntOp::Sgn => apply1_int(Some(Bool(a.is_positive()))),
@@ -294,20 +274,18 @@ pub mod tests {
       IntOp::Add => apply2_int_int(Some(Int(big_int(a) + big_int(b)))),
       IntOp::Sub => apply2_int_int(Some(Int(big_int(a) - big_int(b)))),
       IntOp::Mul => apply2_int_int(Some(Int(big_int(a) * big_int(b)))),
-      IntOp::Div => apply2_int_int(
-          if b != 0 {
-          Some(Int(big_int(a) / big_int(b)))
-        } else {
-          None
-        }
-      ),
-      IntOp::Mod => apply2_int_int(
-          if b != 0 {
-          Some(Int(big_int(a) % big_int(b)))
-        } else {
-          None
-        }
-      ),
+      IntOp::Div => apply2_int_int(if b != 0 {
+        Some(Int(big_int(a) / big_int(b)))
+      }
+      else {
+        None
+      }),
+      IntOp::Mod => apply2_int_int(if b != 0 {
+        Some(Int(big_int(a) % big_int(b)))
+      }
+      else {
+        None
+      }),
     }
   }
 
@@ -319,78 +297,58 @@ pub mod tests {
     test_arg_2: bool,
   ) -> TestResult {
     let big = BigInt::from;
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          IntOp::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(IntOp::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        IntOp::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(IntOp::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 1, valid is Int.
-      IntOp::Sgn | 
-      IntOp::Abs => test_apply1_none_on_invalid(Int(big(b))),
+      IntOp::Sgn | IntOp::Abs => test_apply1_none_on_invalid(Int(big(b))),
       // Arity 2, valid are Int on a and b.
-      IntOp::New |
-      IntOp::Eql |
-      IntOp::Lte |
-      IntOp::Lth |
-      IntOp::Gte |
-      IntOp::Gth |
-      IntOp::Add |
-      IntOp::Sub |
-      IntOp::Mul |
-      IntOp::Div |
-      IntOp::Mod => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          Int(big(b)),
-          a,
-          Int(big(b))
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          Int(big(b)),
-          Int(big(b)),
-          a,
-        )
-      },
+      IntOp::New
+      | IntOp::Eql
+      | IntOp::Lte
+      | IntOp::Lth
+      | IntOp::Gte
+      | IntOp::Gth
+      | IntOp::Add
+      | IntOp::Sub
+      | IntOp::Mul
+      | IntOp::Div
+      | IntOp::Mod => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(Int(big(b)), a, Int(big(b)))
+        }
+        else {
+          test_apply2_none_on_invalid(Int(big(b)), Int(big(b)), a)
+        }
+      }
     }
   }
 

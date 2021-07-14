@@ -1,5 +1,10 @@
-use crate::file;
+use crate::{
+  file,
+  graph::PackageGraph,
+};
 use multiaddr::Multiaddr;
+use sp_cid::Cid;
+use sp_ipld::Ipld;
 use std::rc::Rc;
 use yatima_core::{
   anon,
@@ -13,9 +18,6 @@ use yatima_core::{
     Package,
   },
 };
-use sp_cid::Cid;
-use sp_ipld::Ipld;
-use crate::graph::PackageGraph;
 
 /// This trait describes the interactions with
 /// externally stored IPLD structures.
@@ -43,9 +45,10 @@ pub fn load_package_defs(
   let mut defs = Defs::new();
   for import in imports {
     if let Some(package_ipld) = store.get(import.cid.clone()) {
-      let imported_package = Package::from_ipld(&package_ipld)
-        .map_err(|e| format!("{:?}", e))?;
-      let imported_defs = load_package_defs(store.clone(), Rc::new(imported_package))?;
+      let imported_package =
+        Package::from_ipld(&package_ipld).map_err(|e| format!("{:?}", e))?;
+      let imported_defs =
+        load_package_defs(store.clone(), Rc::new(imported_package))?;
       defs = defs.merge(imported_defs, &import);
     }
     else {
@@ -99,7 +102,12 @@ pub fn show(
       "graph" => {
         let pack = Package::from_ipld(&ipld)?;
         let mut graph = PackageGraph::new();
-        graph.add_package(|cid| store.get(cid).and_then(|ref ipld| Package::from_ipld(ipld).ok()), pack);
+        graph.add_package(
+          |cid| {
+            store.get(cid).and_then(|ref ipld| Package::from_ipld(ipld).ok())
+          },
+          pack,
+        );
         Ok(format!("{}", graph.to_dot()))
       }
       "entry" => {

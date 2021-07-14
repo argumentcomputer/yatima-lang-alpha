@@ -31,15 +31,16 @@ use sp_ipld::{
 };
 
 use sp_std::{
+  borrow::ToOwned,
+  boxed::Box,
+  cell::RefCell,
   rc::Rc,
   vec::Vec,
-  boxed::Box,
-  borrow::ToOwned,
-  cell::RefCell,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 use crate::parse::span::Span;
