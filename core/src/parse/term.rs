@@ -64,7 +64,6 @@ use nom::{
   },
   combinator::{
     eof,
-    opt,
     peek,
     value,
   },

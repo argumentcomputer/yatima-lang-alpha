@@ -1,12 +1,14 @@
 use crate::{
-  ipld_error::IpldError,
   literal::{
     LitType,
     Literal,
   },
+  position::Pos,
   term::Term,
   yatima,
 };
+
+use num_bigint::BigUint;
 
 use crate::prim::{
   bits::BitsOp,
@@ -590,54 +592,57 @@ pub fn littype_induction(x: LitType, val: Term) -> Option<Term> {
   }
 }
 
-// pub fn literal_expand(self) -> Option<Term> {
-//  match self {
-//    Self::Nat(n) => {
-//      if n == BigUint::from(0u64) {
-//        Some(yatima!(
-//          "λ (ω P: ∀ (ω _: #Nat) -> Type) (ω z: #Nat) (ω s: #Nat) => z"
-//        ))
-//      }
-//      else {
-//        Some(yatima!(
-//          "λ P z s => s #$0",
-//          Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
-//        ))
-//      }
-//    }
-//    Self::Int(_) => Some(yatima!("λ P i => i")),
-//    Self::Bits(mut t) => {
-//      let c = t.pop();
-//      match c {
-//        None => Some(yatima!("λ P n c => n")),
-//        Some(c) => Some(yatima!(
-//          "λ P n c => c #$0 #$1",
-//          Term::Lit(Pos::None, Literal::Bool(c)),
-//          Term::Lit(Pos::None, Literal::Bits(t))
-//        )),
-//      }
-//    }
-//    Self::Bytes(mut t) => {
-//      let c = t.pop();
-//      match c {
-//        None => Some(yatima!("λ P n c => n")),
-//        Some(c) => Some(yatima!(
-//          "λ P n c => c #$0 #$1",
-//          Term::Lit(Pos::None, Literal::U8(c)),
-//          Term::Lit(Pos::None, Literal::Bytes(t))
-//        )),
-//      }
-//    }
-//    Self::Text(t) => match text::safe_head(t) {
-//      None => Some(yatima!("λ P n c => n")),
-//      Some((c, t)) => Some(yatima!(
-//        "λ P n c => c #$0 #$1",
-//        Term::Lit(Pos::None, Literal::Char(c)),
-//        Term::Lit(Pos::None, Literal::Text(t))
-//      )),
-//    },
-//    Self::Bool(true) => Some(yatima!("λ P t f => t")),
-//    Self::Bool(false) => Some(yatima!("λ P t f => f")),
-//    _ => None,
-//  }
-//}
+pub fn literal_expand(x: Literal) -> Option<Term> {
+  match x {
+    Literal::Nat(n) => {
+      if n == BigUint::from(0u64) {
+        Some(yatima!(
+          "λ (ω P: ∀ (ω _: #Nat) -> Type) (ω z: #Nat) (ω s: #Nat) => z"
+        ))
+      }
+      else {
+        Some(yatima!(
+          "λ (ω P: ∀ (ω _: #Nat) -> Type) (ω z: #Nat) (ω s: #Nat)
+            => s (#$0 :: #Nat)",
+          Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
+        ))
+      }
+    }
+    Literal::Int(_) => {
+      Some(yatima!("λ (ω P: ∀ (ω _: #Int) -> Type) (ω i: #Int) => i"))
+    }
+    // Self::Bits(mut t) => {
+    //  let c = t.pop();
+    //  match c {
+    //    None => Some(yatima!("λ P n c => n")),
+    //    Some(c) => Some(yatima!(
+    //      "λ P n c => c #$0 #$1",
+    //      Term::Lit(Pos::None, Literal::Bool(c)),
+    //      Term::Lit(Pos::None, Literal::Bits(t))
+    //    )),
+    //  }
+    //}
+    // Self::Bytes(mut t) => {
+    //  let c = t.pop();
+    //  match c {
+    //    None => Some(yatima!("λ P n c => n")),
+    //    Some(c) => Some(yatima!(
+    //      "λ P n c => c #$0 #$1",
+    //      Term::Lit(Pos::None, Literal::U8(c)),
+    //      Term::Lit(Pos::None, Literal::Bytes(t))
+    //    )),
+    //  }
+    //}
+    // Self::Text(t) => match text::safe_head(t) {
+    //  None => Some(yatima!("λ P n c => n")),
+    //  Some((c, t)) => Some(yatima!(
+    //    "λ P n c => c #$0 #$1",
+    //    Term::Lit(Pos::None, Literal::Char(c)),
+    //    Term::Lit(Pos::None, Literal::Text(t))
+    //  )),
+    //},
+    // Self::Bool(true) => Some(yatima!("λ P t f => t")),
+    // Self::Bool(false) => Some(yatima!("λ P t f => f")),
+    _ => None,
+  }
+}

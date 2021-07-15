@@ -4,10 +4,6 @@ use crate::{
     base,
     span::Span,
   },
-  term::{
-    LitType,
-    Literal,
-  },
 };
 
 use nom::{
