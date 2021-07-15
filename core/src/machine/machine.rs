@@ -16,6 +16,8 @@ use sp_std::{
   hash::{Hash, Hasher},
 };
 
+// The maximum byte size of array of globals
+pub const GBL_SIZE: usize = 4;
 // The maximum byte size of the environment
 pub const ENV_SIZE: usize = 4;
 // The maximum byte size of the closure mapping size
@@ -28,12 +30,14 @@ pub const MK_FUN: CODE = 1;
 pub const MK_APP: CODE = 2;
 // Build a free variable node
 pub const MK_VAR: CODE = 3;
-// Reference to the argument of the function
-pub const REF_ARG: CODE = 4;
-// Reference to a value in the environment
-pub const REF_ENV: CODE = 5;
+// Reference a global definition
+pub const REF_GBL: CODE = 4;
+// Reference the argument of the function
+pub const REF_ARG: CODE = 5;
+// Reference a value in the environment
+pub const REF_ENV: CODE = 6;
 // Evaluate last node
-pub const EVAL: CODE = 6;
+pub const EVAL: CODE = 7;
 // End of code
 pub const END: CODE = 0;
 
@@ -47,6 +51,26 @@ pub enum Graph {
   App(u64, Link<Graph>, Link<Graph>),
   // Hash, name
   Var(u64, Name),
+  // Hash, reference
+  Ref(u64, usize),
+
+  // All(Pos, Uses, Name, Box<(Term, Term)>),
+  // Slf(Pos, Name, Box<Term>),
+  // Dat(Pos, Box<Term>),
+  // Cse(Pos, Box<Term>),
+  // Ref(Pos, Name, Cid, Cid),
+  // Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
+  // Typ(Pos),
+  // Ann(Pos, Box<(Term, Term)>),
+  // Lit(Pos, Literal),
+  // LTy(Pos, LitType),
+  // Opr(Pos, Op),
+  // Rec(Pos),
+}
+
+pub struct DefCell {
+  pub name: Name,
+  pub term: Link<Graph>,
 }
 
 pub struct FunCell {
@@ -68,6 +92,7 @@ pub fn get_hash(term: &Graph) -> u64 {
     Graph::Fun(hash, _, _) => *hash,
     Graph::Var(hash, _) => *hash,
     Graph::App(hash, _, _) => *hash,
+    Graph::Ref(hash, _) => *hash,
   }
 }
 
@@ -93,7 +118,14 @@ pub fn usize_to_bytes<const N: usize>(num: usize) -> [u8; N] {
 }
 
 #[inline]
-pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, arg: Link<Graph>, redex: Link<Graph>) -> Link<Graph> {
+pub fn build_graph(
+  globals: &Vec<DefCell>,
+  fun_defs: &Vec<FunCell>,
+  idx: usize,
+  env: &Vec<Link<Graph>>,
+  arg: Link<Graph>,
+  redex: Link<Graph>
+) -> Link<Graph> {
   let code = &fun_defs[idx].code;
   let mut pc = 0;
   let mut args: Vec<Link<Graph>> = vec![];
@@ -146,6 +178,12 @@ pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, 
           Graph::Fun(hash, fun_index, fun_env)
         )));
       }
+      REF_GBL => {
+        let bytes = &code[pc+1..pc+1+GBL_SIZE];
+        let index = bytes_to_usize(bytes);
+        args.push(globals[index].term.clone());
+        pc = pc+ENV_SIZE;
+      },
       REF_ARG => {
         args.push(arg.clone());
       },
@@ -166,7 +204,7 @@ pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, 
       EVAL => {
         // EVAL should be used for projection functions, i.e., functions where the body is a single variable node
         if let Some(arg) = args.last() {
-          reduce(fun_defs, arg.clone());
+          reduce(globals, fun_defs, arg.clone());
         }
         else {
           panic!("Stack underflow")
@@ -187,7 +225,11 @@ pub fn build_graph(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<Link<Graph>>, 
 }
 
 #[inline]
-pub fn reduce(fun_defs: &Vec<FunCell>, top_node: Link<Graph>) -> Link<Graph> {
+pub fn reduce(
+  globals: &Vec<DefCell>,
+  fun_defs: &Vec<FunCell>,
+  top_node: Link<Graph>
+) -> Link<Graph> {
   let mut node = top_node;
   let mut trail = vec![];
   loop {
@@ -206,11 +248,19 @@ pub fn reduce(fun_defs: &Vec<FunCell>, top_node: Link<Graph>) -> Link<Graph> {
             }
             _ => unreachable!()
           };
-          build_graph(fun_defs, *idx, env, arg, redex)
+          build_graph(globals, fun_defs, *idx, env, arg, redex)
         }
         else {
           break
         }
+      },
+      Graph::Ref(_, idx) => {
+        let top_ref_node = reduce(globals, fun_defs, globals[*idx].term.clone());
+        {
+          let mut mut_ref = (*node).borrow_mut();
+          *mut_ref = (*top_ref_node.borrow()).clone();
+        }
+        node.clone()
       },
       _ => break,
     };
@@ -227,27 +277,39 @@ pub fn reduce(fun_defs: &Vec<FunCell>, top_node: Link<Graph>) -> Link<Graph> {
 }
 
 #[inline]
-pub fn stringify_graph(fun_defs: &Vec<FunCell>, graph: Link<Graph>) -> String {
+pub fn stringify_graph(
+  globals: &Vec<DefCell>,
+  fun_defs: &Vec<FunCell>,
+  graph: Link<Graph>
+) -> String {
   match &*graph.borrow() {
-      Graph::App(_, fun, arg) => {
-        let fun = stringify_graph(fun_defs, fun.clone());
-        let arg = stringify_graph(fun_defs, arg.clone());
-        format!("(App {} {})", fun, arg)
+    Graph::App(_, fun, arg) => {
+      let fun = stringify_graph(globals, fun_defs, fun.clone());
+      let arg = stringify_graph(globals, fun_defs, arg.clone());
+      format!("(App {} {})", fun, arg)
+    }
+    Graph::Fun(_, idx, env) => {
+      let mut env_str = vec![];
+      for graph in env {
+        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
       }
-      Graph::Fun(_, idx, env) => {
-        let mut env_str = vec![];
-        for graph in env {
-          env_str.push(stringify_graph(fun_defs, graph.clone()));
-        }
-        stringify_code(fun_defs, *idx, &env_str)
-      }
-      Graph::Var(name, _) => {
-        format!("(Var {})", name)
-      }
+      stringify_code(globals, fun_defs, *idx, &env_str)
+    }
+    Graph::Var(name, _) => {
+      format!("(Var {})", name)
+    }
+    Graph::Ref(_, idx) => {
+      format!("(Ref {})", globals[*idx].name)
+    },
   }
 }
 
-pub fn stringify_code(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<String>) -> String {
+pub fn stringify_code(
+  globals: &Vec<DefCell>,
+  fun_defs: &Vec<FunCell>,
+  idx: usize,
+  env: &Vec<String>
+) -> String {
   let code = &fun_defs[idx].code;
   let arg_name = &fun_defs[idx].arg_name;
   let mut pc = 0;
@@ -279,7 +341,7 @@ pub fn stringify_code(fun_defs: &Vec<FunCell>, idx: usize, env: &Vec<String>) ->
           }
           pc = pc+ENV_SIZE;
         }
-        args.push(stringify_code(fun_defs, fun_index, &fun_env));
+        args.push(stringify_code(globals, fun_defs, fun_index, &fun_env));
       }
       REF_ARG => {
         args.push(format!("(Var {})", arg_name));

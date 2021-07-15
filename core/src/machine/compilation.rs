@@ -6,10 +6,30 @@ use crate::machine::{
 use crate::name::Name;
 
 use sp_std::{
-  vec::Vec,
   rc::Rc,
+  vec::Vec,
   cell::RefCell,
+  collections::btree_set::BTreeSet,
 };
+
+pub fn defs_to_globals(defs: &Vec<(Name, IR)>, fun_defs: &mut Vec<FunCell>) -> (Vec<DefCell>, Option<usize>) {
+  let mut done = BTreeSet::new();
+  let mut globals = vec![];
+  let mut main_idx = None;
+  for i in 0..defs.len() {
+    if done.insert(i) {
+      let new_global = ir_to_graph(&defs[i].1, fun_defs);
+      globals.push(DefCell {
+        name: defs[i].0.clone(),
+        term: new_global,
+      });
+      if &*defs[i].0 == "main" {
+        main_idx = Some(i);
+      }
+    }
+  }
+  (globals, main_idx)
+}
 
 pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
   match ir {
@@ -37,6 +57,7 @@ pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
         Graph::App(hash, fun, arg)
       ))
     },
+    _ => todo!()
   }
 }
 
@@ -97,6 +118,7 @@ pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCel
         go(false, fun, code, env, fun_defs);
         code.push(MK_APP);
       },
+      _ => todo!()
     }
   }
 

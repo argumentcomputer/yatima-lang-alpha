@@ -212,21 +212,19 @@ async fn main() -> std::io::Result<()> {
     }
     Command::Machine { path } => {
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
+      let (_, _, defs) = file::parse::parse_file(env).map_err(|e| {
         eprintln!("{}", e);
         std::io::Error::from(std::io::ErrorKind::Other)
       })?;
-
-      let _cid = store.put(p.to_ipld());
-      let def = defs
-        .get(&Name::from("main"))
-        .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
-      let ir = yatima_core::machine::ir::term_to_ir(&def.to_owned().term, &defs);
+      let ir_defs = yatima_core::machine::ir::defs_to_ir(&defs);
       let mut fun_defs = vec![];
-      let graph = yatima_core::machine::compilation::ir_to_graph(&ir, &mut fun_defs);
-      println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&fun_defs, graph.clone()));
-      let graph = yatima_core::machine::machine::reduce(&fun_defs, graph);
-      println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&fun_defs, graph));
+      let (globals, main) = yatima_core::machine::compilation::defs_to_globals(&ir_defs, &mut fun_defs);
+      if let Some(idx) = main {
+        let graph = globals[idx].term.clone();
+        println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph.clone()));
+        let graph = yatima_core::machine::machine::reduce(&globals, &fun_defs, graph);
+        println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph));
+      }
       Ok(())
     }
     Command::Run { path } => {
