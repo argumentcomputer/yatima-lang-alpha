@@ -4,16 +4,24 @@
 // In this initial draft, each function will take exactly one argument. The elements of the stack
 // will be copied as needed to the environment of closures.
 
+// As an optimization we might add Thunks as well, to allow lazy building of graphs. It will also
+// be possible to skip the building of the spine altogether. However, App nodes are still necessary
+// for typechecking
+
 use crate::name::Name;
 
 use alloc::string::String;
-
 use sp_std::{
   vec::Vec,
-  convert::TryInto,
   rc::Rc,
   cell::RefCell,
-  hash::{Hash, Hasher},
+};
+
+use sp_multihash::{
+  U32,
+  StatefulHasher,
+  Blake3Hasher,
+  Blake3Digest,
 };
 
 // The maximum byte size of array of globals
@@ -42,17 +50,18 @@ pub const EVAL: CODE = 7;
 pub const END: CODE = 0;
 
 pub type Link<T> = Rc<RefCell<T>>;
+pub type Hash = Blake3Digest<U32>;
 
 #[derive(Clone)]
 pub enum Graph {
   // Hash, index of function code and environment
-  Fun(u64, usize, Vec<Link<Graph>>),
+  Fun(Hash, usize, Vec<Link<Graph>>),
   // Hash, function node, argument node
-  App(u64, Link<Graph>, Link<Graph>),
+  App(Hash, Link<Graph>, Link<Graph>),
   // Hash, name
-  Var(u64, Name),
+  Var(Hash, Name),
   // Hash, reference
-  Ref(u64, usize),
+  Ref(Hash, usize),
 
   // All(Pos, Uses, Name, Box<(Term, Term)>),
   // Slf(Pos, Name, Box<Term>),
@@ -76,23 +85,22 @@ pub struct DefCell {
 pub struct FunCell {
   pub arg_name: Name,
   pub code: Vec<CODE>,
+  pub hash: Hash,
 }
 
 #[inline]
-pub fn make_hash<T: Hash>(x: &T) -> u64 {
-  // let mut hasher = DefaultHasher::new();
-  // x.hash(&mut hasher);
-  // hasher.finish()
-  0
+pub fn update_hasher(hasher: &mut Blake3Hasher<U32>, x: usize) {
+  let bytes = usize_to_bytes::<8>(x);
+  hasher.update(&bytes);
 }
 
 #[inline]
-pub fn get_hash(term: &Graph) -> u64 {
+pub fn get_hash<'a>(term: &'a Graph) -> &'a [u8] {
   match term {
-    Graph::Fun(hash, _, _) => *hash,
-    Graph::Var(hash, _) => *hash,
-    Graph::App(hash, _, _) => *hash,
-    Graph::Ref(hash, _) => *hash,
+    Graph::Fun(hash, _, _) => hash.as_ref(),
+    Graph::Var(hash, _) => hash.as_ref(),
+    Graph::App(hash, _, _) => hash.as_ref(),
+    Graph::Ref(hash, _) => hash.as_ref(),
   }
 }
 
@@ -129,31 +137,34 @@ pub fn build_graph(
   let code = &fun_defs[idx].code;
   let mut pc = 0;
   let mut args: Vec<Link<Graph>> = vec![];
+  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
   loop {
     match code[pc] {
       MK_APP => {
         // Function comes last, so it is popped first
         let fun = args.pop().unwrap();
         let arg = args.pop().unwrap();
-        let hash_fun = get_hash(&fun.borrow());
-        let hash_arg = get_hash(&arg.borrow());
-        let mut app_hash = (MK_APP as u64)
-          .wrapping_add(hash_fun)
-          .wrapping_add(hash_arg);
-        app_hash = make_hash(&app_hash);
+        hasher.reset();
+        hasher.update(get_hash(&arg.borrow()));
+        hasher.update(get_hash(&fun.borrow()));
+        update_hasher(&mut hasher, MK_APP as usize);
+        let hash = hasher.finalize();
         args.push(Rc::new(RefCell::new(
-          Graph::App(app_hash, fun, arg)
+          Graph::App(hash, fun, arg)
         )));
       },
       MK_FUN => {
         let bytes = &code[pc+1..pc+1+MAP_SIZE];
         let fun_index = bytes_to_usize(bytes);
         pc = pc+MAP_SIZE;
-        let mut hash = make_hash(&fun_defs[fun_index].code);
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
         let env_length = bytes_to_usize(bytes);
         pc = pc+ENV_SIZE;
         let mut fun_env = vec![];
+        hasher.reset();
+        update_hasher(&mut hasher, MK_FUN as usize);
+        hasher.update(fun_defs[fun_index].hash.as_ref());
+        update_hasher(&mut hasher, env_length);
         for _ in 0..env_length {
           let bytes = &code[pc+1..pc+1+ENV_SIZE];
           let index = bytes_to_usize(bytes);
@@ -163,17 +174,15 @@ pub fn build_graph(
           // in the environment
           if index == 0 {
             fun_env.push(arg.clone());
-            hash = hash
-              .wrapping_add(get_hash(&arg.borrow()));
+            hasher.update(get_hash(&arg.borrow()));
           }
           else {
             fun_env.push(env[index-1].clone());
-            hash = hash
-              .wrapping_add(get_hash(&env[index-1].borrow()));
+            hasher.update(get_hash(&env[index-1].borrow()));
           }
-          hash = make_hash(&hash);
           pc = pc+ENV_SIZE;
         }
+        let hash = hasher.finalize();
         args.push(Rc::new(RefCell::new(
           Graph::Fun(hash, fun_index, fun_env)
         )));
@@ -195,11 +204,16 @@ pub fn build_graph(
       },
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
-        let hash = u64::from_be_bytes(bytes.try_into().unwrap());
+        hasher.reset();
+        update_hasher(&mut hasher, MK_VAR as usize);
+        hasher.update(bytes);
+        let hash = hasher.finalize();
         // TODO: add proper names
+        let name = Name::from("x");
         args.push(Rc::new(RefCell::new(
-          Graph::Var(hash, Name::from("x"))
+          Graph::Var(hash, name)
         )));
+        pc = pc+8;
       },
       EVAL => {
         // EVAL should be used for projection functions, i.e., functions where the body is a single variable node
@@ -233,6 +247,7 @@ pub fn reduce(
   let mut node = top_node;
   let mut trail = vec![];
   loop {
+    let mut is_ref = false;
     let next_node = match &*node.borrow() {
       Graph::App(_, fun, _) => {
         trail.push(node.clone());
@@ -255,16 +270,18 @@ pub fn reduce(
         }
       },
       Graph::Ref(_, idx) => {
-        let top_ref_node = reduce(globals, fun_defs, globals[*idx].term.clone());
-        {
-          let mut mut_ref = (*node).borrow_mut();
-          *mut_ref = (*top_ref_node.borrow()).clone();
-        }
-        node.clone()
+        is_ref = true;
+        reduce(globals, fun_defs, globals[*idx].term.clone())
       },
       _ => break,
     };
-    node = next_node;
+    if is_ref {
+      let mut mut_ref = (*node).borrow_mut();
+      *mut_ref = (*next_node.borrow()).clone();
+    }
+    else {
+      node = next_node;
+    }
   }
   if trail.is_empty() {
     node
@@ -295,8 +312,8 @@ pub fn stringify_graph(
       }
       stringify_code(globals, fun_defs, *idx, &env_str)
     }
-    Graph::Var(name, _) => {
-      format!("(Var {})", name)
+    Graph::Var(_, nam) => {
+      format!("(Var {})", nam)
     }
     Graph::Ref(_, idx) => {
       format!("(Ref {})", globals[*idx].name)
@@ -353,7 +370,10 @@ pub fn stringify_code(
         pc = pc+ENV_SIZE;
       },
       MK_VAR => {
-        todo!()
+        let bytes = &code[pc+1..pc+9];
+        // TODO: add proper names
+        args.push(format!("(Var {})", bytes_to_usize(bytes)));
+        pc = pc+8;
       },
       EVAL => {
       }

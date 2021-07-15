@@ -12,6 +12,12 @@ use sp_std::{
   collections::btree_set::BTreeSet,
 };
 
+use sp_multihash::{
+  U32,
+  StatefulHasher,
+  Blake3Hasher,
+};
+
 pub fn defs_to_globals(defs: &Vec<(Name, IR)>, fun_defs: &mut Vec<FunCell>) -> (Vec<DefCell>, Option<usize>) {
   let mut done = BTreeSet::new();
   let mut globals = vec![];
@@ -33,9 +39,15 @@ pub fn defs_to_globals(defs: &Vec<(Name, IR)>, fun_defs: &mut Vec<FunCell>) -> (
 
 pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
   match ir {
-    IR::Var(name, idx) => Rc::new(RefCell::new(
-      Graph::Var(*idx, name.clone())
-    )),
+    IR::Var(name, idx) => {
+      let mut hasher = Blake3Hasher::default();
+      update_hasher(&mut hasher, MK_VAR as usize);
+      update_hasher(&mut hasher, *idx as usize);
+      let hash = hasher.finalize();
+      Rc::new(RefCell::new(
+        Graph::Var(hash, name.clone())
+      ))
+    },
     IR::Lam(name, _, bod) => {
       // It is assumed that bod has no free variables, since this function
       // will be called on top-level terms. It will be possible in the future,
@@ -49,25 +61,35 @@ pub fn ir_to_graph(ir: &IR, fun_defs: &mut Vec<FunCell>) -> Link<Graph> {
     IR::App(fun, arg) => {
       let fun = ir_to_graph(fun, fun_defs);
       let arg = ir_to_graph(arg, fun_defs);
-      let mut hash = (MK_APP as u64)
-        .wrapping_add(get_hash(&fun.borrow()))
-        .wrapping_add(get_hash(&arg.borrow()));
-      hash = make_hash(&hash);
+      let mut hasher = Blake3Hasher::default();
+      hasher.update(get_hash(&arg.borrow()));
+      hasher.update(get_hash(&fun.borrow()));
+      update_hasher(&mut hasher, MK_APP as usize);
+      let hash = hasher.finalize();
       Rc::new(RefCell::new(
         Graph::App(hash, fun, arg)
       ))
     },
-    _ => todo!()
+    IR::Ref(idx) => {
+      let mut hasher = Blake3Hasher::default();
+      update_hasher(&mut hasher, REF_GBL as usize);
+      update_hasher(&mut hasher, *idx as usize);
+      let hash = hasher.finalize();
+      Rc::new(RefCell::new(
+        Graph::Ref(hash, *idx)
+      ))
+    },
   }
 }
 
 // TODO: change `fun_defs` into a hashmap as to not duplicate lambdas
-pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCell>) -> (u64, usize) {
-  fn go(is_proj: bool, ir: &IR, code: &mut Vec<CODE>, env: &FreeVars, fun_defs: &mut Vec<FunCell>) {
+pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCell>) -> (Hash, usize) {
+  fn go(is_proj: bool, hasher: &mut Blake3Hasher<U32>, ir: &IR, code: &mut Vec<CODE>, env: &FreeVars, fun_defs: &mut Vec<FunCell>) {
     match ir {
       IR::Var(_, idx) => {
         if *idx == 0 {
           code.push(REF_ARG);
+          update_hasher(hasher, REF_ARG as usize);
         }
         else {
           // The environment of free variables we get is one depth less than the depth of
@@ -76,6 +98,8 @@ pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCel
             let bytes = usize_to_bytes::<ENV_SIZE>(pos);
             code.push(REF_ENV);
             code.extend_from_slice(&bytes);
+            update_hasher(hasher, REF_ENV as usize);
+            update_hasher(hasher, (*idx-1) as usize);
           }
           else {
             // Are we ever going to need functions that purposefully build free variables?
@@ -90,12 +114,14 @@ pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCel
         }
       },
       IR::Lam(name, free, bod) => {
-        let (_, pos) = compile_ir(name.clone(), bod, &free, fun_defs);
+        let (hash, pos) = compile_ir(name.clone(), bod, &free, fun_defs);
         code.push(MK_FUN);
         let bytes = usize_to_bytes::<MAP_SIZE>(pos);
         code.extend_from_slice(&bytes);
         let bytes = usize_to_bytes::<ENV_SIZE>(free.len());
         code.extend_from_slice(&bytes);
+        update_hasher(hasher, MK_FUN as usize);
+        hasher.update(hash.as_ref());
         for pos in 0..free.len() {
           let idx = free.peek()[pos];
           // Index 0 is a reference to the argument of the function, other indices are
@@ -105,30 +131,42 @@ pub fn compile_ir(name: Name, ir: &IR, env: &FreeVars, fun_defs: &mut Vec<FunCel
           if idx == 0 {
             let bytes = usize_to_bytes::<ENV_SIZE>(0);
             code.extend_from_slice(&bytes);
+            update_hasher(hasher, REF_ARG as usize);
           }
           else {
             let bytes = usize_to_bytes::<ENV_SIZE>(pos+1);
             code.extend_from_slice(&bytes);
+            update_hasher(hasher, REF_ENV as usize);
+            update_hasher(hasher, (idx-1) as usize);
           }
         }
       },
       IR::App(fun, arg) => {
         // Argument first, function second
-        go(false, arg, code, env, fun_defs);
-        go(false, fun, code, env, fun_defs);
+        go(false, hasher, arg, code, env, fun_defs);
+        go(false, hasher, fun, code, env, fun_defs);
         code.push(MK_APP);
+        update_hasher(hasher, MK_APP as usize);
       },
-      _ => todo!()
+      IR::Ref(idx) => {
+        let bytes = usize_to_bytes::<GBL_SIZE>(*idx);
+        code.push(REF_GBL);
+        code.extend_from_slice(&bytes);
+        update_hasher(hasher, REF_GBL as usize);
+        update_hasher(hasher, *idx as usize);
+      }
     }
   }
 
+  let mut hasher = Blake3Hasher::default();
   let mut code = vec![];
-  go(true, ir, &mut code, env, fun_defs);
+  go(true, &mut hasher, ir, &mut code, env, fun_defs);
   code.push(END);
-  let hash = make_hash(&code);
+  let hash = hasher.finalize();
   fun_defs.push(FunCell {
     arg_name: name.clone(),
     code,
+    hash,
   });
   (hash, fun_defs.len()-1)
 }

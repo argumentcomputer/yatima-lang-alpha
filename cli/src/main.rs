@@ -219,12 +219,11 @@ async fn main() -> std::io::Result<()> {
       let ir_defs = yatima_core::machine::ir::defs_to_ir(&defs);
       let mut fun_defs = vec![];
       let (globals, main) = yatima_core::machine::compilation::defs_to_globals(&ir_defs, &mut fun_defs);
-      if let Some(idx) = main {
-        let graph = globals[idx].term.clone();
-        println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph.clone()));
-        let graph = yatima_core::machine::machine::reduce(&globals, &fun_defs, graph);
-        println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph));
-      }
+      let idx = main.expect(&format!("No `main` expression in file {:?}", path));
+      let graph = globals[idx].term.clone();
+      println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph.clone()));
+      let graph = yatima_core::machine::machine::reduce(&globals, &fun_defs, graph);
+      println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph));
       Ok(())
     }
     Command::Run { path } => {
