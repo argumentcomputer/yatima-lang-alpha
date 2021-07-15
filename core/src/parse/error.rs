@@ -18,16 +18,16 @@ use nom::{
   InputLength,
 };
 
-#[cfg(feature = "std")]
-use std::{
+#[cfg(not(feature = "std"))]
+use sp_std::{
   cmp::Ordering,
   fmt,
   fmt::Write,
   num::ParseIntError,
   vec::Vec,
 };
-#[cfg(not(feature = "std"))]
-use sp_std::{
+#[cfg(feature = "std")]
+use std::{
   cmp::Ordering,
   fmt,
   fmt::Write,
@@ -54,8 +54,6 @@ pub enum ParseErrorKind {
   ReservedKeyword(String),
   NumericSyntax(String),
   ReservedSyntax(String),
-  LiteralLacksWhitespaceTermination(Literal),
-  LitTypeLacksWhitespaceTermination(LitType),
   UnknownNatOp(Name),
   UnknownIntOp(Name),
   UnknownBitsOp(Name),
@@ -121,12 +119,6 @@ impl<'a> fmt::Display for ParseErrorKind {
            whitespace or control character.",
           name
         )
-      }
-      Self::LiteralLacksWhitespaceTermination(x) => {
-        write!(f, "Literal {} must be terminated by whitespace or eof", x)
-      }
-      Self::LitTypeLacksWhitespaceTermination(x) => {
-        write!(f, "Literal type {} must be terminated by whitespace or eof", x)
       }
       Self::UnknownNatOp(x) => {
         write!(f, "Unknown primitive Nat operation #Nat.{}", x)

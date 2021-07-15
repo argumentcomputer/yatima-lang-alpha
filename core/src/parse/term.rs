@@ -60,14 +60,21 @@ use nom::{
     digit1,
     multispace0,
     multispace1,
+    satisfy,
   },
   combinator::{
+    eof,
     opt,
+    peek,
     value,
   },
   error::context,
-  multi::many0,
+  multi::{
+    many0,
+    many1,
+  },
   sequence::{
+    delimited,
     preceded,
     terminated,
   },
@@ -253,7 +260,99 @@ pub fn parse_var(
   }
 }
 
-pub fn parse_app(
+pub fn parse_arg(
+  input: Cid,
+  defs: Defs,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: Quasi,
+) -> impl Fn(Span) -> IResult<Span, (Uses, Term, Term), ParseError<Span>> {
+  move |i: Span| {
+    let (i, _) = terminated(tag("("), parse_space)(i)?;
+    let (i, arg) = context(
+      "app arg",
+      parse_telescope(
+        input,
+        defs.clone(),
+        rec.clone(),
+        ctx.clone(),
+        quasi.clone(),
+      ),
+    )(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, _) = terminated(tag("::"), parse_space)(i)?;
+    let (i, u) = terminated(parse_uses(), parse_space)(i)?;
+    let (i, typ) = context(
+      "app typ",
+      parse_telescope(
+        input,
+        defs.clone(),
+        rec.clone(),
+        ctx.clone(),
+        quasi.clone(),
+      ),
+    )(i)?;
+    let (i, _) = preceded(parse_space, tag(")"))(i)?;
+    Ok((i, (u, typ, arg)))
+  }
+}
+
+pub fn parse_args(
+  input: Cid,
+  defs: Defs,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: Quasi,
+) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Term, Term)>, ParseError<Span>>
+{
+  move |mut i: Span| {
+    let mut res = Vec::new();
+
+    loop {
+      match preceded(parse_space, peek(parse_tele_end))(i) {
+        Ok((i2, _)) => return Ok((i2, res)),
+        _ => {}
+      }
+      match preceded(
+        parse_space,
+        parse_arg(
+          input,
+          defs.to_owned(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.to_owned(),
+        ),
+      )(i)
+      {
+        Err(e) => return Err(e),
+        Ok((i2, x)) => {
+          res.push(x);
+          i = i2;
+        }
+      }
+    }
+  }
+}
+
+pub fn parse_tele_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
+  let (i, _) = alt((
+    peek(tag("def")),
+    peek(tag("type")),
+    peek(tag("in")),
+    peek(tag("::")),
+    peek(tag("=")),
+    peek(tag("->")),
+    peek(tag(";")),
+    peek(tag(")")),
+    peek(tag("{")),
+    peek(tag("}")),
+    peek(tag(",")),
+    peek(eof),
+  ))(i)?;
+  Ok((i, ()))
+}
+
+pub fn parse_telescope(
   input: Cid,
   defs: Defs,
   rec: Option<Name>,
@@ -261,28 +360,136 @@ pub fn parse_app(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = terminated(tag("("), parse_space)(from)?;
     let (i, fun) = context(
       "app fun",
       parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
-    )(i)?;
+    )(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, _) = terminated(tag("("), parse_space)(i)?;
-    let (i, arg) = context(
-      "app arg",
-      parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
-    )(i)?;
-    let (i, _) = parse_space(i)?;
-    let (i, _) = terminated(tag("::"), parse_space)(i)?;
-    let (i, u) = terminated(parse_uses(), parse_space)(i)?;
-    let (i, typ) = context(
-      "app typ",
-      parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
-    )(i)?;
-    let (i, _) = preceded(parse_space, tag(")"))(i)?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
+    let (upto, args) =
+      parse_args(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
+        i,
+      )?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::App(pos, u, Box::new((fun, typ, arg)))))
+    let trm = args.into_iter().fold(fun, |acc, (u, typ, arg)| {
+      Term::App(pos, u, Box::new((acc, typ, arg)))
+    });
+    return Ok((upto, trm));
+  }
+}
+
+pub fn parse_binder(
+  input: Cid,
+  defs: Defs,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: Quasi,
+) -> impl Fn(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+  move |i: Span| {
+    let (i, _) = tag("(")(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, u) = parse_uses()(i)?;
+    let (i, ns) = many1(terminated(parse_name, parse_space))(i)?;
+    let (i, _) = tag(":")(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, typ) = parse_telescope(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.to_owned(),
+    )(i)?;
+    let (i, _) = tag(")")(i)?;
+    let mut res = Vec::new();
+    for (i, n) in ns.iter().enumerate() {
+      res.push((u, n.to_owned(), typ.clone().shift(i as u64, Some(0))))
+    }
+    Ok((i, res))
+  }
+}
+
+pub fn parse_binders(
+  input: Cid,
+  defs: Defs,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: Quasi,
+  terminator: Vec<char>,
+) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
+{
+  move |mut i: Span| {
+    let mut ctx = ctx.clone();
+    let mut res = Vec::new();
+
+    loop {
+      match preceded(parse_space, peek(satisfy(|x| terminator.contains(&x))))(i)
+      {
+        Ok((i2, _)) => return Ok((i2, res)),
+        _ => {}
+      }
+      match preceded(
+        parse_space,
+        parse_binder(
+          input,
+          defs.to_owned(),
+          rec.clone(),
+          ctx.clone(),
+          quasi.to_owned(),
+        ),
+      )(i)
+      {
+        Err(e) => return Err(e),
+        Ok((i2, bs)) => {
+          for (u, n, t) in bs {
+            ctx = ctx.cons(n.to_owned());
+            res.push((u, n, t));
+          }
+          i = i2;
+        }
+      }
+    }
+  }
+}
+
+pub fn parse_binders1(
+  input: Cid,
+  defs: Defs,
+  rec: Option<Name>,
+  ctx: Ctx,
+  quasi: Quasi,
+  terminator: Vec<char>,
+) -> impl FnMut(Span) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>>
+{
+  move |mut i: Span| {
+    let mut ctx = ctx.clone();
+    let mut res = Vec::new();
+
+    match parse_binder(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.to_owned(),
+    )(i.to_owned())
+    {
+      Err(e) => return Err(e),
+      Ok((i1, bs)) => {
+        for (u, n, t) in bs {
+          ctx = ctx.cons(n.to_owned());
+          res.push((u, n, t));
+        }
+        i = i1;
+      }
+    }
+    let (i, mut res2) = parse_binders(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.to_owned(),
+      terminator.clone(),
+    )(i)?;
+    res.append(&mut res2);
+    Ok((i, res))
   }
 }
 
@@ -294,32 +501,34 @@ pub fn parse_lam(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = terminated(tag("("), parse_space)(from)?;
-    let (i, _) = alt((tag("λ"), tag("lambda")))(i)?;
+    let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, _) = terminated(tag("("), parse_space)(i)?;
-    let (i, u) = terminated(parse_uses(), parse_space)(i)?;
-    let (i, n) = terminated(parse_name, parse_space)(i)?;
-    let (i, _) = terminated(tag(":"), parse_space)(i)?;
-    let (i, t) = parse_term(
+    let (i, bs) = parse_binders1(
       input,
       defs.clone(),
       rec.clone(),
       ctx.clone(),
-      quasi.to_owned(),
+      quasi.clone(),
+      vec!['='],
     )(i)?;
-    let (i, _) = preceded(parse_space, tag(")"))(i)?;
-    let (i, _) = parse_space(i)?;
     let (i, _) = terminated(tag("=>"), parse_space)(i)?;
     let mut ctx2 = ctx.clone();
-    ctx2 = ctx2.cons(n.clone());
-    let (i, bod) =
-      parse_term(input, defs.to_owned(), rec.clone(), ctx2, quasi.to_owned())(
-        i,
-      )?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
+    for (_, n, _) in bs.iter() {
+      ctx2 = ctx2.cons(n.clone());
+    }
+    let (upto, bod) = parse_telescope(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx2,
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Lam(pos, u, n, Box::new((t, bod)))))
+    let trm = bs
+      .into_iter()
+      .rev()
+      .fold(bod, |acc, (u, n, t)| Term::Lam(pos, u, n, Box::new((t, acc))));
+    Ok((upto, trm))
   }
 }
 
@@ -331,34 +540,35 @@ pub fn parse_all(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = preceded(tag("("), parse_space)(from)?;
-    let (i, _) = alt((tag("∀"), tag("lambda")))(i)?;
+    let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, _) = parse_space(i)?;
-    let (i, _) = terminated(tag("("), parse_space)(i)?;
-    let (i, u) = terminated(parse_uses(), parse_space)(i)?;
-    let (i, n) = terminated(parse_name, parse_space)(i)?;
-    let (i, _) = terminated(tag(":"), parse_space)(i)?;
-    let (i, t) = parse_term(
+    let (i, bs) = parse_binders1(
       input,
       defs.clone(),
       rec.clone(),
       ctx.clone(),
-      quasi.to_owned(),
+      quasi.clone(),
+      vec!['-'],
     )(i)?;
-    let (i, _) = preceded(parse_space, tag(")"))(i)?;
-    let (i, _) = parse_space(i)?;
     let (i, _) = tag("->")(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
-    ctx2 = ctx2.cons(n.clone());
-    let (i, bod) =
-      parse_term(input, defs.to_owned(), rec.clone(), ctx2, quasi.to_owned())(
-        i,
-      )?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
+    for (_, n, _) in bs.iter() {
+      ctx2 = ctx2.cons(n.clone());
+    }
+    let (upto, bod) = parse_telescope(
+      input,
+      defs.to_owned(),
+      rec.clone(),
+      ctx2,
+      quasi.to_owned(),
+    )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::All(pos, u, n, Box::new((t, bod)))))
+    let trm = bs
+      .into_iter()
+      .rev()
+      .fold(bod, |acc, (u, n, t)| Term::All(pos, u, n, Box::new((t, acc))));
+    Ok((upto, trm))
   }
 }
 
@@ -380,21 +590,19 @@ pub fn parse_slf(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = preceded(tag("("), parse_space)(from)?;
-    let (i, _) = tag("self")(i)?;
+    let (i, _) = tag("self")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, n) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
     ctx2 = ctx2.cons(n.clone());
-    let (i, bod) = parse_term(
+    let (upto, bod) = parse_telescope(
       input,
       defs.to_owned(),
       rec.clone(),
       ctx2.clone(),
       quasi.to_owned(),
     )(i)?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Slf(pos, n, Box::new(bod))))
   }
@@ -408,17 +616,15 @@ pub fn parse_cse(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = preceded(tag("("), parse_space)(from)?;
-    let (i, _) = tag("case")(i)?;
+    let (i, _) = tag("case")(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, bod) = parse_term(
+    let (upto, bod) = parse_telescope(
       input,
       defs.to_owned(),
       rec.clone(),
       ctx.clone(),
       quasi.to_owned(),
     )(i)?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Cse(pos, Box::new(bod))))
   }
@@ -431,19 +637,17 @@ pub fn parse_dat(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = preceded(tag("("), parse_space)(from)?;
-    let (i, _) = tag("data")(i)?;
+    let (i, _) = tag("data")(from)?;
     let (i, _) = parse_space(i)?;
     let (i, typ) =
       parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
         i,
       )?;
     let (i, _) = parse_space(i)?;
-    let (i, bod) =
+    let (upto, bod) =
       parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
         i,
       )?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Dat(pos, Box::new((typ, bod)))))
   }
@@ -457,9 +661,8 @@ pub fn parse_let(
   quasi: Quasi,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
   move |from: Span| {
-    let (i, _) = preceded(tag("("), parse_space)(from)?;
     let (i, letrec) =
-      alt((value(true, tag("letrec")), value(false, tag("let"))))(i)?;
+      alt((value(true, tag("letrec")), value(false, tag("let"))))(from)?;
     let (i, _) = parse_space(i)?;
     let (i, uses) = parse_uses()(i)?;
     let (i, _) = parse_space(i)?;
@@ -467,15 +670,18 @@ pub fn parse_let(
     let (i, _) = parse_space(i)?;
     let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, typ) =
-      parse_term(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone())(
-        i,
-      )?;
+    let (i, typ) = parse_telescope(
+      input,
+      defs.clone(),
+      rec.clone(),
+      ctx.clone(),
+      quasi.clone(),
+    )(i)?;
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("=")(i)?;
     let (i, _) = parse_space(i)?;
     let ctx2 = ctx.clone().cons(nam.clone());
-    let (i, exp) = parse_term(
+    let (i, exp) = parse_telescope(
       input,
       defs.clone(),
       rec.clone(),
@@ -485,9 +691,10 @@ pub fn parse_let(
     let (i, _) = parse_space(i)?;
     let (i, _) = tag("in")(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, bod) =
-      parse_term(input, defs.clone(), rec.clone(), ctx2, quasi.clone())(i)?;
-    let (upto, _) = preceded(parse_space, tag(")"))(i)?;
+    let (upto, bod) =
+      parse_telescope(input, defs.clone(), rec.clone(), ctx2, quasi.clone())(
+        i,
+      )?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::Let(pos, letrec, uses, nam, Box::new((typ, exp, bod)))))
   }
@@ -549,6 +756,20 @@ pub fn parse_term(
   move |i: Span| {
     alt((
       context(
+        "application telescope",
+        delimited(
+          preceded(tag("("), parse_space),
+          parse_telescope(
+            input,
+            defs.clone(),
+            rec.clone(),
+            ctx.clone(),
+            quasi.clone(),
+          ),
+          preceded(parse_space, tag(")")),
+        ),
+      ),
+      context(
         "slf",
         parse_slf(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
       ),
@@ -571,10 +792,6 @@ pub fn parse_term(
       context(
         "let",
         parse_let(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
-      ),
-      context(
-        "app",
-        parse_app(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
       ),
       context("type", parse_typ(input)),
       context("opr", parse_opr(input)),
@@ -615,8 +832,8 @@ macro_rules! yatima {
     crate::parse::term::parse($i, crate::defs::Defs::new()).unwrap().1
   };
   ($i:literal, $($q: expr),*) => {{
-    let mut quasi = Vec::new();
-    $(quasi.push($q);)*
+    let mut quasi = sp_im::vector::Vector::new();
+    $(quasi.push_back($q);)*
     crate::parse::term::parse_quasi($i,
       crate::defs::Defs::new(),
       sp_im::vector::Vector::from(quasi))
@@ -636,11 +853,171 @@ pub mod tests {
   };
 
   #[test]
-  fn test_parse_app() {
-    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
-      parse_app(input_cid(i), Defs::new(), None, ConsList::new(), Quasi::new())(
-        Span::new(i),
+  fn test_parse_binder() {
+    fn test(
+      ctx: Vec<Name>,
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binder(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Ctx::from(ctx),
+        Quasi::new(),
+      )(Span::new(i))
+    }
+    let res = test(vec![], "(ω a b c: Type)");
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, vec![
+      (Uses::Many, Name::from("a"), yatima!("Type")),
+      (Uses::Many, Name::from("b"), yatima!("Type")),
+      (Uses::Many, Name::from("c"), yatima!("Type"))
+    ]);
+    let res = test(vec![Name::from("A")], "(ω a b c: A)");
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, vec![
+      (Uses::Many, Name::from("a"), Term::Var(Pos::None, Name::from("A"), 0)),
+      (Uses::Many, Name::from("b"), Term::Var(Pos::None, Name::from("A"), 1)),
+      (Uses::Many, Name::from("c"), Term::Var(Pos::None, Name::from("A"), 2)),
+    ]);
+    let res = test(vec![Name::from("A")], "(ω a: (∀ (ω x: A) -> A))");
+    assert!(res.is_ok());
+    let res = res.unwrap().1;
+    assert_eq!(res, vec![(
+      Uses::Many,
+      Name::from("a"),
+      Term::All(
+        Pos::None,
+        Uses::Many,
+        Name::from("x"),
+        Box::new((
+          Term::Var(Pos::None, Name::from("A"), 0),
+          Term::Var(Pos::None, Name::from("A"), 1)
+        ))
       )
+    ),]);
+    fn test_binders(
+      ctx: Vec<Name>,
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binders(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Ctx::from(ctx),
+        Quasi::new(),
+        vec![':'],
+      )(Span::new(i))
+    }
+    let res1 = test(vec![Name::from("A")], "(ω a : (∀ (ω x: A) -> A))");
+    let res2 =
+      test_binders(vec![Name::from("A")], "(ω a : (∀ (ω x: A) -> A)):");
+    assert!(res1.is_ok() && res2.is_ok());
+    let (res1, res2) = (res1.unwrap().1, res2.unwrap().1);
+    assert_eq!(res1, res2);
+    let res1 = test(vec![Name::from("A")], "(ω a b c: (∀ (ω x: A) -> A))");
+    let res2 = test_binders(
+      vec![Name::from("A")],
+      "(ω a : (∀ (ω x: A) -> A))
+       (ω b : (∀ (ω x: A) -> A))
+       (ω c : (∀ (ω x: A) -> A))
+    :",
+    );
+    assert!(res1.is_ok() && res2.is_ok());
+    let (res1, res2) = (res1.unwrap().1, res2.unwrap().1);
+    assert_eq!(res1, res2);
+    let res1 =
+      test(vec![Name::from("A")], "(ω a b c d e f g: (∀ (ω x y z w: A) -> A))");
+    let res2 = test_binders(
+      vec![Name::from("A")],
+      "(ω a: (∀ (ω x y z w: A) -> A))
+       (ω b: (∀ (ω x y z w: A) -> A))
+       (ω c: (∀ (ω x y z w: A) -> A))
+       (ω d: (∀ (ω x y z w: A) -> A))
+       (ω e: (∀ (ω x y z w: A) -> A))
+       (ω f: (∀ (ω x y z w: A) -> A))
+       (ω g: (∀ (ω x y z w: A) -> A))
+    :",
+    );
+    assert!(res1.is_ok() && res2.is_ok());
+    let (res1, res2) = (res1.unwrap().1, res2.unwrap().1);
+    assert_eq!(res1, res2)
+  }
+
+  #[test]
+  fn test_parse_binders() {
+    use Term::*;
+    fn test(
+      i: &str,
+    ) -> IResult<Span, Vec<(Uses, Name, Term)>, ParseError<Span>> {
+      parse_binders(
+        input_cid(i),
+        Defs::new(),
+        None,
+        Ctx::new(),
+        Quasi::new(),
+        vec![':'],
+      )(Span::new(i))
+    }
+    let res = test(":");
+    assert!(res.is_ok());
+    let res = test("(ω A: Type) (ω a b c: A):");
+    assert!(res.is_ok());
+    assert!(
+      res.unwrap().1
+        == vec![
+          (Uses::Many, Name::from("A"), Typ(Pos::None)),
+          (Uses::Many, Name::from("a"), Var(Pos::None, Name::from("A"), 0)),
+          (Uses::Many, Name::from("b"), Var(Pos::None, Name::from("A"), 1)),
+          (Uses::Many, Name::from("c"), Var(Pos::None, Name::from("A"), 2)),
+        ]
+    );
+    let res = test("(ω A: Type) (ω a b c: Unknown):");
+    assert!(res.is_err());
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              ConsList::from(vec!(Name::from("A")))
+            )]
+        )
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+    let res = test("(ω x: Unknown):");
+    assert!(res.is_err());
+    match res.unwrap_err() {
+      Err::Error(err) => {
+        assert!(
+          err.errors
+            == vec![ParseErrorKind::UndefinedReference(
+              Name::from("Unknown"),
+              ConsList::new(),
+            )]
+        );
+      }
+      _ => {
+        assert!(false)
+      }
+    }
+  }
+
+  #[test]
+  fn test_parse_telescope() {
+    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
+      parse_telescope(
+        input_cid(i),
+        Defs::new(),
+        None,
+        ConsList::new(),
+        Quasi::new(),
+      )(Span::new(i))
     }
     let res = test("(1 (1 :: ω #Nat))");
     println!("res {:?}", res);
@@ -659,6 +1036,9 @@ pub mod tests {
     );
     let res = test("(Type (Type :: 0 Type))");
     assert!(res.is_ok());
+    let res = test("(1 (1 :: ω #Nat) (1 :: ω #Nat))");
+    println!("res {:?}", res);
+    assert!(res.is_ok());
   }
 
   #[test]
@@ -668,8 +1048,8 @@ pub mod tests {
         Span::new(i),
       )
     }
-    let res = test("(λ (ω a: Type) => Type)");
-    // println!("res: {:?}", res);
+    let res = test("λ (ω a: Type) => Type");
+    println!("res: {:?}", res);
     assert!(res.is_ok());
     assert_eq!(
       res.unwrap().1,
@@ -680,11 +1060,14 @@ pub mod tests {
         Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None)))
       )
     );
-    let res = test("(λ (ω a: (λ (ω x: Type) => Type)) => Type)");
+    let res = test("λ (ω a: λ (ω x: Type) => Type) => Type");
     // println!("res: {:?}", res);
     assert!(res.is_ok());
-    let res = test("(λ (ω a: (Type (Type :: ω Type))) => Type)");
-    // println!("res: {:?}", res);
+    let res = test("λ (ω a: Type (Type :: ω Type)) => Type");
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = test("λ (ω a: Type) (ω b: Type) => Type");
+    println!("res: {:?}", res);
     assert!(res.is_ok());
   }
 
@@ -695,8 +1078,8 @@ pub mod tests {
         Span::new(i),
       )
     }
-    let res = test("(∀ (ω a: Type) -> Type)");
-    println!("res: {:?}", res);
+    let res = test("∀ (ω a: Type) -> Type");
+    // println!("res: {:?}", res);
     assert!(res.is_ok());
     assert_eq!(
       res.unwrap().1,
@@ -706,7 +1089,27 @@ pub mod tests {
         Name::from("a"),
         Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None)))
       )
-    )
+    );
+    let res = test("∀ (ω x: #Nat) -> ∀ (ω y: #Nat) -> #Nat");
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = test("∀ (ω x: #Nat) (ω y: #Nat) -> #Nat");
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+  }
+
+  #[test]
+  fn test_parse_cse() {
+    fn test(i: &str) -> IResult<Span, Term, ParseError<Span>> {
+      parse_cse(input_cid(i), Defs::new(), None, Ctx::new(), Quasi::new())(
+        Span::new(i),
+      )
+    }
+    let res = test("case Type");
+    assert!(res.is_ok());
+    let res = test("case (λ (ω x: Type) => Type)");
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
   }
 
   #[test]
@@ -716,7 +1119,8 @@ pub mod tests {
         Span::new(i),
       )
     }
-    let res = test("(let ω x : Type = Type in x)");
+    let res = test("let ω x: Type = Type in x");
+    println!("res: {:?}", res);
     assert!(res.is_ok());
     assert_eq!(
       res.unwrap().1,
@@ -732,7 +1136,7 @@ pub mod tests {
         ))
       )
     );
-    let res = test("(letrec ω x : Type = x in Type)");
+    let res = test("letrec ω x : Type = x in Type");
     println!("res: {:?}", res);
     assert!(res.is_ok());
     assert_eq!(
@@ -779,6 +1183,8 @@ pub mod tests {
         else {
           println!("{}", x);
           println!("{}", y);
+          println!("{:?}", x);
+          println!("{:?}", y);
           false
         }
       }

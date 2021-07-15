@@ -399,6 +399,89 @@ impl Term {
       if nam.is_empty() { WILDCARD } else { nam }
     }
 
+    fn is_atom(term: &Term) -> bool {
+      matches!(term, Var(..) | Ref(..) | Lit(..) | LTy(..) | Opr(..) | Typ(..))
+    }
+
+    fn parens(rec: Option<&String>, ind: bool, term: &Term) -> String {
+      if is_atom(term) {
+        term.pretty(rec, ind)
+      }
+      else {
+        format!("({})", term.pretty(rec, ind))
+      }
+    }
+
+    fn lams(
+      rec: Option<&String>,
+      ind: bool,
+      uses: &Uses,
+      name: &str,
+      typ: &Term,
+      bod: &Term,
+    ) -> String {
+      match bod {
+        Lam(_, bod_use, bod_nam, bod) => {
+          format!(
+            "({} {}: {}) {}",
+            uses,
+            pretty_name(name),
+            typ.pretty(rec, ind),
+            lams(rec, ind, bod_use, bod_nam, &bod.0, &bod.1)
+          )
+        }
+        _ => format!(
+          "({} {}: {}) => {}",
+          uses,
+          pretty_name(name),
+          typ.pretty(rec, ind),
+          bod.pretty(rec, ind)
+        ),
+      }
+    }
+
+    fn alls(
+      rec: Option<&String>,
+      ind: bool,
+      uses: &Uses,
+      name: &str,
+      typ: &Term,
+      bod: &Term,
+    ) -> String {
+      match bod {
+        All(_, bod_use, bod_nam, bod) => {
+          format!(
+            "({} {}: {}) {}",
+            uses,
+            pretty_name(name),
+            typ.pretty(rec, ind),
+            alls(rec, ind, bod_use, bod_nam, &bod.0, &bod.1)
+          )
+        }
+        _ => format!(
+          "({} {}: {}) -> {}",
+          uses,
+          pretty_name(name),
+          typ.pretty(rec, ind),
+          bod.pretty(rec, ind)
+        ),
+      }
+    }
+    fn apps(rec: Option<&String>, ind: bool, fun: &Term) -> String {
+      match fun {
+        App(_, f_uses, terms) => {
+          format!(
+            "{} ({} :: {} {})",
+            apps(rec, ind, &terms.0),
+            &terms.2.pretty(rec, ind),
+            f_uses,
+            &terms.1.pretty(rec, ind),
+          )
+        }
+        _ => format!("{}", parens(rec, ind, fun)),
+      }
+    }
+
     match self {
       Var(_, nam, index) => {
         if ind {
@@ -415,26 +498,20 @@ impl Term {
       },
 
       Lam(_, uses, name, terms) => {
-        format!(
-          "(λ ({} {}: {}) => {})",
-          uses,
-          pretty_name(name),
-          terms.0.pretty(rec, ind),
-          terms.1.pretty(rec, ind)
-        )
+        format!("λ {}", lams(rec, ind, uses, name, &terms.0, &terms.1))
       }
       App(_, uses, terms) => {
         format!(
           "({} ({} :: {} {}))",
-          terms.0.pretty(rec, ind),
+          apps(rec, ind, &terms.0),
           terms.2.pretty(rec, ind),
           uses,
-          terms.1.pretty(rec, ind)
+          terms.1.pretty(rec, ind),
         )
       }
       Let(_, letrec, uses, name, terms) => {
         format!(
-          "({} {} {}: {} = {} in {})",
+          "{} {} {}: {} = {} in {}",
           if *letrec { "letrec" } else { "let" },
           uses,
           pretty_name(name),
@@ -444,23 +521,19 @@ impl Term {
         )
       }
       Slf(_, name, bod) => {
-        format!("(self {} {})", pretty_name(name), bod.pretty(rec, ind))
+        format!("self {} {}", pretty_name(name), bod.pretty(rec, ind))
       }
       All(_, uses, name, terms) => {
+        format!("∀ {}", alls(rec, ind, uses, name, &terms.0, &terms.1))
+      }
+      Dat(_, terms) => {
         format!(
-          "(∀ ({} {}: {}) -> {})",
-          uses,
-          pretty_name(name),
-          terms.0.pretty(rec, ind),
-          terms.1.pretty(rec, ind)
+          "data {} {}",
+          parens(rec, ind, &terms.0),
+          terms.1.pretty(rec, ind),
         )
       }
-      Dat(_, terms) => format!(
-        "(data {} {})",
-        &terms.0.pretty(rec, ind),
-        &terms.1.pretty(rec, ind)
-      ),
-      Cse(_, bod) => format!("(case {})", bod.pretty(rec, ind)),
+      Cse(_, bod) => format!("case {}", bod.pretty(rec, ind)),
       Typ(_) => "Type".to_string(),
       Lit(_, lit) => format!("{}", lit),
       LTy(_, lty) => format!("{}", lty),

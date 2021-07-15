@@ -47,12 +47,10 @@ pub enum I64Op {
   ToU16,
   ToU32,
   ToU64,
-  ToU128,
   ToNat,
   ToI8,
   ToI16,
   ToI32,
-  ToI128,
   ToInt,
   ToBits,
   ToBytes,
@@ -90,12 +88,10 @@ impl I64Op {
       Self::ToU16 => "to_U16".to_owned(),
       Self::ToU32 => "to_U32".to_owned(),
       Self::ToU64 => "to_U64".to_owned(),
-      Self::ToU128 => "to_U128".to_owned(),
       Self::ToNat => "to_Nat".to_owned(),
       Self::ToI8 => "to_I8".to_owned(),
       Self::ToI16 => "to_I16".to_owned(),
       Self::ToI32 => "to_I32".to_owned(),
-      Self::ToI128 => "to_I128".to_owned(),
       Self::ToInt => "to_Int".to_owned(),
       Self::ToBits => "to_Bits".to_owned(),
       Self::ToBytes => "to_Bytes".to_owned(),
@@ -133,12 +129,10 @@ impl I64Op {
       "to_U16" => Some(Self::ToU16),
       "to_U32" => Some(Self::ToU32),
       "to_U64" => Some(Self::ToU64),
-      "to_U128" => Some(Self::ToU128),
       "to_Nat" => Some(Self::ToNat),
       "to_I8" => Some(Self::ToI8),
       "to_I16" => Some(Self::ToI16),
       "to_I32" => Some(Self::ToI32),
-      "to_I128" => Some(Self::ToI128),
       "to_Int" => Some(Self::ToInt),
       "to_Bits" => Some(Self::ToBits),
       "to_Bytes" => Some(Self::ToBytes),
@@ -177,12 +171,12 @@ impl I64Op {
       Self::ToU16 => Ipld::Integer(26),
       Self::ToU32 => Ipld::Integer(27),
       Self::ToU64 => Ipld::Integer(28),
-      Self::ToU128 => Ipld::Integer(29),
+      // Self::ToU128 => Ipld::Integer(29),
       Self::ToNat => Ipld::Integer(30),
       Self::ToI8 => Ipld::Integer(31),
       Self::ToI16 => Ipld::Integer(32),
       Self::ToI32 => Ipld::Integer(33),
-      Self::ToI128 => Ipld::Integer(34),
+      // Self::ToI128 => Ipld::Integer(34),
       Self::ToInt => Ipld::Integer(35),
       Self::ToBits => Ipld::Integer(36),
       Self::ToBytes => Ipld::Integer(37),
@@ -220,12 +214,12 @@ impl I64Op {
       Ipld::Integer(26) => Ok(Self::ToU16),
       Ipld::Integer(27) => Ok(Self::ToU32),
       Ipld::Integer(28) => Ok(Self::ToU64),
-      Ipld::Integer(29) => Ok(Self::ToU128),
+      // Ipld::Integer(29) => Ok(Self::ToU128),
       Ipld::Integer(30) => Ok(Self::ToNat),
       Ipld::Integer(31) => Ok(Self::ToI8),
       Ipld::Integer(32) => Ok(Self::ToI16),
       Ipld::Integer(33) => Ok(Self::ToI32),
-      Ipld::Integer(34) => Ok(Self::ToI128),
+      // Ipld::Integer(34) => Ok(Self::ToI128),
       Ipld::Integer(35) => Ok(Self::ToInt),
       Ipld::Integer(36) => Ok(Self::ToBits),
       Ipld::Integer(37) => Ok(Self::ToBytes),
@@ -264,12 +258,10 @@ impl I64Op {
       Self::ToU16 => 1,
       Self::ToU32 => 1,
       Self::ToU64 => 1,
-      Self::ToU128 => 1,
       Self::ToNat => 1,
       Self::ToI8 => 1,
       Self::ToI16 => 1,
       Self::ToI32 => 1,
-      Self::ToI128 => 1,
       Self::ToInt => 1,
       Self::ToBits => 1,
       Self::ToBytes => 1,
@@ -296,7 +288,6 @@ impl I64Op {
       (Self::ToU16, I64(x)) => u16::try_from(*x).ok().map(U16),
       (Self::ToU32, I64(x)) => u32::try_from(*x).ok().map(U32),
       (Self::ToU64, I64(x)) => u64::try_from(*x).ok().map(U64),
-      (Self::ToU128, I64(x)) => u128::try_from(*x).ok().map(U128),
       (Self::ToNat, I64(x)) => {
         if x.is_negative() {
           None
@@ -308,7 +299,6 @@ impl I64Op {
       (Self::ToI8, I64(x)) => i8::try_from(*x).ok().map(I8),
       (Self::ToI16, I64(x)) => i16::try_from(*x).ok().map(I16),
       (Self::ToI32, I64(x)) => i32::try_from(*x).ok().map(I32),
-      (Self::ToI128, I64(x)) => Some(I128((*x).into())),
       (Self::Not, I64(x)) => Some(I64(!x)),
       (Self::ToInt, I64(x)) => Some(Int((*x).into())),
       (Self::ToBits, I64(x)) => {
@@ -439,8 +429,6 @@ pub mod tests {
         33 => Self::ToInt,
         34 => Self::ToBytes,
         _ => Self::ToBits,
-        /* 29 => Self::ToU128,
-         * 34 => Self::ToI128, */
       }
     }
   }
@@ -539,7 +527,6 @@ pub mod tests {
         U64Op::apply1(U64Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
           == Some(I64(a))
       }),
-      I64Op::ToU128 => TestResult::discard(),
       I64Op::ToNat => {
         if a.is_negative() {
           apply1_i64(None)
@@ -573,7 +560,6 @@ pub mod tests {
             == Some(I64(a))
         })
       }
-      I64Op::ToI128 => TestResult::discard(),
       I64Op::ToInt => apply1_i64(Some(Int(a.into()))),
       I64Op::ToBits => {
         apply1_i64(Some(Bits(bits::bytes_to_bits(64, &a.to_be_bytes().into()))))
@@ -633,12 +619,10 @@ pub mod tests {
       | I64Op::ToU16
       | I64Op::ToU32
       | I64Op::ToU64
-      | I64Op::ToU128
       | I64Op::ToNat
       | I64Op::ToI8
       | I64Op::ToI16
       | I64Op::ToI32
-      | I64Op::ToI128
       | I64Op::ToInt
       | I64Op::ToBytes
       | I64Op::ToBits => test_apply1_none_on_invalid(I64(b)),

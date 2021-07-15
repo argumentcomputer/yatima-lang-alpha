@@ -11,6 +11,7 @@ pub mod int;
 pub mod nat;
 pub mod text;
 // pub mod u128;
+pub mod check;
 pub mod u16;
 pub mod u32;
 pub mod u64;
@@ -247,6 +248,11 @@ impl fmt::Display for Op {
 
 #[cfg(test)]
 pub mod tests {
+  use crate::{
+    literal::LitType,
+    yatima,
+  };
+
   use super::*;
   use quickcheck::{
     Arbitrary,
@@ -282,6 +288,23 @@ pub mod tests {
       Ok(y) => x == y,
       _ => false,
     }
+  }
+
+  #[quickcheck]
+  fn primop_type(x: Op) -> bool {
+    let _ = crate::prim::check::type_of_op(x);
+    true
+  }
+
+  #[test]
+  fn littype_induction() {
+    use crate::prim::check::littype_induction;
+    let _ = littype_induction(LitType::Nat, yatima!("1"));
+    let _ = littype_induction(LitType::Int, yatima!("+1"));
+    let _ = littype_induction(LitType::Bytes, yatima!("x\'\'"));
+    let _ = littype_induction(LitType::Bits, yatima!("#b"));
+    let _ = littype_induction(LitType::Text, yatima!("\"\""));
+    let _ = littype_induction(LitType::Bool, yatima!("#Bool.true"));
   }
 
   #[derive(Clone, Debug)]

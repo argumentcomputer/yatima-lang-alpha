@@ -47,12 +47,10 @@ pub enum I16Op {
   ToU16,
   ToU32,
   ToU64,
-  ToU128,
   ToNat,
   ToI8,
   ToI32,
   ToI64,
-  ToI128,
   ToInt,
   ToBits,
   ToBytes,
@@ -90,12 +88,10 @@ impl I16Op {
       Self::ToU16 => "to_U16".to_owned(),
       Self::ToU32 => "to_U32".to_owned(),
       Self::ToU64 => "to_U64".to_owned(),
-      Self::ToU128 => "to_U128".to_owned(),
       Self::ToNat => "to_Nat".to_owned(),
       Self::ToI8 => "to_I8".to_owned(),
       Self::ToI32 => "to_I32".to_owned(),
       Self::ToI64 => "to_I64".to_owned(),
-      Self::ToI128 => "to_I128".to_owned(),
       Self::ToInt => "to_Int".to_owned(),
       Self::ToBits => "to_Bits".to_owned(),
       Self::ToBytes => "to_Bytes".to_owned(),
@@ -133,12 +129,10 @@ impl I16Op {
       "to_U16" => Some(Self::ToU16),
       "to_U32" => Some(Self::ToU32),
       "to_U64" => Some(Self::ToU64),
-      "to_U128" => Some(Self::ToU128),
       "to_Nat" => Some(Self::ToNat),
       "to_I8" => Some(Self::ToI8),
       "to_I32" => Some(Self::ToI32),
       "to_I64" => Some(Self::ToI64),
-      "to_I128" => Some(Self::ToI128),
       "to_Int" => Some(Self::ToInt),
       "to_Bits" => Some(Self::ToBits),
       "to_Bytes" => Some(Self::ToBytes),
@@ -177,12 +171,12 @@ impl I16Op {
       Self::ToU16 => Ipld::Integer(26),
       Self::ToU32 => Ipld::Integer(27),
       Self::ToU64 => Ipld::Integer(28),
-      Self::ToU128 => Ipld::Integer(29),
+      // Self::ToU128 => Ipld::Integer(29),
       Self::ToNat => Ipld::Integer(30),
       Self::ToI8 => Ipld::Integer(31),
       Self::ToI32 => Ipld::Integer(32),
       Self::ToI64 => Ipld::Integer(33),
-      Self::ToI128 => Ipld::Integer(34),
+      // Self::ToI128 => Ipld::Integer(34),
       Self::ToInt => Ipld::Integer(35),
       Self::ToBits => Ipld::Integer(36),
       Self::ToBytes => Ipld::Integer(37),
@@ -220,12 +214,12 @@ impl I16Op {
       Ipld::Integer(26) => Ok(Self::ToU16),
       Ipld::Integer(27) => Ok(Self::ToU32),
       Ipld::Integer(28) => Ok(Self::ToU64),
-      Ipld::Integer(29) => Ok(Self::ToU128),
+      // Ipld::Integer(29) => Ok(Self::ToU128),
       Ipld::Integer(30) => Ok(Self::ToNat),
       Ipld::Integer(31) => Ok(Self::ToI8),
       Ipld::Integer(32) => Ok(Self::ToI32),
       Ipld::Integer(33) => Ok(Self::ToI64),
-      Ipld::Integer(34) => Ok(Self::ToI128),
+      // Ipld::Integer(34) => Ok(Self::ToI128),
       Ipld::Integer(35) => Ok(Self::ToInt),
       Ipld::Integer(36) => Ok(Self::ToBits),
       Ipld::Integer(37) => Ok(Self::ToBytes),
@@ -264,12 +258,10 @@ impl I16Op {
       Self::ToU16 => 1,
       Self::ToU32 => 1,
       Self::ToU64 => 1,
-      Self::ToU128 => 1,
       Self::ToNat => 1,
       Self::ToI8 => 1,
       Self::ToI32 => 1,
       Self::ToI64 => 1,
-      Self::ToI128 => 1,
       Self::ToInt => 1,
       Self::ToBits => 1,
       Self::ToBytes => 1,
@@ -296,7 +288,6 @@ impl I16Op {
       (Self::ToU16, I16(x)) => u16::try_from(*x).ok().map(U16),
       (Self::ToU32, I16(x)) => u32::try_from(*x).ok().map(U32),
       (Self::ToU64, I16(x)) => u64::try_from(*x).ok().map(U64),
-      (Self::ToU128, I16(x)) => u128::try_from(*x).ok().map(U128),
       (Self::ToNat, I16(x)) => {
         if x.is_negative() {
           None
@@ -308,7 +299,6 @@ impl I16Op {
       (Self::ToI8, I16(x)) => i8::try_from(*x).ok().map(I8),
       (Self::ToI32, I16(x)) => Some(I32((*x).into())),
       (Self::ToI64, I16(x)) => Some(I64((*x).into())),
-      (Self::ToI128, I16(x)) => Some(I128((*x).into())),
       (Self::Not, I16(x)) => Some(I16(!x)),
       (Self::ToInt, I16(x)) => Some(Int((*x).into())),
       (Self::ToBits, I16(x)) => {
@@ -439,8 +429,6 @@ pub mod tests {
         33 => Self::ToInt,
         34 => Self::ToBits,
         _ => Self::ToBytes,
-        /* 29 => Self::ToU128,
-         * 34 => Self::ToI128, */
       }
     }
   }
@@ -535,7 +523,6 @@ pub mod tests {
         U64Op::apply1(U64Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
           == Some(I16(a))
       }),
-      I16Op::ToU128 => TestResult::discard(),
       I16Op::ToNat => {
         if a.is_negative() {
           apply1_i16(None)
@@ -559,7 +546,6 @@ pub mod tests {
         I64Op::apply1(I64Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
           == Some(I16(a)),
       ),
-      I16Op::ToI128 => TestResult::discard(),
       I16Op::ToInt => apply1_i16(Some(Int(a.into()))),
       I16Op::ToBits => {
         apply1_i16(Some(Bits(bits::bytes_to_bits(16, &a.to_be_bytes().into()))))
@@ -619,12 +605,10 @@ pub mod tests {
       | I16Op::ToU16
       | I16Op::ToU32
       | I16Op::ToU64
-      | I16Op::ToU128
       | I16Op::ToNat
       | I16Op::ToI8
       | I16Op::ToI32
       | I16Op::ToI64
-      | I16Op::ToI128
       | I16Op::ToInt
       | I16Op::ToBytes
       | I16Op::ToBits => test_apply1_none_on_invalid(I16(b)),
