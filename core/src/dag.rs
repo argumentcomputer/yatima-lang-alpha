@@ -523,7 +523,12 @@ pub fn add_to_parents(node: DAGPtr, plink: NonNull<Parents>) {
   }
 }
 
-enum State { A, B, C, D }
+/// Describes which code block to be executed for a node.
+enum CodeBlock { 
+  A, B, C,
+  /// This is the final step for a node where the pointer is freed
+  FreeNode
+}
 
 /// Frees this pointer
 /// For more readability of the code
@@ -533,213 +538,238 @@ fn free<T>(link: NonNull<T>) {
   }
 }
 
-// Free parentless nodes.
+/// Free parentless nodes. This works in an iterative way.
 pub fn free_dead_node(node: DAGPtr) {
   unsafe {
-    let mut stack = vec![(node, State::A)];
-    while let Some((node, state)) = stack.pop() {
+    let mut stack = vec![(node, CodeBlock::A)];
+    while let Some((node, code_block)) = stack.pop() {
       match node {
-        DAGPtr::Lam(link) => match state {
-          State::A => {
+        DAGPtr::Lam(link) => match code_block {
+          CodeBlock::A => {
             let Lam { bod, bod_ref, .. } = &link.as_ref();
             let new_bod_parents = bod_ref.unlink_node();
             set_parents(*bod, new_bod_parents);
             if new_bod_parents.is_none() {
-              stack.push((node, State::B));
-              stack.push((*bod, State::A));
+              stack.push((node, CodeBlock::FreeNode));
+              // The body of this Lam needs to be freed first
+              stack.push((*bod, CodeBlock::A));
             } else {
-              stack.push((node, State::B));
+              stack.push((node, CodeBlock::FreeNode));
             }
           },
-          _ => {
+          CodeBlock::FreeNode => {
             free(link);
+          },
+          _ => {
+            panic!("undefined CodeBlock for node");
           }
         },
-        DAGPtr::Slf(mut link) => match state {
-          State::A => {
+        DAGPtr::Slf(mut link) => match code_block {
+          CodeBlock::A => {
             let Slf { bod, bod_ref, .. } = &link.as_mut();
             let new_bod_parents = bod_ref.unlink_node();
             set_parents(*bod, new_bod_parents);
             if new_bod_parents.is_none() {
-              stack.push((node, State::B));
-              stack.push((*bod, State::A));
+              stack.push((node, CodeBlock::FreeNode));
+              stack.push((*bod, CodeBlock::A));
             } else {
-              stack.push((node, State::B));
+              stack.push((node, CodeBlock::FreeNode));
             }
           },
-          _ => {
+          CodeBlock::FreeNode => {
             free(link);
+          },
+          _ => {
+            panic!("undefined CodeBlock for node");
           }
         },
-        DAGPtr::Fix(mut link) => match state {
-          State::A => {
+        DAGPtr::Fix(mut link) => match code_block {
+          CodeBlock::A => {
             let Fix { bod, bod_ref, .. } = &link.as_mut();
             let new_bod_parents = bod_ref.unlink_node();
             set_parents(*bod, new_bod_parents);
             if new_bod_parents.is_none() {
-              stack.push((node, State::B));
-              stack.push((*bod, State::A));
+              stack.push((node, CodeBlock::FreeNode));
+              stack.push((*bod, CodeBlock::A));
             } else {
-              stack.push((node, State::B));
+              stack.push((node, CodeBlock::FreeNode));
             }
           },
-          _ => {
+          CodeBlock::FreeNode => {
             free(link);
+          },
+          _ => {
+            panic!("undefined CodeBlock for node");
           }
         },
-        DAGPtr::Cse(link) => match state {
-          State::A => {
+        DAGPtr::Cse(link) => match code_block {
+          CodeBlock::A => {
             let Cse { bod, bod_ref, .. } = link.as_ref();
             let new_bod_parents = bod_ref.unlink_node();
             set_parents(*bod, new_bod_parents);
             if new_bod_parents.is_none() {
-              stack.push((node, State::B));
-              stack.push((*bod, State::A));
+              stack.push((node, CodeBlock::FreeNode));
+              stack.push((*bod, CodeBlock::A));
             } else {
-              stack.push((node, State::B));
+              stack.push((node, CodeBlock::FreeNode));
             }
           },
-          _ => {
+          CodeBlock::FreeNode => {
             free(link);
+          },
+          _ => {
+            panic!("undefined CodeBlock for node");
           }
         },
-        DAGPtr::Dat(link) => match state {
-          State::A => {
+        DAGPtr::Dat(link) => match code_block {
+          CodeBlock::A => {
             let Dat { bod, bod_ref, .. } = &link.as_ref();
             let new_bod_parents = bod_ref.unlink_node();
             set_parents(*bod, new_bod_parents);
             if new_bod_parents.is_none() {
-              stack.push((node, State::B));
-              stack.push((*bod, State::A));
+              stack.push((node, CodeBlock::FreeNode));
+              stack.push((*bod, CodeBlock::A));
             } else {
-              stack.push((node, State::B));
+              stack.push((node, CodeBlock::FreeNode));
             }
           },
-          _ => {
+          CodeBlock::FreeNode => {
             free(link);
+          },
+          _ => {
+            panic!("undefined CodeBlock for node");
           }
         },
         DAGPtr::All(link) => {
           let All { dom, img, dom_ref, img_ref, .. } = link.as_ref();
-          match state {
-            State::A => {
+          match code_block {
+            CodeBlock::A => {
               let new_dom_parents = dom_ref.unlink_node();
               set_parents(*dom, new_dom_parents);
               if new_dom_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*dom, State::A));
+                stack.push((node, CodeBlock::B));
+                stack.push((*dom, CodeBlock::A));
               } else {
-                stack.push((node, State::B));
+                stack.push((node, CodeBlock::B));
               }
             },
-            State::B => {
+            CodeBlock::B => {
               let img = DAGPtr::Lam(*img);
               let new_img_parents = img_ref.unlink_node();
               set_parents(img, new_img_parents);
               if new_img_parents.is_none() {
-                stack.push((node, State::C));
-                stack.push((img, State::A));
+                stack.push((node, CodeBlock::FreeNode));
+                stack.push((img, CodeBlock::A));
               } else {
-                stack.push((node, State::C));
+                stack.push((node, CodeBlock::FreeNode));
               }
             },
-            _ => {
+            CodeBlock::FreeNode => {
               free(link);
             },
+            _ => {
+              panic!("undefined CodeBlock for node");
+            }
           }
         },
         DAGPtr::App(link) => {
           let App { fun, arg, fun_ref, arg_ref, .. } = link.as_ref();
-          match state {
-            State::A => {
+          match code_block {
+            CodeBlock::A => {
               let new_fun_parents = fun_ref.unlink_node();
               set_parents(*fun, new_fun_parents);
               if new_fun_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*fun, State::A));
+                stack.push((node, CodeBlock::B));
+                stack.push((*fun, CodeBlock::A));
               } else {
-                stack.push((node, State::B));
+                stack.push((node, CodeBlock::B));
               }
             },
-            State::B => {
+            CodeBlock::B => {
               let new_arg_parents = arg_ref.unlink_node();
               set_parents(*arg, new_arg_parents);
               if new_arg_parents.is_none() {
-                stack.push((node, State::C));
-                stack.push((*arg, State::A));
+                stack.push((node, CodeBlock::FreeNode));
+                stack.push((*arg, CodeBlock::A));
               } else {
-                stack.push((node, State::C));
+                stack.push((node, CodeBlock::FreeNode));
               }
             },
-            _ => {
+            CodeBlock::FreeNode => {
               free(link);
             },
+            _ => {
+              panic!("undefined CodeBlock for node");
+            }
           }
         },
         DAGPtr::Ann(link) => {
           let Ann { exp, typ, exp_ref, typ_ref, .. } = link.as_ref();
-          match state {
-            State::A => {
+          match code_block {
+            CodeBlock::A => {
               let new_exp_parents = exp_ref.unlink_node();
               set_parents(*exp, new_exp_parents);
               if new_exp_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*exp, State::A));
+                stack.push((node, CodeBlock::B));
+                stack.push((*exp, CodeBlock::A));
               } else {
-                stack.push((node, State::B));
+                stack.push((node, CodeBlock::B));
               }
             },
-            State::B => {
+            CodeBlock::B => {
               let new_typ_parents = typ_ref.unlink_node();
               set_parents(*typ, new_typ_parents);
               if new_typ_parents.is_none() {
-                stack.push((node, State::C));
-                stack.push((*typ, State::A));
+                stack.push((node, CodeBlock::FreeNode));
+                stack.push((*typ, CodeBlock::A));
               } else {
-                stack.push((node, State::C));
+                stack.push((node, CodeBlock::FreeNode));
               }
             },
-            _ => {
+            CodeBlock::FreeNode => {
               free(link);
             },
+            _ => {
+              panic!("undefined CodeBlock for node");
+            }
           }
         },
         DAGPtr::Let(link) => {
           let Let { exp, typ, exp_ref, typ_ref, bod, bod_ref, .. } =
             link.as_ref();
-          match state {
-            State::A => {
+          match code_block {
+            CodeBlock::A => {
               let new_exp_parents = exp_ref.unlink_node();
               set_parents(*exp, new_exp_parents);
               if new_exp_parents.is_none() {
-                stack.push((node, State::B));
-                stack.push((*exp, State::A));
+                stack.push((node, CodeBlock::B));
+                stack.push((*exp, CodeBlock::A));
               } else {
-                stack.push((node, State::B));
+                stack.push((node, CodeBlock::B));
               }
             },
-            State::B => {
+            CodeBlock::B => {
               let new_typ_parents = typ_ref.unlink_node();
               set_parents(*typ, new_typ_parents);
               if new_typ_parents.is_none() {
-                stack.push((node, State::C));
-                stack.push((*typ, State::A));
+                stack.push((node, CodeBlock::C));
+                stack.push((*typ, CodeBlock::A));
               } else {
-                stack.push((node, State::C));
+                stack.push((node, CodeBlock::C));
               }
             },
-            State::C => {
+            CodeBlock::C => {
               let bod = DAGPtr::Lam(*bod);
               let new_bod_parents = bod_ref.unlink_node();
               set_parents(bod, new_bod_parents);
               if new_bod_parents.is_none() {
-                stack.push((node, State::D));
-                stack.push((bod, State::A));
+                stack.push((node, CodeBlock::FreeNode));
+                stack.push((bod, CodeBlock::A));
               } else {
-                stack.push((node, State::D));
+                stack.push((node, CodeBlock::FreeNode));
               }
             },
-            _ => {
+            CodeBlock::FreeNode => {
               free(link);
             },
           }
