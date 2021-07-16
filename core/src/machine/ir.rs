@@ -1,8 +1,9 @@
 use crate::{
-  machine::freevars::FreeVars,
   name::Name,
+  uses::Uses,
   defs::Defs,
   term::Term,
+  machine::freevars::FreeVars,
 };
 
 use sp_std::{
@@ -19,6 +20,12 @@ pub enum IR {
   Ref(usize),
   Lam(Name, FreeVars, Rc<IR>),
   App(Rc<IR>, Rc<IR>),
+  Typ,
+  All(Uses, Name, Rc<IR>, FreeVars, Rc<IR>),
+  Slf(Name, FreeVars, Rc<IR>),
+  Dat(Rc<IR>),
+  Cse(Rc<IR>),
+  Ann(Rc<IR>, Rc<IR>),
 }
 
 pub fn defs_to_ir(defs: &Defs) -> Vec<(Name, IR)> {
@@ -69,13 +76,50 @@ pub fn term_to_ir(done: &mut BTreeMap<Cid, usize>, ir_defs: &mut Vec<(Name, IR)>
             let term = &defs
               .defs
               .get(def_link)
-              .unwrap() // TODO better error
+              .unwrap()
               .term;
             let ir = term_to_ir(done, ir_defs, term, defs);
             ir_defs.push((nam.clone(), ir));
             (IR::Ref(idx), set)
           },
         }
+      },
+      Term::Typ(_) => (IR::Typ, FreeVars::new()),
+      Term::All(_, uses, nam, link) => {
+        let (dom, img) = &**link;
+        let (dom, dom_set) = go(done, ir_defs, dom, defs);
+        let (img, mut img_set) = go(done, ir_defs, img, defs);
+        img_set.bind();
+        let ir = IR::All(*uses, nam.clone(), Rc::new(dom), img_set.clone(), Rc::new(img));
+        let set = FreeVars::union(&dom_set, &img_set);
+        (ir, set)
+      },
+      Term::Slf(_, nam, link) => {
+        let bod = &**link;
+        let (bod, mut set) = go(done, ir_defs, bod, defs);
+        set.bind();
+        let ir = IR::Slf(nam.clone(), set.clone(), Rc::new(bod));
+        (ir, set)
+      },
+      Term::Dat(_, link) => {
+        let bod = &**link;
+        let (bod, set) = go(done, ir_defs, bod, defs);
+        let ir = IR::Dat(Rc::new(bod));
+        (ir, set)
+      },
+      Term::Cse(_, link) => {
+        let bod = &**link;
+        let (bod, set) = go(done, ir_defs, bod, defs);
+        let ir = IR::Cse(Rc::new(bod));
+        (ir, set)
+      },
+      Term::Ann(_, link) => {
+        let (typ, exp) = &**link;
+        let (typ, typ_set) = go(done, ir_defs, typ, defs);
+        let (exp, exp_set) = go(done, ir_defs, exp, defs);
+        let ir = IR::Ann(Rc::new(typ), Rc::new(exp));
+        let set = FreeVars::union(&typ_set, &exp_set);
+        (ir, set)
       },
       _ => panic!("Not yet implemented {}", term)
     }
