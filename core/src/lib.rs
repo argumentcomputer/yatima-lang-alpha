@@ -1,4 +1,6 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![feature(new_uninit)]
+#![feature(box_into_inner)]
 
 #[macro_use]
 extern crate alloc;
@@ -28,7 +30,6 @@ pub mod parse;
 pub mod position;
 pub mod prim;
 // pub mod runtime;
-// pub mod opt_term;
 pub mod term;
 // pub mod upcopy;
 pub mod uses;

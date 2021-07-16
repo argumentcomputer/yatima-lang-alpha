@@ -26,7 +26,7 @@ use alloc::string::{
   ToString,
 };
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Literal {
   Nat(BigUint),
   Int(BigInt),

@@ -370,7 +370,7 @@ pub fn parse_telescope(
       )?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = args.into_iter().fold(fun, |acc, (u, typ, arg)| {
-      Term::App(pos, u, Box::new((acc, typ, arg)))
+      Term::App(pos, u, Box::new(acc), Box::new(typ), Box::new(arg))
     });
     return Ok((upto, trm));
   }
@@ -523,10 +523,9 @@ pub fn parse_lam(
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    let trm = bs
-      .into_iter()
-      .rev()
-      .fold(bod, |acc, (u, n, t)| Term::Lam(pos, u, n, Box::new((t, acc))));
+    let trm = bs.into_iter().rev().fold(bod, |acc, (u, n, t)| {
+      Term::Lam(pos, u, n, Box::new(t), Box::new(acc))
+    });
     Ok((upto, trm))
   }
 }
@@ -563,10 +562,9 @@ pub fn parse_all(
       quasi.to_owned(),
     )(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    let trm = bs
-      .into_iter()
-      .rev()
-      .fold(bod, |acc, (u, n, t)| Term::All(pos, u, n, Box::new((t, acc))));
+    let trm = bs.into_iter().rev().fold(bod, |acc, (u, n, t)| {
+      Term::All(pos, u, n, Box::new(t), Box::new(acc))
+    });
     Ok((upto, trm))
   }
 }
@@ -648,7 +646,7 @@ pub fn parse_dat(
         i,
       )?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Dat(pos, Box::new((typ, bod)))))
+    Ok((upto, Term::Dat(pos, Box::new(typ), Box::new(bod))))
   }
 }
 
@@ -695,7 +693,18 @@ pub fn parse_let(
         i,
       )?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Let(pos, letrec, uses, nam, Box::new((typ, exp, bod)))))
+    Ok((
+      upto,
+      Term::Let(
+        pos,
+        letrec,
+        uses,
+        nam,
+        Box::new(typ),
+        Box::new(exp),
+        Box::new(bod),
+      ),
+    ))
   }
 }
 
@@ -891,10 +900,8 @@ pub mod tests {
         Pos::None,
         Uses::Many,
         Name::from("x"),
-        Box::new((
-          Term::Var(Pos::None, Name::from("A"), 0),
-          Term::Var(Pos::None, Name::from("A"), 1)
-        ))
+        Box::new(Term::Var(Pos::None, Name::from("A"), 0)),
+        Box::new(Term::Var(Pos::None, Name::from("A"), 1)),
       )
     ),]);
     fn test_binders(
@@ -1018,7 +1025,7 @@ pub mod tests {
         Quasi::new(),
       )(Span::new(i))
     }
-    let res = test("(1 (1 :: ω #Nat))");
+    let res = test("(1 (3 :: ω 2))");
     println!("res {:?}", res);
     assert!(res.is_ok());
     assert_eq!(
@@ -1026,11 +1033,9 @@ pub mod tests {
       Term::App(
         Pos::None,
         Uses::Many,
-        Box::new((
-          Term::Lit(Pos::None, Literal::Nat(1u64.into())),
-          Term::LTy(Pos::None, LitType::Nat),
-          Term::Lit(Pos::None, Literal::Nat(1u64.into())),
-        ))
+        Box::new(Term::Lit(Pos::None, Literal::Nat(1u64.into()))),
+        Box::new(Term::Lit(Pos::None, Literal::Nat(2u64.into()))),
+        Box::new(Term::Lit(Pos::None, Literal::Nat(3u64.into()))),
       )
     );
     let res = test("(Type (Type :: 0 Type))");
@@ -1038,6 +1043,19 @@ pub mod tests {
     let res = test("(1 (1 :: ω #Nat) (1 :: ω #Nat))");
     println!("res {:?}", res);
     assert!(res.is_ok());
+    let res = test("(#Int (1 :: 0 #U16))");
+    println!("res {:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(
+      res.unwrap().1,
+      Term::App(
+        Pos::None,
+        Uses::None,
+        Box::new(Term::LTy(Pos::None, LitType::Int)),
+        Box::new(Term::LTy(Pos::None, LitType::U16)),
+        Box::new(Term::Lit(Pos::None, Literal::Nat(1u64.into()))),
+      )
+    );
   }
 
   #[test]
@@ -1056,7 +1074,8 @@ pub mod tests {
         Pos::None,
         Uses::Many,
         Name::from("a"),
-        Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None)))
+        Box::new(Term::Typ(Pos::None)),
+        Box::new(Term::Typ(Pos::None))
       )
     );
     let res = test("λ (ω a: λ (ω x: Type) => Type) => Type");
@@ -1086,7 +1105,8 @@ pub mod tests {
         Pos::None,
         Uses::Many,
         Name::from("a"),
-        Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None)))
+        Box::new(Term::Typ(Pos::None)),
+        Box::new(Term::Typ(Pos::None))
       )
     );
     let res = test("∀ (ω x: #Nat) -> ∀ (ω y: #Nat) -> #Nat");
@@ -1128,11 +1148,9 @@ pub mod tests {
         false,
         Uses::Many,
         Name::from("x"),
-        Box::new((
-          Term::Typ(Pos::None),
-          Term::Typ(Pos::None),
-          Term::Var(Pos::None, Name::from("x"), 0)
-        ))
+        Box::new(Term::Typ(Pos::None)),
+        Box::new(Term::Typ(Pos::None)),
+        Box::new(Term::Var(Pos::None, Name::from("x"), 0))
       )
     );
     let res = test("letrec ω x : Type = x in Type");
@@ -1145,11 +1163,9 @@ pub mod tests {
         true,
         Uses::Many,
         Name::from("x"),
-        Box::new((
-          Term::Typ(Pos::None),
-          Term::Var(Pos::None, Name::from("x"), 0),
-          Term::Typ(Pos::None),
-        ))
+        Box::new(Term::Typ(Pos::None)),
+        Box::new(Term::Var(Pos::None, Name::from("x"), 0)),
+        Box::new(Term::Typ(Pos::None)),
       )
     )
   }
@@ -1180,10 +1196,10 @@ pub mod tests {
           true
         }
         else {
-          println!("{}", x);
-          println!("{}", y);
           println!("{:?}", x);
+          println!("{}", x);
           println!("{:?}", y);
+          println!("{}", y);
           false
         }
       }

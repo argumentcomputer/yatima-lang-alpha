@@ -911,7 +911,8 @@ impl DAG {
               Pos::None,
               *uses,
               nam,
-              Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None))),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
             )));
             stack.push(Frame::Enter((typ, typ_map, depth, re_rec)));
             stack.push(Frame::Enter((bod, map, depth + 1, re_rec)));
@@ -942,7 +943,8 @@ impl DAG {
             let Dat { typ, bod, .. } = unsafe { link.as_ref() };
             stack.push(Frame::Return(Term::Dat(
               Pos::None,
-              Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None))),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
             )));
             stack.push(Frame::Enter((typ, map.clone(), depth, re_rec)));
             stack.push(Frame::Enter((bod, map, depth, re_rec)));
@@ -952,11 +954,9 @@ impl DAG {
             stack.push(Frame::Return(Term::App(
               Pos::None,
               *uses,
-              Box::new((
-                Term::Typ(Pos::None),
-                Term::Typ(Pos::None),
-                Term::Typ(Pos::None),
-              )),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
             )));
             stack.push(Frame::Enter((fun, map.clone(), depth, re_rec)));
             stack.push(Frame::Enter((typ, map.clone(), depth, re_rec)));
@@ -974,7 +974,8 @@ impl DAG {
               Pos::None,
               *uses,
               nam,
-              Box::new((Term::Typ(Pos::None), Term::Typ(Pos::None))),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
             )));
             stack.push(Frame::Enter((dom, dom_map, depth, re_rec)));
             stack.push(Frame::Enter((img, map, depth + 1, re_rec)));
@@ -1002,11 +1003,9 @@ impl DAG {
               rec,
               *uses,
               nam,
-              Box::new((
-                Term::Typ(Pos::None),
-                Term::Typ(Pos::None),
-                Term::Typ(Pos::None),
-              )),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
+              Box::new(Term::Typ(Pos::None)),
             )));
             stack.push(Frame::Enter((typ, typ_map, depth, re_rec)));
             stack.push(Frame::Enter((exp, exp_map, exp_depth, re_rec)));
@@ -1015,40 +1014,34 @@ impl DAG {
         },
         Frame::Return(mut term) => {
           match &mut term {
-            Term::Lam(_, _, _, typ_bod) => {
-              let typ = ret_stack.pop().unwrap();
-              let bod = ret_stack.pop().unwrap();
-              *typ_bod = Box::new((typ, bod));
+            Term::Lam(_, _, _, typ, bod) => {
+              *typ = Box::new(ret_stack.pop().unwrap());
+              *bod = Box::new(ret_stack.pop().unwrap());
             }
-            Term::App(_, _, fun_typ_arg) => {
-              let fun = ret_stack.pop().unwrap();
-              let typ = ret_stack.pop().unwrap();
-              let arg = ret_stack.pop().unwrap();
-              *fun_typ_arg = Box::new((fun, typ, arg));
+            Term::App(_, _, fun, typ, arg) => {
+              *fun = Box::new(ret_stack.pop().unwrap());
+              *typ = Box::new(ret_stack.pop().unwrap());
+              *arg = Box::new(ret_stack.pop().unwrap());
             }
-            Term::All(_, _, _, dom_img) => {
-              let dom = ret_stack.pop().unwrap();
-              let img = ret_stack.pop().unwrap();
-              *dom_img = Box::new((dom, img));
+            Term::All(_, _, _, dom, img) => {
+              *dom = Box::new(ret_stack.pop().unwrap());
+              *img = Box::new(ret_stack.pop().unwrap());
             }
             Term::Slf(_, _, bod) => {
-              let new_bod = Box::new(ret_stack.pop().unwrap());
-              *bod = new_bod;
+              *bod = Box::new(ret_stack.pop().unwrap());
             }
-            Term::Dat(_, typ_bod) => {
-              let typ = ret_stack.pop().unwrap();
-              let bod = ret_stack.pop().unwrap();
-              *typ_bod = Box::new((typ, bod));
+            Term::Dat(_, typ, bod) => {
+              *typ = Box::new(ret_stack.pop().unwrap());
+              *bod = Box::new(ret_stack.pop().unwrap());
             }
             Term::Cse(_, bod) => {
               let new_bod = Box::new(ret_stack.pop().unwrap());
               *bod = new_bod;
             }
-            Term::Let(_, _, _, _, typ_exp_bod) => {
-              let typ = ret_stack.pop().unwrap();
-              let exp = ret_stack.pop().unwrap();
-              let bod = ret_stack.pop().unwrap();
-              *typ_exp_bod = Box::new((typ, exp, bod));
+            Term::Let(_, _, _, _, typ, exp, bod) => {
+              *typ = Box::new(ret_stack.pop().unwrap());
+              *exp = Box::new(ret_stack.pop().unwrap());
+              *bod = Box::new(ret_stack.pop().unwrap());
             }
             _ => (),
           }
@@ -1161,8 +1154,8 @@ impl DAG {
         ast: *ast,
         parents,
       })),
-      Term::Lam(_, uses, nam, typ_bod) => unsafe {
-        let (typ, bod) = &**typ_bod;
+      Term::Lam(_, uses, nam, typ, bod) => unsafe {
+        let (typ, bod) = (&**typ, &**bod);
         let bind = alloc_bind(nam.clone(), 0, DAGPtr::Null, None);
         let lam = alloc_lam(*uses, DAGPtr::Null, bind, parents);
         let Lam { typ_ref, bod_ref, .. } = &mut *lam.as_ptr();
@@ -1188,8 +1181,8 @@ impl DAG {
         (*bind.as_ptr()).bod = bod;
         DAGPtr::Lam(lam)
       },
-      Term::All(_, uses, nam, dom_img) => unsafe {
-        let (dom, img) = &**dom_img;
+      Term::All(_, uses, nam, dom, img) => unsafe {
+        let (dom, img) = (&**dom, &**img);
         let bind = alloc_bind(nam.clone(), 0, DAGPtr::Null, None);
         let all = alloc_all(*uses, DAGPtr::Null, bind, parents);
         let All { dom_ref, img_ref, .. } = &mut *all.as_ptr();
@@ -1229,8 +1222,8 @@ impl DAG {
         (*slf.as_ptr()).bod = bod;
         DAGPtr::Slf(slf)
       },
-      Term::Dat(_, typ_bod) => unsafe {
-        let (typ, bod) = &**typ_bod;
+      Term::Dat(_, typ, bod) => unsafe {
+        let (typ, bod) = (&**typ, &**bod);
         let dat = alloc_dat(DAGPtr::Null, DAGPtr::Null, parents);
         let Dat { typ_ref, bod_ref, .. } = &mut *dat.as_ptr();
         let typ = DAG::from_term_inner(
@@ -1264,8 +1257,8 @@ impl DAG {
         (*cse.as_ptr()).bod = bod;
         DAGPtr::Cse(cse)
       },
-      Term::App(_, uses, fun_typ_arg) => unsafe {
-        let (fun, typ, arg) = &**fun_typ_arg;
+      Term::App(_, uses, fun, typ, arg) => unsafe {
+        let (fun, typ, arg) = (&*fun, &*typ, &*arg);
         let app =
           alloc_app(*uses, DAGPtr::Null, DAGPtr::Null, DAGPtr::Null, parents);
         let App { fun_ref, typ_ref, arg_ref, .. } = &mut *app.as_ptr();
@@ -1295,8 +1288,8 @@ impl DAG {
         (*app.as_ptr()).arg = arg;
         DAGPtr::App(app)
       },
-      Term::Let(_, rec, uses, nam, typ_exp_bod) => unsafe {
-        let (typ, exp, bod) = &**typ_exp_bod;
+      Term::Let(_, rec, uses, nam, typ, exp, bod) => unsafe {
+        let (typ, exp, bod) = (&*typ, &*exp, &*bod);
         // Allocates the `Let` node and a `Bind` node for `bod`
         let bind = alloc_bind(nam.clone(), 0, DAGPtr::Null, None);
         let let_ = alloc_let(*uses, DAGPtr::Null, DAGPtr::Null, bind, parents);
