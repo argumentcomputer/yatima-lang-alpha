@@ -594,7 +594,6 @@ pub fn stringify_code(
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(All {} {} {} {})", code_to_uses(uses), arg_name, dom, code_str));
-
       },
       MK_SLF => {
         let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
