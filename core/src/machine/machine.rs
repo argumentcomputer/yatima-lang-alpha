@@ -197,7 +197,14 @@ pub fn build_closure(
   clos
 }
 
+// Builds a graph from a closure. The `eval` flag determines whether we are evaluating, i.e.,
+// reducing a graph. If not, we only build the graph "as is". Currently, this only matters in
+// two cases: projection closures, which reduces nodes before copying for performance reasons,
+// and annotations, which are dropped when reducing. Later, when we introduce thunks, `eval = false`
+// will also allow us to construct the spine instead of directly adding the arguments to the stack.
+// This is needed for typechecking reasons.
 pub fn build_graph(
+  eval: bool,
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
   idx: usize,
@@ -334,21 +341,29 @@ pub fn build_graph(
         )));
       },
       MK_ANN => {
-        let typ = args.pop().unwrap();
-        let exp = args.pop().unwrap();
-        hasher.update(get_hash(&exp.borrow()));
-        hasher.update(get_hash(&typ.borrow()));
-        update_hasher(&mut hasher, MK_ANN as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
-        args.push(Rc::new(RefCell::new(
-          Graph::Ann(hash, typ, exp)
-        )));
+        if eval {
+          // Can we skip building the type altogether?
+          let _ = args.pop().unwrap();
+        }
+        else {
+          let typ = args.pop().unwrap();
+          let exp = args.pop().unwrap();
+          hasher.update(get_hash(&exp.borrow()));
+          hasher.update(get_hash(&typ.borrow()));
+          update_hasher(&mut hasher, MK_ANN as usize);
+          let hash = hasher.finalize();
+          hasher.reset();
+          args.push(Rc::new(RefCell::new(
+            Graph::Ann(hash, typ, exp)
+          )));
+        }
       },
       EVAL => {
         // EVAL should be used for projection functions, i.e., functions where the body is a single variable node
         if let Some(arg) = args.last() {
-          reduce(globals, fun_defs, arg.clone());
+          if eval {
+            reduce(globals, fun_defs, arg.clone());
+          }
         }
         else {
           panic!("Stack underflow")
@@ -396,7 +411,7 @@ pub fn reduce(
               _ => break
             };
             trail.pop();
-            build_graph(globals, fun_defs, *idx, env, arg, redex)
+            build_graph(true, globals, fun_defs, *idx, env, arg, redex)
           }
           else {
             break
@@ -433,6 +448,11 @@ pub fn reduce(
           else {
             break
           }
+        }
+        Graph::Ann(_, _, exp) => {
+          let reduced_node = reduce(globals, fun_defs, exp.clone());
+          *borrow = (*reduced_node.borrow()).clone();
+          node.clone()
         }
         _ => break,
       }
