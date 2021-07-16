@@ -71,14 +71,15 @@ pub fn term_to_ir(done: &mut BTreeMap<Cid, usize>, ir_defs: &mut Vec<(Name, IR)>
         match done.get(def_link) {
           Some(idx) => (IR::Ref(*idx), set),
           None => {
-            let idx = ir_defs.len();
-            done.insert(*def_link, idx);
             let term = &defs
               .defs
               .get(def_link)
               .unwrap()
               .term;
+            // No issue recursing down, because refs are not cyclic
             let ir = term_to_ir(done, ir_defs, term, defs);
+            let idx = ir_defs.len();
+            done.insert(*def_link, idx);
             ir_defs.push((nam.clone(), ir));
             (IR::Ref(idx), set)
           },

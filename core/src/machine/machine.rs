@@ -145,6 +145,7 @@ pub fn usize_to_bytes<const N: usize>(num: usize) -> [u8; N] {
   result
 }
 
+#[inline]
 pub fn code_to_uses(uses: CODE) -> Uses {
   match uses {
     0 => Uses::None,
@@ -196,7 +197,6 @@ pub fn build_closure(
   clos
 }
 
-#[inline]
 pub fn build_graph(
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
@@ -368,7 +368,6 @@ pub fn build_graph(
   redex
 }
 
-#[inline]
 pub fn reduce(
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
@@ -377,45 +376,68 @@ pub fn reduce(
   let mut node = top_node;
   let mut trail = vec![];
   loop {
-    let mut is_ref = false;
-    let next_node = match &*node.borrow() {
-      Graph::App(_, fun, _) => {
-        trail.push(node.clone());
-        fun.clone()
-      }
-      Graph::Lam(_, clos) => {
-        let Closure { idx, env } = clos;
-        if let Some(redex) = trail.pop() {
-          // Since we know these are app nodes, can't we extract the field without matching
-          // i.e., without double checking the tag?
-          let arg = match &*redex.borrow() {
-            Graph::App(_,_,arg) => {
-              arg.clone()
+    let next_node = {
+      let borrow = &mut *(node.borrow_mut());
+      match borrow {
+        Graph::App(_, fun, _) => {
+          trail.push(node.clone());
+          fun.clone()
+        }
+        Graph::Lam(_, clos) => {
+          let Closure { idx, env } = clos;
+          let len = trail.len();
+          if len > 0 {
+            let redex = trail[len-1].clone();
+            let arg = match &*redex.borrow() {
+              Graph::App(_,_,arg) => {
+                arg.clone()
+              }
+              // Must be a Cse node, in which case we are in whnf
+              _ => break
+            };
+            trail.pop();
+            build_graph(globals, fun_defs, *idx, env, arg, redex)
+          }
+          else {
+            break
+          }
+        },
+        Graph::Ref(_, idx) => {
+          let reduced_node = reduce(globals, fun_defs, globals[*idx].term.clone());
+          *borrow = (*reduced_node.borrow()).clone();
+          node.clone()
+        },
+        Graph::Cse(_, bod) => {
+          trail.push(node.clone());
+          bod.clone()
+        }
+        Graph::Dat(_, bod) => {
+          let len = trail.len();
+          if len > 0 {
+            let redex = trail[len-1].clone();
+            match &*redex.borrow() {
+              Graph::Cse(_,_) => (),
+              // Must be an App node, in which case we are in whnf
+              _ => break,
+            };
+            trail.pop();
+            // The reason we reduce bod before copying its node over the redex is that
+            // we don't want to duplicate possible redexes
+            let reduced_node = reduce(globals, fun_defs, bod.clone());
+            {
+              let mut mut_ref = (*redex).borrow_mut();
+              *mut_ref = (*reduced_node.borrow()).clone();
             }
-            _ => unreachable!()
-          };
-          build_graph(globals, fun_defs, *idx, env, arg, redex)
+            redex
+          }
+          else {
+            break
+          }
         }
-        else {
-          break
-        }
-      },
-      Graph::Ref(_, idx) => {
-        is_ref = true;
-        reduce(globals, fun_defs, globals[*idx].term.clone())
-      },
-      Graph::Cse(_, _) => {
-        todo!()
+        _ => break,
       }
-      _ => break,
     };
-    if is_ref {
-      let mut mut_ref = (*node).borrow_mut();
-      *mut_ref = (*next_node.borrow()).clone();
-    }
-    else {
-      node = next_node;
-    }
+    node = next_node;
   }
   if trail.is_empty() {
     node
@@ -427,7 +449,6 @@ pub fn reduce(
   }
 }
 
-#[inline]
 pub fn stringify_graph(
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
@@ -495,6 +516,7 @@ pub fn stringify_graph(
   }
 }
 
+#[inline]
 pub fn stringify_code(
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
@@ -519,6 +541,12 @@ pub fn stringify_code(
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(Lam {} {})", arg_name, code_str));
       }
+      REF_GBL => {
+        let bytes = &code[pc+1..pc+1+ENV_SIZE];
+        let index = bytes_to_usize(bytes);
+        args.push(format!("(Ref {})", globals[index].name));
+        pc = pc+ENV_SIZE;
+      },
       REF_ARG => {
         args.push(format!("(Var {})", arg_name));
       },
@@ -531,7 +559,8 @@ pub fn stringify_code(
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
         // TODO: add proper names
-        args.push(format!("(Var {})", bytes_to_usize(bytes)));
+        let index = bytes_to_usize(bytes);
+        args.push(format!("(Var {})", index));
         pc = pc+8;
       },
       MK_TYP => {
@@ -545,7 +574,7 @@ pub fn stringify_code(
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(All {} {} {} {})", code_to_uses(uses), arg_name, dom, code_str));
-      
+
       },
       MK_SLF => {
         let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
@@ -576,6 +605,7 @@ pub fn stringify_code(
   format!("{}", args.pop().unwrap())
 }
 
+#[inline]
 pub fn stringify_env(
   code: &Vec<CODE>,
   pc: &mut usize,
