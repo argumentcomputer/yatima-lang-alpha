@@ -59,8 +59,12 @@ pub const MK_DAT: CODE = 10;
 pub const MK_CSE: CODE = 11;
 // Build an annotation node
 pub const MK_ANN: CODE = 12;
+// Build a let node
+pub const MK_LET: CODE = 13;
+// Build a fix node
+pub const MK_FIX: CODE = 13;
 // Evaluate last node
-pub const EVAL: CODE = 13;
+pub const EVAL: CODE = 15;
 // End of code
 pub const END: CODE = 0;
 
@@ -79,7 +83,8 @@ pub enum Graph {
   Dat(Hash, Link<Graph>),
   Cse(Hash, Link<Graph>),
   Ann(Hash, Link<Graph>, Link<Graph>),
-  // Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
+  Let(Hash, Uses, Link<Graph>, Link<Graph>, Closure),
+  Fix(Hash, Closure),
   // Lit(Pos, Literal),
   // LTy(Pos, LitType),
   // Opr(Pos, Op),
@@ -121,6 +126,8 @@ pub fn get_hash<'a>(term: &'a Graph) -> &'a [u8] {
     Graph::Dat(hash, _) => hash.as_ref(),
     Graph::Cse(hash, _) => hash.as_ref(),
     Graph::Ann(hash, _, _) => hash.as_ref(),
+    Graph::Let(hash, _, _, _, _) => hash.as_ref(),
+    Graph::Fix(hash, _) => hash.as_ref(),
   }
 }
 
@@ -143,6 +150,16 @@ pub fn usize_to_bytes<const N: usize>(num: usize) -> [u8; N] {
     result[i] = (num >> (N*i)) as u8;
   }
   result
+}
+
+#[inline]
+pub fn uses_to_code(uses: Uses) -> CODE {
+  match uses {
+    Uses::None => 0,
+    Uses::Once => 1,
+    Uses::Affi => 2,
+    Uses::Many => 3,
+  }
 }
 
 #[inline]
@@ -232,6 +249,7 @@ pub fn build_graph(
         )));
       },
       MK_LAM => {
+        update_hasher(&mut hasher, MK_LAM as usize);
         let clos = build_closure(
           code,
           &mut pc,
@@ -240,7 +258,6 @@ pub fn build_graph(
           arg.clone(),
           env,
         );
-        update_hasher(&mut hasher, MK_LAM as usize);
         let hash = hasher.finalize();
         hasher.reset();
         args.push(Rc::new(RefCell::new(
@@ -286,6 +303,10 @@ pub fn build_graph(
       MK_ALL => {
         let uses = code[pc+1];
         pc = pc+1;
+        let dom = args.pop().unwrap();
+        hasher.update(get_hash(&dom.borrow()));
+        update_hasher(&mut hasher, MK_ALL as usize);
+        update_hasher(&mut hasher, uses as usize);
         let clos = build_closure(
           code,
           &mut pc,
@@ -294,10 +315,6 @@ pub fn build_graph(
           arg.clone(),
           env,
         );
-        let dom = args.pop().unwrap();
-        hasher.update(get_hash(&dom.borrow()));
-        update_hasher(&mut hasher, code[pc+1] as usize);
-        update_hasher(&mut hasher, MK_ALL as usize);
         let hash = hasher.finalize();
         hasher.reset();
         args.push(Rc::new(RefCell::new(
@@ -305,6 +322,7 @@ pub fn build_graph(
         )));
       },
       MK_SLF => {
+        update_hasher(&mut hasher, MK_SLF as usize);
         let clos = build_closure(
           code,
           &mut pc,
@@ -313,7 +331,6 @@ pub fn build_graph(
           arg.clone(),
           env,
         );
-        update_hasher(&mut hasher, MK_SLF as usize);
         let hash = hasher.finalize();
         hasher.reset();
         args.push(Rc::new(RefCell::new(
@@ -454,6 +471,12 @@ pub fn reduce(
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }
+        Graph::Let(_, _, _, _, _) => {
+          todo!()
+        }
+        Graph::Fix(_, _) => {
+          todo!()
+        }
         _ => break,
       }
     };
@@ -532,6 +555,12 @@ pub fn stringify_graph(
       let typ = stringify_graph(globals, fun_defs, typ.clone());
       let exp = stringify_graph(globals, fun_defs, exp.clone());
       format!("(Ann {} {})", typ, exp)
+    },
+    Graph::Let(_, _, _, _, _) => {
+      todo!()
+    },
+    Graph::Fix(_, _) => {
+      todo!()
     },
   }
 }

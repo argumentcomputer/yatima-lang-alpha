@@ -26,6 +26,8 @@ pub enum IR {
   Dat(Rc<IR>),
   Cse(Rc<IR>),
   Ann(Rc<IR>, Rc<IR>),
+  Let(Uses, Name, Rc<IR>, Rc<IR>, FreeVars, Rc<IR>),
+  Fix(Name, FreeVars, Rc<IR>),
 }
 
 pub fn defs_to_ir(defs: &Defs) -> Vec<(Name, IR)> {
@@ -131,6 +133,30 @@ pub fn term_to_ir(
       let (exp, exp_set) = term_to_ir(done, ir_defs, rec_idx, exp, defs);
       let ir = IR::Ann(Rc::new(typ), Rc::new(exp));
       let set = FreeVars::union(&typ_set, &exp_set);
+      (ir, set)
+    },
+    Term::Let(_, false, uses, nam, link) => {
+      let (typ, exp, bod) = &**link;
+      let (typ, typ_set) = term_to_ir(done, ir_defs, rec_idx, typ, defs);
+      let (exp, exp_set) = term_to_ir(done, ir_defs, rec_idx, exp, defs);
+      let (bod, mut bod_set) = term_to_ir(done, ir_defs, rec_idx, bod, defs);
+      bod_set.bind();
+      let ir = IR::Let(*uses, nam.clone(), Rc::new(typ), Rc::new(exp), bod_set.clone(), Rc::new(bod));
+      let set = FreeVars::union(&typ_set, &exp_set);
+      let set = FreeVars::union(&set, &bod_set);
+      (ir, set)
+    },
+    Term::Let(_, true, uses, nam, link) => {
+      let (typ, exp, bod) = &**link;
+      let (typ, typ_set) = term_to_ir(done, ir_defs, rec_idx, typ, defs);
+      let (exp, mut exp_set) = term_to_ir(done, ir_defs, rec_idx, exp, defs);
+      let (bod, mut bod_set) = term_to_ir(done, ir_defs, rec_idx, bod, defs);
+      exp_set.bind();
+      bod_set.bind();
+      let fix = IR::Fix(nam.clone(), exp_set.clone(), Rc::new(exp));
+      let ir = IR::Let(*uses, nam.clone(), Rc::new(typ), Rc::new(fix), bod_set.clone(), Rc::new(bod));
+      let set = FreeVars::union(&typ_set, &exp_set);
+      let set = FreeVars::union(&set, &bod_set);
       (ir, set)
     },
     _ => panic!("Not yet implemented {}", term)

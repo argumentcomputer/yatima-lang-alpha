@@ -1,6 +1,5 @@
 use crate::{
   name::Name,
-  uses::Uses,
   machine::freevars::FreeVars,
   machine::ir::*,
   machine::machine::*,
@@ -61,6 +60,7 @@ pub fn ir_to_graph(
       // however, to add a non-empty environment of only top-level terms, which
       // will give a better sharing of graphs.
       let mut hasher = Blake3Hasher::default();
+      update_hasher(&mut hasher, MK_LAM as usize);
       let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
@@ -103,6 +103,9 @@ pub fn ir_to_graph(
     IR::All(uses, name, dom, _, img) => {
       let mut hasher = Blake3Hasher::default();
       let dom = ir_to_graph(dom, fun_defs);
+      hasher.update(get_hash(&dom.borrow()));
+      update_hasher(&mut hasher, MK_ALL as usize);
+      update_hasher(&mut hasher, *uses as usize);
       let pos = compile_ir(&mut hasher, name.clone(), &img, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
@@ -115,6 +118,7 @@ pub fn ir_to_graph(
     },
     IR::Slf(name, _, bod) => {
       let mut hasher = Blake3Hasher::default();
+      update_hasher(&mut hasher, MK_SLF as usize);
       let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
@@ -150,13 +154,41 @@ pub fn ir_to_graph(
       let exp = ir_to_graph(exp, fun_defs);
       let mut hasher = Blake3Hasher::default();
       hasher.update(get_hash(&exp.borrow()));
-      hasher.update(get_hash(&typ.borrow()));
-      update_hasher(&mut hasher, MK_ANN as usize);
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
         Graph::Ann(hash, typ, exp)
       ))
     },
+    IR::Let(uses, name, typ, exp, _, bod) => {
+      let mut hasher = Blake3Hasher::default();
+      let typ = ir_to_graph(typ, fun_defs);
+      let exp = ir_to_graph(exp, fun_defs);
+      // Use and type annotations do not matter
+      hasher.update(get_hash(&exp.borrow()));
+      update_hasher(&mut hasher, MK_LET as usize);
+      let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
+      let clos = Closure {
+        idx: pos,
+        env: vec![],
+      };
+      let hash = hasher.finalize();
+      Rc::new(RefCell::new(
+        Graph::Let(hash, *uses, typ, exp, clos)
+      ))
+    },
+    IR::Fix(name, _, bod) => {
+      let mut hasher = Blake3Hasher::default();
+      update_hasher(&mut hasher, MK_FIX as usize);
+      let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
+      let clos = Closure {
+        idx: pos,
+        env: vec![],
+      };
+      let hash = hasher.finalize();
+      Rc::new(RefCell::new(
+        Graph::Fix(hash, clos)
+      ))
+    }
   }
 }
 
@@ -207,8 +239,8 @@ pub fn compile_ir(
       },
       IR::Lam(name, free, bod) => {
         code.push(MK_LAM);
-        update_hasher(hasher, MK_LAM as usize);
         compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
+        update_hasher(hasher, MK_LAM as usize);
       },
       IR::App(fun, arg) => {
         // Argument first, function second
@@ -229,12 +261,7 @@ pub fn compile_ir(
       },
       IR::All(uses, name, dom, free, img) => {
         go(false, hasher, dom, code, env, fun_defs);
-        let uses = match uses {
-          Uses::None => 0,
-          Uses::Once => 1,
-          Uses::Affi => 2,
-          Uses::Many => 3,
-        };
+        let uses = uses_to_code(*uses);
         code.push(MK_ALL);
         code.push(uses);
         update_hasher(hasher, MK_ALL as usize);
@@ -243,8 +270,8 @@ pub fn compile_ir(
       },
       IR::Slf(name, free, bod) => {
         code.push(MK_SLF);
-        update_hasher(hasher, MK_SLF as usize);
         compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
+        update_hasher(hasher, MK_SLF as usize);
       },
       IR::Dat(bod) => {
         go(false, hasher, bod, code, env, fun_defs);
@@ -257,11 +284,27 @@ pub fn compile_ir(
         update_hasher(hasher, MK_CSE as usize);
       },
       IR::Ann(typ, exp) => {
-        go(false, hasher, exp, code, env, fun_defs);
-        go(false, hasher, typ, code, env, fun_defs);
+        // Ann ignores typ when evaluating, thus we pass on `is_proj` to exp alone
+        // Also annotations are not hashed
+        go(is_proj, hasher, exp, code, env, fun_defs);
+        go(false, &mut Blake3Hasher::default(), typ, code, env, fun_defs);
         code.push(MK_ANN);
-        update_hasher(hasher, MK_ANN as usize);
       },
+      IR::Let(uses, name, typ, exp, free, bod) => {
+        // Let ignores typ similarly to Ann
+        go(is_proj, hasher, exp, code, env, fun_defs);
+        go(false, &mut Blake3Hasher::default(), typ, code, env, fun_defs);
+        let uses = uses_to_code(*uses);
+        code.push(MK_LET);
+        code.push(uses);
+        update_hasher(hasher, MK_LET as usize);
+        compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
+      },
+      IR::Fix(name, free, bod) => {
+        code.push(MK_FIX);
+        compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
+        update_hasher(hasher, MK_FIX as usize);
+      }
     }
   }
 
