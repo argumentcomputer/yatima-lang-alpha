@@ -62,7 +62,7 @@ pub const MK_ANN: CODE = 12;
 // Build a let node
 pub const MK_LET: CODE = 13;
 // Build a fix node
-pub const MK_FIX: CODE = 13;
+pub const MK_FIX: CODE = 14;
 // Evaluate last node
 pub const EVAL: CODE = 15;
 // End of code
@@ -71,7 +71,7 @@ pub const END: CODE = 0;
 pub type Link<T> = Rc<RefCell<T>>;
 pub type Hash = Blake3Digest<U32>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Graph {
   Lam(Hash, Closure),
   App(Hash, Link<Graph>, Link<Graph>),
@@ -90,7 +90,7 @@ pub enum Graph {
   // Opr(Pos, Op),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Closure {
   pub idx: usize,
   pub env: Vec<Link<Graph>>,
@@ -227,7 +227,6 @@ pub fn build_graph(
   idx: usize,
   env: &Vec<Link<Graph>>,
   arg: Link<Graph>,
-  redex: Link<Graph>
 ) -> Link<Graph> {
   let code = &fun_defs[idx].code;
   let mut pc = 0;
@@ -386,18 +385,49 @@ pub fn build_graph(
           panic!("Stack underflow")
         }
       }
+      MK_LET => {
+        let uses = code[pc+1];
+        pc = pc+1;
+        let typ = args.pop().unwrap();
+        let exp = args.pop().unwrap();
+        hasher.update(get_hash(&exp.borrow()));
+        update_hasher(&mut hasher, MK_LET as usize);
+        let clos = build_closure(
+          code,
+          &mut pc,
+          &mut hasher,
+          fun_defs,
+          arg.clone(),
+          env,
+        );
+        let hash = hasher.finalize();
+        hasher.reset();
+        args.push(Rc::new(RefCell::new(
+          Graph::Let(hash, code_to_uses(uses), typ, exp, clos)
+        )));
+      },
+      MK_FIX => {
+        update_hasher(&mut hasher, MK_FIX as usize);
+        let clos = build_closure(
+          code,
+          &mut pc,
+          &mut hasher,
+          fun_defs,
+          arg.clone(),
+          env,
+        );
+        let hash = hasher.finalize();
+        hasher.reset();
+        args.push(Rc::new(RefCell::new(
+          Graph::Fix(hash, clos)
+        )));
+      },
       END => break,
       _ => panic!("Operation does not exist"),
     }
     pc = pc+1;
   }
-  // Optimization TODO: build the argument on top of the redex instead of copying over the redex
-  let arg = args.pop().unwrap();
-  {
-    let mut mut_ref = (*redex).borrow_mut();
-    *mut_ref = (*arg.borrow()).clone();
-  }
-  redex
+  args.pop().unwrap()
 }
 
 pub fn reduce(
@@ -409,8 +439,8 @@ pub fn reduce(
   let mut trail = vec![];
   loop {
     let next_node = {
-      let borrow = &mut *(node.borrow_mut());
-      match borrow {
+      let mut borrow = node.borrow_mut();
+      match &mut *borrow {
         Graph::App(_, fun, _) => {
           trail.push(node.clone());
           fun.clone()
@@ -428,7 +458,13 @@ pub fn reduce(
               _ => break
             };
             trail.pop();
-            build_graph(true, globals, fun_defs, *idx, env, arg, redex)
+            // Optimization TODO: build the reduced node on top of the redex instead of copying
+            let reduced_node = build_graph(true, globals, fun_defs, *idx, env, arg);
+            {
+              let mut mut_ref = (*redex).borrow_mut();
+              *mut_ref = (*reduced_node.borrow()).clone();
+            }
+            redex
           }
           else {
             break
@@ -471,11 +507,27 @@ pub fn reduce(
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }
-        Graph::Let(_, _, _, _, _) => {
-          todo!()
+        Graph::Let(_, _, _, exp, clos) => {
+          let Closure { idx, env } = clos;
+          let reduced_node = build_graph(true, globals, fun_defs, *idx, env, exp.clone());
+          *borrow = (*reduced_node.borrow()).clone();
+          node.clone()
         }
         Graph::Fix(_, _) => {
-          todo!()
+          // We have to clone the contents of `node` and drop its borrow only to
+          // borrow and match it again, otherwise the borrow checker complains
+          let arg = Rc::new(RefCell::new(borrow.clone()));
+          drop(borrow);
+          let mut borrow = node.borrow_mut();
+          match &mut *borrow {
+            Graph::Fix(_,clos) => {
+              let Closure { idx, env } = clos;
+              let reduced_node = build_graph(true, globals, fun_defs, *idx, env, arg);
+              *borrow = (*reduced_node.borrow()).clone();
+            }
+            _ => unreachable!(),
+          }
+          node.clone()
         }
         _ => break,
       }
@@ -556,11 +608,27 @@ pub fn stringify_graph(
       let exp = stringify_graph(globals, fun_defs, exp.clone());
       format!("(Ann {} {})", typ, exp)
     },
-    Graph::Let(_, _, _, _, _) => {
-      todo!()
+    Graph::Let(_, uses, typ, exp, clos) => {
+      let typ = stringify_graph(globals, fun_defs, typ.clone());
+      let exp = stringify_graph(globals, fun_defs, exp.clone());
+      let Closure { idx, env } = clos;
+      let mut env_str = vec![];
+      for graph in env {
+        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
+      }
+      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+      let arg_name = &fun_defs[*idx].arg_name;
+      format!("(Let {} {} {} {} {})", uses, arg_name, typ, exp, code_str)
     },
-    Graph::Fix(_, _) => {
-      todo!()
+    Graph::Fix(_, clos) => {
+      let Closure { idx, env } = clos;
+      let mut env_str = vec![];
+      for graph in env {
+        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
+      }
+      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+      let arg_name = &fun_defs[*idx].arg_name;
+      format!("(Fix {} {})", arg_name, code_str)
     },
   }
 }
@@ -642,6 +710,22 @@ pub fn stringify_code(
         let typ = args.pop().unwrap();
         let exp = args.pop().unwrap();
         args.push(format!("(App {} {})", typ, exp));
+      },
+      MK_LET => {
+        let uses = code[pc+1];
+        pc = pc+1;
+        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let typ = args.pop().unwrap();
+        let exp = args.pop().unwrap();
+        let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
+        let arg_name = &fun_defs[fun_index].arg_name;
+        args.push(format!("(Let {} {} {} {} {})", code_to_uses(uses), arg_name, typ, exp, code_str));
+      },
+      MK_FIX => {
+        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
+        let arg_name = &fun_defs[fun_index].arg_name;
+        args.push(format!("(Fix {} {})", arg_name, code_str));
       },
       EVAL => {
       }
