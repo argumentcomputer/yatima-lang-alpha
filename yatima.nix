@@ -12,23 +12,17 @@
     rustc = rust;
     cargo = rust;
   }
+, src ? ./.
+  # This is impure so it should be provided with the correct information
+, system ? builtins.currentSystem
 }:
-with builtins;
-let
-  # import rust compiler
-
-  # tell nix-build to ignore the `target` directory
-  project = builtins.filterSource
-    (path: type: type != "directory" || builtins.baseNameOf path != "target")
-    ./.;
-in
 naersk.buildPackage {
   name = "yatima";
   version = "0.1.0";
-  buildInputs = with nixpkgs; [ openssl pkg-config project ];
+  buildInputs = with nixpkgs; [ openssl pkg-config ];
   PKG_CONFIG_PATH = "${nixpkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
-  src = project;
+  inherit src;
   doCheck = doCheck;
   remapPathPrefix =
     true; # remove nix store references for a smaller output package
