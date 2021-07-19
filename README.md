@@ -116,7 +116,30 @@ git clone git@github.com:yatima-inc/yatima.git
 cd yatima
 ```
 
-### With Nix:
+### Using binary cache (optional):
+
+To speed up builds use our binary cache from [cachix](https://github.com/cachix/cachix). Install cachix and run:
+
+```bash
+cachix use yatima
+```
+
+### With Nix flakes:
+
+Assuming you have activated flakes for your nix, otherwise [see here](https://nixos.wiki/wiki/Flakes).
+
+```bash
+# Run standalone
+nix run
+# Build
+nix build
+# Start dev shell
+nix develop
+# Install into your environment
+nix profile install
+```
+
+### With Nix (not flakes):
 
 Set up dev environment assuming [nix](https://nixos.org), [lorri](https://github.com/target/lorri) and direnv are installed.
 ```bash

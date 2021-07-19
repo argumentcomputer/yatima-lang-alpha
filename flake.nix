@@ -1,44 +1,33 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
-    utils.url = "github:numtide/flake-utils";
+    utils.url = "github:yatima-inc/nix-utils";
     # grin.url = "github:yatima-inc/grin";
-    naersk-lib.url = "github:nmattia/naersk";
   };
 
   outputs =
     { self
-    , nixpkgs
     , utils
-    , naersk-lib
       # , grin
     }:
-    utils.lib.eachDefaultSystem (system:
     let
-      overlays = [ (import ./nix/rust-overlay.nix) ];
-      pkgs = import nixpkgs { inherit system overlays; };
-      rust = import ./nix/rust.nix { nixpkgs = pkgs; };
-      naersk = naersk-lib.lib."${system}".override {
-        rustc = rust;
-        cargo = rust;
-      };
+      flake-utils = utils.inputs.flake-utils;
+    in
+    flake-utils.lib.eachDefaultSystem (system:
+    let
+      lib = utils.lib.${system};
+      pkgs = utils.nixpkgs.${system};
+      inherit (lib) buildRustProject testRustProject rustDefault filterRustProject naerskDefault;
+      rust = rustDefault;
+      naersk = naerskDefault;
 
       crateName = "yatima";
-      src = builtins.filterSource
-        (path: type: type != "directory" || builtins.baseNameOf path != "target")
-        ./.;
+      src = ./.;
 
-      project = import ./yatima.nix {
-        inherit naersk rust;
+      yatima-nix = import ./yatima.nix;
+      project = yatima-nix {
+        inherit naersk rust src system;
         nixpkgs = pkgs;
       };
-      run = name: command: derivation {
-        inherit name system src;
-        builder = "${pkgs.bash}/bin/bash";
-        buildInputs = [ rust project ];
-        args = [ "-c" command ];
-      };
-
     in
     {
       packages.${crateName} = project;
@@ -46,10 +35,14 @@
       defaultPackage = self.packages.${system}.${crateName};
 
       # nix flake check
-      checks.${crateName} = run "${crateName}-cargo-test" "${rust}/bin/cargo test";
+      checks.${crateName} = yatima-nix {
+        inherit naersk rust src system;
+        nixpkgs = pkgs;
+        doCheck = true;
+      };
 
       # `nix run`
-      apps.${crateName} = utils.lib.mkApp {
+      apps.${crateName} = flake-utils.lib.mkApp {
         name = "yatima";
         drv = self.packages.${system}.${crateName};
       };
