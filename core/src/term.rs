@@ -511,7 +511,6 @@ impl fmt::Display for Term {
 pub mod tests {
 
   use super::{
-    Term::*,
     *,
   };
   use crate::{
