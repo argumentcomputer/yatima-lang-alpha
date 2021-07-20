@@ -28,9 +28,11 @@
         inherit naersk rust src system;
         nixpkgs = pkgs;
       };
+      web = import ./web/default.nix { nixpkgs = pkgs; inherit system; buildInputs = [ project ]; };
     in
     {
       packages.${crateName} = project;
+      packages."yatima-web" = web;
 
       defaultPackage = self.packages.${system}.${crateName};
 
@@ -56,6 +58,7 @@
           rust-analyzer
           clippy
           rustfmt
+          yarn
           # grin
         ];
       };
