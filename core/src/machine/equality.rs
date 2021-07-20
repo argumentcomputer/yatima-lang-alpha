@@ -29,12 +29,11 @@ pub fn copy_u8_hash<'a>(term: &'a Graph) -> [u8; HASH_SIZE] {
 }
 
 #[inline]
-pub fn new_var(dep: usize) -> Link<Graph> {
-  let def_name = Name::from("");
+pub fn new_var(dep: usize, name: Name) -> Link<Graph> {
   let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
   update_hasher(&mut hasher, dep);
   let hash = hasher.finalize();
-  Rc::new(RefCell::new(Graph::Var(hash, def_name.clone())))
+  Rc::new(RefCell::new(Graph::Var(hash, dep, name.clone())))
 }
 
 pub fn equal(
@@ -57,7 +56,7 @@ pub fn equal(
     if !eq {
       match (&*a.borrow(), &*b.borrow()) {
         (Graph::Lam(_, a_clos), Graph::Lam(_, b_clos)) => {
-          let new_var = new_var(dep);
+          let new_var = new_var(dep, Name::from(""));
           let Closure { idx: a_idx, env: a_env } = a_clos;
           let Closure { idx: b_idx, env: b_env } = b_clos;
           let a_bod = build_graph(true, globals, fun_defs, *a_idx, a_env, new_var.clone());
@@ -65,7 +64,7 @@ pub fn equal(
           triples.push((a_bod, b_bod, dep + 1));
         },
         (Graph::Slf(_, a_clos), Graph::Slf(_, b_clos)) => {
-          let new_var = new_var(dep);
+          let new_var = new_var(dep, Name::from(""));
           let Closure { idx: a_idx, env: a_env } = a_clos;
           let Closure { idx: b_idx, env: b_env } = b_clos;
           let a_bod = build_graph(true, globals, fun_defs, *a_idx, a_env, new_var.clone());
@@ -86,7 +85,7 @@ pub fn equal(
           if a_uses != b_uses {
             return false;
           }
-          let new_var = new_var(dep);
+          let new_var = new_var(dep, Name::from(""));
           let Closure { idx: a_idx, env: a_env } = a_clos;
           let Closure { idx: b_idx, env: b_env } = b_clos;
           let a_dom = reduce(globals, fun_defs, a_dom.clone());

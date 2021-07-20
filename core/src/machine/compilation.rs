@@ -50,7 +50,7 @@ pub fn ir_to_graph(
       update_hasher(&mut hasher, *idx as usize);
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
-        Graph::Var(hash, name.clone())
+        Graph::Var(hash, *idx as usize, name.clone())
       ))
     },
     IR::Lam(name, _, bod) => {

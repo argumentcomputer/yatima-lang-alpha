@@ -76,7 +76,7 @@ pub const HASH_SIZE: usize = 32;
 pub enum Graph {
   Lam(Hash, Closure),
   App(Hash, Link<Graph>, Link<Graph>),
-  Var(Hash, Name),
+  Var(Hash, usize, Name),
   Ref(Hash, usize),
   Typ(Hash),
   All(Hash, Uses, Link<Graph>, Closure),
@@ -123,7 +123,7 @@ pub fn get_u8_hash<'a>(term: &'a Graph) -> &'a [u8] {
 pub fn get_hash<'a>(term: &'a Graph) -> &'a Hash {
   match term {
     Graph::Lam(hash, _) => hash,
-    Graph::Var(hash, _) => hash,
+    Graph::Var(hash, _, _) => hash,
     Graph::App(hash, _, _) => hash,
     Graph::Ref(hash, _) => hash,
     Graph::Typ(hash) => hash,
@@ -213,11 +213,10 @@ pub fn build_closure(
     }
     *pc = *pc+ENV_SIZE;
   }
-  let clos = Closure {
+  Closure {
     idx: fun_index,
     env: fun_env,
-  };
-  clos
+  }
 }
 
 // Builds a graph from a closure. The `eval` flag determines whether we are evaluating, i.e.,
@@ -286,13 +285,14 @@ pub fn build_graph(
       },
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
+        let index = bytes_to_usize(bytes);
         hasher.update(bytes);
         let hash = hasher.finalize();
         hasher.reset();
         // TODO: add proper names
         let name = Name::from("x");
         args.push(Rc::new(RefCell::new(
-          Graph::Var(hash, name)
+          Graph::Var(hash, index, name)
         )));
         pc = pc+8;
       },
@@ -450,8 +450,7 @@ pub fn reduce(
           trail.push(node.clone());
           fun.clone()
         }
-        Graph::Lam(_, clos) => {
-          let Closure { idx, env } = clos;
+        Graph::Lam(_, Closure { idx, env }) => {
           let len = trail.len();
           if len > 0 {
             let redex = trail[len-1].clone();
@@ -512,8 +511,7 @@ pub fn reduce(
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }
-        Graph::Let(_, _, _, exp, clos) => {
-          let Closure { idx, env } = clos;
+        Graph::Let(_, _, _, exp, Closure { idx, env }) => {
           let reduced_node = build_graph(true, globals, fun_defs, *idx, env, exp.clone());
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
@@ -525,8 +523,7 @@ pub fn reduce(
           drop(borrow);
           let mut borrow = node.borrow_mut();
           match &mut *borrow {
-            Graph::Fix(_,clos) => {
-              let Closure { idx, env } = clos;
+            Graph::Fix(_, Closure { idx, env }) => {
               let reduced_node = build_graph(true, globals, fun_defs, *idx, env, arg);
               *borrow = (*reduced_node.borrow()).clone();
             }
@@ -554,8 +551,7 @@ pub fn stringify_graph(
       let arg = stringify_graph(globals, fun_defs, arg.clone());
       format!("(App {} {})", fun, arg)
     }
-    Graph::Lam(_, clos) => {
-      let Closure { idx, env } = clos;
+    Graph::Lam(_, Closure { idx, env }) => {
       let mut env_str = vec![];
       for graph in env {
         env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
@@ -564,7 +560,7 @@ pub fn stringify_graph(
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Lam {} {})", arg_name, code_str)
     }
-    Graph::Var(_, nam) => {
+    Graph::Var(_, _, nam) => {
       format!("(Var {})", nam)
     }
     Graph::Ref(_, idx) => {
@@ -573,9 +569,8 @@ pub fn stringify_graph(
     Graph::Typ(_) => {
       format!("Typ")
     },
-    Graph::All(_, uses, dom, clos) => {
+    Graph::All(_, uses, dom, Closure { idx, env }) => {
       let dom = stringify_graph(globals, fun_defs, dom.clone());
-      let Closure { idx, env } = clos;
       let mut env_str = vec![];
       for graph in env {
         env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
@@ -584,8 +579,7 @@ pub fn stringify_graph(
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(All {} {} {} {})", uses, arg_name, dom, code_str)
     },
-    Graph::Slf(_, clos) => {
-      let Closure { idx, env } = clos;
+    Graph::Slf(_, Closure { idx, env }) => {
       let mut env_str = vec![];
       for graph in env {
         env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
@@ -607,10 +601,9 @@ pub fn stringify_graph(
       let exp = stringify_graph(globals, fun_defs, exp.clone());
       format!("(Ann {} {})", typ, exp)
     },
-    Graph::Let(_, uses, typ, exp, clos) => {
+    Graph::Let(_, uses, typ, exp, Closure { idx, env }) => {
       let typ = stringify_graph(globals, fun_defs, typ.clone());
       let exp = stringify_graph(globals, fun_defs, exp.clone());
-      let Closure { idx, env } = clos;
       let mut env_str = vec![];
       for graph in env {
         env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
@@ -619,8 +612,7 @@ pub fn stringify_graph(
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Let {} {} {} {} {})", uses, arg_name, typ, exp, code_str)
     },
-    Graph::Fix(_, clos) => {
-      let Closure { idx, env } = clos;
+    Graph::Fix(_, Closure { idx, env }) => {
       let mut env_str = vec![];
       for graph in env {
         env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
