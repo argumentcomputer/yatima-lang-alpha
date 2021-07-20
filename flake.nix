@@ -1,12 +1,14 @@
 {
   inputs = {
     utils.url = "github:yatima-inc/nix-utils";
+    cargo-wasi.url = "github:yatima-inc/cargo-wasi";
     # grin.url = "github:yatima-inc/grin";
   };
 
   outputs =
     { self
     , utils
+    , cargo-wasi
       # , grin
     }:
     let
@@ -56,6 +58,7 @@
           rust-analyzer
           clippy
           rustfmt
+          cargo-wasi.${system}.cargo-wasi
           # grin
         ];
       };
