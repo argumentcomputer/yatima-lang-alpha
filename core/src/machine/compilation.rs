@@ -47,7 +47,6 @@ pub fn ir_to_graph(
   match ir {
     IR::Var(name, idx) => {
       let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, MK_VAR as usize);
       update_hasher(&mut hasher, *idx as usize);
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
@@ -75,8 +74,8 @@ pub fn ir_to_graph(
       let fun = ir_to_graph(fun, fun_defs);
       let arg = ir_to_graph(arg, fun_defs);
       let mut hasher = Blake3Hasher::default();
-      hasher.update(get_hash(&arg.borrow()));
-      hasher.update(get_hash(&fun.borrow()));
+      hasher.update(get_u8_hash(&arg.borrow()));
+      hasher.update(get_u8_hash(&fun.borrow()));
       update_hasher(&mut hasher, MK_APP as usize);
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
@@ -103,7 +102,7 @@ pub fn ir_to_graph(
     IR::All(uses, name, dom, _, img) => {
       let mut hasher = Blake3Hasher::default();
       let dom = ir_to_graph(dom, fun_defs);
-      hasher.update(get_hash(&dom.borrow()));
+      hasher.update(get_u8_hash(&dom.borrow()));
       update_hasher(&mut hasher, MK_ALL as usize);
       update_hasher(&mut hasher, *uses as usize);
       let pos = compile_ir(&mut hasher, name.clone(), &img, &FreeVars::new(), fun_defs);
@@ -132,7 +131,7 @@ pub fn ir_to_graph(
     IR::Dat(bod) => {
       let bod = ir_to_graph(bod, fun_defs);
       let mut hasher = Blake3Hasher::default();
-      hasher.update(get_hash(&bod.borrow()));
+      hasher.update(get_u8_hash(&bod.borrow()));
       update_hasher(&mut hasher, MK_DAT as usize);
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
@@ -142,7 +141,7 @@ pub fn ir_to_graph(
     IR::Cse(bod) => {
       let bod = ir_to_graph(bod, fun_defs);
       let mut hasher = Blake3Hasher::default();
-      hasher.update(get_hash(&bod.borrow()));
+      hasher.update(get_u8_hash(&bod.borrow()));
       update_hasher(&mut hasher, MK_CSE as usize);
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
@@ -153,7 +152,7 @@ pub fn ir_to_graph(
       let typ = ir_to_graph(typ, fun_defs);
       let exp = ir_to_graph(exp, fun_defs);
       let mut hasher = Blake3Hasher::default();
-      hasher.update(get_hash(&exp.borrow()));
+      hasher.update(get_u8_hash(&exp.borrow()));
       let hash = hasher.finalize();
       Rc::new(RefCell::new(
         Graph::Ann(hash, typ, exp)
@@ -164,7 +163,7 @@ pub fn ir_to_graph(
       let typ = ir_to_graph(typ, fun_defs);
       let exp = ir_to_graph(exp, fun_defs);
       // Use and type annotations do not matter
-      hasher.update(get_hash(&exp.borrow()));
+      hasher.update(get_u8_hash(&exp.borrow()));
       update_hasher(&mut hasher, MK_LET as usize);
       let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {

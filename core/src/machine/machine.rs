@@ -70,6 +70,7 @@ pub const END: CODE = 0;
 
 pub type Link<T> = Rc<RefCell<T>>;
 pub type Hash = Blake3Digest<U32>;
+pub const HASH_SIZE: usize = 32;
 
 #[derive(Clone, Debug)]
 pub enum Graph {
@@ -114,20 +115,25 @@ pub fn update_hasher(hasher: &mut Blake3Hasher<U32>, x: usize) {
 }
 
 #[inline]
-pub fn get_hash<'a>(term: &'a Graph) -> &'a [u8] {
+pub fn get_u8_hash<'a>(term: &'a Graph) -> &'a [u8] {
+  get_hash(term).as_ref()
+}
+
+#[inline]
+pub fn get_hash<'a>(term: &'a Graph) -> &'a Hash {
   match term {
-    Graph::Lam(hash, _) => hash.as_ref(),
-    Graph::Var(hash, _) => hash.as_ref(),
-    Graph::App(hash, _, _) => hash.as_ref(),
-    Graph::Ref(hash, _) => hash.as_ref(),
-    Graph::Typ(hash) => hash.as_ref(),
-    Graph::All(hash, _, _, _) => hash.as_ref(),
-    Graph::Slf(hash, _) => hash.as_ref(),
-    Graph::Dat(hash, _) => hash.as_ref(),
-    Graph::Cse(hash, _) => hash.as_ref(),
-    Graph::Ann(hash, _, _) => hash.as_ref(),
-    Graph::Let(hash, _, _, _, _) => hash.as_ref(),
-    Graph::Fix(hash, _) => hash.as_ref(),
+    Graph::Lam(hash, _) => hash,
+    Graph::Var(hash, _) => hash,
+    Graph::App(hash, _, _) => hash,
+    Graph::Ref(hash, _) => hash,
+    Graph::Typ(hash) => hash,
+    Graph::All(hash, _, _, _) => hash,
+    Graph::Slf(hash, _) => hash,
+    Graph::Dat(hash, _) => hash,
+    Graph::Cse(hash, _) => hash,
+    Graph::Ann(hash, _, _) => hash,
+    Graph::Let(hash, _, _, _, _) => hash,
+    Graph::Fix(hash, _) => hash,
   }
 }
 
@@ -189,7 +195,7 @@ pub fn build_closure(
   *pc = *pc+ENV_SIZE;
   let mut fun_env = vec![];
   hasher.update(fun_defs[fun_index].hash.as_ref());
-  update_hasher(hasher, env_length);
+  hasher.update(bytes);
   for _ in 0..env_length {
     let bytes = &code[*pc+1..*pc+1+ENV_SIZE];
     let index = bytes_to_usize(bytes);
@@ -199,11 +205,11 @@ pub fn build_closure(
     // in the environment
     if index == 0 {
       fun_env.push(arg.clone());
-      hasher.update(get_hash(&arg.borrow()));
+      hasher.update(get_u8_hash(&arg.borrow()));
     }
     else {
       fun_env.push(env[index-1].clone());
-      hasher.update(get_hash(&env[index-1].borrow()));
+      hasher.update(get_u8_hash(&env[index-1].borrow()));
     }
     *pc = *pc+ENV_SIZE;
   }
@@ -238,8 +244,8 @@ pub fn build_graph(
         // Function comes last, so it is popped first
         let fun = args.pop().unwrap();
         let arg = args.pop().unwrap();
-        hasher.update(get_hash(&arg.borrow()));
-        hasher.update(get_hash(&fun.borrow()));
+        hasher.update(get_u8_hash(&arg.borrow()));
+        hasher.update(get_u8_hash(&fun.borrow()));
         update_hasher(&mut hasher, MK_APP as usize);
         let hash = hasher.finalize();
         hasher.reset();
@@ -280,7 +286,6 @@ pub fn build_graph(
       },
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
-        update_hasher(&mut hasher, MK_VAR as usize);
         hasher.update(bytes);
         let hash = hasher.finalize();
         hasher.reset();
@@ -303,7 +308,7 @@ pub fn build_graph(
         let uses = code[pc+1];
         pc = pc+1;
         let dom = args.pop().unwrap();
-        hasher.update(get_hash(&dom.borrow()));
+        hasher.update(get_u8_hash(&dom.borrow()));
         update_hasher(&mut hasher, MK_ALL as usize);
         update_hasher(&mut hasher, uses as usize);
         let clos = build_closure(
@@ -338,7 +343,7 @@ pub fn build_graph(
       },
       MK_DAT => {
         let bod = args.pop().unwrap();
-        hasher.update(get_hash(&bod.borrow()));
+        hasher.update(get_u8_hash(&bod.borrow()));
         update_hasher(&mut hasher, MK_DAT as usize);
         let hash = hasher.finalize();
         hasher.reset();
@@ -348,7 +353,7 @@ pub fn build_graph(
       },
       MK_CSE => {
         let bod = args.pop().unwrap();
-        hasher.update(get_hash(&bod.borrow()));
+        hasher.update(get_u8_hash(&bod.borrow()));
         update_hasher(&mut hasher, MK_CSE as usize);
         let hash = hasher.finalize();
         hasher.reset();
@@ -364,8 +369,8 @@ pub fn build_graph(
         else {
           let typ = args.pop().unwrap();
           let exp = args.pop().unwrap();
-          hasher.update(get_hash(&exp.borrow()));
-          hasher.update(get_hash(&typ.borrow()));
+          hasher.update(get_u8_hash(&exp.borrow()));
+          hasher.update(get_u8_hash(&typ.borrow()));
           update_hasher(&mut hasher, MK_ANN as usize);
           let hash = hasher.finalize();
           hasher.reset();
@@ -390,7 +395,7 @@ pub fn build_graph(
         pc = pc+1;
         let typ = args.pop().unwrap();
         let exp = args.pop().unwrap();
-        hasher.update(get_hash(&exp.borrow()));
+        hasher.update(get_u8_hash(&exp.borrow()));
         update_hasher(&mut hasher, MK_LET as usize);
         let clos = build_closure(
           code,
@@ -534,14 +539,8 @@ pub fn reduce(
     };
     node = next_node;
   }
-  if trail.is_empty() {
-    node
-  }
-  else {
-    // This is only correct if we are correctly updating the redex nodes
-    // Can we extract without cloning, since we know that `trail` will be collected afterwards?
-    trail[0].clone()
-  }
+  // This is only correct because we are updating the redex nodes.
+  node
 }
 
 pub fn stringify_graph(
