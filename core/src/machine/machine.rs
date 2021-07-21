@@ -18,6 +18,9 @@ use sp_std::{
   vec::Vec,
   rc::Rc,
   cell::RefCell,
+  collections::{
+    btree_map::BTreeMap,
+  },
 };
 
 use sp_multihash::{
@@ -177,6 +180,72 @@ pub fn code_to_uses(uses: CODE) -> Uses {
     2 => Uses::Affi,
     _ => Uses::Many,
   }
+}
+
+#[inline]
+pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
+  fn go(node: Link<Graph>, map: &mut BTreeMap<*mut Graph, Link<Graph>>) -> Link<Graph> {
+    if let Some(copy) = map.get(&node.as_ptr()) {
+      return copy.clone()
+    }
+    let copy = match &*node.borrow() {
+      Graph::Lam(hash, Closure { idx, env}) => {
+        let env = env.iter().map(|node| go(node.clone(), map)).collect();
+        let new_node = Graph::Lam(*hash, Closure { idx: *idx, env });
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::App(hash, fun, arg) => {
+        let fun = go(fun.clone(), map);
+        let arg = go(arg.clone(), map);
+        let new_node = Graph::App(*hash, fun, arg);
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::All(hash, uses, dom, Closure { idx, env }) => {
+        let dom = go(dom.clone(), map);
+        let env = env.iter().map(|node| go(node.clone(), map)).collect();
+        let new_node = Graph::All(*hash, *uses, dom, Closure { idx: *idx, env });
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::Slf(hash, Closure { idx, env}) => {
+        let env = env.iter().map(|node| go(node.clone(), map)).collect();
+        let new_node = Graph::Slf(*hash, Closure { idx: *idx, env });
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::Dat(hash, bod) => {
+        let bod = go(bod.clone(), map);
+        let new_node = Graph::Dat(*hash, bod);
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::Cse(hash, bod) => {
+        let bod = go(bod.clone(), map);
+        let new_node = Graph::Cse(*hash, bod);
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::Ann(hash, typ, exp) => {
+        let typ = go(typ.clone(), map);
+        let exp = go(exp.clone(), map);
+        let new_node = Graph::Ann(*hash, typ, exp);
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::Let(hash, uses, typ, exp, Closure { idx, env}) => {
+        let typ = go(typ.clone(), map);
+        let exp = go(exp.clone(), map);
+        let env = env.iter().map(|node| go(node.clone(), map)).collect();
+        let new_node = Graph::Let(*hash, *uses, typ, exp, Closure { idx: *idx, env });
+        Rc::new(RefCell::new(new_node))
+      }
+      Graph::Fix(hash, Closure { idx, env}) => {
+        let env = env.iter().map(|node| go(node.clone(), map)).collect();
+        let new_node = Graph::Fix(*hash, Closure { idx: *idx, env });
+        Rc::new(RefCell::new(new_node))
+      }
+      node => Rc::new(RefCell::new(node.clone()))
+    };
+    map.insert(node.as_ptr(), copy.clone());
+    copy
+  }
+  let mut map = BTreeMap::new();
+  go(node, &mut map)
 }
 
 #[inline]

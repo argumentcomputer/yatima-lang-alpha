@@ -1,5 +1,4 @@
 use crate::{
-  name::Name,
   uses::Uses,
   machine::machine::*,
   machine::equality::*,
@@ -11,15 +10,6 @@ use sp_std::{
   vec::Vec,
   rc::Rc,
   cell::RefCell,
-  collections::{
-    btree_set::BTreeSet,
-  },
-};
-
-use sp_multihash::{
-  U32,
-  StatefulHasher,
-  Blake3Hasher,
 };
 
 #[derive(Debug)]
@@ -83,7 +73,7 @@ pub fn check(
           let lam_name = &fun_defs[bod.idx].arg_name;
           let all_name = &fun_defs[img.idx].arg_name;
           let bod = build_graph(false, globals, fun_defs, bod.idx, &bod.env, new_var(ctx.len(), lam_name.clone()));
-          let img = build_graph(true, globals, fun_defs, img.idx, &img.env, new_var(ctx.len(), all_name.clone()));
+          let img = build_graph(true, mut_globals, fun_defs, img.idx, &img.env, new_var(ctx.len(), all_name.clone()));
           // Adjust the context multiplicity, add the argument to the context and check the body
           let rest_ctx = div_ctx(uses, ctx);
           ctx.push((all_name.to_string(), *lam_uses, dom.clone()));
@@ -113,7 +103,7 @@ pub fn check(
           // The type of the body of the data must be the body of the self with term
           // substituted for its variable.
           let arg = Rc::new(RefCell::new(term_borrow.clone()));
-          let unrolled_slf = build_graph(true, globals, fun_defs, slf_bod.idx, &slf_bod.env, arg);
+          let unrolled_slf = build_graph(true, mut_globals, fun_defs, slf_bod.idx, &slf_bod.env, arg);
           check(globals, mut_globals, fun_defs, ctx, uses, bod.clone(), unrolled_slf)?;
           Ok(())
         }
@@ -158,8 +148,34 @@ pub fn infer(
     Graph::Ref(_, idx) => {
       Ok(mut_globals[*idx].typ_.clone())
     },
-    // Graph::App(_, fun_arg) => infer_app(defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1),
-    // Graph::Cse(_, exp) => infer_cse(defs, ctx, uses, pos, exp),
+    Graph::App(_, fun, arg) => {
+      let fun_typ = infer(globals, mut_globals, fun_defs, ctx, uses, fun.clone())?;
+      match &*reduce(mut_globals, fun_defs, fun_typ).borrow() {
+        Graph::All(_, lam_uses, dom, Closure { idx, env }) => {
+          let dom = reduce(mut_globals, fun_defs, dom.clone());
+          check(globals, mut_globals, fun_defs, ctx, *lam_uses * uses, arg.clone(), dom.clone())?;
+          // We need to fully clone arg so that it does not get reduced
+          let app_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(arg.clone()));
+          Ok(app_typ)
+        }
+        _ => Err(CheckError::GenericError(
+          format!("Tried to apply an expression which is not a function")
+        )),
+      }
+    },
+    Graph::Cse(_, exp) => {
+      let exp_typ = infer(globals, mut_globals, fun_defs, ctx, uses, exp.clone())?;
+      match &*reduce(mut_globals, fun_defs, exp_typ.clone()).borrow() {
+        Graph::Slf(_, Closure { idx, env }) => {
+          // We need to fully clone exp so that it does not get reduced
+          let cse_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(exp.clone()));
+          Ok(cse_typ)
+        }
+        _ => Err(CheckError::GenericError(format!(
+          "Tried to case match on an expression which is not an inductive datatype"
+        ))),
+      }
+    }
     // Graph::All(_, _, nam, dom_img) => infer_all(defs, ctx, nam, &dom_img.0, &dom_img.1),
     // Graph::Slf(_, nam, bod) => infer_slf(defs, ctx, term, nam, bod),
     // Graph::Let(_, false, exp_uses, nam, triple) => {
@@ -173,85 +189,15 @@ pub fn infer(
       // Type annotations might mutate but this is not a problem since it does not
       // ever appear in term position. This might change in the future though, and
       // we will have to do a full copy of its graph
+      let typ = reduce(mut_globals, fun_defs, typ.clone());
       check(globals, mut_globals, fun_defs, ctx, uses, exp.clone(), typ.clone())?;
-      Ok(typ.clone())
+      Ok(typ)
     }
     Graph::Lam(..) => Err(CheckError::GenericError(format!("Untyped lambda"))),
     Graph::Dat(..) => Err(CheckError::GenericError(format!("Untyped data"))),
     _ => Err(CheckError::GenericError(format!("TODO"))),
   }
 }
-
-// #[inline]
-// pub fn infer_app(
-//   defs: &Defs,
-//   ctx: &mut Ctx,
-//   uses: Uses,
-//   pos: &Pos,
-//   fun: &Term,
-//   arg: &Term,
-// ) -> Result<DAG, CheckError> {
-//   let mut fun_typ = infer(defs, ctx, uses, fun)?;
-//   fun_typ.whnf(defs);
-//   match fun_typ.head {
-//     Graph::All(link) => {
-//       let All { uses: lam_uses, dom, img, .. } = unsafe { &mut *link.as_ptr() };
-//       let Lam { var, bod: img, .. } = unsafe { &mut *img.as_ptr() };
-//       check(defs, ctx, *lam_uses * uses, arg, &mut DAG::new(*dom))?;
-//       let mut map = BTreeMap::new();
-//       if var.parents.is_some() {
-//         map.insert(
-//           Graph::Var(NonNull::new(var).unwrap()),
-//           DAG::from_term_inner(arg, ctx.len() as u64, BTreeMap::new(), None),
-//         );
-//       }
-//       let root = alloc_val(DLL::singleton(ParentPtr::Root));
-//       let new_img = DAG::from_subdag(*img, &mut map, Some(root));
-//       fun_typ.free();
-//       Ok(DAG::new(new_img))
-//     }
-//     _ => Err(CheckError::AppFunMismatch(
-//       *pos,
-//       error_context(&ctx),
-//       fun.clone(),
-//       fun_typ.to_term(false),
-//     )),
-//   }
-// }
-
-// #[inline]
-// pub fn infer_cse(
-//   defs: &Defs,
-//   ctx: &mut Ctx,
-//   uses: Uses,
-//   pos: &Pos,
-//   exp: &Term,
-// ) -> Result<DAG, CheckError> {
-//   let mut exp_typ = infer(defs, ctx, uses, exp)?;
-//   exp_typ.whnf(defs);
-//   match exp_typ.head {
-//     Graph::Slf(link) => {
-//       let Slf { var, bod, .. } = unsafe { &mut *link.as_ptr() };
-//       let mut map = BTreeMap::new();
-//       if var.parents.is_some() {
-//         map.insert(
-//           Graph::Var(NonNull::new(var).unwrap()),
-//           DAG::from_term_inner(exp, ctx.len() as u64, BTreeMap::new(), None),
-//         );
-//       }
-//       let root = alloc_val(DLL::singleton(ParentPtr::Root));
-//       let new_bod = DAG::from_subdag(*bod, &mut map, Some(root));
-//       exp_typ.free();
-//       Ok(DAG::new(new_bod))
-//     }
-//     _ => Err(CheckError::CseDatMismatch(
-//       *pos,
-//       error_context(&ctx),
-//       exp.clone(),
-//       exp_typ.to_term(false),
-//     )),
-//   }
-// }
 
 // #[inline]
 // pub fn infer_all(
