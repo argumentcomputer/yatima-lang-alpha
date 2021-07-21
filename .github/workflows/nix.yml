@@ -22,4 +22,4 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix build
     - run: nix flake check
-    - run: nix shell --command "echo OK"
+    - run: nix shell --command echo OK
