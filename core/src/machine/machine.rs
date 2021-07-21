@@ -119,11 +119,6 @@ pub fn update_hasher(hasher: &mut Blake3Hasher<U32>, x: usize) {
 }
 
 #[inline]
-pub fn get_u8_hash<'a>(term: &'a Graph) -> &'a [u8] {
-  get_hash(term).as_ref()
-}
-
-#[inline]
 pub fn get_hash<'a>(term: &'a Graph) -> &'a Hash {
   match term {
     Graph::Lam(hash, _) => hash,
@@ -139,6 +134,21 @@ pub fn get_hash<'a>(term: &'a Graph) -> &'a Hash {
     Graph::Let(hash, _, _, _, _) => hash,
     Graph::Fix(hash, _) => hash,
   }
+}
+
+#[inline]
+pub fn get_u8_hash<'a>(term: &'a Graph) -> &'a [u8] {
+  get_hash(term).as_ref()
+}
+
+#[inline]
+pub fn copy_u8_hash<'a>(term: &'a Graph) -> [u8; HASH_SIZE] {
+  let hash = get_hash(term).as_ref();
+  let mut hash_arr = [0; HASH_SIZE];
+  for i in 0..HASH_SIZE-1 {
+    hash_arr[i] = hash[i];
+  }
+  hash_arr
 }
 
 // little endian encoding of bytes
@@ -180,6 +190,22 @@ pub fn code_to_uses(uses: CODE) -> Uses {
     2 => Uses::Affi,
     _ => Uses::Many,
   }
+}
+
+#[inline]
+pub fn new_typ() -> Link<Graph> {
+  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
+  update_hasher(&mut hasher, MK_TYP as usize);
+  let hash = hasher.finalize();
+  Rc::new(RefCell::new(Graph::Typ(hash)))
+}
+
+#[inline]
+pub fn new_var(dep: usize, name: Name) -> Link<Graph> {
+  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
+  update_hasher(&mut hasher, dep);
+  let hash = hasher.finalize();
+  Rc::new(RefCell::new(Graph::Var(hash, dep, name.clone())))
 }
 
 #[inline]

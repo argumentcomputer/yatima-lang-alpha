@@ -176,8 +176,25 @@ pub fn infer(
         ))),
       }
     }
-    // Graph::All(_, _, nam, dom_img) => infer_all(defs, ctx, nam, &dom_img.0, &dom_img.1),
-    // Graph::Slf(_, nam, bod) => infer_slf(defs, ctx, term, nam, bod),
+    Graph::All(_, _, dom, Closure { idx, env }) => {
+      let typ = new_typ();
+      check(globals, mut_globals, fun_defs, ctx, Uses::None, dom.clone(), typ.clone())?;
+      let name = &fun_defs[*idx].arg_name;
+      let img = build_graph(false, globals, fun_defs, *idx, env, new_var(ctx.len(), name.clone()));
+      ctx.push((name.to_string(), Uses::None, full_clone(dom.clone())));
+      check(globals, mut_globals, fun_defs, ctx, Uses::None, img, typ.clone())?;
+      ctx.pop();
+      Ok(typ)
+  }
+    Graph::Slf(_, Closure { idx, env }) => {
+      let typ = new_typ();
+      let name = &fun_defs[*idx].arg_name;
+      let bod = build_graph(false, globals, fun_defs, *idx, env, new_var(ctx.len(), name.clone()));
+      ctx.push((name.to_string(), Uses::None, full_clone(term.clone())));
+      check(globals, mut_globals, fun_defs, ctx, Uses::None, bod, typ.clone())?;
+      ctx.pop();
+      Ok(typ)
+  }
     // Graph::Let(_, false, exp_uses, nam, triple) => {
     //   infer_let(defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1, &triple.2)
     // }
@@ -198,43 +215,6 @@ pub fn infer(
     _ => Err(CheckError::GenericError(format!("TODO"))),
   }
 }
-
-// #[inline]
-// pub fn infer_all(
-//   defs: &Defs,
-//   ctx: &mut Ctx,
-//   nam: &Name,
-//   dom: &Term,
-//   img: &Term,
-// ) -> Result<DAG, CheckError> {
-//   let mut typ = DAG::from_term(&Graph::Typ(Pos::None));
-//   check(defs, ctx, Uses::None, dom, &mut typ)?;
-//   let mut dom_dag =
-//     DAG::from_term_inner(dom, ctx.len() as u64, BTreeMap::new(), None);
-//   ctx.push((nam.to_string(), Uses::None, &mut dom_dag));
-//   check(defs, ctx, Uses::None, img, &mut typ)?;
-//   ctx.pop();
-//   free_dead_node(dom_dag);
-//   Ok(typ)
-// }
-
-// #[inline]
-// pub fn infer_slf(
-//   defs: &Defs,
-//   ctx: &mut Ctx,
-//   term: &Term,
-//   nam: &Name,
-//   bod: &Term,
-// ) -> Result<DAG, CheckError> {
-//   let mut typ = DAG::from_term(&Graph::Typ(Pos::None));
-//   let mut term_dag =
-//     DAG::from_term_inner(term, ctx.len() as u64, BTreeMap::new(), None);
-//   ctx.push((nam.to_string(), Uses::None, &mut term_dag));
-//   check(defs, ctx, Uses::None, bod, &mut typ)?;
-//   ctx.pop();
-//   free_dead_node(term_dag);
-//   Ok(typ)
-// }
 
 // #[inline]
 // pub fn infer_let(

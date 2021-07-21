@@ -5,36 +5,10 @@ use crate::{
 
 use sp_std::{
   vec::Vec,
-  rc::Rc,
-  cell::RefCell,
   collections::{
     btree_set::BTreeSet,
   },
 };
-
-use sp_multihash::{
-  U32,
-  StatefulHasher,
-  Blake3Hasher,
-};
-
-#[inline]
-pub fn copy_u8_hash<'a>(term: &'a Graph) -> [u8; HASH_SIZE] {
-  let hash = get_hash(term).as_ref();
-  let mut hash_arr = [0; HASH_SIZE];
-  for i in 0..HASH_SIZE-1 {
-    hash_arr[i] = hash[i];
-  }
-  hash_arr
-}
-
-#[inline]
-pub fn new_var(dep: usize, name: Name) -> Link<Graph> {
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
-  update_hasher(&mut hasher, dep);
-  let hash = hasher.finalize();
-  Rc::new(RefCell::new(Graph::Var(hash, dep, name.clone())))
-}
 
 pub fn equal(
   globals: &Vec<DefCell>,
