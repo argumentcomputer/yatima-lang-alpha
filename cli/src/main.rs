@@ -15,13 +15,18 @@ use yatima_cli::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 use yatima_cli::repl;
-use yatima_core::name::Name;
+use yatima_core::{
+  name::Name,
+  dag::{DAG, DAGPtr},
+  term::Term,
+};
 use yatima_utils::{
   file,
   store::{
     show,
     Store,
   },
+  graph::DagGraph,
 };
 
 #[derive(Debug, StructOpt)]
@@ -118,8 +123,9 @@ fn main() ->  std::io::Result<()> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn repl(store: Rc<dyn Store>) ->  std::io::Result<()> {
-  repl::main(store)
+fn repl(store: Rc<FileStore>) ->  std::io::Result<()> {
+  repl::main(store);
+  Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -237,12 +243,31 @@ fn run_cli() -> std::io::Result<()> {
       let def = defs
         .get(&Name::from("main"))
         .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
-      let mut dag = yatima_core::dag::DAG::from_term(&def.to_owned().term);
+      let mut dag = yatima_core::runtime::from_term(&def.to_owned().term);
       dag.norm(&defs, false);
-      println!("{}", dag);
+      let graph = DagGraph::from_dag(&dag); 
+      let dot = graph.to_dot();
+
+      execute_io(dag.to_term(false));
+      println!("{}", dot);
       Ok(())
     }
   }
+}
+
+
+/// Execute side effecting IO
+pub fn execute_io(term: Term) {
+  // detect structure
+  match term {
+    Term::Dat(_, b) => (), 
+    _ => (),
+  }
+  // match dag.head {
+  //   DAGPtr::Dat(node) => (),
+  //   _ => ()
+  // }
+
 }
 
 // for valgrind testing
