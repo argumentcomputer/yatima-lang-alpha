@@ -12,8 +12,9 @@ use yatima_cli::{
     FileStore,
     FileStoreOpts,
   },
-  repl,
 };
+#[cfg(not(target_arch = "wasm32"))]
+use yatima_cli::repl;
 use yatima_core::name::Name;
 use yatima_utils::{
   file,
@@ -105,9 +106,29 @@ fn parse_cid(
   result
 }
 
-//   Test,
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+  run_cli()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() ->  std::io::Result<()> {
+  run_cli()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn repl(store: Rc<dyn Store>) ->  std::io::Result<()> {
+  repl::main(store)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn repl(_store: Rc<dyn Store>) ->  std::io::Result<()> {
+  eprintln!("REPL not supported on WASI yet.");
+  Ok(())
+}
+
+fn run_cli() -> std::io::Result<()> {
   let cli = Cli::from_args();
   let root = cli.root.unwrap_or_else(|| std::env::current_dir().unwrap());
   let store = Rc::new(FileStore::new(FileStoreOpts {
@@ -117,8 +138,7 @@ async fn main() -> std::io::Result<()> {
   }));
   match cli.command {
     Command::Repl => {
-      repl::main(store);
-      Ok(())
+      repl(store)
     }
     Command::Show { typ: ShowType::File { path } } => {
       let env = file::parse::PackageEnv::new(root, path, store.clone());

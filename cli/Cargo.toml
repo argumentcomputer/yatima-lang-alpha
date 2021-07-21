@@ -25,13 +25,16 @@ nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "main"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"
-rustyline = "7.1.0"
 directories-next = "2.0.0"
-reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 # ipfs = "0.2.1"
+
+# Not wasm/wasi compatible
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rustyline = "7.1.0"
 tokio = { version = "1.5", features = ["rt", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

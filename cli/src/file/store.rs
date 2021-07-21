@@ -1,5 +1,6 @@
 use directories_next::ProjectDirs;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::ipfs;
 use bytecursor::ByteCursor;
 use multiaddr::Multiaddr;
@@ -25,6 +26,7 @@ use std::{
   rc::Rc,
   collections::HashMap,
 };
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::{
   runtime::Handle,
   task,
@@ -125,6 +127,7 @@ impl FileStore {
   pub fn new(opts: FileStoreOpts) -> Self { FileStore { opts, mem_store: Default::default() } }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Store for FileStore {
   fn get_by_multiaddr(&self, _addr: Multiaddr) -> Result<Ipld, String> {
     // ipfs::get(addr);
@@ -171,6 +174,47 @@ impl Store for FileStore {
         })
       });
     }
+    if !self.opts.use_file_store {
+      let link = cid(&expr);
+      self.mem_store.lock().unwrap().insert(link, expr);
+      link
+    }
+    else {
+      fs_put(expr)
+    }
+  }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Store for FileStore {
+  fn get_by_multiaddr(&self, _addr: Multiaddr) -> Result<Ipld, String> {
+    // ipfs::get(addr);
+    // TODO implement
+    Err("Not implemented".to_owned())
+  }
+
+  fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String> {
+    let mut fs_path = self.opts.root.clone();
+    for n in path {
+      fs_path.push(n);
+    }
+    fs_path.set_extension("ya");
+    let env = parse::PackageEnv::new(self.opts.root.clone(), fs_path, Rc::new(self.clone()));
+    let (_cid, p, _ds) = parse::parse_file(env)?;
+    let ipld = p.to_ipld();
+    Ok(ipld)
+  }
+
+  fn get(&self, link: Cid) -> Option<Ipld> {
+    if !self.opts.use_file_store {
+      self.mem_store.lock().unwrap().get(&link).map(|ipld| ipld.clone())
+    }
+    else {
+      fs_get(link)
+    }
+  }
+
+  fn put(&self, expr: Ipld) -> Cid {
     if !self.opts.use_file_store {
       let link = cid(&expr);
       self.mem_store.lock().unwrap().insert(link, expr);
