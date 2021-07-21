@@ -30,17 +30,20 @@ pub enum IR {
   Fix(Name, FreeVars, Rc<IR>),
 }
 
-pub fn defs_to_ir(defs: &Defs) -> Vec<(Name, IR)> {
+pub fn defs_to_ir(defs: &Defs) -> Vec<(Name, IR, IR)> {
   let mut done = BTreeMap::new();
   let mut ir_defs = vec![];
   for (nam, cid) in &defs.names {
     if !done.contains_key(cid) {
       let idx = done.len();
       done.insert(*cid, idx);
-      ir_defs.push((Name::from(""), IR::Typ));
-      let term = &defs.defs.get(cid).unwrap().term;
-      let (ir, _) = term_to_ir(&mut done, &mut ir_defs, idx, term, defs);
-      ir_defs[idx] = (nam.clone(), ir);
+      ir_defs.push((Name::from(""), IR::Typ, IR::Typ));
+      let def = &defs.defs.get(cid).unwrap();
+      let term = &def.term;
+      let typ = &def.typ_;
+      let (term_ir, _) = term_to_ir(&mut done, &mut ir_defs, idx, term, defs);
+      let (typ_ir, _) = term_to_ir(&mut done, &mut ir_defs, idx, typ, defs);
+      ir_defs[idx] = (nam.clone(), term_ir, typ_ir);
     }
   }
   ir_defs
@@ -48,7 +51,7 @@ pub fn defs_to_ir(defs: &Defs) -> Vec<(Name, IR)> {
 
 pub fn term_to_ir(
   done: &mut BTreeMap<Cid, usize>,
-  ir_defs: &mut Vec<(Name, IR)>,
+  ir_defs: &mut Vec<(Name, IR, IR)>,
   rec_idx: usize,
   term: &Term,
   defs: &Defs
@@ -86,14 +89,13 @@ pub fn term_to_ir(
         None => {
           let idx = done.len();
           done.insert(*def_link, idx);
-          ir_defs.push((Name::from(""), IR::Typ));
-          let term = &defs
-            .defs
-            .get(def_link)
-            .unwrap()
-            .term;
-          let (ir, _) = term_to_ir(done, ir_defs, idx, term, defs);
-          ir_defs[idx] = (nam.clone(), ir);
+          ir_defs.push((Name::from(""), IR::Typ, IR::Typ));
+          let def = &defs.defs.get(def_link).unwrap();
+          let term = &def.term;
+          let typ = &def.typ_;
+          let (term_ir, _) = term_to_ir(done, ir_defs, idx, term, defs);
+          let (typ_ir, _) = term_to_ir(done, ir_defs, idx, typ, defs);
+          ir_defs[idx] = (nam.clone(), term_ir, typ_ir);
           (IR::Ref(idx), set)
         },
       }

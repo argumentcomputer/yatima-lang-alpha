@@ -100,6 +100,7 @@ pub struct Closure {
 pub struct DefCell {
   pub name: Name,
   pub term: Link<Graph>,
+  pub typ_: Link<Graph>,
 }
 
 pub struct FunCell {
@@ -444,8 +445,8 @@ pub fn reduce(
   let mut trail = vec![];
   loop {
     let next_node = {
-      let mut borrow = node.borrow_mut();
-      match &mut *borrow {
+      let borrow = node.borrow();
+      match &*borrow {
         Graph::App(_, fun, _) => {
           trail.push(node.clone());
           fun.clone()
@@ -476,6 +477,8 @@ pub fn reduce(
         },
         Graph::Ref(_, idx) => {
           let reduced_node = reduce(globals, fun_defs, globals[*idx].term.clone());
+          drop(borrow);
+          let mut borrow = node.borrow_mut();
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         },
@@ -508,11 +511,15 @@ pub fn reduce(
         }
         Graph::Ann(_, _, exp) => {
           let reduced_node = reduce(globals, fun_defs, exp.clone());
+          drop(borrow);
+          let mut borrow = node.borrow_mut();
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }
         Graph::Let(_, _, _, exp, Closure { idx, env }) => {
           let reduced_node = build_graph(true, globals, fun_defs, *idx, env, exp.clone());
+          drop(borrow);
+          let mut borrow = node.borrow_mut();
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }

@@ -155,40 +155,32 @@ pub fn infer(
       *ctx_uses = subtract_use;
       Ok(typ.clone())
     },
-    // Graph::Ref(_, nam, def_link, _) => {
-      
-  // let def = defs
-  //   .defs
-  //   .get(def_link)
-  //   .ok_or_else(|| CheckError::UndefinedReference(*pos, nam.to_string()))?;
-  // let typ = DAG::from_term(&def.typ_);
-  // Ok(typ)
-    // },
+    Graph::Ref(_, idx) => {
+      Ok(mut_globals[*idx].typ_.clone())
+    },
     // Graph::App(_, fun_arg) => infer_app(defs, ctx, uses, pos, &fun_arg.0, &fun_arg.1),
     // Graph::Cse(_, exp) => infer_cse(defs, ctx, uses, pos, exp),
     // Graph::All(_, _, nam, dom_img) => infer_all(defs, ctx, nam, &dom_img.0, &dom_img.1),
     // Graph::Slf(_, nam, bod) => infer_slf(defs, ctx, term, nam, bod),
-    // Graph::Ann(_, typ_exp) => infer_ann(defs, ctx, uses, &typ_exp.0, &typ_exp.1),
     // Graph::Let(_, false, exp_uses, nam, triple) => {
     //   infer_let(defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1, &triple.2)
     // }
-    Graph::Typ(hash) => {
-      // The reason for a newly created Typ node is that cloning the reference to term will
-      // share nodes in term position and in type position, potentially cause the node to be
-      // borrowed while being mutably borrowed (or vice-versa), causing a runtime error.
-      let typ = Rc::new(RefCell::new(Graph::Typ(*hash)));
-      Ok(typ)
+    Graph::Typ(_) => {
+      // The reason term can be cloned is that Typ nodes are never mutably borrowed
+      Ok(term.clone())
+    }
+    Graph::Ann(_, typ, exp) => {
+      // Type annotations might mutate but this is not a problem since it does not
+      // ever appear in term position. This might change in the future though, and
+      // we will have to do a full copy of its graph
+      check(globals, mut_globals, fun_defs, ctx, uses, exp.clone(), typ.clone())?;
+      Ok(typ.clone())
     }
     Graph::Lam(..) => Err(CheckError::GenericError(format!("Untyped lambda"))),
     Graph::Dat(..) => Err(CheckError::GenericError(format!("Untyped data"))),
     _ => Err(CheckError::GenericError(format!("TODO"))),
   }
 }
-
-
-// #[inline]
-// pub fn infer_ref(defs: &Defs, pos: &Pos, nam: &Name, def_link: &Cid) -> Result<DAG, CheckError> {
-// }
 
 // #[inline]
 // pub fn infer_app(
@@ -336,23 +328,4 @@ pub fn infer(
 //     bod_typ.subst(ctx.len() as u64, exp_dag.head);
 //     Ok(bod_typ)
 //   }
-// }
-
-// #[inline]
-// pub fn infer_ann(
-//   defs: &Defs,
-//   ctx: &mut Ctx,
-//   uses: Uses,
-//   exp: &Term,
-//   typ: &Term,
-// ) -> Result<DAG, CheckError> {
-//   let root = alloc_val(DLL::singleton(ParentPtr::Root));
-//   let mut typ_dag = DAG::new(DAG::from_term_inner(
-//     typ,
-//     ctx.len() as u64,
-//     BTreeMap::new(),
-//     Some(root),
-//   ));
-//   check(defs, ctx, uses, exp, &mut typ_dag)?;
-//   Ok(typ_dag)
 // }

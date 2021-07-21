@@ -19,7 +19,7 @@ use sp_multihash::{
 };
 
 pub fn defs_to_globals(
-  defs: &Vec<(Name, IR)>,
+  defs: &Vec<(Name, IR, IR)>,
   fun_defs: &mut Vec<FunCell>
 ) -> (Vec<DefCell>, Option<usize>) {
   let mut done = BTreeSet::new();
@@ -27,10 +27,13 @@ pub fn defs_to_globals(
   let mut main_idx = None;
   for i in 0..defs.len() {
     if done.insert(i) {
-      let new_global = ir_to_graph(&defs[i].1, fun_defs);
+      let (name, term_ir, typ_ir) = &defs[i];
+      let term = ir_to_graph(term_ir, fun_defs);
+      let typ_ = ir_to_graph(typ_ir, fun_defs);
       globals.push(DefCell {
-        name: defs[i].0.clone(),
-        term: new_global,
+        name: name.clone(),
+        term,
+        typ_,
       });
       if &*defs[i].0 == "main" {
         main_idx = Some(i);
