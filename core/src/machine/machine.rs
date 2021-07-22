@@ -215,7 +215,7 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
       return copy.clone()
     }
     let copy = match &*node.borrow() {
-      Graph::Lam(hash, Closure { idx, env}) => {
+      Graph::Lam(hash, Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Lam(*hash, Closure { idx: *idx, env });
         Rc::new(RefCell::new(new_node))
@@ -253,14 +253,14 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
         let new_node = Graph::Ann(*hash, typ, exp);
         Rc::new(RefCell::new(new_node))
       }
-      Graph::Let(hash, uses, typ, exp, Closure { idx, env}) => {
+      Graph::Let(hash, uses, typ, exp, Closure { idx, env }) => {
         let typ = go(typ.clone(), map);
         let exp = go(exp.clone(), map);
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Let(*hash, *uses, typ, exp, Closure { idx: *idx, env });
         Rc::new(RefCell::new(new_node))
       }
-      Graph::Fix(hash, Closure { idx, env}) => {
+      Graph::Fix(hash, Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Fix(*hash, Closure { idx: *idx, env });
         Rc::new(RefCell::new(new_node))

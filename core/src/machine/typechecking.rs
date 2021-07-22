@@ -54,6 +54,8 @@ pub fn div_ctx(uses: Uses, use_ctx: &mut Ctx) -> Ctx {
   rest
 }
 
+// The core typechecking function. It assumes typ is in whnf for performance,
+// so make sure to call reduce on the type before checking
 pub fn check(
   globals: &Vec<DefCell>,
   mut_globals: &Vec<DefCell>,
@@ -64,10 +66,9 @@ pub fn check(
   typ: Link<Graph>,
 ) -> Result<(), CheckError> {
   let term_borrow = term.borrow();
-  let typ_borrow = typ.borrow();
   match &*term_borrow {
     Graph::Lam(_, bod) => {
-      match &*typ_borrow {
+      match &*typ.borrow() {
         Graph::All(_, lam_uses, dom, img) => {
           // Build the graphs for the lambda body and the image
           let lam_name = &fun_defs[bod.idx].arg_name;
@@ -98,7 +99,7 @@ pub fn check(
       }
     }
     Graph::Dat(_, bod) => {
-      match &*(typ.clone().borrow()) {
+      match &*typ.borrow() {
         Graph::Slf(_, slf_bod) => {
           // The type of the body of the data must be the body of the self with term
           // substituted for its variable.
@@ -112,10 +113,15 @@ pub fn check(
         }
       }
     }
+    Graph::Let(_, _, _, exp, Closure { idx, env }) => {
+      // Since we don't have a good function for substituting free variables
+      // we are going to be expanding let expressions
+      let bod = build_graph(false, globals, fun_defs, *idx, env, exp.clone());
+      check(globals, mut_globals, fun_defs, ctx, uses, bod, typ)
+    }
     _ => {
       let depth = ctx.len();
       let detected_typ = infer(globals, mut_globals, fun_defs, ctx, uses, term.clone())?;
-      drop(typ_borrow);
       if equal(mut_globals, fun_defs, depth, typ, detected_typ) {
         Ok(())
       }
@@ -195,18 +201,36 @@ pub fn infer(
       ctx.pop();
       Ok(typ)
   }
-    // Graph::Let(_, false, exp_uses, nam, triple) => {
-    //   infer_let(defs, ctx, uses, pos, *exp_uses, nam, &triple.0, &triple.1, &triple.2)
-    // }
+    Graph::Let(_, _, _, exp, Closure { idx, env }) => {
+      // See remark at the Let case in `check`
+      let bod = build_graph(false, globals, fun_defs, *idx, env, exp.clone());
+      infer(globals, mut_globals, fun_defs, ctx, uses, bod)
+      // let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
+      // check(globals, mut_globals, fun_defs, ctx, *exp_uses * uses, exp.clone(), typ.clone())?;
+      // let rest_ctx = div_ctx(uses, ctx);
+      // let name = &fun_defs[*idx].arg_name;
+      // let bod = build_graph(false, globals, fun_defs, *idx, env, new_var(ctx.len(), name.clone()));
+      // ctx.push((name.to_string(), *exp_uses, typ.clone()));
+      // let bod_typ = infer(globals, mut_globals, fun_defs, ctx, Uses::Once, bod)?;
+      // let (_, rest, _) = ctx.last().unwrap();
+      // // Have to check whether the rest 'contains' zero (i.e., zero is less than or
+      // // equal to the rest), otherwise the variable was not used enough
+      // if !Uses::lte(Uses::None, *rest) {
+      //   Err(CheckError::GenericError(format!("Variable not used enough")))
+      // }
+      // else {
+      //   ctx.pop();
+      //   add_mul_ctx(uses, ctx, rest_ctx);
+      //   // let bod_typ = subst(bod_typ, ctx.len(), full_clone(exp.clone()));
+      //   Ok(bod_typ)
+      // }
+    }
     Graph::Typ(_) => {
       // The reason term can be cloned is that Typ nodes are never mutably borrowed
       Ok(term.clone())
     }
     Graph::Ann(_, typ, exp) => {
-      // Type annotations might mutate but this is not a problem since it does not
-      // ever appear in term position. This might change in the future though, and
-      // we will have to do a full copy of its graph
-      let typ = reduce(mut_globals, fun_defs, typ.clone());
+      let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
       check(globals, mut_globals, fun_defs, ctx, uses, exp.clone(), typ.clone())?;
       Ok(typ)
     }
@@ -215,43 +239,3 @@ pub fn infer(
     _ => Err(CheckError::GenericError(format!("TODO"))),
   }
 }
-
-// #[inline]
-// pub fn infer_let(
-//   defs: &Defs,
-//   ctx: &mut Ctx,
-//   uses: Uses,
-//   pos: &Pos,
-//   exp_uses: Uses,
-//   nam: &Name,
-//   exp_typ: &Term,
-//   exp: &Term,
-//   bod: &Term,
-// ) -> Result<DAG, CheckError> {
-//   let exp_dag =
-//     &mut DAG::new(DAG::from_term_inner(exp, ctx.len() as u64, BTreeMap::new(), None));
-//   let root = alloc_val(DLL::singleton(ParentPtr::Root));
-//   let exp_typ_dag = &mut DAG::new(DAG::from_term_inner(
-//     exp_typ,
-//     ctx.len() as u64,
-//     BTreeMap::new(),
-//     Some(root),
-//   ));
-//   check(defs, ctx, exp_uses * uses, exp, exp_typ_dag)?;
-//   let rest_ctx = div_ctx(uses, ctx);
-//   ctx.push((nam.to_string(), exp_uses, &mut exp_typ_dag.head));
-//   let mut bod_typ = infer(defs, ctx, Uses::Once, bod)?;
-//   let (_, rest, _) = ctx.last().unwrap();
-//   // Have to check whether the rest 'contains' zero (i.e., zero is less than or
-//   // equal to the rest), otherwise the variable was not used enough
-//   if !Uses::lte(Uses::None, *rest) {
-//     Err(CheckError::QuantityTooLittle(*pos, error_context(ctx), nam.to_string(), exp_uses, *rest))
-//   }
-//   else {
-//     ctx.pop();
-//     DAG::new(exp_typ_dag.head).free();
-//     add_mul_ctx(uses, ctx, rest_ctx);
-//     bod_typ.subst(ctx.len() as u64, exp_dag.head);
-//     Ok(bod_typ)
-//   }
-// }
