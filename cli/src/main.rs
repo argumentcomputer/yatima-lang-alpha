@@ -19,6 +19,7 @@ use yatima_core::{
   name::Name,
   dag::{DAG, DAGPtr},
   term::Term,
+  runtime,
 };
 use yatima_utils::{
   file,
@@ -234,25 +235,33 @@ fn run_cli() -> std::io::Result<()> {
     }
     Command::Run { path } => {
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
-        eprintln!("{}", e);
-        std::io::Error::from(std::io::ErrorKind::Other)
-      })?;
+      let (_, p, defs) = file::parse::parse_file(env).map_err(handle_error_string)?;
+      let p = Rc::new(p);
+      let defs = Rc::new(defs);
 
       let _cid = store.put(p.to_ipld());
-      let def = defs
+
+      let checked = file::check_all(p.clone(), defs.clone(), store).map_err(handle_error_string)?;
+      let def = checked
         .get(&Name::from("main"))
         .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
-      let mut dag = yatima_core::runtime::from_term(&def.to_owned().term);
-      dag.norm(&defs, false);
-      let graph = DagGraph::from_dag(&dag); 
-      let dot = graph.to_dot();
 
-      execute_io(dag.to_term(false));
-      println!("{}", dot);
+      let mut dag = runtime::from_term(checked.clone(), &def.to_owned().term, None);
+      runtime::whnf(&mut dag, false);
+      // dag.norm(&defs, false);
+      // let graph = DagGraph::from_dag(&dag); 
+      // let dot = graph.to_dot();
+
+      // execute_io(dag.to_term(false));
+      // println!("{}", dag);
       Ok(())
     }
   }
+}
+
+pub fn handle_error_string(e: String) -> std::io::Error {
+  eprintln!("{}", e);
+  std::io::Error::from(std::io::ErrorKind::Other)
 }
 
 

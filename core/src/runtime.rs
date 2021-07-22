@@ -12,6 +12,7 @@ use sp_std::{
   boxed::Box,
   vec::Vec,
   mem,
+  rc::Rc
 };
 
 pub type Parents = DLL<ParentPtr>;
@@ -623,7 +624,7 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
 
 // Assumes erased terms
 pub fn from_term(
-  defs: &Defs,
+  defs: Rc<Defs>,
   term: &Term,
   parents: Option<NonNull<Parents>>
 ) -> DAG {
@@ -644,7 +645,7 @@ pub fn from_term(
 }
 
 pub fn from_term_inner(
-  defs: &Defs,
+  defs: Rc<Defs>,
   term: &Term,
   ctx: &mut Vec<DAG>,
   parents: Option<NonNull<Parents>>,
@@ -682,7 +683,7 @@ pub fn from_term_inner(
     }
     Term::Ref(_, nam, exp, _) => {
       if let Some(def) = defs.defs.get(exp) {
-        (from_term(defs, &def.term, parents), maybe_fix)
+        (from_term(defs.clone(), &def.term, parents), maybe_fix)
       }
       else {
         panic!("undefined runtime reference: {}, {}", nam, exp);
@@ -709,7 +710,7 @@ pub fn from_term_inner(
       let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
       let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
       let (fun, maybe_fix) = from_term_inner(
-        defs,
+        defs.clone(),
         fun,
         &mut ctx.clone(),
         NonNull::new(fun_ref),
@@ -734,16 +735,16 @@ pub fn from_term_inner(
       let (_, exp, bod) = &**typ_exp_bod;
       let (exp, maybe_fix) = if *rec {
         let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
-        let (bod, maybe_fix) = from_term_inner(defs, &exp, &mut ctx.clone(), parents, maybe_fix);
+        let (bod, maybe_fix) = from_term_inner(defs.clone(), &exp, &mut ctx.clone(), parents, maybe_fix);
         new_fix.bod = bod;
         add_to_parents(bod, NonNull::new_unchecked(&mut new_fix.bod_ref));
         (DAG::Fix(NonNull::new_unchecked(new_fix)), maybe_fix)
       }
       else {
-        from_term_inner(defs, &exp, &mut ctx.clone(), None, maybe_fix)
+        from_term_inner(defs.clone(), &exp, &mut ctx.clone(), None, maybe_fix)
       };
       ctx.push(exp);
-      from_term_inner(defs, &bod, ctx, parents, maybe_fix)
+      from_term_inner(defs.clone(), &bod, ctx, parents, maybe_fix)
     },
     _ => panic!("Runtime cannot contain type level terms")
   }
