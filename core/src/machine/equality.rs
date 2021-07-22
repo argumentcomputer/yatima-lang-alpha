@@ -22,8 +22,8 @@ pub fn equal(
   let mut triples = vec![(a, b, dep)];
   let mut set = BTreeSet::new();
   while let Some((a, b, dep)) = triples.pop() {
-    let hash_a = copy_u8_hash(&a.borrow());
-    let hash_b = copy_u8_hash(&b.borrow());
+    let hash_a = hash_to_hex(get_hash(&a.borrow()));
+    let hash_b = hash_to_hex(get_hash(&b.borrow()));
     let eq =
       hash_a == hash_b || set.contains(&(hash_a, hash_b)) || set.contains(&(hash_b, hash_a));
     set.insert((hash_a, hash_b));

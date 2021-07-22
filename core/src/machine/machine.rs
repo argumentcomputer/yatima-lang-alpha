@@ -72,8 +72,14 @@ pub const EVAL: CODE = 15;
 pub const END: CODE = 0;
 
 pub type Link<T> = Rc<RefCell<T>>;
+#[inline]
+pub fn new_link<T>(value: T) -> Link<T> {
+  Rc::new(RefCell::new(value))
+}
+
 pub type Hash = Blake3Digest<U32>;
 pub const HASH_SIZE: usize = 32;
+pub type Hex = [u8; HASH_SIZE];
 
 #[derive(Clone, Debug)]
 pub enum Graph {
@@ -142,13 +148,13 @@ pub fn get_u8_hash<'a>(term: &'a Graph) -> &'a [u8] {
 }
 
 #[inline]
-pub fn copy_u8_hash<'a>(term: &'a Graph) -> [u8; HASH_SIZE] {
-  let hash = get_hash(term).as_ref();
-  let mut hash_arr = [0; HASH_SIZE];
+pub fn hash_to_hex(hash: &Hash) -> Hex {
+  let hash = hash.as_ref();
+  let mut hex = [0; HASH_SIZE];
   for i in 0..HASH_SIZE-1 {
-    hash_arr[i] = hash[i];
+    hex[i] = hash[i];
   }
-  hash_arr
+  hex
 }
 
 // little endian encoding of bytes
@@ -197,7 +203,15 @@ pub fn new_typ() -> Link<Graph> {
   let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
   update_hasher(&mut hasher, MK_TYP as usize);
   let hash = hasher.finalize();
-  Rc::new(RefCell::new(Graph::Typ(hash)))
+  new_link(Graph::Typ(hash))
+}
+
+#[inline]
+pub fn new_ann(typ: Link<Graph>, exp: Link<Graph>) -> Link<Graph> {
+  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
+  update_hasher(&mut hasher, MK_TYP as usize);
+  let hash = hasher.finalize();
+  new_link(Graph::Ann(hash, typ, exp))
 }
 
 #[inline]
@@ -205,10 +219,9 @@ pub fn new_var(dep: usize, name: Name) -> Link<Graph> {
   let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
   update_hasher(&mut hasher, dep);
   let hash = hasher.finalize();
-  Rc::new(RefCell::new(Graph::Var(hash, dep, name.clone())))
+  new_link(Graph::Var(hash, dep, name.clone()))
 }
 
-#[inline]
 pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
   fn go(node: Link<Graph>, map: &mut BTreeMap<*mut Graph, Link<Graph>>) -> Link<Graph> {
     if let Some(copy) = map.get(&node.as_ptr()) {
@@ -218,54 +231,54 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
       Graph::Lam(hash, Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Lam(*hash, Closure { idx: *idx, env });
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::App(hash, fun, arg) => {
         let fun = go(fun.clone(), map);
         let arg = go(arg.clone(), map);
         let new_node = Graph::App(*hash, fun, arg);
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::All(hash, uses, dom, Closure { idx, env }) => {
         let dom = go(dom.clone(), map);
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::All(*hash, *uses, dom, Closure { idx: *idx, env });
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::Slf(hash, Closure { idx, env}) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Slf(*hash, Closure { idx: *idx, env });
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::Dat(hash, bod) => {
         let bod = go(bod.clone(), map);
         let new_node = Graph::Dat(*hash, bod);
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::Cse(hash, bod) => {
         let bod = go(bod.clone(), map);
         let new_node = Graph::Cse(*hash, bod);
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::Ann(hash, typ, exp) => {
         let typ = go(typ.clone(), map);
         let exp = go(exp.clone(), map);
         let new_node = Graph::Ann(*hash, typ, exp);
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::Let(hash, uses, typ, exp, Closure { idx, env }) => {
         let typ = go(typ.clone(), map);
         let exp = go(exp.clone(), map);
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Let(*hash, *uses, typ, exp, Closure { idx: *idx, env });
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
       Graph::Fix(hash, Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Fix(*hash, Closure { idx: *idx, env });
-        Rc::new(RefCell::new(new_node))
+        new_link(new_node)
       }
-      node => Rc::new(RefCell::new(node.clone()))
+      node => new_link(node.clone())
     };
     map.insert(node.as_ptr(), copy.clone());
     copy
@@ -274,7 +287,6 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
   go(node, &mut map)
 }
 
-#[inline]
 pub fn build_closure(
   code: &Vec<CODE>,
   pc: &mut usize,
@@ -344,9 +356,9 @@ pub fn build_graph(
         update_hasher(&mut hasher, MK_APP as usize);
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::App(hash, fun, arg)
-        )));
+        ));
       },
       MK_LAM => {
         update_hasher(&mut hasher, MK_LAM as usize);
@@ -360,9 +372,9 @@ pub fn build_graph(
         );
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Lam(hash, clos)
-        )));
+        ));
       }
       REF_GBL => {
         let bytes = &code[pc+1..pc+1+GBL_SIZE];
@@ -387,18 +399,18 @@ pub fn build_graph(
         hasher.reset();
         // TODO: add proper names
         let name = Name::from("x");
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Var(hash, index, name)
-        )));
+        ));
         pc = pc+8;
       },
       MK_TYP => {
         update_hasher(&mut hasher, MK_TYP as usize);
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Typ(hash)
-        )));
+        ));
       },
       MK_ALL => {
         let uses = code[pc+1];
@@ -417,9 +429,9 @@ pub fn build_graph(
         );
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::All(hash, code_to_uses(uses), dom, clos)
-        )));
+        ));
       },
       MK_SLF => {
         update_hasher(&mut hasher, MK_SLF as usize);
@@ -433,9 +445,9 @@ pub fn build_graph(
         );
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Slf(hash, clos)
-        )));
+        ));
       },
       MK_DAT => {
         let bod = args.pop().unwrap();
@@ -443,9 +455,9 @@ pub fn build_graph(
         update_hasher(&mut hasher, MK_DAT as usize);
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Dat(hash, bod)
-        )));
+        ));
       },
       MK_CSE => {
         let bod = args.pop().unwrap();
@@ -453,9 +465,9 @@ pub fn build_graph(
         update_hasher(&mut hasher, MK_CSE as usize);
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Cse(hash, bod)
-        )));
+        ));
       },
       MK_ANN => {
         if eval {
@@ -470,9 +482,9 @@ pub fn build_graph(
           update_hasher(&mut hasher, MK_ANN as usize);
           let hash = hasher.finalize();
           hasher.reset();
-          args.push(Rc::new(RefCell::new(
+          args.push(new_link(
             Graph::Ann(hash, typ, exp)
-          )));
+          ));
         }
       },
       EVAL => {
@@ -503,9 +515,9 @@ pub fn build_graph(
         );
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Let(hash, code_to_uses(uses), typ, exp, clos)
-        )));
+        ));
       },
       MK_FIX => {
         update_hasher(&mut hasher, MK_FIX as usize);
@@ -519,9 +531,9 @@ pub fn build_graph(
         );
         let hash = hasher.finalize();
         hasher.reset();
-        args.push(Rc::new(RefCell::new(
+        args.push(new_link(
           Graph::Fix(hash, clos)
-        )));
+        ));
       },
       END => break,
       _ => panic!("Operation does not exist"),
@@ -621,7 +633,7 @@ pub fn reduce(
         Graph::Fix(_, _) => {
           // We have to clone the contents of `node` and drop its borrow only to
           // borrow and match it again, otherwise the borrow checker complains
-          let arg = Rc::new(RefCell::new(borrow.clone()));
+          let arg = new_link(borrow.clone());
           drop(borrow);
           let mut borrow = node.borrow_mut();
           match &mut *borrow {
@@ -726,7 +738,6 @@ pub fn stringify_graph(
   }
 }
 
-#[inline]
 pub fn stringify_code(
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
