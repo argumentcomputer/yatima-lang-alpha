@@ -13,6 +13,7 @@ use alloc::{
 };
 
 // A doubly-linked list (DLL) node
+#[derive(Debug)]
 pub struct DLL<T> {
   pub next: Option<NonNull<DLL<T>>>,
   pub prev: Option<NonNull<DLL<T>>>,

@@ -248,6 +248,7 @@ fn run_cli() -> std::io::Result<()> {
 
       let mut dag = runtime::from_term(checked.clone(), &def.to_owned().term, None);
       runtime::whnf(&mut dag, false);
+      println!("{:?}", dag);
       // dag.norm(&defs, false);
       // let graph = DagGraph::from_dag(&dag); 
       // let dot = graph.to_dot();

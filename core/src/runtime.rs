@@ -6,6 +6,7 @@ use crate::{
   term::Term,
 };
 
+use core::fmt;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use sp_std::{
@@ -27,6 +28,19 @@ pub enum DAG {
   Opr(NonNull<Opr>),
 }
 
+impl fmt::Debug for DAG {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      match self {
+        DAG::Var(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
+        DAG::App(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
+        DAG::Lam(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
+        DAG::Fix(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
+        DAG::Lit(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
+        DAG::Opr(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
+      }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ParentPtr {
   Root,
@@ -37,11 +51,12 @@ pub enum ParentPtr {
 }
 
 // Runtime DAG nodes
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Var {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Lam {
   pub bod: DAG,
   pub bod_ref: Parents,
@@ -49,6 +64,7 @@ pub struct Lam {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct App {
   pub fun: DAG,
   pub arg: DAG,
@@ -58,6 +74,7 @@ pub struct App {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Fix {
   pub bod: DAG,
   pub bod_ref: Parents,
@@ -65,11 +82,13 @@ pub struct Fix {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Lit {
   pub lit: Literal,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Opr {
   pub opr: Op,
   pub parents: Option<NonNull<Parents>>,
@@ -192,7 +211,7 @@ pub fn free_dead_node(node: DAG) {
       DAG::Opr(link) => {
         Box::from_raw(link.as_ptr());
       }
-      _ => panic!("Runtime error")
+      DAG::Var(link) => ()
     }
   }
 }
@@ -503,7 +522,7 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
       DAG::Fix(link) => unsafe {
         let Fix { var, bod, .. } = &mut *link.as_ptr();
         replace_child(node, *bod);
-        if !var.parents.is_none() {
+        if var.parents.is_some() {
           let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
           let result = subst(*bod, var, DAG::Var(NonNull::new_unchecked(&mut new_fix.var)), true, should_count);
           new_fix.bod = result;
@@ -735,17 +754,17 @@ pub fn from_term_inner(
       let (_, exp, bod) = &**typ_exp_bod;
       let (exp, maybe_fix) = if *rec {
         let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
-        let (bod, maybe_fix) = from_term_inner(defs.clone(), &exp, &mut ctx.clone(), parents, maybe_fix);
+        let (bod, maybe_fix) = from_term_inner(defs.clone(), exp, &mut ctx.clone(), parents, maybe_fix);
         new_fix.bod = bod;
         add_to_parents(bod, NonNull::new_unchecked(&mut new_fix.bod_ref));
         (DAG::Fix(NonNull::new_unchecked(new_fix)), maybe_fix)
       }
       else {
-        from_term_inner(defs.clone(), &exp, &mut ctx.clone(), None, maybe_fix)
+        from_term_inner(defs.clone(), exp, &mut ctx.clone(), None, maybe_fix)
       };
       ctx.push(exp);
-      from_term_inner(defs.clone(), &bod, ctx, parents, maybe_fix)
+      from_term_inner(defs, bod, ctx, parents, maybe_fix)
     },
-    _ => panic!("Runtime cannot contain type level terms")
+    _ => (DAG::Lit(alloc_val(Lit { lit: Literal::I32(0), parents })), maybe_fix)
   }
 }
