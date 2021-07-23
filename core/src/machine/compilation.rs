@@ -6,9 +6,7 @@ use crate::{
 };
 
 use sp_std::{
-  rc::Rc,
   vec::Vec,
-  cell::RefCell,
   collections::btree_set::BTreeSet,
 };
 
@@ -52,9 +50,7 @@ pub fn ir_to_graph(
       let mut hasher = Blake3Hasher::default();
       update_hasher(&mut hasher, *idx as usize);
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Var(hash, *idx as usize, name.clone())
-      ))
+      new_link(Graph::Var(hash, *idx as usize, name.clone()))
     },
     IR::Lam(name, _, bod) => {
       // It is assumed that bod has no free variables, since this function
@@ -69,9 +65,7 @@ pub fn ir_to_graph(
         env: vec![],
       };
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Lam(hash, clos)
-      ))
+      new_link(Graph::Lam(hash, clos))
     },
     IR::App(fun, arg) => {
       let fun = ir_to_graph(fun, fun_defs);
@@ -81,26 +75,20 @@ pub fn ir_to_graph(
       hasher.update(get_u8_hash(&fun.borrow()));
       update_hasher(&mut hasher, MK_APP as usize);
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::App(hash, fun, arg)
-      ))
+      new_link(Graph::App(hash, fun, arg))
     },
     IR::Ref(idx) => {
       let mut hasher = Blake3Hasher::default();
       update_hasher(&mut hasher, REF_GBL as usize);
       update_hasher(&mut hasher, *idx as usize);
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Ref(hash, *idx)
-      ))
+      new_link(Graph::Ref(hash, *idx))
     },
     IR::Typ => {
       let mut hasher = Blake3Hasher::default();
       update_hasher(&mut hasher, MK_TYP as usize);
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Typ(hash)
-      ))
+      new_link(Graph::Typ(hash))
     },
     IR::All(uses, name, dom, _, img) => {
       let mut hasher = Blake3Hasher::default();
@@ -114,9 +102,7 @@ pub fn ir_to_graph(
         env: vec![],
       };
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::All(hash, *uses, dom, clos)
-      ))
+      new_link(Graph::All(hash, *uses, dom, clos))
     },
     IR::Slf(name, _, bod) => {
       let mut hasher = Blake3Hasher::default();
@@ -127,9 +113,7 @@ pub fn ir_to_graph(
         env: vec![],
       };
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Slf(hash, clos)
-      ))
+      new_link(Graph::Slf(hash, clos))
     },
     IR::Dat(bod) => {
       let bod = ir_to_graph(bod, fun_defs);
@@ -137,9 +121,7 @@ pub fn ir_to_graph(
       hasher.update(get_u8_hash(&bod.borrow()));
       update_hasher(&mut hasher, MK_DAT as usize);
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Dat(hash, bod)
-      ))
+      new_link(Graph::Dat(hash, bod))
     },
     IR::Cse(bod) => {
       let bod = ir_to_graph(bod, fun_defs);
@@ -147,9 +129,7 @@ pub fn ir_to_graph(
       hasher.update(get_u8_hash(&bod.borrow()));
       update_hasher(&mut hasher, MK_CSE as usize);
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Cse(hash, bod)
-      ))
+      new_link(Graph::Cse(hash, bod))
     },
     IR::Ann(typ, exp) => {
       let typ = ir_to_graph(typ, fun_defs);
@@ -157,9 +137,7 @@ pub fn ir_to_graph(
       let mut hasher = Blake3Hasher::default();
       hasher.update(get_u8_hash(&exp.borrow()));
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Ann(hash, typ, exp)
-      ))
+      new_link(Graph::Ann(hash, typ, exp))
     },
     IR::Let(uses, name, typ, exp, _, bod) => {
       let mut hasher = Blake3Hasher::default();
@@ -174,9 +152,7 @@ pub fn ir_to_graph(
         env: vec![],
       };
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Let(hash, *uses, typ, exp, clos)
-      ))
+      new_link(Graph::Let(hash, *uses, typ, exp, clos))
     },
     IR::Fix(name, _, bod) => {
       let mut hasher = Blake3Hasher::default();
@@ -187,11 +163,27 @@ pub fn ir_to_graph(
         env: vec![],
       };
       let hash = hasher.finalize();
-      Rc::new(RefCell::new(
-        Graph::Fix(hash, clos)
-      ))
+      new_link(Graph::Fix(hash, clos))
     }
-    _ => todo!()
+    IR::Lit(_lit) => {
+      todo!()
+    }
+    IR::LTy(lty) => {
+      let mut hasher = Blake3Hasher::default();
+      update_hasher(&mut hasher, MK_LTY as usize);
+      update_hasher(&mut hasher, *lty as usize);
+      let hash = hasher.finalize();
+      new_link(Graph::LTy(hash, *lty))
+    }
+    IR::Opr(opr) => {
+      let mut hasher = Blake3Hasher::default();
+      let (typ_code, opr_code) = codify_opr(*opr);
+      update_hasher(&mut hasher, MK_OPR as usize);
+      update_hasher(&mut hasher, typ_code as usize);
+      update_hasher(&mut hasher, opr_code as usize);
+      let hash = hasher.finalize();
+      new_link(Graph::Opr(hash, *opr))
+    }
   }
 }
 
@@ -308,7 +300,15 @@ pub fn compile_ir(
         compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
         update_hasher(hasher, MK_FIX as usize);
       }
-    _ => todo!()
+      IR::Lit(_lit) => {
+        todo!()
+      }
+      IR::LTy(_lty) => {
+        todo!()
+      }
+      IR::Opr(_opr) => {
+        todo!()
+      }
     }
   }
 

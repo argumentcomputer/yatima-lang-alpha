@@ -20,6 +20,7 @@ use crate::{
 
 use alloc::string::String;
 use sp_std::{
+  mem,
   vec::Vec,
   rc::Rc,
   cell::RefCell,
@@ -208,10 +209,55 @@ pub fn code_to_uses(uses: CODE) -> Uses {
     0 => Uses::None,
     1 => Uses::Once,
     2 => Uses::Affi,
-    _ => Uses::Many,
+    3 => Uses::Many,
+    _ => unreachable!(),
   }
 }
 
+#[inline]
+pub fn codify_opr(opr: Op) -> (CODE, CODE) {
+  match opr {
+    Op::Nat(x) => (0, x as u8),
+    Op::Int(x) => (1, x as u8),
+    Op::Bits(x) => (2, x as u8),
+    Op::Bytes(x) => (3, x as u8),
+    Op::Text(x) => (4, x as u8),
+    Op::Char(x) => (5, x as u8),
+    Op::Bool(x) => (6, x as u8),
+    Op::U8(x) => (7, x as u8),
+    Op::U16(x) => (8, x as u8),
+    Op::U32(x) => (9, x as u8),
+    Op::U64(x) => (10, x as u8),
+    Op::I8(x) => (11, x as u8),
+    Op::I16(x) => (12, x as u8),
+    Op::I32(x) => (13, x as u8),
+    Op::I64(x) => (14, x as u8),
+  }
+}
+
+#[inline]
+pub fn uncodify_opr(pair: (CODE, CODE)) -> Op {
+  unsafe {
+    match pair {
+      (0, x) => Op::Nat(mem::transmute(x)),
+      (1, x) => Op::Int(mem::transmute(x)),
+      (2, x) => Op::Bits(mem::transmute(x)),
+      (3, x) => Op::Bytes(mem::transmute(x)),
+      (4, x) => Op::Text(mem::transmute(x)),
+      (5, x) => Op::Char(mem::transmute(x)),
+      (6, x) => Op::Bool(mem::transmute(x)),
+      (7, x) => Op::U8(mem::transmute(x)),
+      (8, x) => Op::U16(mem::transmute(x)),
+      (9, x) => Op::U32(mem::transmute(x)),
+      (10, x) => Op::U64(mem::transmute(x)),
+      (11, x) => Op::I8(mem::transmute(x)),
+      (12, x) => Op::I16(mem::transmute(x)),
+      (13, x) => Op::I32(mem::transmute(x)),
+      (14, x) => Op::I64(mem::transmute(x)),
+      _ => unreachable!(),
+    }
+  }
+}
 #[inline]
 pub fn new_typ() -> Link<Graph> {
   let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();

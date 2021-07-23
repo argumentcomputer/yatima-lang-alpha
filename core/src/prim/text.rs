@@ -25,6 +25,7 @@ use core::convert::{
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum TextOp {
   Cons,
   LenChars,

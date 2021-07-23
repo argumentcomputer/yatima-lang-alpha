@@ -19,6 +19,7 @@ use crate::{
 use num_bigint::BigUint;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum I8Op {
   Abs,
   Sgn,

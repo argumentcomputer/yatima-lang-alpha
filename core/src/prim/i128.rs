@@ -17,6 +17,7 @@ use crate::{
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum I128Op {
   Abs,
   Sgn,

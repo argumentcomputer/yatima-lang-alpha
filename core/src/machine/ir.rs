@@ -108,7 +108,9 @@ pub fn term_to_ir(
         },
       }
     },
-    Term::Typ(_) => (IR::Typ, FreeVars::new()),
+    Term::Typ(_) => {
+      (IR::Typ, FreeVars::new())
+    }
     Term::All(_, uses, nam, link) => {
       let (dom, img) = &**link;
       let (dom, dom_set) = term_to_ir(done, ir_defs, rec_idx, dom, defs);
@@ -169,6 +171,14 @@ pub fn term_to_ir(
       let set = FreeVars::union(&set, &bod_set);
       (ir, set)
     },
-    _ => panic!("Not yet implemented {}", term)
+    Term::LTy(_, lty) => {
+      (IR::LTy(*lty), FreeVars::new())
+    }
+    Term::Lit(_, lit) => {
+      (IR::Lit(lit.clone()), FreeVars::new())
+    }
+    Term::Opr(_, opr) => {
+      (IR::Opr(*opr), FreeVars::new())
+    }
   }
 }

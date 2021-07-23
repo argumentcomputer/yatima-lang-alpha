@@ -18,6 +18,7 @@ use crate::{
 use core::convert::TryFrom;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum BitsOp {
   Cons,
   Len,
