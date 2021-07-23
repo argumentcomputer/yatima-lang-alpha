@@ -3,6 +3,11 @@ use crate::{
   uses::Uses,
   defs::Defs,
   term::Term,
+  literal::{
+    LitType,
+    Literal,
+  },
+  prim::Op,
   machine::freevars::FreeVars,
 };
 
@@ -28,6 +33,9 @@ pub enum IR {
   Ann(Rc<IR>, Rc<IR>),
   Let(Uses, Name, Rc<IR>, Rc<IR>, FreeVars, Rc<IR>),
   Fix(Name, FreeVars, Rc<IR>),
+  Lit(Literal),
+  LTy(LitType),
+  Opr(Op),
 }
 
 pub fn defs_to_ir(defs: &Defs) -> Vec<(Name, IR, IR)> {

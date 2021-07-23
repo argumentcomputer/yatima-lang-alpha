@@ -191,6 +191,7 @@ pub fn ir_to_graph(
         Graph::Fix(hash, clos)
       ))
     }
+    _ => todo!()
   }
 }
 
@@ -307,6 +308,7 @@ pub fn compile_ir(
         compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
         update_hasher(hasher, MK_FIX as usize);
       }
+    _ => todo!()
     }
   }
 

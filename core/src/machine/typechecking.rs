@@ -1,6 +1,13 @@
 use crate::{
   uses::Uses,
+  defs::Defs,
+  literal::{
+    LitType,
+    Literal,
+  },
   machine::machine::*,
+  machine::ir::*,
+  machine::compilation::*,
   machine::equality::*,
 };
 
@@ -63,7 +70,7 @@ pub fn check(
   unrolled_terms: &mut BTreeMap<Hex, Link<Graph>>,
   globals: &Vec<DefCell>,
   mut_globals: &Vec<DefCell>,
-  fun_defs: &Vec<FunCell>,
+  fun_defs: &mut Vec<FunCell>,
   ctx: &mut Ctx,
   uses: Uses,
   term: Link<Graph>,
@@ -163,7 +170,7 @@ pub fn infer(
   unrolled_terms: &mut BTreeMap<Hex, Link<Graph>>,
   globals: &Vec<DefCell>,
   mut_globals: &Vec<DefCell>,
-  fun_defs: &Vec<FunCell>,
+  fun_defs: &mut Vec<FunCell>,
   ctx: &mut Ctx,
   uses: Uses,
   term: Link<Graph>,
@@ -229,9 +236,10 @@ pub fn infer(
       ctx.pop();
       Ok(typ)
     }
-    Graph::Let(_, _, _, exp, Closure { idx, env }) => {
+    Graph::Let(_, _, exp_typ, exp, Closure { idx, env }) => {
       // See remark at the Let case in `check`
-      let bod = build_graph(false, globals, fun_defs, *idx, env, exp.clone());
+      let ann_exp = new_ann(exp_typ.clone(), exp.clone());
+      let bod = build_graph(false, globals, fun_defs, *idx, env, ann_exp);
       infer(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod)
       // let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
       // check(unrolled_terms, globals, mut_globals, fun_defs, ctx, *exp_uses * uses, exp.clone(), typ.clone())?;
@@ -273,5 +281,43 @@ pub fn infer(
         Err(CheckError::GenericError(format!("Untyped fix")))
       }
     }
+    Graph::Lit(_, lit) => {
+      let lty = infer_lit(lit);
+      Ok(new_lty(lty))
+    },
+    Graph::LTy(_, _) => {
+      Ok(new_typ())
+    },
+    Graph::Opr(_, opr) => {
+      // TODO: Write something more efficient than compiling terms
+      // perhaps constructing the graphs directly
+      let typ = opr.type_of();
+      // The types of opr contain no references, thus we can start with an empty Defs and Map
+      let (ir, _) = term_to_ir(&mut BTreeMap::new(), &mut vec![], 0, &typ, &Defs::new());
+      let typ = ir_to_graph(&ir, fun_defs);
+      Ok(typ)
+    },
+  }
+}
+
+pub fn infer_lit(lit: &Literal) -> LitType {
+  match lit {
+    Literal::Nat(_) => LitType::Nat,
+    Literal::Int(_) => LitType::Int,
+    Literal::Bytes(_) => LitType::Bytes,
+    Literal::Bits(_) => LitType::Bits,
+    Literal::Text(_) => LitType::Text,
+    Literal::Char(_) => LitType::Char,
+    Literal::Bool(_) => LitType::Bool,
+    Literal::U8(_) => LitType::U8,
+    Literal::U16(_) => LitType::U16,
+    Literal::U32(_) => LitType::U32,
+    Literal::U64(_) => LitType::U64,
+    Literal::U128(_) => LitType::U128,
+    Literal::I8(_) => LitType::I8,
+    Literal::I16(_) => LitType::I16,
+    Literal::I32(_) => LitType::I32,
+    Literal::I64(_) => LitType::I64,
+    Literal::I128(_) => LitType::I128,
   }
 }

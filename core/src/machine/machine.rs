@@ -11,6 +11,11 @@
 use crate::{
   name::Name,
   uses::Uses,
+  literal::{
+    LitType,
+    Literal,
+  },
+  prim::Op,
 };
 
 use alloc::string::String;
@@ -66,8 +71,14 @@ pub const MK_ANN: CODE = 12;
 pub const MK_LET: CODE = 13;
 // Build a fix node
 pub const MK_FIX: CODE = 14;
+// Build a fix node
+pub const MK_LIT: CODE = 15;
+// Build a fix node
+pub const MK_LTY: CODE = 16;
+// Build a fix node
+pub const MK_OPR: CODE = 17;
 // Evaluate last node
-pub const EVAL: CODE = 15;
+pub const EVAL: CODE = 18;
 // End of code
 pub const END: CODE = 0;
 
@@ -95,9 +106,9 @@ pub enum Graph {
   Ann(Hash, Link<Graph>, Link<Graph>),
   Let(Hash, Uses, Link<Graph>, Link<Graph>, Closure),
   Fix(Hash, Closure),
-  // Lit(Pos, Literal),
-  // LTy(Pos, LitType),
-  // Opr(Pos, Op),
+  Lit(Hash, Literal),
+  LTy(Hash, LitType),
+  Opr(Hash, Op),
 }
 
 #[derive(Clone, Debug)]
@@ -139,6 +150,9 @@ pub fn get_hash<'a>(term: &'a Graph) -> &'a Hash {
     Graph::Ann(hash, _, _) => hash,
     Graph::Let(hash, _, _, _, _) => hash,
     Graph::Fix(hash, _) => hash,
+    Graph::Lit(hash, _) => hash,
+    Graph::LTy(hash, _) => hash,
+    Graph::Opr(hash, _) => hash,
   }
 }
 
@@ -204,6 +218,15 @@ pub fn new_typ() -> Link<Graph> {
   update_hasher(&mut hasher, MK_TYP as usize);
   let hash = hasher.finalize();
   new_link(Graph::Typ(hash))
+}
+
+#[inline]
+pub fn new_lty(lty: LitType) -> Link<Graph> {
+  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
+  update_hasher(&mut hasher, MK_LTY as usize);
+  update_hasher(&mut hasher, lty as usize);
+  let hash = hasher.finalize();
+  new_link(Graph::LTy(hash, lty))
 }
 
 #[inline]
@@ -645,6 +668,9 @@ pub fn reduce(
           }
           node.clone()
         }
+        Graph::Opr(_, _) => {
+          todo!()
+        }
         _ => break,
       }
     };
@@ -734,6 +760,15 @@ pub fn stringify_graph(
       let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Fix {} {})", arg_name, code_str)
+    },
+    Graph::Lit(_, _) => {
+      todo!()
+    },
+    Graph::LTy(_, _) => {
+      todo!()
+    },
+    Graph::Opr(_, _) => {
+      todo!()
     },
   }
 }
