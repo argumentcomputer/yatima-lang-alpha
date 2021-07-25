@@ -613,30 +613,29 @@ pub mod tests {
     s.truncate(1);
     Name::from(format!("_{}", s))
   }
-  pub fn test_defs() -> Defs { Defs::new() }
 
-  // pub fn test_defs() -> Defs {
-  //  let mut defs = Defs::new();
-  //  let (id, _) = Def::make(
-  //    Pos::None,
-  //    yatima!("∀ (ω A: Type) (ω x: A) -> A"),
-  //    yatima!("λ (ω A: Type) (ω x: A) => x"),
-  //  );
-  //  let (fst, _) = Def::make(
-  //    Pos::None,
-  //    yatima!("∀ (ω A: Type) (ω x y: A) -> A"),
-  //    yatima!("λ (ω A: Type) (ω x y: A) => x"),
-  //  );
-  //  let (snd, _) = Def::make(
-  //    Pos::None,
-  //    yatima!("∀ (ω A: Type) (ω x y: A) -> A"),
-  //    yatima!("λ (ω A: Type) (ω x y: A) => y"),
-  //  );
-  //  defs.insert(Name::from("id"), id);
-  //  defs.insert(Name::from("fst"), fst);
-  //  defs.insert(Name::from("snd"), snd);
-  //  defs
-  //}
+  pub fn test_defs() -> Defs {
+    let mut defs = Defs::new();
+    let (id, _) = Def::make(
+      Pos::None,
+      yatima!("∀ (ω A: Type) (ω x: A) -> A"),
+      yatima!("λ (ω A: Type) (ω x: A) => x"),
+    );
+    let (fst, _) = Def::make(
+      Pos::None,
+      yatima!("∀ (ω A: Type) (ω x y: A) -> A"),
+      yatima!("λ (ω A: Type) (ω x y: A) => x"),
+    );
+    let (snd, _) = Def::make(
+      Pos::None,
+      yatima!("∀ (ω A: Type) (ω x y: A) -> A"),
+      yatima!("λ (ω A: Type) (ω x y: A) => y"),
+    );
+    defs.insert(Name::from("id"), id);
+    defs.insert(Name::from("fst"), fst);
+    defs.insert(Name::from("snd"), snd);
+    defs
+  }
 
   fn arbitrary_ref(g: &mut Gen, defs: Defs, ctx: Vector<Name>) -> GenTerm {
     let refs: Vec<(Name, Cid)> = defs
@@ -865,6 +864,12 @@ pub mod tests {
       let term = term.assume_init();
       mem::transmute::<GenTerm, Term>(Box::into_inner(term))
     }
+  }
+
+  #[test]
+  fn test_test_defs() {
+    let defs = test_defs();
+    assert!(true);
   }
 
   impl Arbitrary for Term {

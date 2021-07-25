@@ -31,8 +31,8 @@ pub struct Def {
   pub pos: Pos,
   pub def_cid: Cid,
   pub ast_cid: Cid,
-  pub typ_: Term,
-  pub term: Term,
+  pub typ_: Rc<Term>,
+  pub term: Rc<Term>,
 }
 
 impl PartialEq for Def {
@@ -63,6 +63,8 @@ impl Def {
       term_anon: ast_cid,
       term_meta,
     };
+    let typ_ = Rc::new(typ_);
+    let term = Rc::new(term);
     let def = Def { pos, def_cid: defn.cid(), ast_cid, typ_, term };
     (def, defn)
   }
@@ -86,7 +88,9 @@ impl Def {
     term_anon: Anon,
   ) -> Result<Self, EmbedError> {
     let typ_ = Term::unembed(&type_anon, &def.type_meta)?;
+    let typ_ = Rc::new(typ_);
     let term = Term::unembed(&term_anon, &def.term_meta)?;
+    let term = Rc::new(term);
     Ok(Def {
       pos: def.pos,
       def_cid: def.cid(),

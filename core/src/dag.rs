@@ -1,6 +1,5 @@
 // Bottom-up reduction of lambda DAGs. Based on the paper by Olin Shivers and
 // Mitchel Wand "Bottom-up β-reduction: uplinks and λ-DAGs" (https://www.brics.dk/RS/04/38/BRICS-RS-04-38.pdf)
-
 use crate::{
   defs::Def,
   dll::*,
@@ -1967,6 +1966,6 @@ pub mod test {
   #[quickcheck]
   fn dag_def_iso(x: Def) -> bool {
     let y = DAG::to_term(&DAG::from_def(&x, Name::from("test")), true);
-    x.term == y
+    *x.term == y
   }
 }
