@@ -167,6 +167,7 @@ pub struct Dat {
   pub bod: DAGPtr,
   pub typ_ref: Option<Parents>,
   pub bod_ref: Option<Parents>,
+  pub copy: Option<NonNull<Dat>>,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -359,8 +360,14 @@ pub fn alloc_dat(
   parents: Option<NonNull<Parents>>,
 ) -> NonNull<Dat> {
   unsafe {
-    let dat =
-      alloc_val(Dat { typ, bod, typ_ref: None, bod_ref: None, parents });
+    let dat = alloc_val(Dat {
+      typ,
+      bod,
+      typ_ref: None,
+      bod_ref: None,
+      copy: None,
+      parents,
+    });
     (*dat.as_ptr()).typ_ref = Some(DLL::singleton(ParentPtr::DatTyp(dat)));
     (*dat.as_ptr()).bod_ref = Some(DLL::singleton(ParentPtr::DatBod(dat)));
     dat

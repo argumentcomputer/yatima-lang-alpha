@@ -18,7 +18,6 @@ use sp_std::{
   borrow::ToOwned,
   boxed::Box,
   fmt,
-  mem,
   mem::MaybeUninit,
   ptr::NonNull,
   rc::Rc,
@@ -576,10 +575,7 @@ pub enum GenTerm {
 #[cfg(test)]
 pub mod tests {
 
-  use super::{
-    Term::*,
-    *,
-  };
+  use super::*;
   use crate::defs::{
     Def,
     Defs,
@@ -588,8 +584,10 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use rand::Rng;
-  use sp_std::ops::Range;
+  use sp_std::{
+    mem,
+    ops::Range,
+  };
 
   use sp_im::Vector;
   use sp_std::{
@@ -710,7 +708,7 @@ pub mod tests {
   ) -> Term {
     let res = alloc_val(MaybeUninit::<GenTerm>::uninit());
     let mut stack = vec![(ctx0, res.clone())];
-    let term = Box::new(res);
+    let _term = Box::new(res);
     while let Some((ctx, mut ptr)) = stack.pop() {
       let depth = ctx.len();
       let gens: Vec<(usize, Case)> = vec![
@@ -794,7 +792,7 @@ pub mod tests {
           }
         }
         Case::CSE => {
-          let mut bod = alloc_val(MaybeUninit::<GenTerm>::uninit());
+          let bod = alloc_val(MaybeUninit::<GenTerm>::uninit());
           stack.push((ctx, bod));
           unsafe {
             *ptr.as_mut() = MaybeUninit::new(Cse(Pos::None, bod));
@@ -868,7 +866,7 @@ pub mod tests {
 
   #[test]
   fn test_test_defs() {
-    let defs = test_defs();
+    let _defs = test_defs();
     assert!(true);
   }
 

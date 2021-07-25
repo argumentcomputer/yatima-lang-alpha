@@ -592,10 +592,10 @@ pub fn littype_induction(x: LitType, val: Term) -> Option<Term> {
   }
 }
 
-pub fn literal_expand(x: Literal) -> Option<Term> {
+pub fn literal_expand(x: &Literal) -> Option<Term> {
   match x {
     Literal::Nat(n) => {
-      if n == BigUint::from(0u64) {
+      if *n == BigUint::from(0u64) {
         Some(yatima!(
           "λ (ω P: ∀ (ω _: #Nat) -> Type) (ω z: #Nat) (ω s: #Nat) => z"
         ))

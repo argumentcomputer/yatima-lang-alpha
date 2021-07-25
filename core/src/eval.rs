@@ -4,45 +4,52 @@ use crate::{
   dag::*,
   defs::Defs,
   dll::*,
+  prim::check::literal_expand,
   upcopy::*,
 };
 
 use sp_std::{
   collections::btree_map::BTreeMap,
-  vec::Vec,
   mem,
+  vec::Vec,
 };
 
 use alloc::string::String;
 
 enum Single {
-  Lam(Var),
+  Bind(Var),
   Slf(Var),
   Fix(Var),
-  Dat,
   Cse,
 }
 
 enum Branch {
+  Lam(NonNull<Lam>),
   All(NonNull<All>),
+  Dat(NonNull<Dat>),
   App(NonNull<App>),
-  Ann(NonNull<Ann>),
   Let(NonNull<Let>),
 }
 
 // Substitute a variable
 #[inline]
-pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool) -> DAGPtr {
+pub fn subst(
+  bod: DAGPtr,
+  var: &Var,
+  arg: DAGPtr,
+  fix: bool,
+  should_count: bool,
+) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
   let mut result = arg;
   let mut spine = vec![];
   loop {
     match input {
-      DAGPtr::Lam(link) => {
-        let Lam { var, bod, .. } = unsafe { link.as_ref() };
+      DAGPtr::Bind(link) => {
+        let Bind { var, bod, .. } = unsafe { link.as_ref() };
         input = *bod;
-        spine.push(Single::Lam(var.clone()));
+        spine.push(Single::Bind(var.clone()));
       }
       DAGPtr::Slf(link) => {
         let Slf { var, bod, .. } = unsafe { link.as_ref() };
@@ -54,19 +61,28 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
         input = *bod;
         spine.push(Single::Fix(var.clone()));
       }
-      DAGPtr::Dat(link) => {
-        let Dat { bod, .. } = unsafe { link.as_ref() };
-        input = *bod;
-        spine.push(Single::Dat);
-      }
       DAGPtr::Cse(link) => {
         let Cse { bod, .. } = unsafe { link.as_ref() };
         input = *bod;
         spine.push(Single::Cse);
       }
+      DAGPtr::Dat(link) => {
+        let Dat { typ, bod: dat_bod, .. } = unsafe { link.as_ref() };
+        let new_dat = alloc_dat(*typ, *dat_bod, None);
+        unsafe {
+          (*link.as_ptr()).copy = Some(new_dat);
+        }
+        top_branch = Some(Branch::Dat(link));
+        for parent in DLL::iter_option(var.parents) {
+          upcopy(bod, *parent, should_count);
+        }
+        result = DAGPtr::Dat(new_dat);
+        break;
+      }
       DAGPtr::App(link) => {
-        let App { fun, arg: app_arg, .. } = unsafe { link.as_ref() };
-        let new_app = alloc_app(*fun, *app_arg, None);
+        let App { uses, fun, typ: app_typ, arg: app_arg, .. } =
+          unsafe { link.as_ref() };
+        let new_app = alloc_app(*uses, *fun, *app_typ, *app_arg, None);
         unsafe {
           (*link.as_ptr()).copy = Some(new_app);
         }
@@ -75,6 +91,19 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
           upcopy(arg, *parent, should_count);
         }
         result = DAGPtr::App(new_app);
+        break;
+      }
+      DAGPtr::Lam(link) => {
+        let Lam { uses, typ, bod, .. } = unsafe { link.as_ref() };
+        let new_lam = alloc_lam(*uses, *typ, *bod, None);
+        unsafe {
+          (*link.as_ptr()).copy = Some(new_lam);
+        }
+        top_branch = Some(Branch::Lam(link));
+        for parent in DLL::iter_option(var.parents) {
+          upcopy(arg, *parent, should_count);
+        }
+        result = DAGPtr::Lam(new_lam);
         break;
       }
       DAGPtr::All(link) => {
@@ -88,19 +117,6 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
           upcopy(arg, *parent, should_count);
         }
         result = DAGPtr::All(new_all);
-        break;
-      }
-      DAGPtr::Ann(link) => {
-        let Ann { typ, exp, .. } = unsafe { link.as_ref() };
-        let new_ann = alloc_ann(*typ, *exp, None);
-        unsafe {
-          (*link.as_ptr()).copy = Some(new_ann);
-        }
-        top_branch = Some(Branch::Ann(link));
-        for parent in DLL::iter_option(var.parents) {
-          upcopy(arg, *parent, should_count);
-        }
-        result = DAGPtr::Ann(new_ann);
         break;
       }
       DAGPtr::Let(link) => {
@@ -126,21 +142,23 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
   }
   while let Some(single) = spine.pop() {
     match single {
-      Single::Lam(var) => {
+      Single::Bind(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
-        let new_lam = alloc_lam(nam, dep, result, None);
-        let ptr: *mut Parents = unsafe { &mut (*new_lam.as_ptr()).bod_ref };
+        let new_bind = alloc_bind(nam, dep, result, None);
+        let ptr: *mut Parents =
+          unsafe { &mut *(*new_bind.as_ptr()).bod_ref.as_mut().unwrap() };
         add_to_parents(result, NonNull::new(ptr).unwrap());
-        let ptr: *mut Var = unsafe { &mut (*new_lam.as_ptr()).var };
+        let ptr: *mut Var = unsafe { &mut (*new_bind.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
           upcopy(DAGPtr::Var(NonNull::new(ptr).unwrap()), *parent, should_count)
         }
-        result = DAGPtr::Lam(new_lam);
+        result = DAGPtr::Bind(new_bind);
       }
       Single::Slf(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
         let new_slf = alloc_slf(nam, dep, result, None);
-        let ptr: *mut Parents = unsafe { &mut (*new_slf.as_ptr()).bod_ref };
+        let ptr: *mut Parents =
+          unsafe { &mut *(*new_slf.as_ptr()).bod_ref.as_mut().unwrap() };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_slf.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
@@ -151,7 +169,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
       Single::Fix(var) => {
         let Var { nam, dep, parents: var_parents, .. } = var;
         let new_fix = alloc_fix(nam, dep, result, None);
-        let ptr: *mut Parents = unsafe { &mut (*new_fix.as_ptr()).bod_ref };
+        let ptr: *mut Parents =
+          unsafe { &mut *(*new_fix.as_ptr()).bod_ref.as_mut().unwrap() };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         let ptr: *mut Var = unsafe { &mut (*new_fix.as_ptr()).var };
         for parent in DLL::iter_option(var_parents) {
@@ -159,15 +178,10 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
         }
         result = DAGPtr::Fix(new_fix);
       }
-      Single::Dat => {
-        let new_dat = alloc_dat(result, None);
-        let ptr: *mut Parents = unsafe { &mut (*new_dat.as_ptr()).bod_ref };
-        add_to_parents(result, NonNull::new(ptr).unwrap());
-        result = DAGPtr::Dat(new_dat);
-      }
       Single::Cse => {
         let new_cse = alloc_cse(result, None);
-        let ptr: *mut Parents = unsafe { &mut (*new_cse.as_ptr()).bod_ref };
+        let ptr: *mut Parents =
+          unsafe { &mut *(*new_cse.as_ptr()).bod_ref.as_mut().unwrap() };
         add_to_parents(result, NonNull::new(ptr).unwrap());
         result = DAGPtr::Cse(new_cse);
       }
@@ -176,29 +190,45 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
   // If the top branch is non-null, then clear the copies and fix the uplinks
   if let Some(top_branch) = top_branch {
     match top_branch {
+      Branch::Dat(link) => unsafe {
+        let top_dat = &mut *link.as_ptr();
+        let link = top_dat.copy.unwrap();
+        top_dat.copy = None;
+        let Dat { typ, typ_ref, bod, bod_ref, .. } = &mut *link.as_ptr();
+        add_to_parents(*typ, NonNull::new(typ_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(*bod, NonNull::new(bod_ref.as_mut().unwrap()).unwrap());
+      },
       Branch::App(link) => unsafe {
         let top_app = &mut *link.as_ptr();
         let link = top_app.copy.unwrap();
         top_app.copy = None;
-        let App { fun, fun_ref, arg, arg_ref, .. } = &mut *link.as_ptr();
-        add_to_parents(*fun, NonNull::new(fun_ref).unwrap());
-        add_to_parents(*arg, NonNull::new(arg_ref).unwrap());
+        let App { fun, fun_ref, typ, typ_ref, arg, arg_ref, .. } =
+          &mut *link.as_ptr();
+        add_to_parents(*fun, NonNull::new(fun_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(*typ, NonNull::new(typ_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(*arg, NonNull::new(arg_ref.as_mut().unwrap()).unwrap());
+      },
+      Branch::Lam(link) => unsafe {
+        let top_lam = &mut *link.as_ptr();
+        let link = top_lam.copy.unwrap();
+        top_lam.copy = None;
+        let Lam { typ, typ_ref, bod, bod_ref, .. } = &mut *link.as_ptr();
+        add_to_parents(*typ, NonNull::new(typ_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(
+          DAGPtr::Bind(*bod),
+          NonNull::new(bod_ref.as_mut().unwrap()).unwrap(),
+        );
       },
       Branch::All(link) => unsafe {
         let top_all = &mut *link.as_ptr();
         let link = top_all.copy.unwrap();
         top_all.copy = None;
         let All { dom, dom_ref, img, img_ref, .. } = &mut *link.as_ptr();
-        add_to_parents(*dom, NonNull::new(dom_ref).unwrap());
-        add_to_parents(DAGPtr::Lam(*img), NonNull::new(img_ref).unwrap());
-      },
-      Branch::Ann(link) => unsafe {
-        let top_ann = &mut *link.as_ptr();
-        let link = top_ann.copy.unwrap();
-        top_ann.copy = None;
-        let Ann { typ, typ_ref, exp, exp_ref, .. } = &mut *link.as_ptr();
-        add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
-        add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
+        add_to_parents(*dom, NonNull::new(dom_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(
+          DAGPtr::Bind(*img),
+          NonNull::new(img_ref.as_mut().unwrap()).unwrap(),
+        );
       },
       Branch::Let(link) => unsafe {
         let top_let = &mut *link.as_ptr();
@@ -206,9 +236,12 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
         top_let.copy = None;
         let Let { typ, typ_ref, exp, exp_ref, bod, bod_ref, .. } =
           &mut *link.as_ptr();
-        add_to_parents(*typ, NonNull::new(typ_ref).unwrap());
-        add_to_parents(*exp, NonNull::new(exp_ref).unwrap());
-        add_to_parents(DAGPtr::Lam(*bod), NonNull::new(bod_ref).unwrap());
+        add_to_parents(*typ, NonNull::new(typ_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(*exp, NonNull::new(exp_ref.as_mut().unwrap()).unwrap());
+        add_to_parents(
+          DAGPtr::Bind(*bod),
+          NonNull::new(bod_ref.as_mut().unwrap()).unwrap(),
+        );
       },
     }
     for parent in DLL::iter_option(var.parents) {
@@ -217,8 +250,8 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
     let mut spine = bod;
     loop {
       match spine {
-        DAGPtr::Lam(link) => unsafe {
-          let Lam { var, bod, .. } = &mut *link.as_ptr();
+        DAGPtr::Bind(link) => unsafe {
+          let Bind { var, bod, .. } = &mut *link.as_ptr();
           for parent in DLL::iter_option(var.parents) {
             clean_up(parent);
           }
@@ -253,9 +286,14 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
 
 // Contract a lambda redex, return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAGPtr {
+pub fn reduce_lam(
+  redex: NonNull<App>,
+  lam: NonNull<Lam>,
+  should_count: bool,
+) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
-  let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
+  let Lam { bod, .. } = unsafe { &mut *lam.as_ptr() };
+  let Bind { var, bod, parents, .. } = unsafe { &mut *bod.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
     replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *arg);
     *bod
@@ -274,8 +312,8 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) ->
 // Contract a let redex, return the body.
 #[inline]
 pub fn reduce_let(redex: NonNull<Let>, should_count: bool) -> DAGPtr {
-  let Let { bod: lam, exp: arg, .. } = unsafe { redex.as_ref() };
-  let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
+  let Let { bod: bind, exp: arg, .. } = unsafe { redex.as_ref() };
+  let Bind { var, bod, parents, .. } = unsafe { &mut *bind.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
     replace_child(DAGPtr::Var(NonNull::new(var).unwrap()), *arg);
     *bod
@@ -320,12 +358,6 @@ impl DAG {
             break;
           }
         }
-        DAGPtr::Ann(link) => {
-          let Ann { exp, .. } = unsafe { link.as_ref() };
-          replace_child(node, *exp);
-          free_dead_node(node);
-          node = *exp;
-        }
         DAGPtr::Cse(link) => {
           let mut body = unsafe { DAG::new((*link.as_ptr()).bod) };
           body.whnf(defs, should_count);
@@ -338,11 +370,11 @@ impl DAG {
             }
             DAGPtr::Lit(link) => {
               let Lit { lit, parents, .. } = unsafe { link.as_ref() };
-              match &lit.clone().expand() {
+              match literal_expand(&lit.clone()) {
                 None => break,
                 Some(expand) => {
                   let expand = DAG::from_term_inner(
-                    expand,
+                    &expand,
                     0,
                     BTreeMap::new(),
                     *parents,
@@ -370,12 +402,13 @@ impl DAG {
               *bod,
               var,
               DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
-              true, should_count
+              true,
+              should_count,
             );
             new_fix.bod = result;
             add_to_parents(
               result,
-              NonNull::new_unchecked(&mut new_fix.bod_ref),
+              NonNull::new_unchecked(&mut *new_fix.bod_ref.as_mut().unwrap()),
             );
             replace_child(
               DAGPtr::Var(NonNull::new(var).unwrap()),
@@ -526,20 +559,23 @@ impl DAG {
           trail.push(fun.head);
           trail.push(arg.head);
         },
+        DAGPtr::Lam(link) => unsafe {
+          let lam = link.as_ptr();
+          let mut typ = DAG::new((*lam).typ);
+          let mut bod = DAG::new(DAGPtr::Bind((*lam).bod));
+          typ.whnf(defs, should_count);
+          bod.whnf(defs, should_count);
+          trail.push(typ.head);
+          trail.push(bod.head);
+        },
         DAGPtr::All(link) => unsafe {
           let all = link.as_ptr();
           let mut dom = DAG::new((*all).dom);
-          let mut img = DAG::new(DAGPtr::Lam((*all).img));
+          let mut img = DAG::new(DAGPtr::Bind((*all).img));
           dom.whnf(defs, should_count);
           img.whnf(defs, should_count);
           trail.push(dom.head);
           trail.push(img.head);
-        },
-        DAGPtr::Lam(link) => unsafe {
-          let lam = link.as_ptr();
-          let mut body = DAG::new((*lam).bod);
-          body.whnf(defs, should_count);
-          trail.push(body.head);
         },
         DAGPtr::Slf(link) => unsafe {
           let slf = link.as_ptr();
@@ -564,153 +600,132 @@ impl DAG {
     }
   }
 }
+#[macro_export]
+macro_rules! dag {
+  ($i:literal) => {
+    DAG::from_term(&crate::yatima!($i))
+  };
+  ($i:literal, $q: expr) => {
+    DAG::from_term(&crate::yatima!($i, $q))
+  };
+}
 
 //#[cfg(test)]
 pub mod test {
   use super::DAG;
-  use crate::{
-    defs::Defs,
-    parse::{
-      package,
-      span::Span,
-      term::input_cid,
-    },
-  };
+  use crate::defs::Defs;
 
-  pub fn parse(
-    i: &str,
-  ) -> nom::IResult<Span, DAG, crate::parse::error::ParseError<Span>> {
-    let (i, tree) = crate::parse::term::parse(i, Defs::new())?;
-    let (i, _) = nom::character::complete::multispace0(i)?;
-    let (i, _) = nom::combinator::eof(i)?;
-    let dag = DAG::from_term(&tree);
-    Ok((i, dag))
-  }
-  pub fn parse_defs(
-    i: &str,
-  ) -> nom::IResult<Span, Defs, crate::parse::error::ParseError<Span>> {
-    let (i, (defs, _)) =
-      package::parse_defs(input_cid(i), Defs::new())(Span::new(i))?;
-    Ok((i, defs))
-  }
+  // pub fn parse_defs(
+  //  i: &str,
+  //) -> nom::IResult<Span, Defs, crate::parse::error::ParseError<Span>> {
+  //  let (i, (defs, _)) =
+  //    package::parse_defs(input_cid(i), Defs::new())(Span::new(i))?;
+  //  Ok((i, defs))
+  //}
 
   #[test]
   pub fn parse_test() {
-    fn parse_assert(input: &str) {
-      match parse(&input) {
-        Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
-        Err(_) => panic!("Did not parse."),
-      }
-    }
-    parse_assert("λ x => x");
-    parse_assert("λ x y => x y");
-    parse_assert("λ y => (λ x => x) y");
-    parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
-  }
-
-  fn norm_assert(input: &str, result: &str) {
-    match parse(&input) {
-      Ok((_, mut dag)) => {
-        dag.norm(&Defs::new(), false);
-        assert_eq!(format!("{}", dag), result)
-      }
-      Err(_) => panic!("Did not parse."),
-    }
-  }
-  fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
-    match parse(&input) {
-      Ok((_, mut dag)) => {
-        dag.norm(&defs, false);
-        assert_eq!(format!("{}", dag), result)
-      }
-      Err(_) => panic!("Did not parse."),
-    }
-  }
-
-  #[test]
-  pub fn reduce_test_ann() {
-    norm_assert("(Type :: Type)", "Type");
-    norm_assert("((λ x => x) #Nat :: Type)", "#Nat");
-    norm_assert("(λ A => A :: ∀ (A: Type) -> Type)", "λ A => A");
-    norm_assert("(λ A x => A :: ∀ (A: Type) (x: A) -> Type)", "λ A x => A");
-    norm_assert(
-      "(∀ (A: Type) (x: A) -> Type :: Type)",
-      "∀ (A: Type) (x: A) -> Type",
+    dag!("λ (ω x: Type) => x");
+    dag!("λ (ω x y: Type) => x (y :: ω Type)");
+    dag!("λ (ω y: Type) => (λ (ω x: Type) => x) (y :: ω Type)");
+    dag!(
+      "λ (ω y: Type) => 
+        (λ (ω z: Type) => z (z :: ω Type))
+        ((λ (ω x: Type) => x) (y :: ω Type) :: ω Type)"
     );
-    norm_assert("Type :: ∀ (A: Type) (x: A) -> Type", "Type");
   }
+  fn _norm_assert(mut dag: DAG, result: DAG) {
+    // println!("dag {}", dag.to_term(false));
+    dag.norm(&Defs::new(), false);
+    // println!("normed {}", dag.to_term(false));
+    // println!("result {}", result.to_term(false));
+    assert_eq!(dag.to_term(false), result.to_term(false))
+  }
+  //  fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
+  //    match parse(&input) {
+  //      Ok((_, mut dag)) => {
+  //        dag.norm(&defs, false);
+  //        assert_eq!(format!("{}", dag), result)
+  //      }
+  //      Err(_) => panic!("Did not parse."),
+  //    }
+  //  }
+  //
 
   #[test]
   pub fn reduce_test_app() {
     norm_assert(
-      "Type (∀ (A: Type) (x: A) -> Type)",
-      "Type (∀ (A: Type) (x: A) -> Type)",
+      dag!("Type (∀ (ω A: Type) (ω x: A) -> Type :: ω Type)"),
+      dag!("Type (∀ (ω A: Type) (ω x: A) -> Type :: ω Type)"),
     );
     norm_assert(
-      "(∀ (A: Type) (x: A) -> Type) Type",
-      "(∀ (A: Type) (x: A) -> Type) Type",
+      dag!("(∀ (ω A: Type) (ω x: A) -> Type) (Type :: ω Type)"),
+      dag!("(∀ (ω A: Type) (ω x: A) -> Type) (Type :: ω Type)"),
     )
   }
-
   #[test]
   pub fn reduce_test_all() {
     norm_assert(
-      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
-      "∀ (f: ∀ (A: Type) (x: A) -> Type) -> Type",
+      dag!("∀ (ω f: ∀ (ω A: Type) (ω x: A) -> Type) -> Type"),
+      dag!("∀ (ω f: ∀ (ω A: Type) (ω x: A) -> Type) -> Type"),
     );
     norm_assert(
-      "∀ (f: Type) -> ∀ (A: Type) (x: A) -> Type",
-      "∀ (f: Type) (A: Type) (x: A) -> Type",
+      dag!("∀ (ω f: Type) -> ∀ (ω A: Type) (ω x: A) -> Type"),
+      dag!("∀ (ω f: Type) (ω A: Type) (ω x: A) -> Type"),
     );
   }
-
   #[test]
   pub fn reduce_test_let() {
-    norm_assert("let f: Type = Type; f", "Type");
-    norm_assert("let f: ∀ (A: Type) (x: A) -> A = λ A x => x; f", "λ A x => x");
+    norm_assert(dag!("let ω f: Type = Type in f"), dag!("Type"));
     norm_assert(
-      "let f: Type = ∀ (A: Type) (x: A) -> A; f",
-      "∀ (A: Type) (x: A) -> A",
+      dag!(
+        "let ω f: ∀ (ω A: Type) (ω x: A) -> A = λ (ω A: Type) (ω x: A) => x \
+         in f"
+      ),
+      dag!("λ (ω A: Type) (ω x: A) => x"),
     );
     norm_assert(
-      "let f: Type = Type; ∀ (A: Type) (x: A) -> A",
-      "∀ (A: Type) (x: A) -> A",
+      dag!("let ω f: Type = ∀ (ω A: Type) (ω x: A) -> A in f"),
+      dag!("∀ (ω A: Type) (ω x: A) -> A"),
+    );
+    norm_assert(
+      dag!("let ω f: Type = Type in ∀ (ω A: Type) (ω x: A) -> A"),
+      dag!("∀ (ω A: Type) (ω x: A) -> A"),
     );
   }
-
-  #[test]
-  pub fn reduce_test() {
-    // Already normalized
-    norm_assert("λ x => x", "λ x => x");
-    norm_assert("λ x y => x y", "λ x y => x y");
-    // Not normalized cases
-    norm_assert("λ y => (λ x => x) y", "λ y => y");
-    norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
-    // // Church arithmetic
-    let zero = "λ s z => z";
-    let one = "λ s z => (s z)";
-    let two = "λ s z => s (s z)";
-    let three = "λ s z => s (s (s z))";
-    let four = "λ s z => s (s (s (s z)))";
-    let seven = "λ s z => s (s (s (s (s (s (s z))))))";
-    let add = "λ m n s z => m s (n s z)";
-    let is_three = format!("(({}) ({}) {})", add, zero, three);
-    let is_three2 = format!("(({}) ({}) {})", add, one, two);
-    let is_seven = format!("(({}) ({}) {})", add, four, three);
-    norm_assert(&is_three, three);
-    norm_assert(&is_three2, three);
-    norm_assert(&is_seven, seven);
-    let id = "λ x => x";
-    norm_assert(
-      &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
-      id,
-    );
-    let trm_str =
-      &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id);
-    println!("{}", trm_str);
-    let (_, trm) = parse(trm_str).unwrap();
-    println!("{:?}", DAG::to_term(&trm, true));
-    // assert_eq!(true, false);
-    norm_assert(trm_str, id);
-  }
+  //#[test]
+  // pub fn reduce_test() {
+  //  // Already normalized
+  //  norm_assert("λ x => x", "λ x => x");
+  //  norm_assert("λ x y => x y", "λ x y => x y");
+  //  // Not normalized cases
+  //  norm_assert("λ y => (λ x => x) y", "λ y => y");
+  //  norm_assert("λ y => (λ z => z z) ((λ x => x) y)", "λ y => y y");
+  //  // // Church arithmetic
+  //  let zero = "λ s z => z";
+  //  let one = "λ s z => (s z)";
+  //  let two = "λ s z => s (s z)";
+  //  let three = "λ s z => s (s (s z))";
+  //  let four = "λ s z => s (s (s (s z)))";
+  //  let seven = "λ s z => s (s (s (s (s (s (s z))))))";
+  //  let add = "λ m n s z => m s (n s z)";
+  //  let is_three = format!("(({}) ({}) {})", add, zero, three);
+  //  let is_three2 = format!("(({}) ({}) {})", add, one, two);
+  //  let is_seven = format!("(({}) ({}) {})", add, four, three);
+  //  norm_assert(&is_three, three);
+  //  norm_assert(&is_three2, three);
+  //  norm_assert(&is_seven, seven);
+  //  let id = "λ x => x";
+  //  norm_assert(
+  //    &format!("({three}) (({three}) ({id})) ({id})", id = id, three = three),
+  //    id,
+  //  );
+  //  let trm_str =
+  //    &format!("(({n}) (({m}) ({id})) {id})", n = three, m = three, id = id);
+  //  println!("{}", trm_str);
+  //  let (_, trm) = parse(trm_str).unwrap();
+  //  println!("{:?}", DAG::to_term(&trm, true));
+  //  // assert_eq!(true, false);
+  //  norm_assert(trm_str, id);
+  //}
 }

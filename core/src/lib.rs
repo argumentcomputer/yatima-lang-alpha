@@ -19,7 +19,7 @@ pub mod dag;
 pub mod defs;
 pub mod dll;
 pub mod embed_error;
-// pub mod eval;
+pub mod eval;
 pub mod ipld_error;
 pub mod literal;
 pub mod meta;
@@ -31,7 +31,7 @@ pub mod position;
 pub mod prim;
 // pub mod runtime;
 pub mod term;
-// pub mod upcopy;
+pub mod upcopy;
 pub mod uses;
 
 #[cfg(test)]
