@@ -654,41 +654,41 @@ pub mod test {
 
   #[test]
   pub fn reduce_test_app() {
-    norm_assert(
+    _norm_assert(
       dag!("Type (∀ (ω A: Type) (ω x: A) -> Type :: ω Type)"),
       dag!("Type (∀ (ω A: Type) (ω x: A) -> Type :: ω Type)"),
     );
-    norm_assert(
+    _norm_assert(
       dag!("(∀ (ω A: Type) (ω x: A) -> Type) (Type :: ω Type)"),
       dag!("(∀ (ω A: Type) (ω x: A) -> Type) (Type :: ω Type)"),
     )
   }
   #[test]
   pub fn reduce_test_all() {
-    norm_assert(
+    _norm_assert(
       dag!("∀ (ω f: ∀ (ω A: Type) (ω x: A) -> Type) -> Type"),
       dag!("∀ (ω f: ∀ (ω A: Type) (ω x: A) -> Type) -> Type"),
     );
-    norm_assert(
+    _norm_assert(
       dag!("∀ (ω f: Type) -> ∀ (ω A: Type) (ω x: A) -> Type"),
       dag!("∀ (ω f: Type) (ω A: Type) (ω x: A) -> Type"),
     );
   }
   #[test]
   pub fn reduce_test_let() {
-    norm_assert(dag!("let ω f: Type = Type in f"), dag!("Type"));
-    norm_assert(
+    _norm_assert(dag!("let ω f: Type = Type in f"), dag!("Type"));
+    _norm_assert(
       dag!(
         "let ω f: ∀ (ω A: Type) (ω x: A) -> A = λ (ω A: Type) (ω x: A) => x \
          in f"
       ),
       dag!("λ (ω A: Type) (ω x: A) => x"),
     );
-    norm_assert(
+    _norm_assert(
       dag!("let ω f: Type = ∀ (ω A: Type) (ω x: A) -> A in f"),
       dag!("∀ (ω A: Type) (ω x: A) -> A"),
     );
-    norm_assert(
+    _norm_assert(
       dag!("let ω f: Type = Type in ∀ (ω A: Type) (ω x: A) -> A"),
       dag!("∀ (ω A: Type) (ω x: A) -> A"),
     );

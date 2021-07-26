@@ -1,0 +1,38 @@
+[package]
+name = "yatima-lang"
+description = "The user-facing vernacular of the Yatima Language"
+version = "0.1.0"
+authors = [
+    "John C. Burnham <john@yatima.io>",
+    "Anders C. Sørby <anders@yatima.io>",
+    "Gabriel Barreto <gabriel@yatima.io>",
+    "Samuel Burnham <sam@yatima.io>",
+]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+std = []
+
+[dependencies]
+yatima-core = { path = "../core"}
+sp-std = { version = "3", default-features = false }
+num-bigint = { version = "0.3", default-features = false }
+nom = { version = "6", default-features = false, features = ["alloc"] }
+base-x = { version = "0.2.8", default-features = false }
+multibase = { version = "0.9.1", default-features = false }
+nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "main" }
+ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
+sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
+sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main" }
+sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
+sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "main" }
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
+
+[dev-dependencies]
+quickcheck = "1.0.3"
+rand = "0.8.3"
+quickcheck_macros = "1.0.0"
+
