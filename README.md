@@ -271,7 +271,7 @@ programming language is an empowering medium of *individual* expression,
 where the user encounters, and extends their mind through, a computing machine.
 We believe "Programmer" shouldn't be a job description, anymore than "scribe" 
 is a job description in a world with near-universal literacy. Computing belongs 
-to everyone, and computer programming should therefore be maximally accesible 
+to everyone, and computer programming should therefore be maximally accessible 
 to everyone.
 
 Currently, it's not: There are about 5 billion internet users worldwide, but
