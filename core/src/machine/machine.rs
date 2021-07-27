@@ -743,7 +743,132 @@ pub fn reduce(
           }
           node.clone()
         }
-        Graph::Opr(_, _) => {
+        Graph::Opr(_, opr) => {
+          let len = trail.len();
+          if len == 0 && opr.arity() == 0 {
+            let res = opr.apply0();
+            if let Some(res) = res {
+              // TODO add proper hash
+              let hash = Blake3Hasher::default().finalize();
+              new_link(Graph::Lit(hash, res))
+            }
+            else {
+              break;
+            }
+          }
+          else if len >= 1 && opr.arity() == 1 {
+            let app = trail[len-1].clone();
+            let arg = match &*app.borrow() {
+              Graph::App(_, _, arg) => arg.clone(),
+              _ => break,
+            };
+            let arg = reduce(globals, fun_defs, arg);
+            let borrow = arg.borrow();
+            match &*borrow {
+              Graph::Lit(_, x) => {
+                let res = opr.apply1(x);
+                if let Some(res) = res {
+                  let top = trail.pop().unwrap();
+                  {
+                    // TODO add proper hash
+                    let hash = Blake3Hasher::default().finalize();
+                    let mut mut_ref = (*top).borrow_mut();
+                    *mut_ref = Graph::Lit(hash, res);
+                  }
+                  top
+                }
+                else {
+                  break;
+                }
+              }
+              _ => break,
+            }
+          }
+          else if len >= 2 && opr.arity() == 2 {
+            let app = trail[len-1].clone();
+            let arg1 = match &*app.borrow() {
+              Graph::App(_, _, arg) => arg.clone(),
+              _ => break,
+            };
+            let app = trail[len-2].clone();
+            let arg2 = match &*app.borrow() {
+              Graph::App(_, _, arg) => arg.clone(),
+              _ => break,
+            };
+            let arg1 = reduce(globals, fun_defs, arg1);
+            let arg2 = reduce(globals, fun_defs, arg2);
+            let borrow1 = arg1.borrow();
+            let borrow2 = arg2.borrow();
+            match (&*borrow1, &*borrow2) {
+              (Graph::Lit(_, x), Graph::Lit(_, y)) => {
+                let res = opr.apply2(x, y);
+                if let Some(res) = res {
+                  trail.pop();
+                  let top = trail.pop().unwrap();
+                  {
+                    // TODO add proper hash
+                    let hash = Blake3Hasher::default().finalize();
+                    let mut mut_ref = (*top).borrow_mut();
+                    *mut_ref = Graph::Lit(hash, res);
+                  }
+                  top
+                }
+                else {
+                  break;
+                }
+              }
+              _ => break,
+            }
+          }
+          else if len >= 3 && opr.arity() == 3 {
+            let app = trail[len-1].clone();
+            let arg1 = match &*app.borrow() {
+              Graph::App(_, _, arg) => arg.clone(),
+              _ => break,
+            };
+            let app = trail[len-2].clone();
+            let arg2 = match &*app.borrow() {
+              Graph::App(_, _, arg) => arg.clone(),
+              _ => break,
+            };
+            let app = trail[len-3].clone();
+            let arg3 = match &*app.borrow() {
+              Graph::App(_, _, arg) => arg.clone(),
+              _ => break,
+            };
+            let arg1 = reduce(globals, fun_defs, arg1);
+            let arg2 = reduce(globals, fun_defs, arg2);
+            let arg3 = reduce(globals, fun_defs, arg3);
+            let borrow1 = arg1.borrow();
+            let borrow2 = arg2.borrow();
+            let borrow3 = arg3.borrow();
+            match (&*borrow1, &*borrow2, &*borrow3) {
+              (Graph::Lit(_, x), Graph::Lit(_, y), Graph::Lit(_, z)) => {
+                let res = opr.apply3(x, y, z);
+                if let Some(res) = res {
+                  trail.pop();
+                  trail.pop();
+                  let top = trail.pop().unwrap();
+                  {
+                    // TODO add proper hash
+                    let hash = Blake3Hasher::default().finalize();
+                    let mut mut_ref = (*top).borrow_mut();
+                    *mut_ref = Graph::Lit(hash, res);
+                  }
+                  top
+                }
+                else {
+                  break;
+                }
+              }
+              _ => break,
+            }
+          }
+          else {
+            break;
+          }
+        }
+        Graph::Lit(_, _) => {
           todo!()
         }
         _ => break,
@@ -751,6 +876,7 @@ pub fn reduce(
     };
     node = next_node;
   }
+  // TODO update the spine hash
   // This is only correct because we are updating the redex nodes.
   node
 }
