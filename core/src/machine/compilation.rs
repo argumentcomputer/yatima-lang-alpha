@@ -177,7 +177,7 @@ pub fn ir_to_graph(
     }
     IR::Opr(opr) => {
       let mut hasher = Blake3Hasher::default();
-      let (typ_code, opr_code) = codify_opr(*opr);
+      let (typ_code, opr_code) = opr_to_code(*opr);
       update_hasher(&mut hasher, MK_OPR as usize);
       update_hasher(&mut hasher, typ_code as usize);
       update_hasher(&mut hasher, opr_code as usize);
@@ -303,11 +303,20 @@ pub fn compile_ir(
       IR::Lit(_lit) => {
         todo!()
       }
-      IR::LTy(_lty) => {
-        todo!()
+      IR::LTy(lty) => {
+        code.push(MK_LTY);
+        code.push(*lty as u8);
+        update_hasher(hasher, MK_LTY as usize);
+        update_hasher(hasher, *lty as usize);
       }
-      IR::Opr(_opr) => {
-        todo!()
+      IR::Opr(opr) => {
+        let (typ_code, opr_code) = opr_to_code(*opr);
+        code.push(MK_OPR);
+        code.push(typ_code as u8);
+        code.push(opr_code as u8);
+        update_hasher(hasher, MK_OPR as usize);
+        update_hasher(hasher, typ_code as usize);
+        update_hasher(hasher, opr_code as usize);
       }
     }
   }

@@ -215,7 +215,7 @@ pub fn code_to_uses(uses: CODE) -> Uses {
 }
 
 #[inline]
-pub fn codify_opr(opr: Op) -> (CODE, CODE) {
+pub fn opr_to_code(opr: Op) -> (CODE, CODE) {
   match opr {
     Op::Nat(x) => (0, x as u8),
     Op::Int(x) => (1, x as u8),
@@ -236,7 +236,7 @@ pub fn codify_opr(opr: Op) -> (CODE, CODE) {
 }
 
 #[inline]
-pub fn uncodify_opr(pair: (CODE, CODE)) -> Op {
+pub fn code_to_opr(pair: (CODE, CODE)) -> Op {
   unsafe {
     match pair {
       (0, x) => Op::Nat(mem::transmute(x)),
@@ -604,6 +604,35 @@ pub fn build_graph(
           Graph::Fix(hash, clos)
         ));
       },
+      MK_LIT => {
+        todo!()
+      }
+      MK_LTY => {
+        let lty = code[pc+1];
+        pc = pc+1;
+        update_hasher(&mut hasher, MK_LTY as usize);
+        update_hasher(&mut hasher, lty as usize);
+        let hash = hasher.finalize();
+        hasher.reset();
+        let lty = unsafe { mem::transmute(lty) };
+        args.push(new_link(
+          Graph::LTy(hash, lty)
+        ));
+      }
+      MK_OPR => {
+        let typ_code = code[pc+1];
+        let opr_code = code[pc+2];
+        pc = pc+2;
+        update_hasher(&mut hasher, MK_OPR as usize);
+        update_hasher(&mut hasher, typ_code as usize);
+        update_hasher(&mut hasher, opr_code as usize);
+        let hash = hasher.finalize();
+        hasher.reset();
+        let opr = code_to_opr((typ_code, opr_code));
+        args.push(new_link(
+          Graph::Opr(hash, opr)
+        ));
+      }
       END => break,
       _ => panic!("Operation does not exist"),
     }
@@ -807,14 +836,14 @@ pub fn stringify_graph(
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Fix {} {})", arg_name, code_str)
     },
-    Graph::Lit(_, _) => {
-      todo!()
+    Graph::Lit(_, lit) => {
+      format!("(Lit {})", lit)
     },
-    Graph::LTy(_, _) => {
-      todo!()
+    Graph::LTy(_, lty) => {
+      format!("(LTy {})", lty)
     },
-    Graph::Opr(_, _) => {
-      todo!()
+    Graph::Opr(_, opr) => {
+      format!("(Opr {})", opr)
     },
   }
 }
@@ -912,6 +941,22 @@ pub fn stringify_code(
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(Fix {} {})", arg_name, code_str));
       },
+      MK_LIT => {
+        todo!()
+      }
+      MK_LTY => {
+        let lty = code[pc+1];
+        pc = pc+1;
+        let lty: LitType = unsafe { mem::transmute(lty) };
+        args.push(format!("(LTy {})", lty));
+      }
+      MK_OPR => {
+        let typ_code = code[pc+1];
+        let opr_code = code[pc+2];
+        pc = pc+2;
+        let opr = code_to_opr((typ_code, opr_code));
+        args.push(format!("(Opr {})", opr));
+      }
       EVAL => {
       }
       END => break,
