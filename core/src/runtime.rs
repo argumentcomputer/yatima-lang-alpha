@@ -13,7 +13,10 @@ use sp_std::{
   boxed::Box,
   vec::Vec,
   mem,
-  rc::Rc
+  rc::Rc,
+  collections::{
+    btree_set::BTreeSet,
+  },
 };
 
 pub type Parents = DLL<ParentPtr>;
@@ -28,25 +31,12 @@ pub enum DAG {
   Opr(NonNull<Opr>),
 }
 
-impl fmt::Debug for DAG {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-      match self {
-        DAG::Var(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
-        DAG::App(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
-        DAG::Lam(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
-        DAG::Fix(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
-        DAG::Lit(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
-        DAG::Opr(link) => unsafe { write!(f, "{:?}", *link.as_ptr()) }
-      }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ParentPtr {
   Root,
   LamBod(NonNull<Lam>),
   FixBod(NonNull<Fix>),
-  AppLam(NonNull<App>),
+  AppFun(NonNull<App>),
   AppArg(NonNull<App>),
 }
 
@@ -94,6 +84,120 @@ pub struct Opr {
   pub parents: Option<NonNull<Parents>>,
 }
 
+impl fmt::Debug for DAG {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    #[inline]
+    fn format_uplink(p: ParentPtr) -> String {
+      match p {
+        ParentPtr::Root => String::from("ROOT"),
+        ParentPtr::LamBod(link) => format!("LamBod<{:?}>", link.as_ptr()),
+        ParentPtr::FixBod(link) => format!("FixBod<{:?}>", link.as_ptr()),
+        ParentPtr::AppFun(link) => format!("AppFun<{:?}>", link.as_ptr()),
+        ParentPtr::AppArg(link) => format!("AppArg<{:?}>", link.as_ptr()),
+      }
+    }
+    #[inline]
+    fn format_parents(dll: Option<NonNull<Parents>>) -> String {
+      match dll {
+        Some(dll) => unsafe {
+          let mut iter = (*dll.as_ptr()).iter();
+          let head =
+            &iter.next().map_or(String::from(""), |head| format_uplink(*head));
+          let mut msg = String::from("[ ") + head;
+          for val in iter {
+            msg = msg + " <-> " + &format_uplink(*val);
+          }
+          msg + " ]"
+        },
+        _ => String::from("[]"),
+      }
+    }
+    fn go(term: DAG, set: &mut BTreeSet<usize>) -> String {
+      match term {
+        DAG::Var(link) => {
+          let Var { parents } = unsafe { link.as_ref() };
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nVar<{:?}> parents: {}",
+              link.as_ptr(),
+              format_parents(*parents)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAG::Lit(link) => {
+          let Lit { parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nLit<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAG::Opr(link) => {
+          let Opr { parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nOpr<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAG::Lam(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            let Lam { var, parents, bod, .. } = unsafe { link.as_ref() };
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nLam<{:?}> parents: {}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAG::Fix(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            let Fix { var, parents, bod, .. } = unsafe { link.as_ref() };
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nFix<{:?}> parents: {}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAG::App(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
+            let App { fun, arg, parents, copy, .. } = unsafe { link.as_ref() };
+            let copy = copy.map(|link| link.as_ptr() as usize);
+            format!(
+              "\nApp<{:?}> parents: {} copy: {:?}{}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              copy,
+              go(*fun, set),
+              go(*arg, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as usize)
+          }
+        }
+      }
+    }
+    write!(f, "{}", go(*self, &mut BTreeSet::new()))
+  }
+}
+
 pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 // Auxiliary parent functions
@@ -131,7 +235,7 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAG) {
     match parent {
       ParentPtr::LamBod(parent) => (*parent.as_ptr()).bod = newchild,
       ParentPtr::FixBod(parent) => (*parent.as_ptr()).bod = newchild,
-      ParentPtr::AppLam(parent) => (*parent.as_ptr()).fun = newchild,
+      ParentPtr::AppFun(parent) => (*parent.as_ptr()).fun = newchild,
       ParentPtr::AppArg(parent) => (*parent.as_ptr()).arg = newchild,
       ParentPtr::Root => (),
     }
@@ -206,7 +310,7 @@ pub fn free_dead_node(node: DAG) {
         Box::from_raw(link.as_ptr());
       }
       DAG::Lit(link) => {
-        Box::from_raw(link.as_ptr());
+        // Box::from_raw(link.as_ptr());
       }
       DAG::Opr(link) => {
         Box::from_raw(link.as_ptr());
@@ -236,7 +340,7 @@ pub fn clean_up(cc: &ParentPtr) {
         clean_up(parent);
       }
     },
-    ParentPtr::AppLam(mut link) | ParentPtr::AppArg(mut link) => unsafe {
+    ParentPtr::AppFun(mut link) | ParentPtr::AppArg(mut link) => unsafe {
       let app = link.as_mut();
       if let Some(app_copy) = app.copy {
         let App { fun, arg, fun_ref, arg_ref, .. } = &mut *app_copy.as_ptr();
@@ -306,7 +410,7 @@ pub fn alloc_app(
       arg_ref: mem::zeroed(),
       parents,
     });
-    (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppLam(app));
+    (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppFun(app));
     (*app.as_ptr()).arg_ref = DLL::singleton(ParentPtr::AppArg(app));
     app
   }
@@ -346,7 +450,7 @@ pub fn upcopy(new_child: DAG, cc: ParentPtr, should_count: bool) {
           upcopy(DAG::Fix(new_fix), *parent, should_count)
         }
       }
-      ParentPtr::AppLam(link) => {
+      ParentPtr::AppFun(link) => {
         let App { copy, arg, parents, .. } = link.as_ref();
         match copy {
           Some(cache) => {

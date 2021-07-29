@@ -19,6 +19,7 @@ use yatima_core::{
   name::Name,
   dag::{DAG, DAGPtr},
   term::Term,
+  dll,
   runtime,
 };
 use yatima_utils::{
@@ -246,7 +247,8 @@ fn run_cli() -> std::io::Result<()> {
         .get(&Name::from("main"))
         .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
 
-      let mut dag = runtime::from_term(checked.clone(), &def.to_owned().term, None);
+      let root = runtime::alloc_val(dll::DLL::singleton(runtime::ParentPtr::Root));
+      let mut dag = runtime::from_term(checked.clone(), &def.to_owned().term, Some(root));
       runtime::whnf(&mut dag, false);
       println!("{:?}", dag);
       // dag.norm(&defs, false);
