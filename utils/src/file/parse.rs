@@ -218,7 +218,7 @@ pub fn parse_import(
       else {
         let env = PackageEnv {
           root: env.root.clone(),
-          path: import_path.clone(),
+          path: import_path.clone().strip_prefix(env.root.clone()).unwrap().to_path_buf(),
           open: env.open.clone(),
           done: env.done.clone(),
           store: env.store.clone(),
