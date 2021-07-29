@@ -310,7 +310,7 @@ pub fn free_dead_node(node: DAG) {
         Box::from_raw(link.as_ptr());
       }
       DAG::Lit(link) => {
-        // Box::from_raw(link.as_ptr());
+        Box::from_raw(link.as_ptr());
       }
       DAG::Opr(link) => {
         Box::from_raw(link.as_ptr());
