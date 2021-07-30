@@ -12,6 +12,7 @@ use yatima_cli::{
     FileStore,
     FileStoreOpts,
   },
+  runtime
 };
 #[cfg(not(target_arch = "wasm32"))]
 use yatima_cli::repl;
@@ -20,7 +21,6 @@ use yatima_core::{
   dag::{DAG, DAGPtr},
   term::Term,
   dll,
-  runtime,
 };
 use yatima_utils::{
   file,
@@ -250,7 +250,8 @@ fn run_cli() -> std::io::Result<()> {
       let root = runtime::alloc_val(dll::DLL::singleton(runtime::ParentPtr::Root));
       let mut dag = runtime::from_term(checked.clone(), &def.to_owned().term, Some(root));
       runtime::whnf(&mut dag, false);
-      println!("{:?}", dag);
+      println!("{:#?}", dag);
+      execute_io(dag);
       // dag.norm(&defs, false);
       // let graph = DagGraph::from_dag(&dag); 
       // let dot = graph.to_dot();
@@ -269,16 +270,13 @@ pub fn handle_error_string(e: String) -> std::io::Error {
 
 
 /// Execute side effecting IO
-pub fn execute_io(term: Term) {
+pub fn execute_io(dag: runtime::DAG) {
   // detect structure
-  match term {
-    Term::Dat(_, b) => (), 
-    _ => (),
+  match dag {
+    runtime::DAG::Lam(link) => {
+    }
+    _ => {}
   }
-  // match dag.head {
-  //   DAGPtr::Dat(node) => (),
-  //   _ => ()
-  // }
 
 }
 

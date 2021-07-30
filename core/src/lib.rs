@@ -28,7 +28,6 @@ pub mod typedef;
 pub mod parse;
 pub mod position;
 pub mod prim;
-pub mod runtime;
 pub mod term;
 pub mod upcopy;
 pub mod uses;
