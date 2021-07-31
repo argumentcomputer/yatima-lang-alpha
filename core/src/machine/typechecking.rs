@@ -293,7 +293,7 @@ pub fn infer(
       // perhaps constructing the graphs directly
       let typ = opr.type_of();
       // The types of opr contain no references, thus we can start with an empty Defs and Map
-      let (ir, _) = term_to_ir(&mut BTreeMap::new(), &mut vec![], 0, &typ, &Defs::new());
+      let (ir, _) = term_to_ir(&Defs::new(), &mut BTreeMap::new(), &mut vec![], 0, &typ);
       let typ = ir_to_graph(&ir, fun_defs);
       Ok(typ)
     },

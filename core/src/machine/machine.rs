@@ -118,12 +118,14 @@ pub struct Closure {
   pub env: Vec<Link<Graph>>,
 }
 
+#[derive(Clone, Debug)]
 pub struct DefCell {
   pub name: Name,
   pub term: Link<Graph>,
   pub typ_: Link<Graph>,
 }
 
+#[derive(Clone, Debug)]
 pub struct FunCell {
   pub arg_name: Name,
   pub code: Vec<CODE>,
@@ -188,7 +190,7 @@ pub fn bytes_to_usize(bytes: &[u8]) -> usize {
 pub fn usize_to_bytes<const N: usize>(num: usize) -> [u8; N] {
   let mut result: [u8; N] = [0; N];
   for i in 0..N {
-    result[i] = (num >> (N*i)) as u8;
+    result[i] = (num >> (8*i)) as u8;
   }
   result
 }
