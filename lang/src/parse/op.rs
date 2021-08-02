@@ -1,11 +1,15 @@
 use crate::{
+  expr::Expr,
   parse::{
     error::{
       ParseError,
       ParseErrorKind,
     },
-    term::parse_name,
+    expr,
+    expr::parse_name,
   },
+};
+use yatima_core::{
   position::Pos,
   prim::{
     bits::BitsOp,
@@ -23,10 +27,7 @@ use crate::{
     u32::U32Op,
     u64::U64Op,
     u8::U8Op,
-  },
-  term::{
     Op,
-    Term,
   },
 };
 
@@ -248,7 +249,7 @@ pub fn parse_i64_op() -> impl Fn(Span) -> IResult<Span, Op, ParseError<Span>> {
 
 pub fn parse_opr(
   input: Cid,
-) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
     let (upto, op) = alt((
       preceded(tag("#Nat."), parse_nat_op()),
@@ -270,6 +271,6 @@ pub fn parse_opr(
       // preceded(tag("#I128."), parse_i128_op()),
     ))(from)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Term::Opr(pos, op)))
+    Ok((upto, Expr::LitOpr(pos, op)))
   }
 }
