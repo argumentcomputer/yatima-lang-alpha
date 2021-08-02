@@ -44,7 +44,9 @@ pub fn parse_nat(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let base = base.unwrap_or(base::LitBase::Dec);
   let (i, digits) = base::parse_litbase_digits(base)(i)?;
   let (upto, suffix) =
-    opt(alt((tag("u8"), tag("u16"), tag("u32"), tag("u64"), tag("u128"))))(i)?;
+    opt(alt((tag("u8"), tag("u16"), tag("u32"), tag("u64"))))(i)?;
+  // let (upto, suffix) =
+  //  opt(alt((tag("u8"), tag("u16"), tag("u32"), tag("u64"), tag("u128"))))(i)?;
   match suffix {
     None => match base_x::decode(base.base_digits(), &digits) {
       Ok(bytes) => Ok((upto, Literal::Nat(BigUint::from_bytes_be(&bytes)))),
@@ -86,14 +88,14 @@ pub fn parse_nat(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
         )?;
         Ok((upto, Literal::U64(x)))
       }
-      "u128" => {
-        use ParseErrorKind::ParseIntErr;
-        let x = u128::from_str_radix(&digits, base.radix()).map_or_else(
-          |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
-          Ok,
-        )?;
-        Ok((upto, Literal::U128(x)))
-      }
+      //"u128" => {
+      //  use ParseErrorKind::ParseIntErr;
+      //  let x = u128::from_str_radix(&digits, base.radix()).map_or_else(
+      //    |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
+      //    Ok,
+      //  )?;
+      //  Ok((upto, Literal::U128(x)))
+      //}
       _ => panic!("implementation error in parse_nat"),
     },
   }
@@ -113,7 +115,9 @@ pub fn parse_int(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let base = base.unwrap_or(base::LitBase::Dec);
   let (i, digits) = base::parse_litbase_digits(base)(i)?;
   let (upto, suffix) =
-    opt(alt((tag("i8"), tag("i16"), tag("i32"), tag("i64"), tag("i128"))))(i)?;
+    opt(alt((tag("i8"), tag("i16"), tag("i32"), tag("i64"))))(i)?;
+  // let (upto, suffix) =
+  //  opt(alt((tag("i8"), tag("i16"), tag("i32"), tag("i64"), tag("i128"))))(i)?;
   match suffix {
     None => match base_x::decode(base.base_digits(), &digits) {
       Ok(bytes) => Ok((upto, Literal::Int(BigInt::from_bytes_be(s, &bytes)))),
@@ -160,14 +164,14 @@ pub fn parse_int(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
           )?;
           Ok((upto, Literal::I64(x)))
         }
-        "i128" => {
-          use ParseErrorKind::ParseIntErr;
-          let x = i128::from_str_radix(&digits, base.radix()).map_or_else(
-            |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
-            Ok,
-          )?;
-          Ok((upto, Literal::I128(x)))
-        }
+        //"i128" => {
+        //  use ParseErrorKind::ParseIntErr;
+        //  let x = i128::from_str_radix(&digits, base.radix()).map_or_else(
+        //    |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
+        //    Ok,
+        //  )?;
+        //  Ok((upto, Literal::I128(x)))
+        //}
         _ => panic!("implementation error in parse_nat"),
       }
     }

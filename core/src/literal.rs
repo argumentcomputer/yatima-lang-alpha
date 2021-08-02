@@ -39,12 +39,12 @@ pub enum Literal {
   U16(u16),
   U32(u32),
   U64(u64),
-  U128(u128),
+  // U128(u128),
   I8(i8),
   I16(i16),
   I32(i32),
   I64(i64),
-  I128(i128),
+  // I128(i128),
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -60,12 +60,12 @@ pub enum LitType {
   U16,
   U32,
   U64,
-  U128,
+  // U128,
   I8,
   I16,
   I32,
   I64,
-  I128,
+  // I128,
 }
 
 impl fmt::Display for Literal {
@@ -113,7 +113,7 @@ impl fmt::Display for Literal {
       U16(x) => write!(f, "{}u16", x),
       U32(x) => write!(f, "{}u32", x),
       U64(x) => write!(f, "{}u64", x),
-      U128(x) => write!(f, "{}u128", x),
+      //   U128(x) => write!(f, "{}u128", x),
       I8(x) => {
         if x.is_negative() {
           write!(f, "{}i8", x)
@@ -146,14 +146,14 @@ impl fmt::Display for Literal {
           write!(f, "+{}i64", x)
         }
       }
-      I128(x) => {
-        if x.is_negative() {
-          write!(f, "{}i128", x)
-        }
-        else {
-          write!(f, "+{}i128", x)
-        }
-      }
+      //I128(x) => {
+      //  if x.is_negative() {
+      //    write!(f, "{}i128", x)
+      //  }
+      //  else {
+      //    write!(f, "+{}i128", x)
+      //  }
+      //}
     }
   }
 }
@@ -206,10 +206,10 @@ impl Literal {
         Ipld::Integer(10),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::U128(x) => Ipld::List(vec![
-        Ipld::Integer(11),
-        Ipld::Bytes(x.to_be_bytes().to_vec()),
-      ]),
+      // Self::U128(x) => Ipld::List(vec![
+      //  Ipld::Integer(11),
+      //  Ipld::Bytes(x.to_be_bytes().to_vec()),
+      //]),
       Self::I8(x) => Ipld::List(vec![
         Ipld::Integer(12),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
@@ -226,10 +226,10 @@ impl Literal {
         Ipld::Integer(15),
         Ipld::Bytes(x.to_be_bytes().to_vec()),
       ]),
-      Self::I128(x) => Ipld::List(vec![
-        Ipld::Integer(16),
-        Ipld::Bytes(x.to_be_bytes().to_vec()),
-      ]),
+      //Self::I128(x) => Ipld::List(vec![
+      //  Ipld::Integer(16),
+      //  Ipld::Bytes(x.to_be_bytes().to_vec()),
+      //]),
     }
   }
 
@@ -298,13 +298,13 @@ impl Literal {
             .map_or_else(|e| Err(IpldError::ByteCount(e, 8)), Ok)?;
           Ok(Self::U64(u64::from_be_bytes(x)))
         }
-        [Ipld::Integer(11), Ipld::Bytes(x)] => {
-          let x: [u8; 16] = x
-            .to_owned()
-            .try_into()
-            .map_or_else(|e| Err(IpldError::ByteCount(e, 16)), Ok)?;
-          Ok(Self::U128(u128::from_be_bytes(x)))
-        }
+        //[Ipld::Integer(11), Ipld::Bytes(x)] => {
+        //  let x: [u8; 16] = x
+        //    .to_owned()
+        //    .try_into()
+        //    .map_or_else(|e| Err(IpldError::ByteCount(e, 16)), Ok)?;
+        //  Ok(Self::U128(u128::from_be_bytes(x)))
+        //}
         [Ipld::Integer(12), Ipld::Bytes(x)] => {
           let x: [u8; 1] = x
             .to_owned()
@@ -333,13 +333,13 @@ impl Literal {
             .map_or_else(|e| Err(IpldError::ByteCount(e, 8)), Ok)?;
           Ok(Self::I64(i64::from_be_bytes(x)))
         }
-        [Ipld::Integer(16), Ipld::Bytes(x)] => {
-          let x: [u8; 16] = x
-            .to_owned()
-            .try_into()
-            .map_or_else(|e| Err(IpldError::ByteCount(e, 16)), Ok)?;
-          Ok(Self::I128(i128::from_be_bytes(x)))
-        }
+        //[Ipld::Integer(16), Ipld::Bytes(x)] => {
+        //  let x: [u8; 16] = x
+        //    .to_owned()
+        //    .try_into()
+        //    .map_or_else(|e| Err(IpldError::ByteCount(e, 16)), Ok)?;
+        //  Ok(Self::I128(i128::from_be_bytes(x)))
+        //}
         xs => Err(IpldError::Literal(Ipld::List(xs.to_owned()))),
       },
       _ => Err(IpldError::Literal(ipld.clone())),
@@ -361,12 +361,12 @@ impl LitType {
       Self::U16 => Ipld::List(vec![Ipld::Integer(8)]),
       Self::U32 => Ipld::List(vec![Ipld::Integer(9)]),
       Self::U64 => Ipld::List(vec![Ipld::Integer(10)]),
-      Self::U128 => Ipld::List(vec![Ipld::Integer(11)]),
+      // Self::U128 => Ipld::List(vec![Ipld::Integer(11)]),
       Self::I8 => Ipld::List(vec![Ipld::Integer(12)]),
       Self::I16 => Ipld::List(vec![Ipld::Integer(13)]),
       Self::I32 => Ipld::List(vec![Ipld::Integer(14)]),
       Self::I64 => Ipld::List(vec![Ipld::Integer(15)]),
-      Self::I128 => Ipld::List(vec![Ipld::Integer(16)]),
+      // Self::I128 => Ipld::List(vec![Ipld::Integer(16)]),
     }
   }
 
@@ -384,12 +384,12 @@ impl LitType {
         [Ipld::Integer(8)] => Ok(Self::U16),
         [Ipld::Integer(9)] => Ok(Self::U32),
         [Ipld::Integer(10)] => Ok(Self::U64),
-        [Ipld::Integer(11)] => Ok(Self::U128),
+        //[Ipld::Integer(11)] => Ok(Self::U128),
         [Ipld::Integer(12)] => Ok(Self::I8),
         [Ipld::Integer(13)] => Ok(Self::I16),
         [Ipld::Integer(14)] => Ok(Self::I32),
         [Ipld::Integer(15)] => Ok(Self::I64),
-        [Ipld::Integer(16)] => Ok(Self::I128),
+        //[Ipld::Integer(16)] => Ok(Self::I128),
         xs => Err(IpldError::LitType(Ipld::List(xs.to_owned()))),
       },
       _ => Err(IpldError::LitType(ipld.clone())),
@@ -507,12 +507,12 @@ pub mod tests {
       Literal::U64(x)
     })
   }
-  pub fn arbitrary_u128() -> Box<dyn Fn(&mut Gen) -> Literal> {
-    Box::new(move |g: &mut Gen| {
-      let x: u128 = Arbitrary::arbitrary(g);
-      Literal::U128(x)
-    })
-  }
+  // pub fn arbitrary_u128() -> Box<dyn Fn(&mut Gen) -> Literal> {
+  //  Box::new(move |g: &mut Gen| {
+  //    let x: u128 = Arbitrary::arbitrary(g);
+  //    Literal::U128(x)
+  //  })
+  //}
 
   pub fn arbitrary_i8() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
@@ -538,12 +538,12 @@ pub mod tests {
       Literal::I64(x)
     })
   }
-  pub fn arbitrary_i128() -> Box<dyn Fn(&mut Gen) -> Literal> {
-    Box::new(move |g: &mut Gen| {
-      let x: i128 = Arbitrary::arbitrary(g);
-      Literal::I128(x)
-    })
-  }
+  // pub fn arbitrary_i128() -> Box<dyn Fn(&mut Gen) -> Literal> {
+  //  Box::new(move |g: &mut Gen| {
+  //    let x: i128 = Arbitrary::arbitrary(g);
+  //    Literal::I128(x)
+  //  })
+  //}
 
   impl Arbitrary for Literal {
     fn arbitrary(g: &mut Gen) -> Self {
@@ -559,12 +559,12 @@ pub mod tests {
         (1, arbitrary_u16()),
         (1, arbitrary_u32()),
         (1, arbitrary_u64()),
-        (1, arbitrary_u128()),
+        //(1, arbitrary_u128()),
         (1, arbitrary_i8()),
         (1, arbitrary_i16()),
         (1, arbitrary_i32()),
         (1, arbitrary_i64()),
-        (1, arbitrary_i128()),
+        //(1, arbitrary_i128()),
         (1, Box::new(|g| Self::Char(Arbitrary::arbitrary(g)))),
       ])
     }

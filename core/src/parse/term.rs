@@ -724,12 +724,12 @@ pub fn parse_lty(
       value(LitType::U16, tag("#U16")),
       value(LitType::U32, tag("#U32")),
       value(LitType::U64, tag("#U64")),
-      value(LitType::U128, tag("#U128")),
+      // value(LitType::U128, tag("#U128")),
       value(LitType::I8, tag("#I8")),
       value(LitType::I16, tag("#I16")),
       value(LitType::I32, tag("#I32")),
       value(LitType::I64, tag("#I64")),
-      value(LitType::I128, tag("#I128")),
+      // value(LitType::I128, tag("#I128")),
     ))(from)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Term::LTy(pos, lty)))

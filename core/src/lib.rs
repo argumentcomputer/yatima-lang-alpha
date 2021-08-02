@@ -14,7 +14,7 @@ extern crate quickcheck_macros;
 extern crate rand;
 
 pub mod anon;
-// pub mod check;
+pub mod check;
 pub mod dag;
 pub mod defs;
 pub mod dll;

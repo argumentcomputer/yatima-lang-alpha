@@ -78,7 +78,6 @@ pub enum ParentPtr {
   LetExp(NonNull<Let>),
   LetBod(NonNull<Let>),
 }
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum BinderPtr {
   Free,
