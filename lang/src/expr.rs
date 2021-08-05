@@ -16,15 +16,18 @@ use sp_std::{
   vec::Vec,
 };
 
-use crate::pre_uses::PreUses;
+use crate::{
+  pre_term::PreTerm,
+  pre_uses::PreUses,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LetDef {
-  rec: bool,
-  uses: PreUses,
-  name: Name,
-  typ_: Expr,
-  term: Expr,
+  pub rec: bool,
+  pub uses: PreUses,
+  pub name: Name,
+  pub typ_: Expr,
+  pub term: Expr,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -34,21 +37,39 @@ pub struct Binder {
   pub typ_: Expr,
 }
 
+impl Binder {
+  pub fn new(uses: PreUses, name: Name, typ_: Expr) -> Self {
+    Binder { uses, name, typ_ }
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Argument {
+  pub uses: PreUses,
+  pub typ_: Expr,
+  pub term: Expr,
+}
+impl Argument {
+  pub fn new(uses: PreUses, typ_: Expr, term: Expr) -> Self {
+    Argument { uses, typ_, term }
+  }
+}
+
 #[derive(Clone, Debug)]
 pub enum Expr {
   Variable(Pos, Name),
   MetaVariable(Pos, Name),
-  Application(Pos, Box<Expr>, Vec<(PreUses, Expr, Expr)>),
+  Application(Pos, Box<Expr>, Vec<Argument>),
   Lambda(Pos, Vec<Binder>, Box<Expr>),
   Forall(Pos, Vec<Binder>, Box<Expr>),
   SelfType(Pos, Name, Box<Expr>),
-  SelfData(Pos, Box<(Expr, Expr)>),
+  SelfData(Pos, Box<Expr>, Box<Expr>),
   SelfCase(Pos, Box<Expr>),
   Reference(Pos, Name),
-  // Let(Pos, Vec<LetDef>, Box<Expr>),
+  Let(Pos, Vec<LetDef>, Box<Expr>),
+  LetReference(Pos, Name),
   Type(Pos),
   Literal(Pos, Literal),
-  LitOpr(Pos, Op),
   // Tuple (x,y,z)
   // ConsList [x,y,z] => List.Cons ?a x (List.Cons ?a y (List.Cons ?a z))
   // Number 42 => Nat, U64,
@@ -67,6 +88,7 @@ pub enum Expr {
   // ModuleOpr(Pos, ModuleOpr),
   // foo.x => Mod_get "x" foo
   LitType(Pos, LitType),
+  LitOpr(Pos, Op),
 }
 
 impl PartialEq for Expr {
@@ -90,7 +112,9 @@ impl PartialEq for Expr {
       (Self::SelfType(_, na, ba), Self::SelfType(_, nb, bb)) => {
         na == nb && ba == bb
       }
-      (Self::SelfData(_, ba), Self::SelfData(_, bb)) => ba == bb,
+      (Self::SelfData(_, ta, ba), Self::SelfData(_, tb, bb)) => {
+        ta == tb && ba == bb
+      }
       (Self::SelfCase(_, ba), Self::SelfCase(_, bb)) => ba == bb,
       //  Self::Let(_, ra, ua, na, ta, xa, ba),
       //  Self::Let(_, rb, ub, nb, tb, xb, bb),
@@ -110,4 +134,60 @@ impl PartialEq for Expr {
 ////  Cons x xs => 1,
 ////  Nil => 0,
 //// }
-//
+
+impl Expr {
+  pub fn elaborate(self) -> PreTerm {
+    match self {
+      Self::Variable(pos, name) => PreTerm::Var(pos, name),
+      Self::MetaVariable(pos, name) => PreTerm::Hol(pos, name),
+      Self::Type(pos) => PreTerm::Typ(pos),
+      Self::Literal(pos, lit) => PreTerm::Lit(pos, lit),
+      Self::LitType(pos, typ) => PreTerm::LTy(pos, typ),
+      Self::LitOpr(pos, opr) => PreTerm::Opr(pos, opr),
+      Self::SelfType(pos, nam, bod) => {
+        PreTerm::Slf(pos, nam, Box::new(bod.elaborate()))
+      }
+      Self::SelfCase(pos, bod) => PreTerm::Cse(pos, Box::new(bod.elaborate())),
+      Self::SelfData(pos, typ, bod) => {
+        PreTerm::Dat(pos, Box::new(typ.elaborate()), Box::new(bod.elaborate()))
+      }
+      Self::Application(pos, fun, args) => args.into_iter().fold(
+        fun.elaborate(),
+        |acc, Argument { uses, typ_, term }| {
+          PreTerm::App(
+            pos,
+            uses,
+            Box::new(acc),
+            Box::new(typ_.elaborate()),
+            Box::new(term.elaborate()),
+          )
+        },
+      ),
+      Self::Lambda(pos, binds, bod) => binds.into_iter().rev().fold(
+        bod.elaborate(),
+        |acc, Binder { uses, name, typ_ }| {
+          PreTerm::Lam(
+            pos,
+            uses,
+            name,
+            Box::new(typ_.elaborate()),
+            Box::new(acc),
+          )
+        },
+      ),
+      Self::Forall(pos, binds, bod) => binds.into_iter().rev().fold(
+        bod.elaborate(),
+        |acc, Binder { uses, name, typ_ }| {
+          PreTerm::All(
+            pos,
+            uses,
+            name,
+            Box::new(typ_.elaborate()),
+            Box::new(acc),
+          )
+        },
+      ),
+      _ => todo!(),
+    }
+  }
+}

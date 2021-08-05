@@ -86,14 +86,14 @@ pub fn parse_nat(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
         )?;
         Ok((upto, Literal::U64(x)))
       }
-      "u128" => {
-        use ParseErrorKind::ParseIntErr;
-        let x = u128::from_str_radix(&digits, base.radix()).map_or_else(
-          |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
-          Ok,
-        )?;
-        Ok((upto, Literal::U128(x)))
-      }
+      //"u128" => {
+      //  use ParseErrorKind::ParseIntErr;
+      //  let x = u128::from_str_radix(&digits, base.radix()).map_or_else(
+      //    |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
+      //    Ok,
+      //  )?;
+      //  Ok((upto, Literal::U128(x)))
+      //}
       _ => panic!("implementation error in parse_nat"),
     },
   }
@@ -160,14 +160,14 @@ pub fn parse_int(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
           )?;
           Ok((upto, Literal::I64(x)))
         }
-        "i128" => {
-          use ParseErrorKind::ParseIntErr;
-          let x = i128::from_str_radix(&digits, base.radix()).map_or_else(
-            |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
-            Ok,
-          )?;
-          Ok((upto, Literal::I128(x)))
-        }
+        //"i128" => {
+        //  use ParseErrorKind::ParseIntErr;
+        //  let x = i128::from_str_radix(&digits, base.radix()).map_or_else(
+        //    |e| Err(Err::Error(ParseError::new(from, ParseIntErr(e)))),
+        //    Ok,
+        //  )?;
+        //  Ok((upto, Literal::I128(x)))
+        //}
         _ => panic!("implementation error in parse_nat"),
       }
     }

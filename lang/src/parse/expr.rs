@@ -19,11 +19,16 @@ use yatima_core::{
   position::Pos,
 };
 
+use sp_im::ordset::OrdSet;
+
 use sp_std::{
   borrow::ToOwned,
   boxed::Box,
   cell::RefCell,
-  collections::btree_map::BTreeMap,
+  collections::{
+    btree_map::BTreeMap,
+    btree_set::BTreeSet,
+  },
   rc::Rc,
   vec::Vec,
 };
@@ -36,8 +41,10 @@ use alloc::string::{
 use crate::{
   decl::Decl,
   expr::{
+    Argument,
     Binder,
     Expr,
+    LetDef,
   },
   parse::{
     error::{
@@ -49,10 +56,7 @@ use crate::{
     op::parse_opr,
     span::Span,
   },
-  pre_uses::{
-    self,
-    PreUses,
-  },
+  pre_uses::PreUses,
 };
 
 use nom::{
@@ -80,6 +84,7 @@ use nom::{
   multi::{
     many0,
     many1,
+    many_till,
     separated_list1,
   },
   sequence::{
@@ -92,30 +97,22 @@ use nom::{
   Parser,
 };
 
-pub type Ctx = Vector<Name>;
-pub type Defs = Rc<BTreeMap<Name, Decl>>;
+pub type Ctx = OrdSet<Name>;
 
 pub struct State {
-  undefined_references: BTreeMap<Name, Vec<Pos>>,
   expr_hole_count: u64,
   uses_hole_count: u64,
 }
 
+pub type RcState = Rc<RefCell<State>>;
+
 impl State {
   pub fn new() -> Self {
-    State {
-      expr_hole_count: 0u64,
-      uses_hole_count: 0u64,
-      undefined_references: BTreeMap::new(),
-    }
+    State { expr_hole_count: 0u64, uses_hole_count: 0u64 }
   }
 
-  pub fn init_ref() -> Rc<RefCell<State>> {
-    Rc::new(RefCell::new(State::new()))
-  }
+  pub fn init_ref() -> RcState { Rc::new(RefCell::new(State::new())) }
 }
-
-pub type RefState = Rc<RefCell<State>>;
 
 pub fn reserved_symbols() -> Vector<String> {
   Vector::from(vec![
@@ -191,7 +188,7 @@ pub fn parse_name(from: Span) -> IResult<Span, Name, ParseError<Span>> {
 
 pub fn expr_hole(
   input: Cid,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |i: Span| {
     let mut state = state.borrow_mut();
@@ -203,7 +200,7 @@ pub fn expr_hole(
 }
 
 pub fn uses_hole(
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, PreUses, ParseError<Span>> {
   move |i: Span| {
     let mut state = state.borrow_mut();
@@ -214,7 +211,7 @@ pub fn uses_hole(
 }
 
 pub fn parse_uses(
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, PreUses, ParseError<Span>> {
   move |i: Span| {
     alt((
@@ -271,12 +268,12 @@ pub fn parse_lty(
       value(LitType::U16, tag("#U16")),
       value(LitType::U32, tag("#U32")),
       value(LitType::U64, tag("#U64")),
-      value(LitType::U128, tag("#U128")),
+      // value(LitType::U128, tag("#U128")),
       value(LitType::I8, tag("#I8")),
       value(LitType::I16, tag("#I16")),
       value(LitType::I32, tag("#I32")),
       value(LitType::I64, tag("#I64")),
-      value(LitType::I128, tag("#I128")),
+      // value(LitType::I128, tag("#I128")),
     ))(from)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Expr::LitType(pos, lty)))
@@ -285,28 +282,16 @@ pub fn parse_lty(
 
 pub fn parse_var(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
-    let (upto, nam) = context("local or global reference", parse_name)(from)?;
+    let (upto, name) = context("local or global reference", parse_name)(from)?;
     let pos = Pos::from_upto(input, from, upto);
-    if let Some(_) = ctx.iter().find(|x| **x == nam) {
-      Ok((upto, Expr::Variable(pos, nam.clone())))
-    }
-    else if let Some(_) = defs.get(&nam) {
-      Ok((upto, Expr::Reference(pos, nam.clone())))
+    if ctx.contains(&name) {
+      Ok((upto, Expr::Variable(pos, name.clone())))
     }
     else {
-      let mut state = state.borrow_mut();
-      if let Some(ps) = state.undefined_references.get_mut(&nam) {
-        ps.push(pos);
-      }
-      else {
-        state.undefined_references.insert(nam.clone(), vec![pos]);
-      }
-      Ok((upto, Expr::Reference(pos, nam.clone())))
+      Ok((upto, Expr::Reference(pos, name.clone())))
     }
   }
 }
@@ -324,79 +309,71 @@ pub fn parse_hole(
 
 pub fn parse_arg_full(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
-) -> impl Fn(Span) -> IResult<Span, (PreUses, Expr, Expr), ParseError<Span>> {
+  state: RcState,
+) -> impl Fn(Span) -> IResult<Span, Argument, ParseError<Span>> {
   move |i: Span| {
     let (i, _) = terminated(tag("("), parse_space)(i)?;
-    let (i, arg) = context(
+    let (i, term) = context(
       "app arg",
-      parse_telescope(input, defs.clone(), ctx.clone(), state.clone()),
+      parse_telescope(input, ctx.clone(), state.clone()),
     )(i)?;
     let (i, _) = parse_space(i)?;
     let (i, _) = terminated(tag("::"), parse_space)(i)?;
-    let (i, u) = terminated(parse_uses(state.clone()), parse_space)(i)?;
-    let (i, typ) = context(
+    let (i, uses) = terminated(parse_uses(state.clone()), parse_space)(i)?;
+    let (i, typ_) = context(
       "app typ",
-      parse_telescope(input, defs.clone(), ctx.clone(), state.clone()),
+      parse_telescope(input, ctx.clone(), state.clone()),
     )(i)?;
     let (i, _) = preceded(parse_space, tag(")"))(i)?;
-    Ok((i, (u, typ, arg)))
+    Ok((i, Argument { uses, typ_, term }))
   }
 }
 
 pub fn parse_arg_short(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
-) -> impl Fn(Span) -> IResult<Span, (PreUses, Expr, Expr), ParseError<Span>> {
+  state: RcState,
+) -> impl Fn(Span) -> IResult<Span, Argument, ParseError<Span>> {
   move |i: Span| {
-    let (i, arg) = context(
-      "app arg",
-      parse_expr(input, defs.clone(), ctx.clone(), state.clone()),
-    )(i)?;
-    let (i, u) = uses_hole(state.clone())(i)?;
-    let (i, typ) = expr_hole(input, state.clone())(i)?;
-    Ok((i, (u, typ, arg)))
+    let (i, term) =
+      context("app arg", parse_expr(input, ctx.clone(), state.clone()))(i)?;
+    let (i, uses) = uses_hole(state.clone())(i)?;
+    let (i, typ_) = expr_hole(input, state.clone())(i)?;
+    Ok((i, Argument { uses, typ_, term }))
   }
 }
 
 pub fn parse_arg(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
-) -> impl Fn(Span) -> IResult<Span, (PreUses, Expr, Expr), ParseError<Span>> {
+  state: RcState,
+) -> impl Fn(Span) -> IResult<Span, Argument, ParseError<Span>> {
   move |i: Span| {
     alt((
-      parse_arg_full(input, defs.clone(), ctx.clone(), state.clone()),
-      parse_arg_short(input, defs.clone(), ctx.clone(), state.clone()),
+      parse_arg_full(input, ctx.clone(), state.clone()),
+      parse_arg_short(input, ctx.clone(), state.clone()),
     ))(i)
   }
 }
 
 pub fn parse_args(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
-) -> impl FnMut(Span) -> IResult<Span, Vec<(PreUses, Expr, Expr)>, ParseError<Span>>
-{
+  state: RcState,
+) -> impl FnMut(Span) -> IResult<Span, Vec<Argument>, ParseError<Span>> {
   move |mut i: Span| {
     let mut res = Vec::new();
-
     loop {
       match preceded(parse_space, peek(parse_tele_end))(i) {
         Ok((i2, _)) => return Ok((i2, res)),
         _ => {}
       }
-      match preceded(
-        parse_space,
-        parse_arg(input, defs.to_owned(), ctx.clone(), state.clone()),
-      )(i)
-      {
+      match preceded(parse_space, parse_arg(input, ctx.clone(), state.clone()))(
+        i,
+      ) {
         Err(e) => return Err(e),
         Ok((i2, x)) => {
           res.push(x);
@@ -427,18 +404,14 @@ pub fn parse_tele_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
 
 pub fn parse_telescope(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
-    let (i, fun) = context(
-      "app fun",
-      parse_expr(input, defs.clone(), ctx.clone(), state.clone()),
-    )(from)?;
+    let (i, fun) =
+      context("app fun", parse_expr(input, ctx.clone(), state.clone()))(from)?;
     let (i, _) = parse_space(i)?;
-    let (upto, args) =
-      parse_args(input, defs.clone(), ctx.clone(), state.clone())(i)?;
+    let (upto, args) = parse_args(input, ctx.clone(), state.clone())(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = if args.is_empty() {
       fun
@@ -452,9 +425,9 @@ pub fn parse_telescope(
 
 pub fn parse_binder_full(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Vec<Binder>, ParseError<Span>> {
   move |i: Span| {
     let (i, _) = tag("(")(i)?;
@@ -463,8 +436,7 @@ pub fn parse_binder_full(
     let (i, ns) = many1(terminated(parse_name, parse_space))(i)?;
     let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, typ) =
-      parse_telescope(input, defs.clone(), ctx.clone(), state.clone())(i)?;
+    let (i, typ) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
     let (i, _) = tag(")")(i)?;
     let mut res = Vec::new();
     for n in ns.iter() {
@@ -480,7 +452,7 @@ pub fn parse_binder_full(
 
 pub fn parse_name_binder(
   input: Cid,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Vec<Binder>, ParseError<Span>> {
   move |i: Span| {
     let (i, name) = parse_name(i)?;
@@ -492,14 +464,13 @@ pub fn parse_name_binder(
 
 pub fn parse_type_binder(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Vec<Binder>, ParseError<Span>> {
   move |i: Span| {
     let (i, uses) = uses_hole(state.clone())(i)?;
-    let (i, typ_) =
-      parse_expr(input, defs.clone(), ctx.clone(), state.clone())(i)?;
+    let (i, typ_) = parse_expr(input, ctx.clone(), state.clone())(i)?;
     Ok((i, vec![Binder { uses, name: Name::from("_"), typ_ }]))
   }
 }
@@ -512,28 +483,27 @@ pub enum BinderOpt {
 
 pub fn parse_binder(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
   binder_opt: BinderOpt,
 ) -> impl Fn(Span) -> IResult<Span, Vec<Binder>, ParseError<Span>> {
   move |i: Span| match binder_opt {
     BinderOpt::NameOrFull => alt((
-      parse_binder_full(input, defs.clone(), ctx.clone(), state.clone()),
+      parse_binder_full(input, ctx.clone(), state.clone()),
       parse_name_binder(input, state.clone()),
     ))(i),
     BinderOpt::TypeOrFull => alt((
-      parse_binder_full(input, defs.clone(), ctx.clone(), state.clone()),
-      parse_type_binder(input, defs.clone(), ctx.clone(), state.clone()),
+      parse_binder_full(input, ctx.clone(), state.clone()),
+      parse_type_binder(input, ctx.clone(), state.clone()),
     ))(i),
   }
 }
 
 pub fn parse_binders(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
   terminator: Vec<char>,
   binder_opt: BinderOpt,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<Binder>, ParseError<Span>> {
@@ -549,19 +519,13 @@ pub fn parse_binders(
       }
       match preceded(
         parse_space,
-        parse_binder(
-          input,
-          defs.to_owned(),
-          ctx.clone(),
-          state.clone(),
-          binder_opt,
-        ),
+        parse_binder(input, ctx.clone(), state.clone(), binder_opt),
       )(i)
       {
         Err(e) => return Err(e),
         Ok((i2, bs)) => {
           for b in bs {
-            ctx.push_front(b.name.to_owned());
+            ctx.insert(b.name.to_owned());
             res.push(b);
           }
           i = i2;
@@ -573,9 +537,9 @@ pub fn parse_binders(
 
 pub fn parse_binders1(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
   terminator: Vec<char>,
   binder_opt: BinderOpt,
 ) -> impl FnMut(Span) -> IResult<Span, Vec<Binder>, ParseError<Span>> {
@@ -583,18 +547,13 @@ pub fn parse_binders1(
     let mut ctx = ctx.clone();
     let mut res = Vec::new();
 
-    match parse_binder(
-      input,
-      defs.to_owned(),
-      ctx.clone(),
-      state.clone(),
-      binder_opt,
-    )(i.to_owned())
-    {
+    match parse_binder(input, ctx.clone(), state.clone(), binder_opt)(
+      i.to_owned(),
+    ) {
       Err(e) => return Err(e),
       Ok((i1, bs)) => {
         for b in bs {
-          ctx.push_front(b.name.to_owned());
+          ctx.insert(b.name.to_owned());
           res.push(b);
         }
         i = i1;
@@ -602,7 +561,6 @@ pub fn parse_binders1(
     }
     let (i, mut res2) = parse_binders(
       input,
-      defs.to_owned(),
       ctx.clone(),
       state.clone(),
       terminator.clone(),
@@ -615,28 +573,25 @@ pub fn parse_binders1(
 
 pub fn parse_lambda(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("λ"), tag("lambda")))(from)?;
     let (i, _) = parse_space(i)?;
     let (i, bs) = parse_binders1(
       input,
-      defs.clone(),
       ctx.clone(),
       state.clone(),
       vec!['='],
       BinderOpt::NameOrFull,
     )(i)?;
     let (i, _) = terminated(tag("=>"), parse_space)(i)?;
-    let mut ctx2 = ctx.clone();
+    let mut ctx = ctx.clone();
     for b in bs.iter() {
-      ctx2.push_front(b.name.clone());
+      ctx.insert(b.name.clone());
     }
-    let (upto, bod) =
-      parse_telescope(input, defs.to_owned(), ctx2, state.clone())(i)?;
+    let (upto, bod) = parse_telescope(input, ctx, state.clone())(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = Expr::Lambda(pos, bs, Box::new(bod));
     Ok((upto, trm))
@@ -645,28 +600,25 @@ pub fn parse_lambda(
 
 pub fn parse_forall(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = alt((tag("∀"), tag("forall")))(from)?;
     let (i, _) = parse_space(i)?;
     let (i, bs) = parse_binders1(
       input,
-      defs.clone(),
       ctx.clone(),
       state.clone(),
       vec!['-'],
       BinderOpt::NameOrFull,
     )(i)?;
     let (i, _) = terminated(tag("=>"), parse_space)(i)?;
-    let mut ctx2 = ctx.clone();
+    let mut ctx = ctx.clone();
     for b in bs.iter() {
-      ctx2.push_front(b.name.clone());
+      ctx.insert(b.name.clone());
     }
-    let (upto, bod) =
-      parse_telescope(input, defs.to_owned(), ctx2, state.clone())(i)?;
+    let (upto, bod) = parse_telescope(input, ctx, state.clone())(i)?;
     let pos = Pos::from_upto(input, from, upto);
     let trm = Expr::Forall(pos, bs, Box::new(bod));
     Ok((upto, trm))
@@ -675,18 +627,17 @@ pub fn parse_forall(
 
 pub fn parse_self_type(
   input: Cid,
-  defs: Defs,
+
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("@")(from)?;
     let (i, n) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
-    let mut ctx2 = ctx.clone();
-    ctx2.push_front(n.clone());
-    let (upto, bod) =
-      parse_telescope(input, defs.to_owned(), ctx2.clone(), state.clone())(i)?;
+    let mut ctx = ctx.clone();
+    ctx.insert(n.clone());
+    let (upto, bod) = parse_telescope(input, ctx, state.clone())(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Expr::SelfType(pos, n, Box::new(bod))))
   }
@@ -694,15 +645,13 @@ pub fn parse_self_type(
 
 pub fn parse_self_case(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("case")(from)?;
     let (i, _) = parse_space(i)?;
-    let (upto, bod) =
-      parse_telescope(input, defs.to_owned(), ctx.clone(), state.clone())(i)?;
+    let (upto, bod) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
     let pos = Pos::from_upto(input, from, upto);
     Ok((upto, Expr::SelfCase(pos, Box::new(bod))))
   }
@@ -710,70 +659,64 @@ pub fn parse_self_case(
 
 pub fn parse_self_data(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |from: Span| {
     let (i, _) = tag("data")(from)?;
     let (i, _) = parse_space(i)?;
-    let (i, typ) =
-      parse_expr(input, defs.clone(), ctx.clone(), state.clone())(i)?;
+    let (i, typ) = parse_expr(input, ctx.clone(), state.clone())(i)?;
     let (i, _) = parse_space(i)?;
-    let (upto, bod) =
-      parse_expr(input, defs.clone(), ctx.clone(), state.clone())(i)?;
+    let (upto, bod) = parse_expr(input, ctx.clone(), state.clone())(i)?;
     let pos = Pos::from_upto(input, from, upto);
-    Ok((upto, Expr::SelfData(pos, Box::new((typ, bod)))))
+    Ok((upto, Expr::SelfData(pos, Box::new(typ), Box::new(bod))))
   }
 }
 
-// pub fn parse_let_decl(
-//  input: Cid,
-//  defs: Defs,
-//  ctx: Ctx,
-//  state: RefState,
-//) -> impl Fn(Span) -> IResult<Span, (bool, , ParseError<Span>> {
+pub fn parse_let_def(
+  input: Cid,
+
+  ctx: Ctx,
+  state: RcState,
+) -> impl Fn(Span) -> IResult<Span, LetDef, ParseError<Span>> {
+  move |from: Span| {
+    let (i, rec) =
+      alt((value(true, tag("letrec")), value(false, tag("let"))))(from)?;
+    let (i, _) = parse_space(i)?;
+    let (i, uses) = parse_uses(state.clone())(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, name) = parse_name(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, _) = tag(":")(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, typ_) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
+    let (i, _) = parse_space(i)?;
+    let (i, _) = tag("=")(i)?;
+    let (i, _) = parse_space(i)?;
+    let mut ctx2 = ctx.clone();
+    ctx2.insert(name.clone());
+    let (i, term) = parse_telescope(
+      input,
+      if rec { ctx2.clone() } else { ctx.clone() },
+      state.clone(),
+    )(i)?;
+    Ok((i, LetDef { rec, uses, name, typ_, term }))
+  }
+}
+
 // pub fn parse_let(
 //  input: Cid,
-//  defs: Defs,
+//
 //  ctx: Ctx,
-//  state: RefState,
+//  state: RcState,
 //) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
 //  move |from: Span| {
-//    let (i, letrec) =
-//      alt((value(true, tag("letrec")), value(false, tag("let"))))(from)?;
-//    let (i, _) = parse_space(i)?;
-//    let (i, uses) = parse_uses()(i)?;
-//    let (i, _) = parse_space(i)?;
-//    let (i, nam) = parse_name(i)?;
-//    let (i, _) = parse_space(i)?;
-//    let (i, _) = tag(":")(i)?;
-//    let (i, _) = parse_space(i)?;
-//    let (i, typ) = parse_telescope(
-//      input,
-//      defs.clone(),
-//      rec.clone(),
-//      ctx.clone(),
-//      quasi.clone(),
-//    )(i)?;
-//    let (i, _) = parse_space(i)?;
-//    let (i, _) = tag("=")(i)?;
-//    let (i, _) = parse_space(i)?;
-//    let ctx2 = ctx.clone().cons(nam.clone());
-//    let (i, exp) = parse_telescope(
-//      input,
-//      defs.clone(),
-//      rec.clone(),
-//      if letrec { ctx2.clone() } else { ctx.clone() },
-//      quasi.clone(),
-//    )(i)?;
+//    let (i, let_defs) =
+//      many1(parse_let_def(input, ctx.clone(), state.clone()))(from)?;
 //    let (i, _) = parse_space(i)?;
 //    let (i, _) = tag("in")(i)?;
 //    let (i, _) = parse_space(i)?;
-//    let (upto, bod) =
-//      parse_telescope(input, defs.clone(), rec.clone(), ctx2, quasi.clone())(
-//        i,
-//      )?;
+//    let (upto, bod) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
 //    let pos = Pos::from_upto(input, from, upto);
 //    Ok((
 //      upto,
@@ -792,9 +735,8 @@ pub fn parse_self_data(
 
 pub fn parse_expr(
   input: Cid,
-  defs: Defs,
   ctx: Ctx,
-  state: RefState,
+  state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
   move |i: Span| {
     alt((
@@ -802,43 +744,31 @@ pub fn parse_expr(
         "application telescope",
         delimited(
           preceded(tag("("), parse_space),
-          parse_telescope(input, defs.clone(), ctx.clone(), state.clone()),
+          parse_telescope(input, ctx.clone(), state.clone()),
           preceded(parse_space, tag(")")),
         ),
       ),
-      context(
-        "self-type",
-        parse_self_type(input, defs.clone(), ctx.clone(), state.clone()),
-      ),
+      context("self-type", parse_self_type(input, ctx.clone(), state.clone())),
       context(
         "self-type data",
-        parse_self_data(input, defs.clone(), ctx.clone(), state.clone()),
+        parse_self_data(input, ctx.clone(), state.clone()),
       ),
       context(
         "self-type case",
-        parse_self_case(input, defs.clone(), ctx.clone(), state.clone()),
+        parse_self_case(input, ctx.clone(), state.clone()),
       ),
-      context(
-        "forall",
-        parse_forall(input, defs.clone(), ctx.clone(), state.clone()),
-      ),
-      context(
-        "lambda",
-        parse_lambda(input, defs.clone(), ctx.clone(), state.clone()),
-      ),
+      context("forall", parse_forall(input, ctx.clone(), state.clone())),
+      context("lambda", parse_lambda(input, ctx.clone(), state.clone())),
       // context(
       //  "let",
-      //  parse_let(input, defs.clone(), rec.clone(), ctx.clone(), quasi.clone()),
+      //  parse_let(input,  rec.clone(), ctx.clone(), quasi.clone()),
       //),
       context("type", parse_typ(input)),
       context("literal operation", parse_opr(input)),
       context("literal", parse_lit(input)),
       context("literal type", parse_lty(input)),
       context("hole", parse_hole(input)),
-      context(
-        "var",
-        parse_var(input, defs.to_owned(), ctx.clone(), state.clone()),
-      ),
+      context("var", parse_var(input, ctx.clone())),
     ))(i)
   }
 }
@@ -851,12 +781,7 @@ pub mod tests {
   #[test]
   fn test_parse_telescope() {
     fn test(i: &str) -> IResult<Span, Expr, ParseError<Span>> {
-      parse_telescope(
-        input_cid(i),
-        Defs::new(),
-        Vector::new(),
-        State::init_ref(),
-      )(Span::new(i))
+      parse_telescope(input_cid(i), Ctx::new(), State::init_ref())(Span::new(i))
     }
     let res = test("(1 (3 :: ω 2))");
     // println!("res {:?}", res);
@@ -866,7 +791,7 @@ pub mod tests {
       Expr::Application(
         Pos::None,
         Box::new(Expr::Literal(Pos::None, Literal::Nat(1u64.into()))),
-        vec![(
+        vec![Argument::new(
           PreUses::Many,
           Expr::Literal(Pos::None, Literal::Nat(2u64.into())),
           Expr::Literal(Pos::None, Literal::Nat(3u64.into())),
@@ -881,7 +806,7 @@ pub mod tests {
       Expr::Application(
         Pos::None,
         Box::new(Expr::Literal(Pos::None, Literal::Nat(1u64.into()))),
-        vec![(
+        vec![Argument::new(
           PreUses::Hol(Name::from("uses_0")),
           Expr::MetaVariable(Pos::None, Name::from("expr_0")),
           Expr::Literal(Pos::None, Literal::Nat(2u64.into())),
@@ -901,7 +826,7 @@ pub mod tests {
       Expr::Application(
         Pos::None,
         Box::new(Expr::LitType(Pos::None, LitType::Int)),
-        vec![(
+        vec![Argument::new(
           PreUses::None,
           Expr::LitType(Pos::None, LitType::U16),
           Expr::Literal(Pos::None, Literal::Nat(1u64.into()))
@@ -912,9 +837,7 @@ pub mod tests {
   #[test]
   fn test_parse_lambda() {
     fn test(i: &str) -> IResult<Span, Expr, ParseError<Span>> {
-      parse_lambda(input_cid(i), Defs::new(), Ctx::new(), State::init_ref())(
-        Span::new(i),
-      )
+      parse_lambda(input_cid(i), Ctx::new(), State::init_ref())(Span::new(i))
     }
     let res = test("λ (ω a: Type) => Type");
     println!("res: {:?}", res);
@@ -923,7 +846,11 @@ pub mod tests {
       res.unwrap().1,
       Expr::Lambda(
         Pos::None,
-        vec![(PreUses::Many, Name::from("a"), Expr::Type(Pos::None))],
+        vec![Binder::new(
+          PreUses::Many,
+          Name::from("a"),
+          Expr::Type(Pos::None)
+        )],
         Box::new(Expr::Type(Pos::None))
       )
     );
@@ -943,7 +870,7 @@ pub mod tests {
       res.unwrap().1,
       Expr::Lambda(
         Pos::None,
-        vec![(
+        vec![Binder::new(
           PreUses::Hol(Name::from("uses_0")),
           Name::from("a"),
           Expr::MetaVariable(Pos::None, Name::from("expr_0"))
@@ -958,7 +885,7 @@ pub mod tests {
       res.unwrap().1,
       Expr::Lambda(
         Pos::None,
-        vec![(
+        vec![Binder::new(
           PreUses::Hol(Name::from("uses_0")),
           Name::from("a"),
           Expr::MetaVariable(Pos::None, Name::from("expr_0"))

@@ -1,30 +1,41 @@
 use yatima_core::{
+  anon::Anon,
+  embed_error::EmbedError,
   literal::{
     LitType,
     Literal,
   },
+  meta::Meta,
   name::Name,
   position::Pos,
   prim::Op,
 };
 
+use sp_cid::Cid;
+
 use sp_std::{
+  borrow::ToOwned,
   boxed::Box,
   fmt,
+  rc::Rc,
 };
 
 use crate::pre_uses::PreUses;
+use alloc::string::{
+  String,
+  ToString,
+};
 
 pub enum PreTerm {
   Var(Pos, Name),
-  Lam(Pos, PreUses, Name, Box<(PreTerm, PreTerm)>),
-  App(Pos, PreUses, Box<(PreTerm, PreTerm, PreTerm)>),
-  All(Pos, PreUses, Name, Box<(PreTerm, PreTerm)>),
+  Lam(Pos, PreUses, Name, Box<PreTerm>, Box<PreTerm>),
+  App(Pos, PreUses, Box<PreTerm>, Box<PreTerm>, Box<PreTerm>),
+  All(Pos, PreUses, Name, Box<PreTerm>, Box<PreTerm>),
   Slf(Pos, Name, Box<PreTerm>),
-  Dat(Pos, Box<(PreTerm, PreTerm)>),
+  Dat(Pos, Box<PreTerm>, Box<PreTerm>),
   Cse(Pos, Box<PreTerm>),
   Ref(Pos, Name),
-  Let(Pos, bool, PreUses, Name, Box<(PreTerm, PreTerm, PreTerm)>),
+  Let(Pos, bool, PreUses, Name, Box<PreTerm>, Box<PreTerm>, Box<PreTerm>),
   Typ(Pos),
   Lit(Pos, Literal),
   LTy(Pos, LitType),
