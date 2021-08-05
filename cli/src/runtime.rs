@@ -30,7 +30,6 @@ pub enum DAG {
   Fix(NonNull<Fix>),
   Lit(NonNull<Lit>),
   Opr(NonNull<Opr>),
-  IoOpr(NonNull<IoOpr>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -83,12 +82,6 @@ pub struct Lit {
 #[derive(Debug)]
 pub struct Opr {
   pub opr: Op,
-  pub parents: Option<NonNull<Parents>>,
-}
-
-#[derive(Debug)]
-pub struct IoOpr {
-  pub opr: IoOp,
   pub parents: Option<NonNull<Parents>>,
 }
 
@@ -161,14 +154,6 @@ impl fmt::Debug for DAG {
             format_parents(*parents)
           )
         }
-        DAG::IoOpr(link) => {
-          let IoOpr { parents, .. } = unsafe { link.as_ref() };
-          format!(
-            "\nIoOpr<{:?}> parents: {}",
-            (link.as_ptr()),
-            format_parents(*parents)
-          )
-        }
         DAG::Lam(link) => {
           if set.get(&(link.as_ptr() as usize)).is_none() {
             let Lam { var, parents, bod, .. } = unsafe { link.as_ref() };
@@ -236,7 +221,6 @@ pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
       DAG::Fix(link) => (*link.as_ptr()).parents,
       DAG::Lit(link) => (*link.as_ptr()).parents,
       DAG::Opr(link) => (*link.as_ptr()).parents,
-      DAG::IoOpr(link) => (*link.as_ptr()).parents,
     }
   }
 }
@@ -251,7 +235,6 @@ pub fn set_parents(term: DAG, pref: Option<NonNull<Parents>>) {
       DAG::Fix(link) => (*link.as_ptr()).parents = pref,
       DAG::Lit(link) => (*link.as_ptr()).parents = pref,
       DAG::Opr(link) => (*link.as_ptr()).parents = pref,
-      DAG::IoOpr(link) => (*link.as_ptr()).parents = pref,
     }
   }
 }
@@ -340,9 +323,6 @@ pub fn free_dead_node(node: DAG) {
         Box::from_raw(link.as_ptr());
       }
       DAG::Opr(link) => {
-        Box::from_raw(link.as_ptr());
-      }
-      DAG::IoOpr(link) => {
         Box::from_raw(link.as_ptr());
       }
       DAG::Var(link) => (),
@@ -678,22 +658,6 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
         free_dead_node(node);
         node = *bod;
       },
-      DAG::IoOpr(link) => {
-        let opr = unsafe { (*link.as_ptr()).opr };
-        match opr {
-          IoOp::Bind => todo!(),
-          IoOp::Print => todo!(),
-          IoOp::Read => todo!(),
-          IoOp::Return => {
-            let arg = unsafe { (*trail[trail.len() - 1].as_ptr()).arg };
-            let top = DAG::App(trail.pop().unwrap());
-            let new_node = arg;
-            replace_child(top, new_node);
-            free_dead_node(top);
-            node = new_node;
-          },
-        }
-      }
       DAG::Opr(link) => {
         let opr = unsafe { (*link.as_ptr()).opr };
         let len = trail.len();
@@ -859,27 +823,7 @@ pub fn from_term_inner(
       (DAG::Opr(alloc_val(Opr { opr: *opr, parents })), maybe_fix)
     }
     Term::Ref(_, nam, exp, _) => {
-      let cid = exp.to_string();
-      if cid == "bafy2bzaceb4dmlwd6r4br7wcxlcwlsu3awsgtnuy2ts3pq5zhkoxxvc7zdwyy"
-      {
-        (DAG::IoOpr(alloc_val(IoOpr { opr: IoOp::Return, parents })), maybe_fix)
-      }
-      else if cid
-        == "bafy2bzaceclr6fh5u7dn6rk5uyeiqtcccp2v2ocq3lbyd4k73mgex6t2iehba"
-      {
-        (DAG::IoOpr(alloc_val(IoOpr { opr: IoOp::Bind, parents })), maybe_fix)
-      }
-      else if cid
-        == "bafy2bzaceddf3f6iufzp5fknmblnx76welwro7wz27rfnxe4yatkkubqjxhws"
-      {
-        (DAG::IoOpr(alloc_val(IoOpr { opr: IoOp::Read, parents })), maybe_fix)
-      }
-      else if cid
-        == "bafy2bzacebt2e6n7l7j4toisxcaj6ojow2s3tx2gflz4nemfcoflfdfhsl7as"
-      {
-        (DAG::IoOpr(alloc_val(IoOpr { opr: IoOp::Print, parents })), maybe_fix)
-      }
-      else if let Some(def) = defs.defs.get(exp) {
+      if let Some(def) = defs.defs.get(exp) {
         (from_term(defs.clone(), &def.term, parents), maybe_fix)
       }
       else {
