@@ -1,26 +1,22 @@
-use nom::{
-  Finish,
-};
+use nom::Finish;
 use sp_cid::Cid;
 use std::{
   path::PathBuf,
   rc::Rc,
 };
 use structopt::StructOpt;
+#[cfg(not(target_arch = "wasm32"))]
+use yatima_cli::repl;
 use yatima_cli::{
   file::store::{
     FileStore,
     FileStoreOpts,
   },
-  runtime
+  runtime,
 };
-#[cfg(not(target_arch = "wasm32"))]
-use yatima_cli::repl;
 use yatima_core::{
-  name::Name,
-  dag::{DAG, DAGPtr},
-  term::Term,
   dll,
+  name::Name,
 };
 use yatima_utils::{
   file,
@@ -28,7 +24,6 @@ use yatima_utils::{
     show,
     Store,
   },
-  graph::DagGraph,
 };
 
 #[derive(Debug, StructOpt)]
@@ -40,11 +35,15 @@ struct Cli {
 
   #[structopt(
     long,
-    help = "Turn off writing to the file system. Data will only be kept in memory."
+    help = "Turn off writing to the file system. Data will only be kept in \
+            memory."
   )]
   no_file_store: bool,
 
-  #[structopt(long, help = "The root directory we are reading files relative to.")]
+  #[structopt(
+    long,
+    help = "The root directory we are reading files relative to."
+  )]
   root: Option<PathBuf>,
 
   /// Command to execute
@@ -106,32 +105,33 @@ enum ShowType {
 
 fn parse_cid(
   s: &str,
-) -> Result<Cid, yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>> {
-  let result = yatima_core::parse::package::parse_link(yatima_core::parse::span::Span::new(&s))
-    .finish()
-    .map(|(_, x)| x);
+) -> Result<
+  Cid,
+  yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>,
+> {
+  let result = yatima_core::parse::package::parse_link(
+    yatima_core::parse::span::Span::new(s),
+  )
+  .finish()
+  .map(|(_, x)| x);
   result
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
-  run_cli()
-}
+async fn main() -> std::io::Result<()> { run_cli() }
 
 #[cfg(target_arch = "wasm32")]
-fn main() ->  std::io::Result<()> {
-  run_cli()
-}
+fn main() -> std::io::Result<()> { run_cli() }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn repl(store: Rc<FileStore>) ->  std::io::Result<()> {
+fn repl(store: Rc<FileStore>) -> std::io::Result<()> {
   repl::main(store);
   Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
-fn repl(_store: Rc<dyn Store>) ->  std::io::Result<()> {
+fn repl(_store: Rc<dyn Store>) -> std::io::Result<()> {
   eprintln!("REPL not supported on WASI yet.");
   Ok(())
 }
@@ -145,11 +145,9 @@ fn run_cli() -> std::io::Result<()> {
     root: root.clone(),
   }));
   match cli.command {
-    Command::Repl => {
-      repl(store)
-    }
+    Command::Repl => repl(store),
     Command::Show { typ: ShowType::File { path } } => {
-      let env = file::parse::PackageEnv::new(root, path, store.clone());
+      let env = file::parse::PackageEnv::new(root, path, store);
       match file::parse::parse_file(env) {
         Ok((_, pack, _)) => {
           println!("{}", pack);
@@ -236,24 +234,31 @@ fn run_cli() -> std::io::Result<()> {
     }
     Command::Run { path } => {
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) = file::parse::parse_file(env).map_err(handle_error_string)?;
+      let (_, p, defs) =
+        file::parse::parse_file(env).map_err(handle_error_string)?;
       let p = Rc::new(p);
       let defs = Rc::new(defs);
 
       let _cid = store.put(p.to_ipld());
 
-      let checked = file::check_all(p.clone(), defs.clone(), store).map_err(handle_error_string)?;
-      let def = checked
-        .get(&Name::from("main"))
-        .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
+      let checked =
+        file::check_all(p.clone(), defs, store).map_err(handle_error_string)?;
+      let def = checked.get(&Name::from("main")).unwrap_or_else(|| {
+        panic!(
+          "No `main` expression in package {} from file {:?}",
+          p.name, path
+        )
+      });
 
-      let root = runtime::alloc_val(dll::DLL::singleton(runtime::ParentPtr::Root));
-      let mut dag = runtime::from_term(checked.clone(), &def.to_owned().term, Some(root));
+      let root =
+        runtime::alloc_val(dll::DLL::singleton(runtime::ParentPtr::Root));
+      let mut dag =
+        runtime::from_term(checked.clone(), &def.to_owned().term, Some(root));
       runtime::whnf(&mut dag, false);
       println!("{:#?}", dag);
-      execute_io(dag);
+      // execute_io(dag);
       // dag.norm(&defs, false);
-      // let graph = DagGraph::from_dag(&dag); 
+      // let graph = DagGraph::from_dag(&dag);
       // let dot = graph.to_dot();
 
       // execute_io(dag.to_term(false));
@@ -266,18 +271,6 @@ fn run_cli() -> std::io::Result<()> {
 pub fn handle_error_string(e: String) -> std::io::Error {
   eprintln!("{}", e);
   std::io::Error::from(std::io::ErrorKind::Other)
-}
-
-
-/// Execute side effecting IO
-pub fn execute_io(dag: runtime::DAG) {
-  // detect structure
-  match dag {
-    runtime::DAG::Lam(link) => {
-    }
-    _ => {}
-  }
-
 }
 
 // for valgrind testing

@@ -41,11 +41,7 @@ impl RustyLineRepl {
     let mut rl = Editor::<()>::with_config(config);
     rl.bind_sequence(KeyEvent::alt('l'), Cmd::Insert(1, String::from("λ ")));
     rl.bind_sequence(KeyEvent::alt('a'), Cmd::Insert(1, String::from("∀ ")));
-    RustyLineRepl {
-      rl: rl,
-      env: Arc::new(Mutex::new(ReplEnv::default())),
-      store: store,
-    }
+    RustyLineRepl { rl, env: Arc::new(Mutex::new(ReplEnv::default())), store }
   }
 }
 
@@ -60,8 +56,8 @@ impl Repl for RustyLineRepl {
 
   fn println(&self, s: String) {
     let mut out = io::stdout();
-    out.write(s.as_bytes()).unwrap();
-    out.write("\n".as_bytes()).unwrap();
+    out.write_all(s.as_bytes()).unwrap();
+    out.write_all("\n".as_bytes()).unwrap();
   }
 
   fn load_history(&mut self) {

@@ -1,5 +1,6 @@
 pub use crate::{
   anon::Anon,
+  defs,
   embed_error::EmbedError,
   literal::{
     LitType,
@@ -7,6 +8,7 @@ pub use crate::{
   },
   meta::Meta,
   name::Name,
+  parse,
   position::Pos,
   prim::Op,
   uses::Uses,
@@ -358,7 +360,7 @@ impl Term {
           *pos,
           *rec,
           *uses,
-          Name::from(name.clone()),
+          name.clone(),
           Box::new((typ, exp, bod)),
         ))
       }

@@ -85,14 +85,6 @@ pub struct Opr {
   pub parents: Option<NonNull<Parents>>,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum IoOp {
-  Print,
-  Return,
-  Read,
-  Bind,
-}
-
 impl fmt::Debug for DAG {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     #[inline]
@@ -156,7 +148,7 @@ impl fmt::Debug for DAG {
         }
         DAG::Lam(link) => {
           if set.get(&(link.as_ptr() as usize)).is_none() {
-            let Lam { var, parents, bod, .. } = unsafe { link.as_ref() };
+            let Lam { parents, bod, .. } = unsafe { link.as_ref() };
             set.insert(link.as_ptr() as usize);
             format!(
               "\nLam<{:?}> parents: {}{}",
@@ -171,7 +163,7 @@ impl fmt::Debug for DAG {
         }
         DAG::Fix(link) => {
           if set.get(&(link.as_ptr() as usize)).is_none() {
-            let Fix { var, parents, bod, .. } = unsafe { link.as_ref() };
+            let Fix { parents, bod, .. } = unsafe { link.as_ref() };
             set.insert(link.as_ptr() as usize);
             format!(
               "\nFix<{:?}> parents: {}{}",
@@ -325,7 +317,7 @@ pub fn free_dead_node(node: DAG) {
       DAG::Opr(link) => {
         Box::from_raw(link.as_ptr());
       }
-      DAG::Var(link) => (),
+      DAG::Var(_) => (),
     }
   }
 }
@@ -885,6 +877,100 @@ pub fn from_term_inner(
     },
     _ => {
       (DAG::Lit(alloc_val(Lit { lit: Literal::I32(0), parents })), maybe_fix)
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::fs::File;
+
+  use super::*;
+  use ropey::Rope;
+  use yatima_core::{
+    prim::io::IoOp,
+    term::Pos,
+  };
+
+  fn harness(term: Term) -> DAG {
+    let root = alloc_val(DLL::singleton(ParentPtr::Root));
+    let mut dag = from_term(Rc::new(Defs::new()), &term, Some(root));
+    whnf(&mut dag, false);
+    dag
+  }
+
+  #[test]
+  fn hello_stdout() {
+    let term = Term::App(
+      Pos::None,
+      Box::new((
+        Term::Opr(Pos::None, yatima_core::prim::Op::Io(IoOp::WriteStdout)),
+        Term::Lit(
+          Pos::None,
+          Literal::Bytes("Hello, World!".as_bytes().to_vec()),
+        ),
+      )),
+    );
+    let _ = harness(term);
+  }
+
+  #[test]
+  fn hello_stderr() {
+    let term = Term::App(
+      Pos::None,
+      Box::new((
+        Term::Opr(Pos::None, yatima_core::prim::Op::Io(IoOp::WriteStderr)),
+        Term::Lit(
+          Pos::None,
+          Literal::Bytes("Hello, World!".as_bytes().to_vec()),
+        ),
+      )),
+    );
+    let _ = harness(term);
+  }
+
+  #[test]
+  fn read_and_write_file() {
+    let bytes = "Hello, World!".as_bytes().to_vec();
+    let term = Term::App(
+      Pos::None,
+      Box::new((
+        Term::App(
+          Pos::None,
+          Box::new((
+            Term::Opr(Pos::None, yatima_core::prim::Op::Io(IoOp::Write)),
+            Term::Lit(Pos::None, Literal::Text(Rope::from("./hello.txt"))),
+          )),
+        ),
+        Term::Lit(Pos::None, Literal::Bytes(bytes.clone())),
+      )),
+    );
+    let _ = harness(term);
+    println!("{:?}", std::fs::read("./hello.txt"));
+    let term = Term::App(
+      Pos::None,
+      Box::new((
+        Term::Opr(Pos::None, yatima_core::prim::Op::Io(IoOp::ReadAll)),
+        Term::Lit(Pos::None, Literal::Text(Rope::from("./hello.txt"))),
+      )),
+    );
+    let dag = harness(term);
+    std::fs::remove_file("./hello.txt").unwrap();
+    match dag {
+      DAG::Lit(link) => {
+        let Lit { lit, .. } = unsafe { link.as_ref() };
+        match lit {
+          Literal::Bytes(read_bytes) => {
+            assert!(&bytes == read_bytes);
+          }
+          _ => {
+            panic!("Wrong type of literal produced")
+          }
+        }
+      }
+      _ => {
+        panic!("Wrong type of node produced")
+      }
     }
   }
 }

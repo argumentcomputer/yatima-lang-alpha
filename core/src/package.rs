@@ -14,12 +14,13 @@ use sp_ipld::{
 };
 
 use sp_std::{
-  vec::Vec,
   borrow::ToOwned,
+  vec::Vec,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(PartialEq, Clone, Debug)]

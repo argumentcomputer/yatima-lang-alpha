@@ -2023,6 +2023,7 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "reqwest",
+ "ropey",
  "rustyline",
  "serde",
  "serde_json",

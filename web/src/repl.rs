@@ -1,19 +1,19 @@
 use std::{
+  collections::VecDeque,
   path::PathBuf,
   rc::Rc,
   sync::{
     Arc,
     Mutex,
   },
-  collections::VecDeque,
 };
 use yatima_utils::{
-  log,
-  logging::log,
   file::parse::{
     self,
     PackageEnv,
   },
+  log,
+  logging::log,
   repl::{
     error::ReplError,
     Repl,
@@ -25,9 +25,7 @@ use yatima_utils::{
 
 use crate::{
   store::WebStore,
-  utils::{
-    self,
-  },
+  utils::{self,},
 };
 use wasm_bindgen::{
   prelude::*,
@@ -74,7 +72,6 @@ const RETURN: &str = "\x1b[M";
 const LINEFEED: &str = "\x1b[J";
 const DELETE: &str = "\x1b[3";
 
-
 fn set_column(term: &Terminal, col: u32) {
   term.write(&format!("\x1b[{}G", col));
 }
@@ -101,11 +98,7 @@ struct ShellState {
 
 impl Default for ShellState {
   fn default() -> Self {
-    ShellState {
-      line: String::new(),
-      cursor_col: 0,
-      history_index: 0,
-    }
+    ShellState { line: String::new(), cursor_col: 0, history_index: 0 }
   }
 }
 
@@ -118,7 +111,7 @@ impl Repl for WebRepl {
 
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
-  fn println(&self, s: String) { 
+  fn println(&self, s: String) {
     // The term needs \r to move the cursor back to the start of the line
     let m = s.replace("\n", "\r");
     self.terminal.writeln(m.as_str());
@@ -143,7 +136,9 @@ impl Repl for WebRepl {
     }
   }
 
-  fn add_history_entry(&mut self, s: &str) { self.history.push_front(s.to_owned()); }
+  fn add_history_entry(&mut self, s: &str) {
+    self.history.push_front(s.to_owned());
+  }
 
   fn save_history(&mut self) {
     let window =
@@ -311,7 +306,6 @@ impl WebRepl {
   }
 
   pub fn read_shell_state(&self) -> ShellState {
-
     let shell_state = self.shell_state.lock().unwrap();
     shell_state.clone()
   }
@@ -339,7 +333,7 @@ impl WebRepl {
           term.write(CURSOR_LEFT);
           ss.cursor_col -= 1;
         }
-      } 
+      }
       CURSOR_UP => {
         if ss.history_index < self.history.len() - 1 {
           ss.history_index += 1;
@@ -351,7 +345,7 @@ impl WebRepl {
             ss.cursor_col = ss.line.len();
           }
         }
-      } 
+      }
       CURSOR_DOWN => {
         if ss.history_index > 0 {
           ss.history_index -= 1;
@@ -371,7 +365,7 @@ impl WebRepl {
           ss.line.pop();
           ss.cursor_col -= 1;
         }
-      } 
+      }
       RETURN | LINEFEED | "\n" | "\r" => {
         if !ss.line.is_empty() {
           self.println("".to_owned());
@@ -394,7 +388,7 @@ impl WebRepl {
       }
       _ if data.starts_with("\x1b") => {
         log("ESC");
-      } 
+      }
       _ => {
         term.write(&data);
         ss.line.push_str(&data);
@@ -418,26 +412,20 @@ pub fn main() -> Result<(), JsValue> {
   let terminal: Terminal = repl.terminal.clone().dyn_into().unwrap();
 
   let repl_p1 = repl_p.clone();
-  let callback =
-    Closure::wrap(
-      Box::new(move |e: OnKeyEvent| {
-        let mut repl = repl_p1.lock().unwrap();
-        repl.handle_event(e)
-      }) as Box<dyn FnMut(_)>
-    );
+  let callback = Closure::wrap(Box::new(move |e: OnKeyEvent| {
+    let mut repl = repl_p1.lock().unwrap();
+    repl.handle_event(e)
+  }) as Box<dyn FnMut(_)>);
 
   // terminal.on_key(callback.as_ref().unchecked_ref());
 
   callback.forget();
 
   let repl_p2 = repl_p.clone();
-  let data_callback =
-    Closure::wrap(
-      Box::new(move |data: String| {
-        let mut repl = repl_p2.lock().unwrap();
-        repl.handle_data(data);
-      }) as Box<dyn FnMut(_)>
-    );
+  let data_callback = Closure::wrap(Box::new(move |data: String| {
+    let mut repl = repl_p2.lock().unwrap();
+    repl.handle_data(data);
+  }) as Box<dyn FnMut(_)>);
 
   terminal.on_data(data_callback.as_ref().unchecked_ref());
 

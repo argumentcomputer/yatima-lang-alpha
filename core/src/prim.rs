@@ -20,8 +20,8 @@ pub mod u8;
 pub mod io;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;
@@ -44,13 +44,13 @@ use crate::prim::{
   i64::I64Op,
   i8::I8Op,
   int::IntOp,
+  io::IoOp,
   nat::NatOp,
   text::TextOp,
   u16::U16Op,
   u32::U32Op,
   u64::U64Op,
   u8::U8Op,
-  io::IoOp,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]

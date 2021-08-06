@@ -1,10 +1,21 @@
 use sp_ipld::Ipld;
 
-use crate::{ipld_error::IpldError, literal::Literal, term::Term, yatima};
+use crate::{
+  defs,
+  ipld_error::IpldError,
+  literal::Literal,
+  parse,
+  term::Term,
+  yatima,
+};
 
-use std::io::Read;
-use std::fs::File;
-use std::io::Write;
+use std::{
+  fs::File,
+  io::{
+    Read,
+    Write,
+  },
+};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum IoOp {
@@ -92,20 +103,22 @@ impl IoOp {
         stdin.read_exact(&mut buf).unwrap();
         Some(Literal::U8(buf[0]))
       }
-      _ => None
+      _ => None,
     }
   }
 
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     match (self, x) {
       (IoOp::ReadAll, Literal::Text(filename)) => {
-        let mut file = File::create(filename.to_string()).unwrap();
+        let filename: String = filename.chars().collect();
+        let mut file = File::open(filename).unwrap();
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
         Some(Literal::Bytes(buf))
       }
       (IoOp::ReadByte, Literal::Text(filename)) => {
-        let mut file = File::create(filename.to_string()).unwrap();
+        let filename: String = filename.chars().collect();
+        let mut file = File::open(filename).unwrap();
         let mut buf = [0];
         file.read_exact(&mut buf).unwrap();
         Some(Literal::U8(buf[0]))
@@ -120,18 +133,17 @@ impl IoOp {
         let result = stderr.write_all(contents);
         Some(Literal::Bool(result.is_ok()))
       }
-      _ => None
+      _ => None,
     }
   }
 
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     match (self, x, y) {
       (IoOp::Write, Literal::Text(filename), Literal::Bytes(contents)) => {
-        let mut file = File::create(filename.to_string()).unwrap();
-        let result = file.write_all(contents);
-        Some(Literal::Bool(result.is_ok()))
+        let filename: String = filename.chars().collect();
+        Some(Literal::Bool(std::fs::write(filename, contents).is_ok()))
       }
-      _ => None
+      _ => None,
     }
   }
 }

@@ -1,10 +1,12 @@
 use crate::{
+  defs,
   defs::{
     Def,
     Defs,
   },
   name::Name,
   package::Entry,
+  parse,
   parse::{
     error::{
       ParseError,

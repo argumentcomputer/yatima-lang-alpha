@@ -1,16 +1,18 @@
 use sp_ipld::Ipld;
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryFrom,
   fmt,
-  borrow::ToOwned,
 };
 
 use alloc::string::String;
 
 use crate::{
+  defs,
   ipld_error::IpldError,
   literal::Literal,
+  parse,
   prim::bits,
   term::Term,
   yatima,
@@ -342,18 +344,23 @@ impl I16Op {
       (Self::ToU32, I16(x)) => u32::try_from(*x).ok().map(U32),
       (Self::ToU64, I16(x)) => u64::try_from(*x).ok().map(U64),
       (Self::ToU128, I16(x)) => u128::try_from(*x).ok().map(U128),
-      (Self::ToNat, I16(x)) => if x.is_negative() {
-        None
-      } else {
-        Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
-      },
+      (Self::ToNat, I16(x)) => {
+        if x.is_negative() {
+          None
+        }
+        else {
+          Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
+        }
+      }
       (Self::ToI8, I16(x)) => i8::try_from(*x).ok().map(I8),
       (Self::ToI32, I16(x)) => Some(I32((*x).into())),
       (Self::ToI64, I16(x)) => Some(I64((*x).into())),
       (Self::ToI128, I16(x)) => Some(I128((*x).into())),
       (Self::Not, I16(x)) => Some(I16(!x)),
       (Self::ToInt, I16(x)) => Some(Int((*x).into())),
-      (Self::ToBits, I16(x)) => Some(Bits(bits::bytes_to_bits(16, &x.to_be_bytes().into()))),
+      (Self::ToBits, I16(x)) => {
+        Some(Bits(bits::bytes_to_bits(16, &x.to_be_bytes().into())))
+      }
       (Self::ToBytes, I16(x)) => Some(Bytes(x.to_be_bytes().into())),
       _ => None,
     }
@@ -373,16 +380,22 @@ impl I16Op {
       (Self::Add, I16(x), I16(y)) => Some(I16(x.wrapping_add(*y))),
       (Self::Sub, I16(x), I16(y)) => Some(I16(x.wrapping_sub(*y))),
       (Self::Mul, I16(x), I16(y)) => Some(I16(x.wrapping_mul(*y))),
-      (Self::Div, I16(x), I16(y)) => if *y == 0 {
-        None
-      } else {
-        Some(I16(x.wrapping_div(*y)))
-      },
-      (Self::Mod, I16(x), I16(y)) => if *y == 0 {
-        None
-      } else {
-        Some(I16(x.wrapping_rem(*y)))
-      },
+      (Self::Div, I16(x), I16(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(I16(x.wrapping_div(*y)))
+        }
+      }
+      (Self::Mod, I16(x), I16(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(I16(x.wrapping_rem(*y)))
+        }
+      }
       (Self::Pow, I16(x), U32(y)) => Some(I16(x.wrapping_pow(*y))),
       (Self::Shl, U32(x), I16(y)) => Some(I16(y.wrapping_shl(*x))),
       (Self::Shr, U32(x), I16(y)) => Some(I16(y.wrapping_shr(*x))),
@@ -402,36 +415,36 @@ impl fmt::Display for I16Op {
 #[cfg(test)]
 pub mod tests {
   use super::*;
-  use quickcheck::{
-    Arbitrary,
-    Gen,
-    TestResult
-  };
-  use rand::Rng;
-  use Literal::{
-    I16,
-    U16,
-    Bool,
-    Nat,
-    Int,
-    Bits,
-    Bytes,
-    U32
-  };
   use crate::prim::{
-    U8Op,
+    I32Op,
+    I64Op,
+    I8Op,
     U16Op,
     U32Op,
     U64Op,
-    I8Op,
-    I32Op,
-    I64Op,
-  };
-  use sp_std::{
-    convert::TryInto,
-    mem
+    U8Op,
   };
   use num_bigint::BigUint;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+    TestResult,
+  };
+  use rand::Rng;
+  use sp_std::{
+    convert::TryInto,
+    mem,
+  };
+  use Literal::{
+    Bits,
+    Bool,
+    Bytes,
+    Int,
+    Nat,
+    I16,
+    U16,
+    U32,
+  };
   impl Arbitrary for I16Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -473,8 +486,8 @@ pub mod tests {
         33 => Self::ToInt,
         34 => Self::ToBits,
         _ => Self::ToBytes,
-        // 29 => Self::ToU128,
-        // 34 => Self::ToI128,
+        /* 29 => Self::ToU128,
+         * 34 => Self::ToI128, */
       }
     }
   }
@@ -488,60 +501,25 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: I16Op,
-    a: i16,
-    b: i16,
-    c: u32
-  ) -> TestResult {
+  fn test_apply(op: I16Op, a: i16, b: i16, c: u32) -> TestResult {
     let apply0_go = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I16Op::apply0(op) ==
-        expected
-      )
+      TestResult::from_bool(I16Op::apply0(op) == expected)
     };
 
     let apply1_i16 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I16Op::apply1(
-          op,
-          &I16(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I16Op::apply1(op, &I16(a)) == expected)
     };
 
     let apply2_i16_i16 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I16Op::apply2(
-          op,
-          &I16(a),
-          &I16(b)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I16Op::apply2(op, &I16(a), &I16(b)) == expected)
     };
 
     let apply2_i16_u32 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I16Op::apply2(
-          op,
-          &I16(a),
-          &U32(c)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I16Op::apply2(op, &I16(a), &U32(c)) == expected)
     };
 
     let apply2_u32_i16 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I16Op::apply2(
-          op,
-          &U32(c),
-          &I16(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I16Op::apply2(op, &U32(c), &I16(a)) == expected)
     };
 
     let from_bool = TestResult::from_bool;
@@ -563,20 +541,12 @@ pub mod tests {
       I16Op::Add => apply2_i16_i16(Some(I16(a.wrapping_add(b)))),
       I16Op::Sub => apply2_i16_i16(Some(I16(a.wrapping_sub(b)))),
       I16Op::Mul => apply2_i16_i16(Some(I16(a.wrapping_mul(b)))),
-      I16Op::Div => apply2_i16_i16(
-        if b == 0 {
-          None
-        } else {
-          Some(I16(a.wrapping_div(b)))
-        }
-      ),
-      I16Op::Mod => apply2_i16_i16(
-        if b == 0 {
-          None
-        } else {
-          Some(I16(a.wrapping_rem(b)))
-        }
-      ),
+      I16Op::Div => {
+        apply2_i16_i16(if b == 0 { None } else { Some(I16(a.wrapping_div(b))) })
+      }
+      I16Op::Mod => {
+        apply2_i16_i16(if b == 0 { None } else { Some(I16(a.wrapping_rem(b))) })
+      }
       I16Op::Pow => apply2_i16_u32(Some(I16(a.wrapping_pow(c)))),
       I16Op::Shl => apply2_u32_i16(Some(I16(a.wrapping_shl(c)))),
       I16Op::Shr => apply2_u32_i16(Some(I16(a.wrapping_shr(c)))),
@@ -584,77 +554,63 @@ pub mod tests {
       I16Op::Ror => apply2_u32_i16(Some(I16(a.rotate_right(c)))),
       I16Op::CountZeros => apply1_i16(Some(U32(a.count_zeros()))),
       I16Op::CountOnes => apply1_i16(Some(U32(a.count_ones()))),
-      I16Op::ToU8 => from_bool(
-        if a < u8::MIN.into() || a > u8::MAX.into() {
-          I16Op::apply1(op, &I16(a)) == None
-        } else {
-          U8Op::apply1(
-            U8Op::ToI16,
-            &I16Op::apply1(op, &I16(a)).unwrap()
-          ) == Some(I16(a))
-        }
-      ),
-      I16Op::ToU16 => from_bool(
-        if a < u16::MIN.try_into().unwrap() {
-          I16Op::apply1(op, &I16(a)) == None
-        } else {
-          U16Op::apply1(
-            U16Op::ToI16,
-            &I16Op::apply1(op, &I16(a)).unwrap()
-          ) == Some(I16(a))
-        }
-      ),
-      I16Op::ToU32 => from_bool(
-        if a < u32::MIN.try_into().unwrap() {
-          I16Op::apply1(op, &I16(a)) == None
-        } else {
-          U32Op::apply1(
-            U32Op::ToI16,
-            &I16Op::apply1(op, &I16(a)).unwrap()
-          ) == Some(I16(a))
-        }
-      ),
-      I16Op::ToU64 => from_bool(
-        if a < u64::MIN.try_into().unwrap() {
-          I16Op::apply1(op, &I16(a)) == None
-        } else {
-          U64Op::apply1(
-            U64Op::ToI16,
-            &I16Op::apply1(op, &I16(a)).unwrap()
-          ) == Some(I16(a))
-        }
-      ),
+      I16Op::ToU8 => from_bool(if a < u8::MIN.into() || a > u8::MAX.into() {
+        I16Op::apply1(op, &I16(a)) == None
+      }
+      else {
+        U8Op::apply1(U8Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a))
+      }),
+      I16Op::ToU16 => from_bool(if a < u16::MIN.try_into().unwrap() {
+        I16Op::apply1(op, &I16(a)) == None
+      }
+      else {
+        U16Op::apply1(U16Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a))
+      }),
+      I16Op::ToU32 => from_bool(if a < u32::MIN.try_into().unwrap() {
+        I16Op::apply1(op, &I16(a)) == None
+      }
+      else {
+        U32Op::apply1(U32Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a))
+      }),
+      I16Op::ToU64 => from_bool(if a < u64::MIN.try_into().unwrap() {
+        I16Op::apply1(op, &I16(a)) == None
+      }
+      else {
+        U64Op::apply1(U64Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a))
+      }),
       I16Op::ToU128 => TestResult::discard(),
-      I16Op::ToNat => if a.is_negative() {
-        apply1_i16(None)
-      } else {
-        apply1_i16(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
-      },
-      I16Op::ToI8 => from_bool(
-        if a < i8::MIN.into() || a > i8::MAX.into() {
-          I16Op::apply1(op, &I16(a)) == None
-        } else {
-          I8Op::apply1(
-            I8Op::ToI16,
-            &I16Op::apply1(op, &I16(a)).unwrap()
-          ) == Some(I16(a))
+      I16Op::ToNat => {
+        if a.is_negative() {
+          apply1_i16(None)
         }
-      ),
+        else {
+          apply1_i16(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
+        }
+      }
+      I16Op::ToI8 => from_bool(if a < i8::MIN.into() || a > i8::MAX.into() {
+        I16Op::apply1(op, &I16(a)) == None
+      }
+      else {
+        I8Op::apply1(I8Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a))
+      }),
       I16Op::ToI32 => from_bool(
-        I32Op::apply1(
-          I32Op::ToI16,
-          &I16Op::apply1(op, &I16(a)).unwrap()
-        ) == Some(I16(a))
+        I32Op::apply1(I32Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a)),
       ),
       I16Op::ToI64 => from_bool(
-        I64Op::apply1(
-          I64Op::ToI16,
-          &I16Op::apply1(op, &I16(a)).unwrap()
-        ) == Some(I16(a))
+        I64Op::apply1(I64Op::ToI16, &I16Op::apply1(op, &I16(a)).unwrap())
+          == Some(I16(a)),
       ),
       I16Op::ToI128 => TestResult::discard(),
       I16Op::ToInt => apply1_i16(Some(Int(a.into()))),
-      I16Op::ToBits => apply1_i16(Some(Bits(bits::bytes_to_bits(16, &a.to_be_bytes().into())))),
+      I16Op::ToBits => {
+        apply1_i16(Some(Bits(bits::bytes_to_bits(16, &a.to_be_bytes().into()))))
+      }
       I16Op::ToBytes => apply1_i16(Some(Bytes(a.to_be_bytes().into()))),
     }
   }
@@ -667,130 +623,97 @@ pub mod tests {
     c: u32,
     test_arg_2: bool,
   ) -> TestResult {
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          I16Op::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(I16Op::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        I16Op::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(I16Op::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 0.
-      I16Op::Max |
-      I16Op::Min => TestResult::discard(),
+      I16Op::Max | I16Op::Min => TestResult::discard(),
       // Arity 1, valid is I16.
-      I16Op::Abs |
-      I16Op::Sgn |
-      I16Op::Not |
-      I16Op::CountZeros |
-      I16Op::CountOnes |
-      I16Op::ToU8 |
-      I16Op::ToU16 |
-      I16Op::ToU32 |
-      I16Op::ToU64 |
-      I16Op::ToU128 |
-      I16Op::ToNat |
-      I16Op::ToI8 |
-      I16Op::ToI32 |
-      I16Op::ToI64 |
-      I16Op::ToI128 |
-      I16Op::ToInt |
-      I16Op::ToBytes |
-      I16Op::ToBits => test_apply1_none_on_invalid(I16(b)),
+      I16Op::Abs
+      | I16Op::Sgn
+      | I16Op::Not
+      | I16Op::CountZeros
+      | I16Op::CountOnes
+      | I16Op::ToU8
+      | I16Op::ToU16
+      | I16Op::ToU32
+      | I16Op::ToU64
+      | I16Op::ToU128
+      | I16Op::ToNat
+      | I16Op::ToI8
+      | I16Op::ToI32
+      | I16Op::ToI64
+      | I16Op::ToI128
+      | I16Op::ToInt
+      | I16Op::ToBytes
+      | I16Op::ToBits => test_apply1_none_on_invalid(I16(b)),
       // Arity 2, valid are I16 on a and b.
-      I16Op::Eql |
-      I16Op::Lte |
-      I16Op::Lth |
-      I16Op::Gth |
-      I16Op::Gte |
-      I16Op::And |
-      I16Op::Or |
-      I16Op::Xor |
-      I16Op::Add |
-      I16Op::Sub |
-      I16Op::Mul |
-      I16Op::Div |
-      I16Op::Mod => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          I16(b),
-          a,
-          I16(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          I16(b),
-          I16(b),
-          a
-        )
-      },
+      I16Op::Eql
+      | I16Op::Lte
+      | I16Op::Lth
+      | I16Op::Gth
+      | I16Op::Gte
+      | I16Op::And
+      | I16Op::Or
+      | I16Op::Xor
+      | I16Op::Add
+      | I16Op::Sub
+      | I16Op::Mul
+      | I16Op::Div
+      | I16Op::Mod => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(I16(b), a, I16(b))
+        }
+        else {
+          test_apply2_none_on_invalid(I16(b), I16(b), a)
+        }
+      }
       // Arity 2, valid are I16 on a and U32 on b.
-      I16Op::Pow => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          I16(b),
-          a,
-          U32(c)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U32(c),
-          I16(b),
-          a
-        )
-      },
+      I16Op::Pow => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(I16(b), a, U32(c))
+        }
+        else {
+          test_apply2_none_on_invalid(U32(c), I16(b), a)
+        }
+      }
       // Arity 2, valid are U32 on a and I16 on b.
-      I16Op::Shl |
-      I16Op::Shr |
-      I16Op::Rol |
-      I16Op::Ror => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          U32(c),
-          a,
-          I16(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          I16(b),
-          U32(c),
-          a
-        )
-      },
+      I16Op::Shl | I16Op::Shr | I16Op::Rol | I16Op::Ror => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(U32(c), a, I16(b))
+        }
+        else {
+          test_apply2_none_on_invalid(I16(b), U32(c), a)
+        }
+      }
     }
   }
 }
