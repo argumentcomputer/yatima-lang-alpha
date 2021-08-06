@@ -1,3 +1,8 @@
+use sp_std::collections::{
+  btree_map::BTreeMap,
+  btree_set::BTreeSet,
+};
+
 use yatima_core::{
   literal::{
     LitType,
@@ -26,8 +31,36 @@ pub struct LetDef {
   pub rec: bool,
   pub uses: PreUses,
   pub name: Name,
+  pub binds: Vec<Binder>,
   pub typ_: Expr,
   pub term: Expr,
+}
+
+impl LetDef {
+  pub fn new(
+    rec: bool,
+    uses: PreUses,
+    name: Name,
+    binds: Vec<Binder>,
+    typ_: Expr,
+    term: Expr,
+  ) -> Self {
+    LetDef { rec, uses, name, binds, typ_, term }
+  }
+
+  pub fn ref_graph(defs: Vec<LetDef>) -> BTreeMap<Name, BTreeSet<Name>> {
+    let mut graph = BTreeMap::new();
+    for def in defs {
+      let mut set = BTreeSet::new();
+      for bind in def.binds {
+        set.append(&mut bind.typ_.ref_set());
+      }
+      set.append(&mut def.typ_.ref_set());
+      set.append(&mut def.term.ref_set());
+      graph.insert(def.name, set);
+    }
+    graph
+  }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -67,7 +100,6 @@ pub enum Expr {
   SelfCase(Pos, Box<Expr>),
   Reference(Pos, Name),
   Let(Pos, Vec<LetDef>, Box<Expr>),
-  LetReference(Pos, Name),
   Type(Pos),
   Literal(Pos, Literal),
   // Tuple (x,y,z)
@@ -116,9 +148,7 @@ impl PartialEq for Expr {
         ta == tb && ba == bb
       }
       (Self::SelfCase(_, ba), Self::SelfCase(_, bb)) => ba == bb,
-      //  Self::Let(_, ra, ua, na, ta, xa, ba),
-      //  Self::Let(_, rb, ub, nb, tb, xb, bb),
-      //) => ra == rb && ua == ub && na == nb && ta == tb && xa == xb && ba == bb,
+      (Self::Let(_, da, ba), Self::Let(_, db, bb)) => da == db && ba == bb,
       //(Self::Rec(_), Self::Rec(_)) => true,
       //(Self::Opr(_, a), Self::Opr(_, b)) => a == b,
       _ => false,
@@ -136,6 +166,60 @@ impl PartialEq for Expr {
 //// }
 
 impl Expr {
+  pub fn ref_set(&self) -> BTreeSet<Name> {
+    let mut set = BTreeSet::new();
+    let mut stack: Vec<&Expr> = vec![];
+    stack.push(&self);
+    while let Some(expr) = stack.pop() {
+      match expr {
+        Expr::Reference(_, name) => {
+          set.insert(name.clone());
+        }
+        Expr::SelfType(_, _, bod) => {
+          stack.push(bod);
+        }
+        Expr::SelfData(_, typ, bod) => {
+          stack.push(typ);
+          stack.push(bod);
+        }
+        Expr::SelfCase(_, bod) => {
+          stack.push(bod);
+        }
+        Expr::Application(_, fun, args) => {
+          stack.push(fun);
+          for arg in args.iter() {
+            stack.push(&arg.typ_);
+            stack.push(&arg.term);
+          }
+        }
+        Expr::Lambda(_, binds, bod) => {
+          for bind in binds.iter() {
+            stack.push(&bind.typ_);
+          }
+          stack.push(bod);
+        }
+        Expr::Forall(_, binds, bod) => {
+          for bind in binds.iter() {
+            stack.push(&bind.typ_);
+          }
+          stack.push(bod);
+        }
+        Expr::Let(_, defs, bod) => {
+          for def in defs.iter() {
+            for bind in def.binds.iter() {
+              stack.push(&bind.typ_)
+            }
+            stack.push(&def.typ_);
+            stack.push(&def.term);
+          }
+          stack.push(bod);
+        }
+        _ => (),
+      }
+    }
+    set
+  }
+
   pub fn elaborate(self) -> PreTerm {
     match self {
       Self::Variable(pos, name) => PreTerm::Var(pos, name),
@@ -187,6 +271,10 @@ impl Expr {
           )
         },
       ),
+      //  Self::Let(pos, let_defs, bod) => {
+      //    // let names: Vec<Name> = let_defs.iter().map(|x| x.name).collect();
+      //    todo!()
+      //  }
       _ => todo!(),
     }
   }

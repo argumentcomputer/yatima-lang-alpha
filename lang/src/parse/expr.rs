@@ -387,6 +387,7 @@ pub fn parse_args(
 pub fn parse_tele_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
   let (i, _) = alt((
     peek(tag("def")),
+    peek(tag("let")),
     peek(tag("type")),
     peek(tag("in")),
     peek(tag("::")),
@@ -627,7 +628,6 @@ pub fn parse_forall(
 
 pub fn parse_self_type(
   input: Cid,
-
   ctx: Ctx,
   state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
@@ -675,7 +675,6 @@ pub fn parse_self_data(
 
 pub fn parse_let_def(
   input: Cid,
-
   ctx: Ctx,
   state: RcState,
 ) -> impl Fn(Span) -> IResult<Span, LetDef, ParseError<Span>> {
@@ -687,10 +686,22 @@ pub fn parse_let_def(
     let (i, _) = parse_space(i)?;
     let (i, name) = parse_name(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, _) = tag(":")(i)?;
     let (i, _) = parse_space(i)?;
-    let (i, typ_) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
-    let (i, _) = parse_space(i)?;
+    let (i, binds) = parse_binders(
+      input,
+      ctx.clone(),
+      state.clone(),
+      vec!['=', ':'],
+      BinderOpt::NameOrFull,
+    )(i)?;
+    let (i, typ_) = opt(preceded(
+      preceded(tag(":"), parse_space),
+      parse_telescope(input, ctx.clone(), state.clone()),
+    ))(i)?;
+    let (i, typ_) = match typ_ {
+      Some(x) => (i, x),
+      None => expr_hole(input, state.clone())(i)?,
+    };
     let (i, _) = tag("=")(i)?;
     let (i, _) = parse_space(i)?;
     let mut ctx2 = ctx.clone();
@@ -700,38 +711,26 @@ pub fn parse_let_def(
       if rec { ctx2.clone() } else { ctx.clone() },
       state.clone(),
     )(i)?;
-    Ok((i, LetDef { rec, uses, name, typ_, term }))
+    Ok((i, LetDef { rec, uses, name, binds, typ_, term }))
   }
 }
 
-// pub fn parse_let(
-//  input: Cid,
-//
-//  ctx: Ctx,
-//  state: RcState,
-//) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
-//  move |from: Span| {
-//    let (i, let_defs) =
-//      many1(parse_let_def(input, ctx.clone(), state.clone()))(from)?;
-//    let (i, _) = parse_space(i)?;
-//    let (i, _) = tag("in")(i)?;
-//    let (i, _) = parse_space(i)?;
-//    let (upto, bod) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
-//    let pos = Pos::from_upto(input, from, upto);
-//    Ok((
-//      upto,
-//      Term::Let(
-//        pos,
-//        letrec,
-//        uses,
-//        nam,
-//        Box::new(typ),
-//        Box::new(exp),
-//        Box::new(bod),
-//      ),
-//    ))
-//  }
-//}
+pub fn parse_let(
+  input: Cid,
+  ctx: Ctx,
+  state: RcState,
+) -> impl Fn(Span) -> IResult<Span, Expr, ParseError<Span>> {
+  move |from: Span| {
+    let (i, let_defs) =
+      many1(parse_let_def(input, ctx.clone(), state.clone()))(from)?;
+    let (i, _) = parse_space(i)?;
+    let (i, _) = tag("in")(i)?;
+    let (i, _) = parse_space(i)?;
+    let (upto, bod) = parse_telescope(input, ctx.clone(), state.clone())(i)?;
+    let pos = Pos::from_upto(input, from, upto);
+    Ok((upto, Expr::Let(pos, let_defs, Box::new(bod))))
+  }
+}
 
 pub fn parse_expr(
   input: Cid,
@@ -896,5 +895,102 @@ pub mod tests {
     let res = test("λ a b c => a");
     println!("res: {:?}", res);
     assert!(res.is_ok());
+  }
+  #[test]
+  fn test_parse_let() {
+    fn test(i: &str) -> IResult<Span, Expr, ParseError<Span>> {
+      parse_let(input_cid(i), Ctx::new(), State::init_ref())(Span::new(i))
+    }
+    let res = test("let x = 1 in x");
+    // println!("res: {:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(
+      res.unwrap().1,
+      Expr::Let(
+        Pos::None,
+        vec![LetDef::new(
+          false,
+          PreUses::Hol(Name::from("uses_0")),
+          Name::from("x"),
+          vec![],
+          Expr::MetaVariable(Pos::None, Name::from("expr_0")),
+          Expr::Literal(Pos::None, Literal::Nat(1u64.into())),
+        )],
+        Box::new(Expr::Reference(Pos::None, Name::from("x")))
+      )
+    );
+    let res = test("let f x y z = 1 in f");
+    // println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = test("let ω f (ω x: A) (ω y: B) (ω z: C) = 1 in f");
+    // println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = test("let f = 1 let g = 1 in f");
+    // println!("res: {:?}", res);
+    assert!(res.is_ok());
+    let res = test(
+      "letrec & f (ω x: A) (ω y: B) (ω z: C): D = 1
+       let ω g (ω x: A) (ω y: B) (ω z: C): D = 1
+       in f",
+    );
+    println!("res: {:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(
+      res.unwrap().1,
+      Expr::Let(
+        Pos::None,
+        vec![
+          LetDef::new(
+            true,
+            PreUses::Affi,
+            Name::from("f"),
+            vec![
+              Binder::new(
+                PreUses::Many,
+                Name::from("x"),
+                Expr::Reference(Pos::None, Name::from("A"))
+              ),
+              Binder::new(
+                PreUses::Many,
+                Name::from("y"),
+                Expr::Reference(Pos::None, Name::from("B"))
+              ),
+              Binder::new(
+                PreUses::Many,
+                Name::from("z"),
+                Expr::Reference(Pos::None, Name::from("C"))
+              ),
+            ],
+            Expr::Reference(Pos::None, Name::from("D")),
+            Expr::Literal(Pos::None, Literal::Nat(1u64.into())),
+          ),
+          LetDef::new(
+            false,
+            PreUses::Many,
+            Name::from("g"),
+            vec![
+              Binder::new(
+                PreUses::Many,
+                Name::from("x"),
+                Expr::Reference(Pos::None, Name::from("A"))
+              ),
+              Binder::new(
+                PreUses::Many,
+                Name::from("y"),
+                Expr::Reference(Pos::None, Name::from("B"))
+              ),
+              Binder::new(
+                PreUses::Many,
+                Name::from("z"),
+                Expr::Reference(Pos::None, Name::from("C"))
+              ),
+            ],
+            Expr::Reference(Pos::None, Name::from("D")),
+            Expr::Literal(Pos::None, Literal::Nat(1u64.into())),
+          ),
+        ],
+        Box::new(Expr::Reference(Pos::None, Name::from("f")))
+      )
+    );
   }
 }
