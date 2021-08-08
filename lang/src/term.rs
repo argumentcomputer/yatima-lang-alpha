@@ -1,14 +1,12 @@
 use yatima_core::{
-  anon::Anon,
-  embed_error::EmbedError,
   literal::{
     LitType,
     Literal,
   },
-  meta::Meta,
   name::Name,
   position::Pos,
   prim::Op,
+  term::Term as Core,
 };
 
 use sp_cid::Cid;
@@ -26,6 +24,7 @@ use alloc::string::{
   ToString,
 };
 
+#[derive(Clone)]
 pub enum Term {
   Var(Pos, Name, u64),
   Hol(Pos, Name),
@@ -127,6 +126,57 @@ impl Term {
       Term::LTy(pos, _) => *pos,
       Term::Lit(pos, _) => *pos,
       Term::Opr(pos, _) => *pos,
+    }
+  }
+
+  pub fn from_core(core: Core) -> Self {
+    match core {
+      Core::Var(pos, nam, ind) => Self::Var(pos, nam, ind),
+      Core::Ref(pos, nam, ..) => Self::Ref(pos, nam),
+      Core::LTy(pos, lty) => Self::LTy(pos, lty),
+      Core::Lit(pos, lit) => Self::Lit(pos, lit),
+      Core::Opr(pos, opr) => Self::Opr(pos, opr),
+      Core::Typ(pos) => Self::Typ(pos),
+      Core::Lam(pos, uses, nam, typ, bod) => Self::Lam(
+        pos,
+        Uses::from_core(uses),
+        nam.clone(),
+        Box::new(Self::from_core(*typ)),
+        Box::new(Self::from_core(*bod)),
+      ),
+      Core::All(pos, uses, nam, dom, img) => Self::All(
+        pos,
+        Uses::from_core(uses),
+        nam.clone(),
+        Box::new(Self::from_core(*dom)),
+        Box::new(Self::from_core(*img)),
+      ),
+      Core::App(pos, uses, fun, typ, arg) => Self::App(
+        pos,
+        Uses::from_core(uses),
+        Box::new(Self::from_core(*fun)),
+        Box::new(Self::from_core(*typ)),
+        Box::new(Self::from_core(*arg)),
+      ),
+      Core::Slf(pos, nam, bod) => {
+        Self::Slf(pos, nam.clone(), Box::new(Self::from_core(*bod)))
+      }
+      Core::Dat(pos, typ, bod) => Self::Dat(
+        pos,
+        Box::new(Self::from_core(*typ)),
+        Box::new(Self::from_core(*bod)),
+      ),
+      Core::Cse(pos, bod) => Self::Cse(pos, Box::new(Self::from_core(*bod))),
+      Core::Let(pos, rec, uses, nam, typ, exp, bod) => Self::Let(
+        pos,
+        rec,
+        Uses::from_core(uses),
+        nam.clone(),
+        Box::new(Self::from_core(*typ)),
+        Box::new(Self::from_core(*exp)),
+        Box::new(Self::from_core(*bod)),
+      ),
+      Core::Rec(..) => panic!("cannot convert from Core containing Rec"),
     }
   }
 

@@ -1,5 +1,8 @@
 use sp_std::fmt;
-use yatima_core::name::Name;
+use yatima_core::{
+  name::Name,
+  uses::Uses as Core,
+};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Uses {
@@ -8,6 +11,17 @@ pub enum Uses {
   Once,
   Many,
   Meta(Name),
+}
+
+impl Uses {
+  pub fn from_core(core: Core) -> Self {
+    match core {
+      Core::None => Self::None,
+      Core::Affi => Self::Affi,
+      Core::Once => Self::Once,
+      Core::Many => Self::Many,
+    }
+  }
 }
 
 impl fmt::Display for Uses {

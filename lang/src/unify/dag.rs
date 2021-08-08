@@ -1066,45 +1066,14 @@ impl DAG {
 
   pub fn from_term(tree: &Term) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
-    DAG::new(DAG::from_term_inner(tree, 0, BTreeMap::new(), Some(root), None))
+    DAG::new(DAG::from_term_inner(tree, 0, BTreeMap::new(), Some(root)))
   }
-
-  // pub fn from_def(def: &Def, name: Name) -> Self {
-  //  let root = alloc_val(DLL::singleton(ParentPtr::Root));
-  //  let (d, _, a) = def.embed();
-  //  let def_cid = d.cid();
-  //  let ast_cid = a.cid();
-  //  DAG::new(DAG::from_term_inner(
-  //    &def.term,
-  //    0,
-  //    BTreeMap::new(),
-  //    Some(root),
-  //    Some((name, def_cid, ast_cid)),
-  //  ))
-  //}
-
-  // pub fn from_ref(
-  //  def: &Def,
-  //  name: Name,
-  //  def_cid: Cid,
-  //  ast_cid: Cid,
-  //  parents: Option<NonNull<Parents>>,
-  //) -> DAGPtr {
-  //  DAG::from_term_inner(
-  //    &def.term,
-  //    0,
-  //    BTreeMap::new(),
-  //    parents,
-  //    Some((name, def_cid, ast_cid)),
-  //  )
-  //}
 
   pub fn from_term_inner(
     tree: &Term,
     depth: u64,
     mut ctx: BTreeMap<usize, DAGPtr>,
     parents: Option<NonNull<Parents>>,
-    rec_ref: Option<(Name, Cid, Cid)>,
   ) -> DAGPtr {
     match tree {
       Term::Var(_, name, idx) => {
@@ -1156,7 +1125,6 @@ impl DAG {
           depth,
           ctx,
           NonNull::new(typ_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         bod_ctx.insert(depth as usize, DAGPtr::Var(NonNull::new(var).unwrap()));
         let bod = DAG::from_term_inner(
@@ -1164,7 +1132,6 @@ impl DAG {
           depth + 1,
           bod_ctx,
           NonNull::new(bod_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*lam.as_ptr()).typ = typ;
         (*bind.as_ptr()).bod = bod;
@@ -1183,7 +1150,6 @@ impl DAG {
           depth,
           ctx,
           NonNull::new(dom_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         img_ctx.insert(depth as usize, DAGPtr::Var(NonNull::new(var).unwrap()));
         let img = DAG::from_term_inner(
@@ -1191,7 +1157,6 @@ impl DAG {
           depth + 1,
           img_ctx,
           NonNull::new(bod_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*all.as_ptr()).dom = dom;
         (*bind.as_ptr()).bod = img;
@@ -1206,7 +1171,6 @@ impl DAG {
           depth + 1,
           ctx,
           NonNull::new(bod_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*slf.as_ptr()).bod = bod;
         DAGPtr::Slf(slf)
@@ -1220,14 +1184,12 @@ impl DAG {
           depth,
           ctx.clone(),
           NonNull::new(typ_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         let bod = DAG::from_term_inner(
           bod,
           depth,
           ctx,
           NonNull::new(bod_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*dat.as_ptr()).typ = typ;
         (*dat.as_ptr()).bod = bod;
@@ -1241,7 +1203,6 @@ impl DAG {
           depth,
           ctx,
           NonNull::new(bod_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*cse.as_ptr()).bod = bod;
         DAGPtr::Cse(cse)
@@ -1261,21 +1222,18 @@ impl DAG {
           depth,
           ctx.clone(),
           NonNull::new(fun_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         let typ = DAG::from_term_inner(
           typ,
           depth,
           ctx.clone(),
           NonNull::new(typ_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         let arg = DAG::from_term_inner(
           arg,
           depth,
           ctx,
           NonNull::new(arg_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*app.as_ptr()).fun = fun;
         (*app.as_ptr()).typ = typ;
@@ -1300,14 +1258,12 @@ impl DAG {
           depth,
           typ_ctx,
           NonNull::new(typ_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         let bod = DAG::from_term_inner(
           bod,
           depth + 1,
           bod_ctx,
           NonNull::new(bod_ref.as_mut().unwrap()),
-          rec_ref.clone(),
         );
         (*let_.as_ptr()).typ = typ;
         (*let_.as_ptr()).bod = bind;
@@ -1331,7 +1287,6 @@ impl DAG {
             depth + 1,
             ctx,
             NonNull::new(fix_bod_ref.as_mut().unwrap()),
-            rec_ref.clone(),
           );
           (*let_.as_ptr()).exp = DAGPtr::Fix(fix);
           (*fix.as_ptr()).bod = exp;
@@ -1342,7 +1297,6 @@ impl DAG {
             depth,
             ctx,
             NonNull::new(exp_ref.as_mut().unwrap()),
-            rec_ref.clone(),
           );
           (*let_.as_ptr()).exp = exp;
         }

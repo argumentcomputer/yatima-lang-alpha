@@ -11,11 +11,11 @@ extern crate quickcheck_macros;
 #[cfg(test)]
 extern crate rand;
 
-// pub mod defs;
 // pub mod package;
 // pub mod typedef;
 //#[macro_use]
 pub mod decl;
+pub mod defs;
 pub mod expr;
 pub mod parse;
 pub mod term;
