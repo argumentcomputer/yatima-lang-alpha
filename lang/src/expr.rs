@@ -22,14 +22,14 @@ use sp_std::{
 };
 
 use crate::{
-  pre_term::PreTerm,
-  pre_uses::PreUses,
+  term::Term,
+  uses::Uses,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LetDef {
   pub rec: bool,
-  pub uses: PreUses,
+  pub uses: Uses,
   pub name: Name,
   pub binds: Vec<Binder>,
   pub typ_: Expr,
@@ -39,7 +39,7 @@ pub struct LetDef {
 impl LetDef {
   pub fn new(
     rec: bool,
-    uses: PreUses,
+    uses: Uses,
     name: Name,
     binds: Vec<Binder>,
     typ_: Expr,
@@ -65,25 +65,25 @@ impl LetDef {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Binder {
-  pub uses: PreUses,
+  pub uses: Uses,
   pub name: Name,
   pub typ_: Expr,
 }
 
 impl Binder {
-  pub fn new(uses: PreUses, name: Name, typ_: Expr) -> Self {
+  pub fn new(uses: Uses, name: Name, typ_: Expr) -> Self {
     Binder { uses, name, typ_ }
   }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Argument {
-  pub uses: PreUses,
+  pub uses: Uses,
   pub typ_: Expr,
   pub term: Expr,
 }
 impl Argument {
-  pub fn new(uses: PreUses, typ_: Expr, term: Expr) -> Self {
+  pub fn new(uses: Uses, typ_: Expr, term: Expr) -> Self {
     Argument { uses, typ_, term }
   }
 }
@@ -220,62 +220,50 @@ impl Expr {
     set
   }
 
-  pub fn elaborate(self) -> PreTerm {
-    match self {
-      Self::Variable(pos, name) => PreTerm::Var(pos, name),
-      Self::MetaVariable(pos, name) => PreTerm::Hol(pos, name),
-      Self::Type(pos) => PreTerm::Typ(pos),
-      Self::Literal(pos, lit) => PreTerm::Lit(pos, lit),
-      Self::LitType(pos, typ) => PreTerm::LTy(pos, typ),
-      Self::LitOpr(pos, opr) => PreTerm::Opr(pos, opr),
-      Self::SelfType(pos, nam, bod) => {
-        PreTerm::Slf(pos, nam, Box::new(bod.elaborate()))
-      }
-      Self::SelfCase(pos, bod) => PreTerm::Cse(pos, Box::new(bod.elaborate())),
-      Self::SelfData(pos, typ, bod) => {
-        PreTerm::Dat(pos, Box::new(typ.elaborate()), Box::new(bod.elaborate()))
-      }
-      Self::Application(pos, fun, args) => args.into_iter().fold(
-        fun.elaborate(),
-        |acc, Argument { uses, typ_, term }| {
-          PreTerm::App(
-            pos,
-            uses,
-            Box::new(acc),
-            Box::new(typ_.elaborate()),
-            Box::new(term.elaborate()),
-          )
-        },
-      ),
-      Self::Lambda(pos, binds, bod) => binds.into_iter().rev().fold(
-        bod.elaborate(),
-        |acc, Binder { uses, name, typ_ }| {
-          PreTerm::Lam(
-            pos,
-            uses,
-            name,
-            Box::new(typ_.elaborate()),
-            Box::new(acc),
-          )
-        },
-      ),
-      Self::Forall(pos, binds, bod) => binds.into_iter().rev().fold(
-        bod.elaborate(),
-        |acc, Binder { uses, name, typ_ }| {
-          PreTerm::All(
-            pos,
-            uses,
-            name,
-            Box::new(typ_.elaborate()),
-            Box::new(acc),
-          )
-        },
-      ),
-      //  Self::Let(pos, let_defs, bod) => {
-      //    // let names: Vec<Name> = let_defs.iter().map(|x| x.name).collect();
-      //    todo!()
-      //  }
-      _ => todo!(),
-    }
-  }
+  // pub fn elaborate(self) -> Term {
+  //  match self {
+  //    // Self::Variable(pos, name) => Term::Var(pos, name),
+  //    Self::MetaVariable(pos, name) => Term::Hol(pos, name),
+  //    Self::Type(pos) => Term::Typ(pos),
+  //    Self::Literal(pos, lit) => Term::Lit(pos, lit),
+  //    Self::LitType(pos, typ) => Term::LTy(pos, typ),
+  //    Self::LitOpr(pos, opr) => Term::Opr(pos, opr),
+  //    Self::SelfType(pos, nam, bod) => {
+  //      Term::Slf(pos, nam, Box::new(bod.elaborate()))
+  //    }
+  //    Self::SelfCase(pos, bod) => Term::Cse(pos, Box::new(bod.elaborate())),
+  //    Self::SelfData(pos, typ, bod) => {
+  //      Term::Dat(pos, Box::new(typ.elaborate()), Box::new(bod.elaborate()))
+  //    }
+  //    Self::Application(pos, fun, args) => args.into_iter().fold(
+  //      fun.elaborate(),
+  //      |acc, Argument { uses, typ_, term }| {
+  //        Term::App(
+  //          pos,
+  //          uses,
+  //          Box::new(acc),
+  //          Box::new(typ_.elaborate()),
+  //          Box::new(term.elaborate()),
+  //        )
+  //      },
+  //    ),
+  //    Self::Lambda(pos, binds, bod) => binds.into_iter().rev().fold(
+  //      bod.elaborate(),
+  //      |acc, Binder { uses, name, typ_ }| {
+  //        Term::Lam(pos, uses, name, Box::new(typ_.elaborate()), Box::new(acc))
+  //      },
+  //    ),
+  //    Self::Forall(pos, binds, bod) => binds.into_iter().rev().fold(
+  //      bod.elaborate(),
+  //      |acc, Binder { uses, name, typ_ }| {
+  //        Term::All(pos, uses, name, Box::new(typ_.elaborate()), Box::new(acc))
+  //      },
+  //    ),
+  //    //  Self::Let(pos, let_defs, bod) => {
+  //    //    // let names: Vec<Name> = let_defs.iter().map(|x| x.name).collect();
+  //    //    todo!()
+  //    //  }
+  //    _ => todo!(),
+  //  }
+  //}
 }

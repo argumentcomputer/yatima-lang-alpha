@@ -56,7 +56,7 @@ use crate::{
     op::parse_opr,
     span::Span,
   },
-  pre_uses::PreUses,
+  uses::Uses,
 };
 
 use nom::{
@@ -201,24 +201,24 @@ pub fn expr_hole(
 
 pub fn uses_hole(
   state: RcState,
-) -> impl Fn(Span) -> IResult<Span, PreUses, ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, Uses, ParseError<Span>> {
   move |i: Span| {
     let mut state = state.borrow_mut();
     let count = state.uses_hole_count.clone();
     state.uses_hole_count += 1;
-    Ok((i, PreUses::Hol(Name::from(format!("uses_{}", count)))))
+    Ok((i, Uses::Meta(Name::from(format!("uses_{}", count)))))
   }
 }
 
 pub fn parse_uses(
   state: RcState,
-) -> impl Fn(Span) -> IResult<Span, PreUses, ParseError<Span>> {
+) -> impl Fn(Span) -> IResult<Span, Uses, ParseError<Span>> {
   move |i: Span| {
     alt((
-      value(PreUses::Many, terminated(tag("ω"), multispace1)),
-      value(PreUses::None, terminated(tag("0"), multispace1)),
-      value(PreUses::Affi, terminated(tag("&"), multispace1)),
-      value(PreUses::Once, terminated(tag("1"), multispace1)),
+      value(Uses::Many, terminated(tag("ω"), multispace1)),
+      value(Uses::None, terminated(tag("0"), multispace1)),
+      value(Uses::Affi, terminated(tag("&"), multispace1)),
+      value(Uses::Once, terminated(tag("1"), multispace1)),
       uses_hole(state.clone()),
     ))(i)
   }
@@ -791,7 +791,7 @@ pub mod tests {
         Pos::None,
         Box::new(Expr::Literal(Pos::None, Literal::Nat(1u64.into()))),
         vec![Argument::new(
-          PreUses::Many,
+          Uses::Many,
           Expr::Literal(Pos::None, Literal::Nat(2u64.into())),
           Expr::Literal(Pos::None, Literal::Nat(3u64.into())),
         )]
@@ -806,7 +806,7 @@ pub mod tests {
         Pos::None,
         Box::new(Expr::Literal(Pos::None, Literal::Nat(1u64.into()))),
         vec![Argument::new(
-          PreUses::Hol(Name::from("uses_0")),
+          Uses::Hol(Name::from("uses_0")),
           Expr::MetaVariable(Pos::None, Name::from("expr_0")),
           Expr::Literal(Pos::None, Literal::Nat(2u64.into())),
         )]
@@ -826,7 +826,7 @@ pub mod tests {
         Pos::None,
         Box::new(Expr::LitType(Pos::None, LitType::Int)),
         vec![Argument::new(
-          PreUses::None,
+          Uses::None,
           Expr::LitType(Pos::None, LitType::U16),
           Expr::Literal(Pos::None, Literal::Nat(1u64.into()))
         ),]
@@ -845,11 +845,7 @@ pub mod tests {
       res.unwrap().1,
       Expr::Lambda(
         Pos::None,
-        vec![Binder::new(
-          PreUses::Many,
-          Name::from("a"),
-          Expr::Type(Pos::None)
-        )],
+        vec![Binder::new(Uses::Many, Name::from("a"), Expr::Type(Pos::None))],
         Box::new(Expr::Type(Pos::None))
       )
     );
@@ -870,7 +866,7 @@ pub mod tests {
       Expr::Lambda(
         Pos::None,
         vec![Binder::new(
-          PreUses::Hol(Name::from("uses_0")),
+          Uses::Hol(Name::from("uses_0")),
           Name::from("a"),
           Expr::MetaVariable(Pos::None, Name::from("expr_0"))
         )],
@@ -885,7 +881,7 @@ pub mod tests {
       Expr::Lambda(
         Pos::None,
         vec![Binder::new(
-          PreUses::Hol(Name::from("uses_0")),
+          Uses::Hol(Name::from("uses_0")),
           Name::from("a"),
           Expr::MetaVariable(Pos::None, Name::from("expr_0"))
         )],
@@ -910,7 +906,7 @@ pub mod tests {
         Pos::None,
         vec![LetDef::new(
           false,
-          PreUses::Hol(Name::from("uses_0")),
+          Uses::Hol(Name::from("uses_0")),
           Name::from("x"),
           vec![],
           Expr::MetaVariable(Pos::None, Name::from("expr_0")),
@@ -942,21 +938,21 @@ pub mod tests {
         vec![
           LetDef::new(
             true,
-            PreUses::Affi,
+            Uses::Affi,
             Name::from("f"),
             vec![
               Binder::new(
-                PreUses::Many,
+                Uses::Many,
                 Name::from("x"),
                 Expr::Reference(Pos::None, Name::from("A"))
               ),
               Binder::new(
-                PreUses::Many,
+                Uses::Many,
                 Name::from("y"),
                 Expr::Reference(Pos::None, Name::from("B"))
               ),
               Binder::new(
-                PreUses::Many,
+                Uses::Many,
                 Name::from("z"),
                 Expr::Reference(Pos::None, Name::from("C"))
               ),
@@ -966,21 +962,21 @@ pub mod tests {
           ),
           LetDef::new(
             false,
-            PreUses::Many,
+            Uses::Many,
             Name::from("g"),
             vec![
               Binder::new(
-                PreUses::Many,
+                Uses::Many,
                 Name::from("x"),
                 Expr::Reference(Pos::None, Name::from("A"))
               ),
               Binder::new(
-                PreUses::Many,
+                Uses::Many,
                 Name::from("y"),
                 Expr::Reference(Pos::None, Name::from("B"))
               ),
               Binder::new(
-                PreUses::Many,
+                Uses::Many,
                 Name::from("z"),
                 Expr::Reference(Pos::None, Name::from("C"))
               ),

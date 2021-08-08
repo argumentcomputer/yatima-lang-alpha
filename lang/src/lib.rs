@@ -18,8 +18,9 @@ extern crate rand;
 pub mod decl;
 pub mod expr;
 pub mod parse;
-pub mod pre_term;
-pub mod pre_uses;
+pub mod term;
+pub mod unify;
+pub mod uses;
 
 //#[cfg(test)]
 // pub mod tests {
