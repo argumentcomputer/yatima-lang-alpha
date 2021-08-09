@@ -39,6 +39,16 @@ pub enum IR {
   Opr(Op),
 }
 
+// Auxiliary definition positions
+pub const UNARY_FUNC_TYPE: usize = 0;
+pub const BINARY_FUNC_TYPE: usize = 1;
+pub const TRUE_EXPANSION: usize = 2;
+pub const FALSE_EXPANSION: usize = 3;
+pub const ZERO_EXPANSION: usize = 4;
+pub const SUCC_EXPANSION: usize = 5;
+pub const NIL_EXPANSION: usize = 6;
+pub const CONS_EXPANSION: usize = 7;
+
 pub fn aux_defs() -> Vec<(Name, IR, IR)> {
   let defs = &mut Defs::new();
   let done = &mut BTreeMap::new();

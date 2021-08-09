@@ -16,6 +16,7 @@ use crate::{
     Literal,
   },
   prim::Op,
+  machine::ir,
 };
 
 use alloc::string::String;
@@ -34,6 +35,10 @@ use sp_multihash::{
   StatefulHasher,
   Blake3Hasher,
   Blake3Digest,
+};
+
+use num_bigint::{
+  BigUint,
 };
 
 // The maximum byte size of array of globals
@@ -745,6 +750,28 @@ pub fn reduce(
           }
           node.clone()
         }
+        Graph::Lit(_, lit) => {
+          let len = trail.len();
+          if len > 0 {
+            let redex = trail[len-1].clone();
+            match &*redex.borrow() {
+              Graph::Cse(_,_) => (),
+              _ => break,
+            };
+            trail.pop();
+            match expand_lit(lit) {
+              Some(expand) => {
+                let mut mut_ref = (*redex).borrow_mut();
+                *mut_ref = expand;
+              },
+              None => break,
+            };
+            redex
+          }
+          else {
+            break
+          }
+        }
         Graph::Opr(_, opr) => {
           let len = trail.len();
           if len == 0 && opr.arity() == 0 {
@@ -870,9 +897,6 @@ pub fn reduce(
             break;
           }
         }
-        Graph::Lit(_, _) => {
-          todo!()
-        }
         _ => break,
       }
     };
@@ -881,6 +905,82 @@ pub fn reduce(
   // TODO update the spine hash
   // This is only correct because we are updating the redex nodes.
   node
+}
+
+pub fn expand_lit(lit: &Literal) -> Option<Graph> {
+  let idx = match lit {
+    Literal::Nat(n) => {
+      if *n == BigUint::from(0u64) {
+        ir::ZERO_EXPANSION
+      }
+      else {
+        todo!()
+        // Some(yatima!(
+        //   "λ P z s => s #$0",
+        //   Term::Lit(Pos::None, Literal::Nat(n - BigUint::from(1u64)))
+        // ))
+      }
+    }
+    Literal::Int(_) => panic!("Integer expansion not yet implemented"),
+    Literal::Bits(t) => {
+      let c = t.last();
+      match c {
+        None => {
+          ir::NIL_EXPANSION
+        }
+        Some(_) => {
+          todo!()
+        //   Some(yatima!(
+        //   "λ P n c => c #$0 #$1",
+        //   Term::Lit(Pos::None, Literal::Bool(c)),
+        //   Term::Lit(Pos::None, Literal::Bits(t))
+        // )),
+        }
+      }
+    }
+    Literal::Bytes(t) => {
+      let c = t.last();
+      match c {
+        None => {
+          ir::NIL_EXPANSION
+        },
+        Some(_) => {
+          todo!()
+        //   Some(yatima!(
+        //   "λ P n c => c #$0 #$1",
+        //   Term::Lit(Pos::None, Literal::U8(c)),
+        //   Term::Lit(Pos::None, Literal::Bytes(t))
+        // )),
+        }
+      }
+    }
+    Literal::Text(t) => {
+      let len = t.len_chars();
+      if len == 0 {
+        ir::NIL_EXPANSION
+      }
+      else {
+          todo!()
+      // Some(yatima!(
+      //   "λ P n c => c #$0 #$1",
+      //   Term::Lit(Pos::None, Literal::Char(c)),
+      //   Term::Lit(Pos::None, Literal::Text(t))
+      // )),
+      }
+    },
+    Literal::Bool(true) => {
+      ir::TRUE_EXPANSION
+    },
+    Literal::Bool(false) => {
+      ir::FALSE_EXPANSION
+    },
+    _ => return None,
+  };
+  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
+  update_hasher(&mut hasher, REF_GBL as usize);
+  update_hasher(&mut hasher, idx);
+  let hash = hasher.finalize();
+  Some(Graph::Ref(hash, idx))
 }
 
 pub fn stringify_graph(
