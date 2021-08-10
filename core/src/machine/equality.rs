@@ -162,6 +162,9 @@ pub fn hash_graph(
       Graph::Opr(opr) => {
         string.push_str(&format!("O{}", opr))
       },
+      Graph::Unr(_, exp) => {
+        stack.push(exp.clone())
+      },
     }
   }
   string

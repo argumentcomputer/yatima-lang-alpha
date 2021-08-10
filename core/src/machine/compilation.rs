@@ -134,7 +134,6 @@ pub fn compile_ir(
   env: &FreeVars,
   fun_defs: &mut Vec<FunCell>
 ) -> usize {
-
   fn go(
     is_proj: bool,
     ir: &IR,

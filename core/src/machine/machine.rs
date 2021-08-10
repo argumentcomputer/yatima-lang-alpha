@@ -105,6 +105,8 @@ pub enum Graph {
   Lit(Literal),
   LTy(LitType),
   Opr(Op),
+  // Only used for typechecking Fix
+  Unr(usize, Link<Graph>),
 }
 
 #[derive(Clone, Debug)]
@@ -267,6 +269,11 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
       Graph::Fix(Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
         let new_node = Graph::Fix(Closure { idx: *idx, env });
+        new_link(new_node)
+      }
+      Graph::Unr(idx, exp) => {
+        let exp = go(exp.clone(), map);
+        let new_node = Graph::Unr(*idx, exp);
         new_link(new_node)
       }
       node => new_link(node.clone())
@@ -736,6 +743,13 @@ pub fn reduce(
             break;
           }
         }
+        Graph::Unr(_, exp) => {
+          let reduced_node = reduce(globals, fun_defs, exp.clone());
+          drop(borrow);
+          let mut borrow = node.borrow_mut();
+          *borrow = (*reduced_node.borrow()).clone();
+          node.clone()
+        }
         _ => break,
       }
     };
@@ -886,6 +900,10 @@ pub fn stringify_graph(
     },
     Graph::Opr(opr) => {
       format!("(Opr {})", opr)
+    },
+    Graph::Unr(_, exp) => {
+      let exp = stringify_graph(globals, fun_defs, exp.clone());
+      format!("{}", exp)
     },
   }
 }

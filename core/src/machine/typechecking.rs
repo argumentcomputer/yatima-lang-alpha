@@ -1,4 +1,5 @@
 use crate::{
+  name::Name,
   uses::Uses,
   defs::Defs,
   literal::{
@@ -12,7 +13,6 @@ use crate::{
 };
 
 use alloc::string::String;
-use alloc::string::ToString;
 use sp_std::{
   vec::Vec,
   rc::Rc,
@@ -27,7 +27,7 @@ pub enum CheckError {
   GenericError(String),
 }
 
-pub type Ctx = Vec<(String, Uses, Link<Graph>)>;
+pub type Ctx = Vec<(Name, Uses, Link<Graph>)>;
 
 #[inline]
 pub fn add_mul_ctx(uses: Uses, use_ctx: &mut Ctx, use_ctx2: Ctx) {
@@ -87,7 +87,7 @@ pub fn check(
           let img = build_graph(true, mut_globals, fun_defs, img.idx, &img.env, new_link(Graph::Var(ctx.len(), all_name.clone())));
           // Adjust the context multiplicity, add the argument to the context and check the body
           let rest_ctx = div_ctx(uses, ctx);
-          ctx.push((all_name.to_string(), *lam_uses, dom.clone()));
+          ctx.push((all_name.clone(), *lam_uses, dom.clone()));
           check(globals, mut_globals, fun_defs, ctx, Uses::Once, bod, img)?;
           // Check whether the rest 'contains' zero (i.e., zero is less than or
           // equal to the rest), otherwise the variable was not used enough
@@ -130,28 +130,20 @@ pub fn check(
       let bod = build_graph(false, globals, fun_defs, *idx, env, ann_exp);
       check(globals, mut_globals, fun_defs, ctx, uses, bod, typ)
     }
-    Graph::Fix(_) => {
-      todo!()
-      // let hex = hash_to_hex(hash);
-      // if let Some(detected_typ) = unrolled_terms.get(&hex) {
-      //   let depth = ctx.len();
-      //   if equal(mut_globals, fun_defs, depth, typ, detected_typ.clone()) {
-      //     Ok(())
-      //   }
-      //   else {
-      //     Err(CheckError::GenericError(format!("Wrong types")))
-      //   }
-      // }
-      // else {
-      //   unrolled_terms.insert(hex, typ.clone());
-      //   let arg = Rc::new(RefCell::new(Graph::Fix(*hash, Closure { idx: *idx, env: env.clone() })));
-      //   let bod = build_graph(false, globals, fun_defs, *idx, env, arg);
-      //   // This will remove all linear and affine variables, which cannot be used inside a fix
-      //   let rest_ctx = div_ctx(Uses::Many, ctx);
-      //   check(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod, typ)?; // TODO better error message
-      //   add_ctx(ctx, rest_ctx);
-      //   Ok(())
-      // }
+    Graph::Fix(Closure { idx, env }) => {
+      let arg = new_link(Graph::Fix(Closure { idx: *idx, env: env.clone() }));
+      let arg = new_link(Graph::Unr(ctx.len(), arg));
+      let bod = build_graph(false, globals, fun_defs, *idx, env, arg);
+      // This will remove all linear and affine variables, which cannot be used inside a fix
+      let rest_ctx = div_ctx(Uses::Many, ctx);
+      // Push the recursion to the context and check
+      let name = &fun_defs[*idx].arg_name;
+      ctx.push((name.clone(), Uses::Many, typ.clone()));
+      check(globals, mut_globals, fun_defs, ctx, uses, bod, typ)?;
+      ctx.pop();
+      // TODO: check error caused by the removal of linear/affine variables should have a special explanation
+      add_ctx(ctx, rest_ctx);
+      Ok(())
     }
     _ => {
       let depth = ctx.len();
@@ -221,7 +213,7 @@ pub fn infer(
       check(globals, mut_globals, fun_defs, ctx, Uses::None, dom.clone(), typ.clone())?;
       let name = &fun_defs[*idx].arg_name;
       let img = build_graph(false, globals, fun_defs, *idx, env, new_link(Graph::Var(ctx.len(), name.clone())));
-      ctx.push((name.to_string(), Uses::None, full_clone(dom.clone())));
+      ctx.push((name.clone(), Uses::None, full_clone(dom.clone())));
       check(globals, mut_globals, fun_defs, ctx, Uses::None, img, typ.clone())?;
       ctx.pop();
       Ok(typ)
@@ -230,7 +222,7 @@ pub fn infer(
       let typ = new_link(Graph::Typ);
       let name = &fun_defs[*idx].arg_name;
       let bod = build_graph(false, globals, fun_defs, *idx, env, new_link(Graph::Var(ctx.len(), name.clone())));
-      ctx.push((name.to_string(), Uses::None, full_clone(term.clone())));
+      ctx.push((name.clone(), Uses::None, full_clone(term.clone())));
       check(globals, mut_globals, fun_defs, ctx, Uses::None, bod, typ.clone())?;
       ctx.pop();
       Ok(typ)
@@ -241,12 +233,12 @@ pub fn infer(
       let bod = build_graph(false, globals, fun_defs, *idx, env, ann_exp);
       infer(globals, mut_globals, fun_defs, ctx, uses, bod)
       // let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
-      // check(unrolled_terms, globals, mut_globals, fun_defs, ctx, *exp_uses * uses, exp.clone(), typ.clone())?;
+      // check(globals, mut_globals, fun_defs, ctx, *exp_uses * uses, exp.clone(), typ.clone())?;
       // let rest_ctx = div_ctx(uses, ctx);
       // let name = &fun_defs[*idx].arg_name;
       // let bod = build_graph(false, globals, fun_defs, *idx, env, new_var(ctx.len(), name.clone()));
-      // ctx.push((name.to_string(), *exp_uses, typ.clone()));
-      // let bod_typ = infer(unrolled_terms, globals, mut_globals, fun_defs, ctx, Uses::Once, bod)?;
+      // ctx.push((name.clone(), *exp_uses, typ.clone()));
+      // let bod_typ = infer(globals, mut_globals, fun_defs, ctx, Uses::Once, bod)?;
       // let (_, rest, _) = ctx.last().unwrap();
       // // Have to check whether the rest 'contains' zero (i.e., zero is less than or
       // // equal to the rest), otherwise the variable was not used enough
@@ -271,16 +263,7 @@ pub fn infer(
     }
     Graph::Lam(..) => Err(CheckError::GenericError(format!("Untyped lambda"))),
     Graph::Dat(..) => Err(CheckError::GenericError(format!("Untyped data"))),
-    Graph::Fix(_) => {
-      todo!()
-      // let hex = hash_to_hex(hash);
-      // if let Some(typ) = unrolled_terms.get(&hex) {
-      //   Ok(typ.clone())
-      // }
-      // else {
-      //   Err(CheckError::GenericError(format!("Untyped fix")))
-      // }
-    }
+    Graph::Fix(_) => Err(CheckError::GenericError(format!("Untyped fix"))),
     Graph::Lit(lit) => {
       let lty = infer_lit(lit);
       Ok(new_link(Graph::LTy(lty)))
@@ -298,6 +281,9 @@ pub fn infer(
       let typ = ir_to_graph(&ir, fun_defs);
       Ok(typ)
     },
+    Graph::Unr(idx, _) => {
+      Ok(ctx[*idx].2.clone())
+    }
   }
 }
 
