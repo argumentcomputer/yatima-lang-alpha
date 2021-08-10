@@ -1,5 +1,5 @@
 // A G-machine like graph reducer using closures instead of supercombinators, reference counting,
-// and a bottom-up, hash-consed, construction of graphs
+// and a bottom-up construction of graphs
 
 // In this initial draft, each function will take exactly one argument. The elements of the stack
 // will be copied as needed to the environment of closures.
@@ -28,13 +28,6 @@ use sp_std::{
   collections::{
     btree_map::BTreeMap,
   },
-};
-
-use sp_multihash::{
-  U32,
-  StatefulHasher,
-  Blake3Hasher,
-  Blake3Digest,
 };
 
 use num_bigint::{
@@ -89,32 +82,29 @@ pub const EVAL: CODE = 18;
 pub const END: CODE = 0;
 
 pub type Link<T> = Rc<RefCell<T>>;
+
 #[inline]
 pub fn new_link<T>(value: T) -> Link<T> {
   Rc::new(RefCell::new(value))
 }
 
-pub type Hash = Blake3Digest<U32>;
-pub const HASH_SIZE: usize = 32;
-pub type Hex = [u8; HASH_SIZE];
-
 #[derive(Clone, Debug)]
 pub enum Graph {
-  Lam(Hash, Closure),
-  App(Hash, Link<Graph>, Link<Graph>),
-  Var(Hash, usize, Name),
-  Ref(Hash, usize),
-  Typ(Hash),
-  All(Hash, Uses, Link<Graph>, Closure),
-  Slf(Hash, Closure),
-  Dat(Hash, Link<Graph>),
-  Cse(Hash, Link<Graph>),
-  Ann(Hash, Link<Graph>, Link<Graph>),
-  Let(Hash, Uses, Link<Graph>, Link<Graph>, Closure),
-  Fix(Hash, Closure),
-  Lit(Hash, Literal),
-  LTy(Hash, LitType),
-  Opr(Hash, Op),
+  Lam(Closure),
+  App(Link<Graph>, Link<Graph>),
+  Var(usize, Name),
+  Ref(usize),
+  Typ,
+  All(Uses, Link<Graph>, Closure),
+  Slf(Closure),
+  Dat(Link<Graph>),
+  Cse(Link<Graph>),
+  Ann(Link<Graph>, Link<Graph>),
+  Let(Uses, Link<Graph>, Link<Graph>, Closure),
+  Fix(Closure),
+  Lit(Literal),
+  LTy(LitType),
+  Opr(Op),
 }
 
 #[derive(Clone, Debug)]
@@ -134,49 +124,6 @@ pub struct DefCell {
 pub struct FunCell {
   pub arg_name: Name,
   pub code: Vec<CODE>,
-  pub hash: Hash,
-}
-
-#[inline]
-pub fn update_hasher(hasher: &mut Blake3Hasher<U32>, x: usize) {
-  let bytes = usize_to_bytes::<8>(x);
-  hasher.update(&bytes);
-}
-
-#[inline]
-pub fn get_hash<'a>(term: &'a Graph) -> &'a Hash {
-  match term {
-    Graph::Lam(hash, _) => hash,
-    Graph::Var(hash, _, _) => hash,
-    Graph::App(hash, _, _) => hash,
-    Graph::Ref(hash, _) => hash,
-    Graph::Typ(hash) => hash,
-    Graph::All(hash, _, _, _) => hash,
-    Graph::Slf(hash, _) => hash,
-    Graph::Dat(hash, _) => hash,
-    Graph::Cse(hash, _) => hash,
-    Graph::Ann(hash, _, _) => hash,
-    Graph::Let(hash, _, _, _, _) => hash,
-    Graph::Fix(hash, _) => hash,
-    Graph::Lit(hash, _) => hash,
-    Graph::LTy(hash, _) => hash,
-    Graph::Opr(hash, _) => hash,
-  }
-}
-
-#[inline]
-pub fn get_u8_hash<'a>(term: &'a Graph) -> &'a [u8] {
-  get_hash(term).as_ref()
-}
-
-#[inline]
-pub fn hash_to_hex(hash: &Hash) -> Hex {
-  let hash = hash.as_ref();
-  let mut hex = [0; HASH_SIZE];
-  for i in 0..HASH_SIZE-1 {
-    hex[i] = hash[i];
-  }
-  hex
 }
 
 // little endian encoding of bytes
@@ -265,38 +212,6 @@ pub fn code_to_opr(pair: (CODE, CODE)) -> Op {
     }
   }
 }
-#[inline]
-pub fn new_typ() -> Link<Graph> {
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
-  update_hasher(&mut hasher, MK_TYP as usize);
-  let hash = hasher.finalize();
-  new_link(Graph::Typ(hash))
-}
-
-#[inline]
-pub fn new_lty(lty: LitType) -> Link<Graph> {
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
-  update_hasher(&mut hasher, MK_LTY as usize);
-  update_hasher(&mut hasher, lty as usize);
-  let hash = hasher.finalize();
-  new_link(Graph::LTy(hash, lty))
-}
-
-#[inline]
-pub fn new_ann(typ: Link<Graph>, exp: Link<Graph>) -> Link<Graph> {
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
-  update_hasher(&mut hasher, MK_TYP as usize);
-  let hash = hasher.finalize();
-  new_link(Graph::Ann(hash, typ, exp))
-}
-
-#[inline]
-pub fn new_var(dep: usize, name: Name) -> Link<Graph> {
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
-  update_hasher(&mut hasher, dep);
-  let hash = hasher.finalize();
-  new_link(Graph::Var(hash, dep, name.clone()))
-}
 
 pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
   fn go(node: Link<Graph>, map: &mut BTreeMap<*mut Graph, Link<Graph>>) -> Link<Graph> {
@@ -304,54 +219,54 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
       return copy.clone()
     }
     let copy = match &*node.borrow() {
-      Graph::Lam(hash, Closure { idx, env }) => {
+      Graph::Lam(Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
-        let new_node = Graph::Lam(*hash, Closure { idx: *idx, env });
+        let new_node = Graph::Lam(Closure { idx: *idx, env });
         new_link(new_node)
       }
-      Graph::App(hash, fun, arg) => {
+      Graph::App(fun, arg) => {
         let fun = go(fun.clone(), map);
         let arg = go(arg.clone(), map);
-        let new_node = Graph::App(*hash, fun, arg);
+        let new_node = Graph::App(fun, arg);
         new_link(new_node)
       }
-      Graph::All(hash, uses, dom, Closure { idx, env }) => {
+      Graph::All(uses, dom, Closure { idx, env }) => {
         let dom = go(dom.clone(), map);
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
-        let new_node = Graph::All(*hash, *uses, dom, Closure { idx: *idx, env });
+        let new_node = Graph::All(*uses, dom, Closure { idx: *idx, env });
         new_link(new_node)
       }
-      Graph::Slf(hash, Closure { idx, env}) => {
+      Graph::Slf(Closure { idx, env}) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
-        let new_node = Graph::Slf(*hash, Closure { idx: *idx, env });
+        let new_node = Graph::Slf(Closure { idx: *idx, env });
         new_link(new_node)
       }
-      Graph::Dat(hash, bod) => {
+      Graph::Dat(bod) => {
         let bod = go(bod.clone(), map);
-        let new_node = Graph::Dat(*hash, bod);
+        let new_node = Graph::Dat(bod);
         new_link(new_node)
       }
-      Graph::Cse(hash, bod) => {
+      Graph::Cse(bod) => {
         let bod = go(bod.clone(), map);
-        let new_node = Graph::Cse(*hash, bod);
+        let new_node = Graph::Cse(bod);
         new_link(new_node)
       }
-      Graph::Ann(hash, typ, exp) => {
+      Graph::Ann(typ, exp) => {
         let typ = go(typ.clone(), map);
         let exp = go(exp.clone(), map);
-        let new_node = Graph::Ann(*hash, typ, exp);
+        let new_node = Graph::Ann(typ, exp);
         new_link(new_node)
       }
-      Graph::Let(hash, uses, typ, exp, Closure { idx, env }) => {
+      Graph::Let(uses, typ, exp, Closure { idx, env }) => {
         let typ = go(typ.clone(), map);
         let exp = go(exp.clone(), map);
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
-        let new_node = Graph::Let(*hash, *uses, typ, exp, Closure { idx: *idx, env });
+        let new_node = Graph::Let(*uses, typ, exp, Closure { idx: *idx, env });
         new_link(new_node)
       }
-      Graph::Fix(hash, Closure { idx, env }) => {
+      Graph::Fix(Closure { idx, env }) => {
         let env = env.iter().map(|node| go(node.clone(), map)).collect();
-        let new_node = Graph::Fix(*hash, Closure { idx: *idx, env });
+        let new_node = Graph::Fix(Closure { idx: *idx, env });
         new_link(new_node)
       }
       node => new_link(node.clone())
@@ -366,8 +281,6 @@ pub fn full_clone(node: Link<Graph>) -> Link<Graph> {
 pub fn build_closure(
   code: &Vec<CODE>,
   pc: &mut usize,
-  hasher: &mut Blake3Hasher<U32>,
-  fun_defs: &Vec<FunCell>,
   arg: Link<Graph>,
   env: &Vec<Link<Graph>>,
 ) -> Closure {
@@ -378,8 +291,6 @@ pub fn build_closure(
   let env_length = bytes_to_usize(bytes);
   *pc = *pc+ENV_SIZE;
   let mut fun_env = vec![];
-  hasher.update(fun_defs[fun_index].hash.as_ref());
-  hasher.update(bytes);
   for _ in 0..env_length {
     let bytes = &code[*pc+1..*pc+1+ENV_SIZE];
     let index = bytes_to_usize(bytes);
@@ -389,11 +300,9 @@ pub fn build_closure(
     // in the environment
     if index == 0 {
       fun_env.push(arg.clone());
-      hasher.update(get_u8_hash(&arg.borrow()));
     }
     else {
       fun_env.push(env[index-1].clone());
-      hasher.update(get_u8_hash(&env[index-1].borrow()));
     }
     *pc = *pc+ENV_SIZE;
   }
@@ -420,36 +329,25 @@ pub fn build_graph(
   let code = &fun_defs[idx].code;
   let mut pc = 0;
   let mut args: Vec<Link<Graph>> = vec![];
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
   loop {
     match code[pc] {
       MK_APP => {
         // Function comes last, so it is popped first
         let fun = args.pop().unwrap();
         let arg = args.pop().unwrap();
-        hasher.update(get_u8_hash(&arg.borrow()));
-        hasher.update(get_u8_hash(&fun.borrow()));
-        update_hasher(&mut hasher, MK_APP as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::App(hash, fun, arg)
+          Graph::App(fun, arg)
         ));
       },
       MK_LAM => {
-        update_hasher(&mut hasher, MK_LAM as usize);
         let clos = build_closure(
           code,
           &mut pc,
-          &mut hasher,
-          fun_defs,
           arg.clone(),
           env,
         );
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Lam(hash, clos)
+          Graph::Lam(clos)
         ));
       }
       REF_GBL => {
@@ -470,79 +368,53 @@ pub fn build_graph(
       MK_VAR => {
         let bytes = &code[pc+1..pc+9];
         let index = bytes_to_usize(bytes);
-        hasher.update(bytes);
-        let hash = hasher.finalize();
-        hasher.reset();
         // TODO: add proper names
         let name = Name::from("x");
         args.push(new_link(
-          Graph::Var(hash, index, name)
+          Graph::Var(index, name)
         ));
         pc = pc+8;
       },
       MK_TYP => {
-        update_hasher(&mut hasher, MK_TYP as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Typ(hash)
+          Graph::Typ
         ));
       },
       MK_ALL => {
         let uses = code[pc+1];
         pc = pc+1;
         let dom = args.pop().unwrap();
-        hasher.update(get_u8_hash(&dom.borrow()));
-        update_hasher(&mut hasher, MK_ALL as usize);
-        update_hasher(&mut hasher, uses as usize);
         let clos = build_closure(
           code,
           &mut pc,
-          &mut hasher,
-          fun_defs,
           arg.clone(),
           env,
         );
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::All(hash, code_to_uses(uses), dom, clos)
+          Graph::All(code_to_uses(uses), dom, clos)
         ));
       },
       MK_SLF => {
-        update_hasher(&mut hasher, MK_SLF as usize);
         let clos = build_closure(
           code,
           &mut pc,
-          &mut hasher,
-          fun_defs,
           arg.clone(),
           env,
         );
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Slf(hash, clos)
+          Graph::Slf(clos)
         ));
       },
       MK_DAT => {
         let bod = args.pop().unwrap();
-        hasher.update(get_u8_hash(&bod.borrow()));
-        update_hasher(&mut hasher, MK_DAT as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Dat(hash, bod)
+          Graph::Dat(bod)
         ));
       },
       MK_CSE => {
         let bod = args.pop().unwrap();
-        hasher.update(get_u8_hash(&bod.borrow()));
-        update_hasher(&mut hasher, MK_CSE as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Cse(hash, bod)
+          Graph::Cse(bod)
         ));
       },
       MK_ANN => {
@@ -553,13 +425,8 @@ pub fn build_graph(
         else {
           let typ = args.pop().unwrap();
           let exp = args.pop().unwrap();
-          hasher.update(get_u8_hash(&exp.borrow()));
-          hasher.update(get_u8_hash(&typ.borrow()));
-          update_hasher(&mut hasher, MK_ANN as usize);
-          let hash = hasher.finalize();
-          hasher.reset();
           args.push(new_link(
-            Graph::Ann(hash, typ, exp)
+            Graph::Ann(typ, exp)
           ));
         }
       },
@@ -579,36 +446,25 @@ pub fn build_graph(
         pc = pc+1;
         let typ = args.pop().unwrap();
         let exp = args.pop().unwrap();
-        hasher.update(get_u8_hash(&exp.borrow()));
-        update_hasher(&mut hasher, MK_LET as usize);
         let clos = build_closure(
           code,
           &mut pc,
-          &mut hasher,
-          fun_defs,
           arg.clone(),
           env,
         );
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Let(hash, code_to_uses(uses), typ, exp, clos)
+          Graph::Let(code_to_uses(uses), typ, exp, clos)
         ));
       },
       MK_FIX => {
-        update_hasher(&mut hasher, MK_FIX as usize);
         let clos = build_closure(
           code,
           &mut pc,
-          &mut hasher,
-          fun_defs,
           arg.clone(),
           env,
         );
-        let hash = hasher.finalize();
-        hasher.reset();
         args.push(new_link(
-          Graph::Fix(hash, clos)
+          Graph::Fix(clos)
         ));
       },
       MK_LIT => {
@@ -617,27 +473,18 @@ pub fn build_graph(
       MK_LTY => {
         let lty = code[pc+1];
         pc = pc+1;
-        update_hasher(&mut hasher, MK_LTY as usize);
-        update_hasher(&mut hasher, lty as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
         let lty = unsafe { mem::transmute(lty) };
         args.push(new_link(
-          Graph::LTy(hash, lty)
+          Graph::LTy(lty)
         ));
       }
       MK_OPR => {
         let typ_code = code[pc+1];
         let opr_code = code[pc+2];
         pc = pc+2;
-        update_hasher(&mut hasher, MK_OPR as usize);
-        update_hasher(&mut hasher, typ_code as usize);
-        update_hasher(&mut hasher, opr_code as usize);
-        let hash = hasher.finalize();
-        hasher.reset();
         let opr = code_to_opr((typ_code, opr_code));
         args.push(new_link(
-          Graph::Opr(hash, opr)
+          Graph::Opr(opr)
         ));
       }
       END => break,
@@ -659,16 +506,16 @@ pub fn reduce(
     let next_node = {
       let borrow = node.borrow();
       match &*borrow {
-        Graph::App(_, fun, _) => {
+        Graph::App(fun, _) => {
           trail.push(node.clone());
           fun.clone()
         }
-        Graph::Lam(_, Closure { idx, env }) => {
+        Graph::Lam(Closure { idx, env }) => {
           let len = trail.len();
           if len > 0 {
             let redex = trail[len-1].clone();
             let arg = match &*redex.borrow() {
-              Graph::App(_,_,arg) => {
+              Graph::App(_, arg) => {
                 arg.clone()
               }
               // Must be a Cse node, in which case we are in whnf
@@ -687,23 +534,23 @@ pub fn reduce(
             break
           }
         },
-        Graph::Ref(_, idx) => {
+        Graph::Ref(idx) => {
           let reduced_node = reduce(globals, fun_defs, globals[*idx].term.clone());
           drop(borrow);
           let mut borrow = node.borrow_mut();
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         },
-        Graph::Cse(_, bod) => {
+        Graph::Cse(bod) => {
           trail.push(node.clone());
           bod.clone()
         }
-        Graph::Dat(_, bod) => {
+        Graph::Dat(bod) => {
           let len = trail.len();
           if len > 0 {
             let redex = trail[len-1].clone();
             match &*redex.borrow() {
-              Graph::Cse(_,_) => (),
+              Graph::Cse(_) => (),
               // Must be an App node, in which case we are in whnf
               _ => break,
             };
@@ -721,28 +568,28 @@ pub fn reduce(
             break
           }
         }
-        Graph::Ann(_, _, exp) => {
+        Graph::Ann(_, exp) => {
           let reduced_node = reduce(globals, fun_defs, exp.clone());
           drop(borrow);
           let mut borrow = node.borrow_mut();
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }
-        Graph::Let(_, _, _, exp, Closure { idx, env }) => {
+        Graph::Let(_, _, exp, Closure { idx, env }) => {
           let reduced_node = build_graph(true, globals, fun_defs, *idx, env, exp.clone());
           drop(borrow);
           let mut borrow = node.borrow_mut();
           *borrow = (*reduced_node.borrow()).clone();
           node.clone()
         }
-        Graph::Fix(_, _) => {
+        Graph::Fix(_) => {
           // We have to clone the contents of `node` and drop its borrow only to
           // borrow and match it again, otherwise the borrow checker complains
           let arg = new_link(borrow.clone());
           drop(borrow);
           let mut borrow = node.borrow_mut();
           match &mut *borrow {
-            Graph::Fix(_, Closure { idx, env }) => {
+            Graph::Fix(Closure { idx, env }) => {
               let reduced_node = build_graph(true, globals, fun_defs, *idx, env, arg);
               *borrow = (*reduced_node.borrow()).clone();
             }
@@ -750,12 +597,12 @@ pub fn reduce(
           }
           node.clone()
         }
-        Graph::Lit(_, lit) => {
+        Graph::Lit(lit) => {
           let len = trail.len();
           if len > 0 {
             let redex = trail[len-1].clone();
             match &*redex.borrow() {
-              Graph::Cse(_,_) => (),
+              Graph::Cse(_) => (),
               _ => break,
             };
             trail.pop();
@@ -772,14 +619,12 @@ pub fn reduce(
             break
           }
         }
-        Graph::Opr(_, opr) => {
+        Graph::Opr(opr) => {
           let len = trail.len();
           if len == 0 && opr.arity() == 0 {
             let res = opr.apply0();
             if let Some(res) = res {
-              // TODO add proper hash
-              let hash = Blake3Hasher::default().finalize();
-              new_link(Graph::Lit(hash, res))
+              new_link(Graph::Lit(res))
             }
             else {
               break;
@@ -788,21 +633,19 @@ pub fn reduce(
           else if len >= 1 && opr.arity() == 1 {
             let app = trail[len-1].clone();
             let arg = match &*app.borrow() {
-              Graph::App(_, _, arg) => arg.clone(),
+              Graph::App(_, arg) => arg.clone(),
               _ => break,
             };
             let arg = reduce(globals, fun_defs, arg);
             let borrow = arg.borrow();
             match &*borrow {
-              Graph::Lit(_, x) => {
+              Graph::Lit(x) => {
                 let res = opr.apply1(x);
                 if let Some(res) = res {
                   let top = trail.pop().unwrap();
                   {
-                    // TODO add proper hash
-                    let hash = Blake3Hasher::default().finalize();
                     let mut mut_ref = (*top).borrow_mut();
-                    *mut_ref = Graph::Lit(hash, res);
+                    *mut_ref = Graph::Lit(res);
                   }
                   top
                 }
@@ -816,12 +659,12 @@ pub fn reduce(
           else if len >= 2 && opr.arity() == 2 {
             let app = trail[len-1].clone();
             let arg1 = match &*app.borrow() {
-              Graph::App(_, _, arg) => arg.clone(),
+              Graph::App(_, arg) => arg.clone(),
               _ => break,
             };
             let app = trail[len-2].clone();
             let arg2 = match &*app.borrow() {
-              Graph::App(_, _, arg) => arg.clone(),
+              Graph::App(_, arg) => arg.clone(),
               _ => break,
             };
             let arg1 = reduce(globals, fun_defs, arg1);
@@ -829,16 +672,14 @@ pub fn reduce(
             let borrow1 = arg1.borrow();
             let borrow2 = arg2.borrow();
             match (&*borrow1, &*borrow2) {
-              (Graph::Lit(_, x), Graph::Lit(_, y)) => {
+              (Graph::Lit(x), Graph::Lit(y)) => {
                 let res = opr.apply2(x, y);
                 if let Some(res) = res {
                   trail.pop();
                   let top = trail.pop().unwrap();
                   {
-                    // TODO add proper hash
-                    let hash = Blake3Hasher::default().finalize();
                     let mut mut_ref = (*top).borrow_mut();
-                    *mut_ref = Graph::Lit(hash, res);
+                    *mut_ref = Graph::Lit(res);
                   }
                   top
                 }
@@ -852,17 +693,17 @@ pub fn reduce(
           else if len >= 3 && opr.arity() == 3 {
             let app = trail[len-1].clone();
             let arg1 = match &*app.borrow() {
-              Graph::App(_, _, arg) => arg.clone(),
+              Graph::App(_, arg) => arg.clone(),
               _ => break,
             };
             let app = trail[len-2].clone();
             let arg2 = match &*app.borrow() {
-              Graph::App(_, _, arg) => arg.clone(),
+              Graph::App(_, arg) => arg.clone(),
               _ => break,
             };
             let app = trail[len-3].clone();
             let arg3 = match &*app.borrow() {
-              Graph::App(_, _, arg) => arg.clone(),
+              Graph::App(_, arg) => arg.clone(),
               _ => break,
             };
             let arg1 = reduce(globals, fun_defs, arg1);
@@ -872,17 +713,15 @@ pub fn reduce(
             let borrow2 = arg2.borrow();
             let borrow3 = arg3.borrow();
             match (&*borrow1, &*borrow2, &*borrow3) {
-              (Graph::Lit(_, x), Graph::Lit(_, y), Graph::Lit(_, z)) => {
+              (Graph::Lit(x), Graph::Lit(y), Graph::Lit(z)) => {
                 let res = opr.apply3(x, y, z);
                 if let Some(res) = res {
                   trail.pop();
                   trail.pop();
                   let top = trail.pop().unwrap();
                   {
-                    // TODO add proper hash
-                    let hash = Blake3Hasher::default().finalize();
                     let mut mut_ref = (*top).borrow_mut();
-                    *mut_ref = Graph::Lit(hash, res);
+                    *mut_ref = Graph::Lit(res);
                   }
                   top
                 }
@@ -902,7 +741,6 @@ pub fn reduce(
     };
     node = next_node;
   }
-  // TODO update the spine hash
   // This is only correct because we are updating the redex nodes.
   node
 }
@@ -976,11 +814,7 @@ pub fn expand_lit(lit: &Literal) -> Option<Graph> {
     },
     _ => return None,
   };
-  let mut hasher: Blake3Hasher<U32> = Blake3Hasher::default();
-  update_hasher(&mut hasher, REF_GBL as usize);
-  update_hasher(&mut hasher, idx);
-  let hash = hasher.finalize();
-  Some(Graph::Ref(hash, idx))
+  Some(Graph::Ref(idx))
 }
 
 pub fn stringify_graph(
@@ -989,88 +823,68 @@ pub fn stringify_graph(
   graph: Link<Graph>
 ) -> String {
   match &*graph.borrow() {
-    Graph::App(_, fun, arg) => {
+    Graph::App(fun, arg) => {
       let fun = stringify_graph(globals, fun_defs, fun.clone());
       let arg = stringify_graph(globals, fun_defs, arg.clone());
       format!("(App {} {})", fun, arg)
     }
-    Graph::Lam(_, Closure { idx, env }) => {
-      let mut env_str = vec![];
-      for graph in env {
-        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
-      }
-      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+    Graph::Lam(Closure { idx, env }) => {
+      let code_str = stringify_code(globals, fun_defs, *idx, env);
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Lam {} {})", arg_name, code_str)
     }
-    Graph::Var(_, _, nam) => {
+    Graph::Var(_, nam) => {
       format!("(Var {})", nam)
     }
-    Graph::Ref(_, idx) => {
+    Graph::Ref(idx) => {
       format!("(Ref {})", globals[*idx].name)
     },
-    Graph::Typ(_) => {
+    Graph::Typ => {
       format!("Typ")
     },
-    Graph::All(_, uses, dom, Closure { idx, env }) => {
+    Graph::All(uses, dom, Closure { idx, env }) => {
       let dom = stringify_graph(globals, fun_defs, dom.clone());
-      let mut env_str = vec![];
-      for graph in env {
-        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
-      }
-      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+      let code_str = stringify_code(globals, fun_defs, *idx, env);
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(All {} {} {} {})", uses, arg_name, dom, code_str)
     },
-    Graph::Slf(_, Closure { idx, env }) => {
-      let mut env_str = vec![];
-      for graph in env {
-        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
-      }
-      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+    Graph::Slf(Closure { idx, env }) => {
+      let code_str = stringify_code(globals, fun_defs, *idx, env);
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Slf {} {})", arg_name, code_str)
     },
-    Graph::Dat(_, bod) => {
+    Graph::Dat(bod) => {
       let bod = stringify_graph(globals, fun_defs, bod.clone());
       format!("(Dat {})", bod)
     },
-    Graph::Cse(_, bod) => {
+    Graph::Cse(bod) => {
       let bod = stringify_graph(globals, fun_defs, bod.clone());
       format!("(Dat {})", bod)
     },
-    Graph::Ann(_, typ, exp) => {
+    Graph::Ann(typ, exp) => {
       let typ = stringify_graph(globals, fun_defs, typ.clone());
       let exp = stringify_graph(globals, fun_defs, exp.clone());
       format!("(Ann {} {})", typ, exp)
     },
-    Graph::Let(_, uses, typ, exp, Closure { idx, env }) => {
+    Graph::Let(uses, typ, exp, Closure { idx, env }) => {
       let typ = stringify_graph(globals, fun_defs, typ.clone());
       let exp = stringify_graph(globals, fun_defs, exp.clone());
-      let mut env_str = vec![];
-      for graph in env {
-        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
-      }
-      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+      let code_str = stringify_code(globals, fun_defs, *idx, env);
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Let {} {} {} {} {})", uses, arg_name, typ, exp, code_str)
     },
-    Graph::Fix(_, Closure { idx, env }) => {
-      let mut env_str = vec![];
-      for graph in env {
-        env_str.push(stringify_graph(globals, fun_defs, graph.clone()));
-      }
-      let code_str = stringify_code(globals, fun_defs, *idx, &env_str);
+    Graph::Fix(Closure { idx, env }) => {
+      let code_str = stringify_code(globals, fun_defs, *idx, env);
       let arg_name = &fun_defs[*idx].arg_name;
       format!("(Fix {} {})", arg_name, code_str)
     },
-    Graph::Lit(_, lit) => {
+    Graph::Lit(lit) => {
       format!("(Lit {})", lit)
     },
-    Graph::LTy(_, lty) => {
+    Graph::LTy(lty) => {
       format!("(LTy {})", lty)
     },
-    Graph::Opr(_, opr) => {
+    Graph::Opr(opr) => {
       format!("(Opr {})", opr)
     },
   }
@@ -1080,7 +894,7 @@ pub fn stringify_code(
   globals: &Vec<DefCell>,
   fun_defs: &Vec<FunCell>,
   idx: usize,
-  env: &Vec<String>
+  env: &Vec<Link<Graph>>
 ) -> String {
   let code = &fun_defs[idx].code;
   let arg_name = &fun_defs[idx].arg_name;
@@ -1112,7 +926,8 @@ pub fn stringify_code(
       REF_ENV => {
         let bytes = &code[pc+1..pc+1+ENV_SIZE];
         let index = bytes_to_usize(bytes);
-        args.push(env[index].clone());
+        let hash = stringify_graph(globals, fun_defs, env[index].clone());
+        args.push(hash);
         pc = pc+ENV_SIZE;
       },
       MK_VAR => {
@@ -1151,7 +966,7 @@ pub fn stringify_code(
       MK_ANN => {
         let typ = args.pop().unwrap();
         let exp = args.pop().unwrap();
-        args.push(format!("(App {} {})", typ, exp));
+        args.push(format!("(Ann {} {})", typ, exp));
       },
       MK_LET => {
         let uses = code[pc+1];
@@ -1200,8 +1015,8 @@ pub fn stringify_env(
   code: &Vec<CODE>,
   pc: &mut usize,
   arg_name: &Name,
-  env: &Vec<String>,
-) -> (usize, Vec<String>) {
+  env: &Vec<Link<Graph>>,
+) -> (usize, Vec<Link<Graph>>) {
   let bytes = &code[*pc+1..*pc+1+MAP_SIZE];
   let fun_index = bytes_to_usize(bytes);
   *pc = *pc+MAP_SIZE;
@@ -1213,7 +1028,7 @@ pub fn stringify_env(
     let bytes = &code[*pc+1..*pc+1+ENV_SIZE];
     let index = bytes_to_usize(bytes);
     if index == 0 {
-      fun_env.push(format!("(Var {})", arg_name));
+      fun_env.push(new_link(Graph::Var(0, arg_name.clone())));
     }
     else {
       fun_env.push(env[index-1].clone());

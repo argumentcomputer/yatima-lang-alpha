@@ -67,7 +67,6 @@ pub fn div_ctx(uses: Uses, use_ctx: &mut Ctx) -> Ctx {
 // The core typechecking function. It assumes typ is in whnf for performance,
 // so make sure to call reduce on the type before checking
 pub fn check(
-  unrolled_terms: &mut BTreeMap<Hex, Link<Graph>>,
   globals: &Vec<DefCell>,
   mut_globals: &Vec<DefCell>,
   fun_defs: &mut Vec<FunCell>,
@@ -78,18 +77,18 @@ pub fn check(
 ) -> Result<(), CheckError> {
   let term_borrow = term.borrow();
   match &*term_borrow {
-    Graph::Lam(_, bod) => {
+    Graph::Lam(bod) => {
       match &*typ.borrow() {
-        Graph::All(_, lam_uses, dom, img) => {
+        Graph::All(lam_uses, dom, img) => {
           // Build the graphs for the lambda body and the image
           let lam_name = &fun_defs[bod.idx].arg_name;
           let all_name = &fun_defs[img.idx].arg_name;
-          let bod = build_graph(false, globals, fun_defs, bod.idx, &bod.env, new_var(ctx.len(), lam_name.clone()));
-          let img = build_graph(true, mut_globals, fun_defs, img.idx, &img.env, new_var(ctx.len(), all_name.clone()));
+          let bod = build_graph(false, globals, fun_defs, bod.idx, &bod.env, new_link(Graph::Var(ctx.len(), lam_name.clone())));
+          let img = build_graph(true, mut_globals, fun_defs, img.idx, &img.env, new_link(Graph::Var(ctx.len(), all_name.clone())));
           // Adjust the context multiplicity, add the argument to the context and check the body
           let rest_ctx = div_ctx(uses, ctx);
           ctx.push((all_name.to_string(), *lam_uses, dom.clone()));
-          check(unrolled_terms, globals, mut_globals, fun_defs, ctx, Uses::Once, bod, img)?;
+          check(globals, mut_globals, fun_defs, ctx, Uses::Once, bod, img)?;
           // Check whether the rest 'contains' zero (i.e., zero is less than or
           // equal to the rest), otherwise the variable was not used enough
           let (_, rest, _) = ctx.last().unwrap();
@@ -109,14 +108,14 @@ pub fn check(
         }
       }
     }
-    Graph::Dat(_, bod) => {
+    Graph::Dat(bod) => {
       match &*typ.borrow() {
-        Graph::Slf(_, slf_bod) => {
+        Graph::Slf(slf_bod) => {
           // The type of the body of the data must be the body of the self with term
           // substituted for its variable.
           let arg = Rc::new(RefCell::new(term_borrow.clone()));
           let unrolled_slf = build_graph(true, mut_globals, fun_defs, slf_bod.idx, &slf_bod.env, arg);
-          check(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod.clone(), unrolled_slf)?;
+          check(globals, mut_globals, fun_defs, ctx, uses, bod.clone(), unrolled_slf)?;
           Ok(())
         }
         _ => {
@@ -124,38 +123,39 @@ pub fn check(
         }
       }
     }
-    Graph::Let(_, _, exp_typ, exp, Closure { idx, env }) => {
+    Graph::Let(_, exp_typ, exp, Closure { idx, env }) => {
       // Since we don't have a good function for substituting free variables
       // we are going to be expanding let expressions
-      let ann_exp = new_ann(exp_typ.clone(), exp.clone());
+      let ann_exp = new_link(Graph::Ann(exp_typ.clone(), exp.clone()));
       let bod = build_graph(false, globals, fun_defs, *idx, env, ann_exp);
-      check(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod, typ)
+      check(globals, mut_globals, fun_defs, ctx, uses, bod, typ)
     }
-    Graph::Fix(hash, Closure { idx, env }) => {
-      let hex = hash_to_hex(hash);
-      if let Some(detected_typ) = unrolled_terms.get(&hex) {
-        let depth = ctx.len();
-        if equal(mut_globals, fun_defs, depth, typ, detected_typ.clone()) {
-          Ok(())
-        }
-        else {
-          Err(CheckError::GenericError(format!("Wrong types")))
-        }
-      }
-      else {
-        unrolled_terms.insert(hex, typ.clone());
-        let arg = Rc::new(RefCell::new(Graph::Fix(*hash, Closure { idx: *idx, env: env.clone() })));
-        let bod = build_graph(false, globals, fun_defs, *idx, env, arg);
-        // This will remove all linear and affine variables, which cannot be used inside a fix
-        let rest_ctx = div_ctx(Uses::Many, ctx);
-        check(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod, typ)?; // TODO better error message
-        add_ctx(ctx, rest_ctx);
-        Ok(())
-      }
+    Graph::Fix(_) => {
+      todo!()
+      // let hex = hash_to_hex(hash);
+      // if let Some(detected_typ) = unrolled_terms.get(&hex) {
+      //   let depth = ctx.len();
+      //   if equal(mut_globals, fun_defs, depth, typ, detected_typ.clone()) {
+      //     Ok(())
+      //   }
+      //   else {
+      //     Err(CheckError::GenericError(format!("Wrong types")))
+      //   }
+      // }
+      // else {
+      //   unrolled_terms.insert(hex, typ.clone());
+      //   let arg = Rc::new(RefCell::new(Graph::Fix(*hash, Closure { idx: *idx, env: env.clone() })));
+      //   let bod = build_graph(false, globals, fun_defs, *idx, env, arg);
+      //   // This will remove all linear and affine variables, which cannot be used inside a fix
+      //   let rest_ctx = div_ctx(Uses::Many, ctx);
+      //   check(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod, typ)?; // TODO better error message
+      //   add_ctx(ctx, rest_ctx);
+      //   Ok(())
+      // }
     }
     _ => {
       let depth = ctx.len();
-      let detected_typ = infer(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, term.clone())?;
+      let detected_typ = infer(globals, mut_globals, fun_defs, ctx, uses, term.clone())?;
       if equal(mut_globals, fun_defs, depth, typ, detected_typ) {
         Ok(())
       }
@@ -167,7 +167,6 @@ pub fn check(
 }
 
 pub fn infer(
-  unrolled_terms: &mut BTreeMap<Hex, Link<Graph>>,
   globals: &Vec<DefCell>,
   mut_globals: &Vec<DefCell>,
   fun_defs: &mut Vec<FunCell>,
@@ -176,7 +175,7 @@ pub fn infer(
   term: Link<Graph>,
 ) -> Result<Link<Graph>, CheckError> {
   match &*term.borrow() {
-    Graph::Var(_, dep, _) => {
+    Graph::Var(dep, _) => {
       let (_, ctx_uses, typ) = ctx.get_mut(*dep).ok_or_else(|| {
         CheckError::GenericError(format!("Unbound variable"))
       })?;
@@ -186,15 +185,15 @@ pub fn infer(
       *ctx_uses = subtract_use;
       Ok(typ.clone())
     },
-    Graph::Ref(_, idx) => {
+    Graph::Ref(idx) => {
       Ok(mut_globals[*idx].typ_.clone())
     },
-    Graph::App(_, fun, arg) => {
-      let fun_typ = infer(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, fun.clone())?;
+    Graph::App(fun, arg) => {
+      let fun_typ = infer(globals, mut_globals, fun_defs, ctx, uses, fun.clone())?;
       match &*reduce(mut_globals, fun_defs, fun_typ).borrow() {
-        Graph::All(_, lam_uses, dom, Closure { idx, env }) => {
+        Graph::All(lam_uses, dom, Closure { idx, env }) => {
           let dom = reduce(mut_globals, fun_defs, dom.clone());
-          check(unrolled_terms, globals, mut_globals, fun_defs, ctx, *lam_uses * uses, arg.clone(), dom.clone())?;
+          check(globals, mut_globals, fun_defs, ctx, *lam_uses * uses, arg.clone(), dom.clone())?;
           // We need to fully clone arg so that it does not get reduced
           let app_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(arg.clone()));
           Ok(app_typ)
@@ -204,10 +203,10 @@ pub fn infer(
         )),
       }
     },
-    Graph::Cse(_, exp) => {
-      let exp_typ = infer(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, exp.clone())?;
+    Graph::Cse(exp) => {
+      let exp_typ = infer(globals, mut_globals, fun_defs, ctx, uses, exp.clone())?;
       match &*reduce(mut_globals, fun_defs, exp_typ.clone()).borrow() {
-        Graph::Slf(_, Closure { idx, env }) => {
+        Graph::Slf(Closure { idx, env }) => {
           // We need to fully clone exp so that it does not get reduced
           let cse_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(exp.clone()));
           Ok(cse_typ)
@@ -217,30 +216,30 @@ pub fn infer(
         ))),
       }
     }
-    Graph::All(_, _, dom, Closure { idx, env }) => {
-      let typ = new_typ();
-      check(unrolled_terms, globals, mut_globals, fun_defs, ctx, Uses::None, dom.clone(), typ.clone())?;
+    Graph::All(_, dom, Closure { idx, env }) => {
+      let typ = new_link(Graph::Typ);
+      check(globals, mut_globals, fun_defs, ctx, Uses::None, dom.clone(), typ.clone())?;
       let name = &fun_defs[*idx].arg_name;
-      let img = build_graph(false, globals, fun_defs, *idx, env, new_var(ctx.len(), name.clone()));
+      let img = build_graph(false, globals, fun_defs, *idx, env, new_link(Graph::Var(ctx.len(), name.clone())));
       ctx.push((name.to_string(), Uses::None, full_clone(dom.clone())));
-      check(unrolled_terms, globals, mut_globals, fun_defs, ctx, Uses::None, img, typ.clone())?;
+      check(globals, mut_globals, fun_defs, ctx, Uses::None, img, typ.clone())?;
       ctx.pop();
       Ok(typ)
     }
-    Graph::Slf(_, Closure { idx, env }) => {
-      let typ = new_typ();
+    Graph::Slf(Closure { idx, env }) => {
+      let typ = new_link(Graph::Typ);
       let name = &fun_defs[*idx].arg_name;
-      let bod = build_graph(false, globals, fun_defs, *idx, env, new_var(ctx.len(), name.clone()));
+      let bod = build_graph(false, globals, fun_defs, *idx, env, new_link(Graph::Var(ctx.len(), name.clone())));
       ctx.push((name.to_string(), Uses::None, full_clone(term.clone())));
-      check(unrolled_terms, globals, mut_globals, fun_defs, ctx, Uses::None, bod, typ.clone())?;
+      check(globals, mut_globals, fun_defs, ctx, Uses::None, bod, typ.clone())?;
       ctx.pop();
       Ok(typ)
     }
-    Graph::Let(_, _, exp_typ, exp, Closure { idx, env }) => {
+    Graph::Let(_, exp_typ, exp, Closure { idx, env }) => {
       // See remark at the Let case in `check`
-      let ann_exp = new_ann(exp_typ.clone(), exp.clone());
+      let ann_exp = new_link(Graph::Ann(exp_typ.clone(), exp.clone()));
       let bod = build_graph(false, globals, fun_defs, *idx, env, ann_exp);
-      infer(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, bod)
+      infer(globals, mut_globals, fun_defs, ctx, uses, bod)
       // let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
       // check(unrolled_terms, globals, mut_globals, fun_defs, ctx, *exp_uses * uses, exp.clone(), typ.clone())?;
       // let rest_ctx = div_ctx(uses, ctx);
@@ -261,34 +260,36 @@ pub fn infer(
       //   Ok(bod_typ)
       // }
     }
-    Graph::Typ(_) => {
+    Graph::Typ => {
       // The reason term can be cloned is that Typ nodes are never mutably borrowed
       Ok(term.clone())
     }
-    Graph::Ann(_, typ, exp) => {
+    Graph::Ann(typ, exp) => {
       let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
-      check(unrolled_terms, globals, mut_globals, fun_defs, ctx, uses, exp.clone(), typ.clone())?;
+      check(globals, mut_globals, fun_defs, ctx, uses, exp.clone(), typ.clone())?;
       Ok(typ)
     }
     Graph::Lam(..) => Err(CheckError::GenericError(format!("Untyped lambda"))),
     Graph::Dat(..) => Err(CheckError::GenericError(format!("Untyped data"))),
-    Graph::Fix(hash, _) => {
-      let hex = hash_to_hex(hash);
-      if let Some(typ) = unrolled_terms.get(&hex) {
-        Ok(typ.clone())
-      }
-      else {
-        Err(CheckError::GenericError(format!("Untyped fix")))
-      }
+    Graph::Fix(_) => {
+      todo!()
+      // let hex = hash_to_hex(hash);
+      // if let Some(typ) = unrolled_terms.get(&hex) {
+      //   Ok(typ.clone())
+      // }
+      // else {
+      //   Err(CheckError::GenericError(format!("Untyped fix")))
+      // }
     }
-    Graph::Lit(_, lit) => {
+    Graph::Lit(lit) => {
       let lty = infer_lit(lit);
-      Ok(new_lty(lty))
+      Ok(new_link(Graph::LTy(lty)))
     },
-    Graph::LTy(_, _) => {
-      Ok(new_typ())
+    Graph::LTy(_) => {
+      let typ = new_link(Graph::Typ);
+      Ok(typ)
     },
-    Graph::Opr(_, opr) => {
+    Graph::Opr(opr) => {
       // TODO: Write something more efficient than compiling terms
       // perhaps constructing the graphs directly
       let typ = opr.type_of();

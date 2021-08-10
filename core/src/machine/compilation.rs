@@ -10,12 +10,6 @@ use sp_std::{
   collections::btree_set::BTreeSet,
 };
 
-use sp_multihash::{
-  U32,
-  StatefulHasher,
-  Blake3Hasher,
-};
-
 pub fn defs_to_globals(
   defs: &Vec<(Name, IR, IR)>,
   fun_defs: &mut Vec<FunCell>
@@ -47,149 +41,94 @@ pub fn ir_to_graph(
 ) -> Link<Graph> {
   match ir {
     IR::Var(name, idx) => {
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, *idx as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::Var(hash, *idx as usize, name.clone()))
+      new_link(Graph::Var(*idx as usize, name.clone()))
     },
     IR::Lam(name, _, bod) => {
       // It is assumed that bod has no free variables, since this function
       // will be called on top-level terms. It will be possible in the future,
       // however, to add a non-empty environment of only top-level terms, which
       // will give a better sharing of graphs.
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, MK_LAM as usize);
-      let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
+      let pos = compile_ir(name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
         env: vec![],
       };
-      let hash = hasher.finalize();
-      new_link(Graph::Lam(hash, clos))
+      new_link(Graph::Lam(clos))
     },
     IR::App(fun, arg) => {
       let fun = ir_to_graph(fun, fun_defs);
       let arg = ir_to_graph(arg, fun_defs);
-      let mut hasher = Blake3Hasher::default();
-      hasher.update(get_u8_hash(&arg.borrow()));
-      hasher.update(get_u8_hash(&fun.borrow()));
-      update_hasher(&mut hasher, MK_APP as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::App(hash, fun, arg))
+      new_link(Graph::App(fun, arg))
     },
     IR::Ref(idx) => {
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, REF_GBL as usize);
-      update_hasher(&mut hasher, *idx as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::Ref(hash, *idx))
+      new_link(Graph::Ref(*idx))
     },
     IR::Typ => {
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, MK_TYP as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::Typ(hash))
+      new_link(Graph::Typ)
     },
     IR::All(uses, name, dom, _, img) => {
-      let mut hasher = Blake3Hasher::default();
       let dom = ir_to_graph(dom, fun_defs);
-      hasher.update(get_u8_hash(&dom.borrow()));
-      update_hasher(&mut hasher, MK_ALL as usize);
-      update_hasher(&mut hasher, *uses as usize);
-      let pos = compile_ir(&mut hasher, name.clone(), &img, &FreeVars::new(), fun_defs);
+      let pos = compile_ir(name.clone(), &img, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
         env: vec![],
       };
-      let hash = hasher.finalize();
-      new_link(Graph::All(hash, *uses, dom, clos))
+      new_link(Graph::All(*uses, dom, clos))
     },
     IR::Slf(name, _, bod) => {
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, MK_SLF as usize);
-      let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
+      let pos = compile_ir(name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
         env: vec![],
       };
-      let hash = hasher.finalize();
-      new_link(Graph::Slf(hash, clos))
+      new_link(Graph::Slf(clos))
     },
     IR::Dat(bod) => {
       let bod = ir_to_graph(bod, fun_defs);
-      let mut hasher = Blake3Hasher::default();
-      hasher.update(get_u8_hash(&bod.borrow()));
-      update_hasher(&mut hasher, MK_DAT as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::Dat(hash, bod))
+      new_link(Graph::Dat(bod))
     },
     IR::Cse(bod) => {
       let bod = ir_to_graph(bod, fun_defs);
-      let mut hasher = Blake3Hasher::default();
-      hasher.update(get_u8_hash(&bod.borrow()));
-      update_hasher(&mut hasher, MK_CSE as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::Cse(hash, bod))
+      new_link(Graph::Cse(bod))
     },
     IR::Ann(typ, exp) => {
       let typ = ir_to_graph(typ, fun_defs);
       let exp = ir_to_graph(exp, fun_defs);
-      let mut hasher = Blake3Hasher::default();
-      hasher.update(get_u8_hash(&exp.borrow()));
-      let hash = hasher.finalize();
-      new_link(Graph::Ann(hash, typ, exp))
+      new_link(Graph::Ann(typ, exp))
     },
     IR::Let(uses, name, typ, exp, _, bod) => {
-      let mut hasher = Blake3Hasher::default();
       let typ = ir_to_graph(typ, fun_defs);
       let exp = ir_to_graph(exp, fun_defs);
       // Use and type annotations do not matter
-      hasher.update(get_u8_hash(&exp.borrow()));
-      update_hasher(&mut hasher, MK_LET as usize);
-      let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
+      let pos = compile_ir(name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
         env: vec![],
       };
-      let hash = hasher.finalize();
-      new_link(Graph::Let(hash, *uses, typ, exp, clos))
+      new_link(Graph::Let(*uses, typ, exp, clos))
     },
     IR::Fix(name, _, bod) => {
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, MK_FIX as usize);
-      let pos = compile_ir(&mut hasher, name.clone(), &bod, &FreeVars::new(), fun_defs);
+      let pos = compile_ir(name.clone(), &bod, &FreeVars::new(), fun_defs);
       let clos = Closure {
         idx: pos,
         env: vec![],
       };
-      let hash = hasher.finalize();
-      new_link(Graph::Fix(hash, clos))
+      new_link(Graph::Fix(clos))
     }
     IR::Lit(_lit) => {
       todo!()
     }
     IR::LTy(lty) => {
-      let mut hasher = Blake3Hasher::default();
-      update_hasher(&mut hasher, MK_LTY as usize);
-      update_hasher(&mut hasher, *lty as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::LTy(hash, *lty))
+      new_link(Graph::LTy(*lty))
     }
     IR::Opr(opr) => {
-      let mut hasher = Blake3Hasher::default();
-      let (typ_code, opr_code) = opr_to_code(*opr);
-      update_hasher(&mut hasher, MK_OPR as usize);
-      update_hasher(&mut hasher, typ_code as usize);
-      update_hasher(&mut hasher, opr_code as usize);
-      let hash = hasher.finalize();
-      new_link(Graph::Opr(hash, *opr))
+      new_link(Graph::Opr(*opr))
     }
   }
 }
 
 // TODO: change `fun_defs` into a hashmap as to not duplicate lambdas
 pub fn compile_ir(
-  hasher: &mut Blake3Hasher<U32>,
   name: Name,
   ir: &IR,
   env: &FreeVars,
@@ -198,7 +137,6 @@ pub fn compile_ir(
 
   fn go(
     is_proj: bool,
-    hasher: &mut Blake3Hasher<U32>,
     ir: &IR,
     code: &mut Vec<CODE>,
     env: &FreeVars,
@@ -208,7 +146,6 @@ pub fn compile_ir(
       IR::Var(_, idx) => {
         if *idx == 0 {
           code.push(REF_ARG);
-          update_hasher(hasher, REF_ARG as usize);
         }
         else {
           // The environment of free variables we get is one depth less than the depth of
@@ -217,8 +154,6 @@ pub fn compile_ir(
             let bytes = usize_to_bytes::<ENV_SIZE>(pos);
             code.push(REF_ENV);
             code.extend_from_slice(&bytes);
-            update_hasher(hasher, REF_ENV as usize);
-            update_hasher(hasher, (*idx-1) as usize);
           }
           else {
             // Are we ever going to need functions that purposefully build free variables?
@@ -234,71 +169,59 @@ pub fn compile_ir(
       },
       IR::Lam(name, free, bod) => {
         code.push(MK_LAM);
-        compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
-        update_hasher(hasher, MK_LAM as usize);
+        compile_closure(name.clone(), free, bod, code, fun_defs);
       },
       IR::App(fun, arg) => {
         // Argument first, function second
-        go(false, hasher, arg, code, env, fun_defs);
-        go(false, hasher, fun, code, env, fun_defs);
+        go(false, arg, code, env, fun_defs);
+        go(false, fun, code, env, fun_defs);
         code.push(MK_APP);
-        update_hasher(hasher, MK_APP as usize);
       },
       IR::Ref(idx) => {
         let bytes = usize_to_bytes::<GBL_SIZE>(*idx);
         code.push(REF_GBL);
         code.extend_from_slice(&bytes);
-        update_hasher(hasher, REF_GBL as usize);
-        update_hasher(hasher, *idx as usize);
       }
       IR::Typ => {
         code.push(MK_TYP)
       },
       IR::All(uses, name, dom, free, img) => {
-        go(false, hasher, dom, code, env, fun_defs);
+        go(false, dom, code, env, fun_defs);
         let uses = uses_to_code(*uses);
         code.push(MK_ALL);
         code.push(uses);
-        update_hasher(hasher, MK_ALL as usize);
-        update_hasher(hasher, uses as usize);
-        compile_closure(name.clone(), free, hasher, img, code, fun_defs);
+        compile_closure(name.clone(), free, img, code, fun_defs);
       },
       IR::Slf(name, free, bod) => {
         code.push(MK_SLF);
-        compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
-        update_hasher(hasher, MK_SLF as usize);
+        compile_closure(name.clone(), free, bod, code, fun_defs);
       },
       IR::Dat(bod) => {
-        go(false, hasher, bod, code, env, fun_defs);
+        go(false, bod, code, env, fun_defs);
         code.push(MK_DAT);
-        update_hasher(hasher, MK_DAT as usize);
       },
       IR::Cse(bod) => {
-        go(false, hasher, bod, code, env, fun_defs);
+        go(false, bod, code, env, fun_defs);
         code.push(MK_CSE);
-        update_hasher(hasher, MK_CSE as usize);
       },
       IR::Ann(typ, exp) => {
         // Ann ignores typ when evaluating, thus we pass on `is_proj` to exp alone
-        // Also annotations are not hashed
-        go(is_proj, hasher, exp, code, env, fun_defs);
-        go(false, &mut Blake3Hasher::default(), typ, code, env, fun_defs);
+        go(is_proj, exp, code, env, fun_defs);
+        go(false, typ, code, env, fun_defs);
         code.push(MK_ANN);
       },
       IR::Let(uses, name, typ, exp, free, bod) => {
         // Let ignores typ similarly to Ann
-        go(is_proj, hasher, exp, code, env, fun_defs);
-        go(false, &mut Blake3Hasher::default(), typ, code, env, fun_defs);
+        go(is_proj, exp, code, env, fun_defs);
+        go(false, typ, code, env, fun_defs);
         let uses = uses_to_code(*uses);
         code.push(MK_LET);
         code.push(uses);
-        update_hasher(hasher, MK_LET as usize);
-        compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
+        compile_closure(name.clone(), free, bod, code, fun_defs);
       },
       IR::Fix(name, free, bod) => {
         code.push(MK_FIX);
-        compile_closure(name.clone(), free, hasher, bod, code, fun_defs);
-        update_hasher(hasher, MK_FIX as usize);
+        compile_closure(name.clone(), free, bod, code, fun_defs);
       }
       IR::Lit(_lit) => {
         todo!()
@@ -306,29 +229,22 @@ pub fn compile_ir(
       IR::LTy(lty) => {
         code.push(MK_LTY);
         code.push(*lty as u8);
-        update_hasher(hasher, MK_LTY as usize);
-        update_hasher(hasher, *lty as usize);
       }
       IR::Opr(opr) => {
         let (typ_code, opr_code) = opr_to_code(*opr);
         code.push(MK_OPR);
         code.push(typ_code as u8);
         code.push(opr_code as u8);
-        update_hasher(hasher, MK_OPR as usize);
-        update_hasher(hasher, typ_code as usize);
-        update_hasher(hasher, opr_code as usize);
       }
     }
   }
 
   let mut code = vec![];
-  go(true, hasher, ir, &mut code, env, fun_defs);
+  go(true, ir, &mut code, env, fun_defs);
   code.push(END);
-  let hash = hasher.finalize();
   fun_defs.push(FunCell {
     arg_name: name.clone(),
     code,
-    hash,
   });
   fun_defs.len()-1
 }
@@ -337,19 +253,15 @@ pub fn compile_ir(
 pub fn compile_closure(
   name: Name,
   free: &FreeVars,
-  hasher: &mut Blake3Hasher<U32>,
   bod: &IR,
   code: &mut Vec<CODE>,
   fun_defs: &mut Vec<FunCell>
 ) {
-  let mut new_hasher = Blake3Hasher::default();
-  let pos = compile_ir(&mut new_hasher, name, bod, free, fun_defs);
-  let hash = new_hasher.finalize();
+  let pos = compile_ir(name, bod, free, fun_defs);
   let bytes = usize_to_bytes::<MAP_SIZE>(pos);
   code.extend_from_slice(&bytes);
   let bytes = usize_to_bytes::<ENV_SIZE>(free.len());
   code.extend_from_slice(&bytes);
-  hasher.update(hash.as_ref());
   for pos in 0..free.len() {
     let idx = free.peek()[pos];
     // Index 0 is a reference to the argument of the function, other indices are
@@ -359,13 +271,10 @@ pub fn compile_closure(
     if idx == 0 {
       let bytes = usize_to_bytes::<ENV_SIZE>(0);
       code.extend_from_slice(&bytes);
-      update_hasher(hasher, REF_ARG as usize);
     }
     else {
       let bytes = usize_to_bytes::<ENV_SIZE>(pos+1);
       code.extend_from_slice(&bytes);
-      update_hasher(hasher, REF_ENV as usize);
-      update_hasher(hasher, (idx-1) as usize);
     }
   }
 }
