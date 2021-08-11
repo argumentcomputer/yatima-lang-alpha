@@ -11,6 +11,7 @@
 //#[macro_use]
 extern crate yatima_core;
 
+pub mod execute;
 pub mod file;
 pub mod runtime;
 // TODO make WASI compatible

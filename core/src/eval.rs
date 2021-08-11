@@ -373,7 +373,7 @@ impl DAG {
         DAGPtr::Fix(link) => unsafe {
           let Fix { var, bod, .. } = &mut *link.as_ptr();
           replace_child(node, *bod);
-          if !var.parents.is_none() {
+          if var.parents.is_some() {
             let new_fix =
               alloc_fix(var.nam.clone(), 0, mem::zeroed(), None).as_mut();
             let result = subst(
@@ -403,7 +403,7 @@ impl DAG {
             let parents = *ref_parents;
             *ref_parents = None;
             let ref_node = node;
-            node = DAG::from_ref(&def, nam.clone(), *exp, *ast, parents);
+            node = DAG::from_ref(def, nam.clone(), *exp, *ast, parents);
             free_dead_node(ref_node);
             for parent in DLL::iter_option(parents) {
               install_child(parent, node);
@@ -608,7 +608,7 @@ pub mod test {
   #[test]
   pub fn parse_test() {
     fn parse_assert(input: &str) {
-      match parse(&input) {
+      match parse(input) {
         Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
         Err(_) => panic!("Did not parse."),
       }

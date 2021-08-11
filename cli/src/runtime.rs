@@ -883,8 +883,6 @@ pub fn from_term_inner(
 
 #[cfg(test)]
 mod tests {
-  use std::fs::File;
-
   use super::*;
   use ropey::Rope;
   use yatima_core::{

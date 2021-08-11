@@ -252,10 +252,10 @@ fn run_cli() -> std::io::Result<()> {
 
       let root =
         runtime::alloc_val(dll::DLL::singleton(runtime::ParentPtr::Root));
-      let mut dag =
-        runtime::from_term(checked.clone(), &def.to_owned().term, Some(root));
+      let mut term = def.to_owned().term;
+      yatima_cli::execute::transform(checked.clone(), &mut term);
+      let mut dag = runtime::from_term(checked.clone(), &term, Some(root));
       runtime::whnf(&mut dag, false);
-      println!("{:#?}", dag);
       // execute_io(dag);
       // dag.norm(&defs, false);
       // let graph = DagGraph::from_dag(&dag);

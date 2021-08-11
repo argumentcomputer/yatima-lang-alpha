@@ -1638,7 +1638,7 @@ impl fmt::Display for DAG {
 
 impl fmt::Display for DAGPtr {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", DAG::new(self.clone()).to_term(false))
+    write!(f, "{}", DAG::new(*self).to_term(false))
   }
 }
 
