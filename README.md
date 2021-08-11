@@ -334,9 +334,9 @@ formally-verified software is the norm, so you can rely on software engineering
 with the same quotidian confidence you have for civil engineering whenever you 
 drive your car over a bridge.
 
-## Supporters
+## Thank you to our Supporters!
 
 <img align="left" width="500" src="img/web3_foundation_grants_badge_white.jpg"/>
 
 
-<img align="left" width="300" src="img/iota_black.png"/>
+<img align="left" width="275" src="img/iota_black.png"/>
