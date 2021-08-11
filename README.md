@@ -335,3 +335,7 @@ systems and their own data. A future where reliable, type-checked,
 formally-verified software is the norm, so you can rely on software engineering
 with the same quotidian confidence you have for civil engineering whenever you 
 drive your car over a bridge.
+
+## Supporters
+
+<img align="left" width="400" src="img/web3_foundation_grants_badge_white.jpg"/>
