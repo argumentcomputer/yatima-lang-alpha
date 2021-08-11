@@ -24,8 +24,6 @@
 
 ---
 
-<img align="right" width="400" src="img/web3_foundation_grants_badge_black.svg" />
-
 Yatima is a pure functional programming language implemented in Rust with the following features:
 
 - **Content-Addressing** powers reproducible builds, and peer-to-peer
@@ -335,3 +333,7 @@ systems and their own data. A future where reliable, type-checked,
 formally-verified software is the norm, so you can rely on software engineering
 with the same quotidian confidence you have for civil engineering whenever you 
 drive your car over a bridge.
+
+## Supporters
+
+<img align="left" width="400" src="img/web3_foundation_grants_badge_white.jpg"/>
