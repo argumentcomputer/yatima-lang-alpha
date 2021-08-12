@@ -43,13 +43,13 @@ impl FreeVars {
     }
   }
 
-  pub fn get(&self, val: u64) -> Option<usize> {
+  pub fn search(&self, val: u64) -> Option<usize> {
     // Uses a linear search instead of a binary search since the vectors are usually small
     let mut i = 0;
     while i < self.list.len() && self.list[i] > val {
       i = i+1;
     }
-    if self.list[i] == val {
+    if i < self.list.len() && self.list[i] == val {
       Some(i)
     }
     else {
@@ -139,16 +139,16 @@ mod test {
   }
 
   #[test]
-  fn get_test() {
+  fn search_test() {
     let x = FreeVars {
       list: vec![8, 5, 3, 2, 0],
     };
-    assert_eq!(format!("{:?}", x.get(5)), format!("Some(1)"));
-    assert_eq!(format!("{:?}", x.get(3)), format!("Some(2)"));
-    assert_eq!(format!("{:?}", x.get(4)), format!("None"));
-    assert_eq!(format!("{:?}", x.get(8)), format!("Some(0)"));
-    assert_eq!(format!("{:?}", x.get(0)), format!("Some(4)"));
-    assert_eq!(format!("{:?}", x.get(2)), format!("Some(3)"));
-    assert_eq!(format!("{:?}", x.get(9)), format!("None"));
+    assert_eq!(format!("{:?}", x.search(5)), format!("Some(1)"));
+    assert_eq!(format!("{:?}", x.search(3)), format!("Some(2)"));
+    assert_eq!(format!("{:?}", x.search(4)), format!("None"));
+    assert_eq!(format!("{:?}", x.search(8)), format!("Some(0)"));
+    assert_eq!(format!("{:?}", x.search(0)), format!("Some(4)"));
+    assert_eq!(format!("{:?}", x.search(2)), format!("Some(3)"));
+    assert_eq!(format!("{:?}", x.search(9)), format!("None"));
   }
 }

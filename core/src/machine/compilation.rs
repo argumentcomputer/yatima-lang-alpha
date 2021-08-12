@@ -149,7 +149,7 @@ pub fn compile_ir(
         else {
           // The environment of free variables we get is one depth less than the depth of
           // the node we get, which is why we must correct the indices
-          if let Some(pos) = env.get(idx-1){
+          if let Some(pos) = env.search(idx-1){
             let bytes = usize_to_bytes::<ENV_SIZE>(pos);
             code.push(REF_ENV);
             code.extend_from_slice(&bytes);
@@ -168,7 +168,7 @@ pub fn compile_ir(
       },
       IR::Lam(name, free, bod) => {
         code.push(MK_LAM);
-        compile_closure(name.clone(), free, bod, code, fun_defs);
+        compile_closure(name.clone(), free, env, bod, code, fun_defs);
       },
       IR::App(fun, arg) => {
         // Argument first, function second
@@ -189,11 +189,11 @@ pub fn compile_ir(
         let uses = uses_to_code(*uses);
         code.push(MK_ALL);
         code.push(uses);
-        compile_closure(name.clone(), free, img, code, fun_defs);
+        compile_closure(name.clone(), free, env, img, code, fun_defs);
       },
       IR::Slf(name, free, bod) => {
         code.push(MK_SLF);
-        compile_closure(name.clone(), free, bod, code, fun_defs);
+        compile_closure(name.clone(), free, env, bod, code, fun_defs);
       },
       IR::Dat(bod) => {
         go(false, bod, code, env, fun_defs);
@@ -216,11 +216,11 @@ pub fn compile_ir(
         let uses = uses_to_code(*uses);
         code.push(MK_LET);
         code.push(uses);
-        compile_closure(name.clone(), free, bod, code, fun_defs);
+        compile_closure(name.clone(), free, env, bod, code, fun_defs);
       },
       IR::Fix(name, free, bod) => {
         code.push(MK_FIX);
-        compile_closure(name.clone(), free, bod, code, fun_defs);
+        compile_closure(name.clone(), free, env, bod, code, fun_defs);
       }
       IR::Lit(_lit) => {
         todo!()
@@ -252,6 +252,7 @@ pub fn compile_ir(
 pub fn compile_closure(
   name: Name,
   free: &FreeVars,
+  env: &FreeVars,
   bod: &IR,
   code: &mut Vec<CODE>,
   fun_defs: &mut Vec<FunCell>
@@ -261,21 +262,27 @@ pub fn compile_closure(
   code.extend_from_slice(&bytes);
   let bytes = usize_to_bytes::<ENV_SIZE>(free.len());
   code.extend_from_slice(&bytes);
-  for pos in 0..free.len() {
-    let idx = free.peek()[pos];
+  for idx in free.peek() {
     // Index 0 is a reference to the argument of the function, other indices are
     // references to the environment. We encode the difference by a trick: 0 is
     // argument, otherwise n = pos+1, where pos is the position of the variable
     // in the environment
-    if idx == 0 {
+    if *idx == 0 {
       let bytes = usize_to_bytes::<ENV_SIZE>(0);
       code.extend_from_slice(&bytes);
     }
     else {
-      let bytes = usize_to_bytes::<ENV_SIZE>(pos+1);
-      code.extend_from_slice(&bytes);
+      if let Some(pos) = env.search(*idx-1){
+        let bytes = usize_to_bytes::<ENV_SIZE>(pos+1);
+        code.extend_from_slice(&bytes);
+      }
+      else {
+        panic!("Unbound variable {} at {:?}", idx-1, free.peek())
+      }
     }
   }
+
+
 }
 
 #[cfg(test)]
