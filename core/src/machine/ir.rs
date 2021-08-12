@@ -48,6 +48,7 @@ pub const ZERO_EXPANSION: usize = 4;
 pub const SUCC_EXPANSION: usize = 5;
 pub const NIL_EXPANSION: usize = 6;
 pub const CONS_EXPANSION: usize = 7;
+pub const DEF_START: usize = 8;
 
 pub fn aux_defs() -> Vec<(Name, IR, IR)> {
   let defs = &mut Defs::new();

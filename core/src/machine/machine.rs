@@ -360,8 +360,15 @@ pub fn build_graph(
       REF_GBL => {
         let bytes = &code[pc+1..pc+1+GBL_SIZE];
         let index = bytes_to_usize(bytes);
-        args.push(globals[index].term.clone());
         pc = pc+ENV_SIZE;
+        if eval {
+          args.push(globals[index].term.clone());
+        }
+        else {
+          args.push(new_link(
+            Graph::Ref(index)
+          ))
+        }
       },
       REF_ARG => {
         args.push(arg.clone());
@@ -927,7 +934,7 @@ pub fn stringify_code(
         args.push(format!("(App {} {})", fun, arg));
       },
       MK_LAM => {
-        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let (fun_index, fun_env) = extract_env(code, &mut pc, arg_name, &env);
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(Lam {} {})", arg_name, code_str));
@@ -961,14 +968,14 @@ pub fn stringify_code(
       MK_ALL => {
         let uses = code[pc+1];
         pc = pc+1;
-        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let (fun_index, fun_env) = extract_env(code, &mut pc, arg_name, &env);
         let dom = args.pop().unwrap();
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(All {} {} {} {})", code_to_uses(uses), arg_name, dom, code_str));
       },
       MK_SLF => {
-        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let (fun_index, fun_env) = extract_env(code, &mut pc, arg_name, &env);
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(Slf {} {})", arg_name, code_str));
@@ -989,7 +996,7 @@ pub fn stringify_code(
       MK_LET => {
         let uses = code[pc+1];
         pc = pc+1;
-        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let (fun_index, fun_env) = extract_env(code, &mut pc, arg_name, &env);
         let typ = args.pop().unwrap();
         let exp = args.pop().unwrap();
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
@@ -997,7 +1004,7 @@ pub fn stringify_code(
         args.push(format!("(Let {} {} {} {} {})", code_to_uses(uses), arg_name, typ, exp, code_str));
       },
       MK_FIX => {
-        let (fun_index, fun_env) = stringify_env(code, &mut pc, arg_name, &env);
+        let (fun_index, fun_env) = extract_env(code, &mut pc, arg_name, &env);
         let code_str = stringify_code(globals, fun_defs, fun_index, &fun_env);
         let arg_name = &fun_defs[fun_index].arg_name;
         args.push(format!("(Fix {} {})", arg_name, code_str));
@@ -1029,7 +1036,7 @@ pub fn stringify_code(
 }
 
 #[inline]
-pub fn stringify_env(
+pub fn extract_env(
   code: &Vec<CODE>,
   pc: &mut usize,
   arg_name: &Name,

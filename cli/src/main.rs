@@ -67,6 +67,10 @@ enum Command {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
+  MachineCheck {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
   Repl,
 }
 
@@ -224,6 +228,21 @@ async fn main() -> std::io::Result<()> {
       println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph.clone()));
       let graph = yatima_core::machine::machine::reduce(&globals, &fun_defs, graph);
       println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph));
+      Ok(())
+    }
+    Command::MachineCheck { path } => {
+      let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
+      let (_, _, defs) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
+      let ir_defs = yatima_core::machine::ir::defs_to_ir(&defs);
+      let mut fun_defs = vec![];
+      let (globals, _) = yatima_core::machine::compilation::defs_to_globals(&ir_defs, &mut fun_defs);
+      let checks = yatima_core::machine::typechecking::check_defs(&globals, &mut fun_defs);
+      for check in checks {
+        println!("{}", check)
+      }
       Ok(())
     }
     Command::Run { path } => {

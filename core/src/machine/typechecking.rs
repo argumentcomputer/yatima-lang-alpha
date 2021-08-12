@@ -15,8 +15,6 @@ use crate::{
 use alloc::string::String;
 use sp_std::{
   vec::Vec,
-  rc::Rc,
-  cell::RefCell,
   collections::{
     btree_map::BTreeMap,
   },
@@ -75,6 +73,7 @@ pub fn check(
   term: Link<Graph>,
   typ: Link<Graph>,
 ) -> Result<(), CheckError> {
+  let typ = reduce(mut_globals, fun_defs, typ);
   let term_borrow = term.borrow();
   match &*term_borrow {
     Graph::Lam(bod) => {
@@ -113,7 +112,7 @@ pub fn check(
         Graph::Slf(slf_bod) => {
           // The type of the body of the data must be the body of the self with term
           // substituted for its variable.
-          let arg = Rc::new(RefCell::new(term_borrow.clone()));
+          let arg = full_clone(term.clone());
           let unrolled_slf = build_graph(true, mut_globals, fun_defs, slf_bod.idx, &slf_bod.env, arg);
           check(globals, mut_globals, fun_defs, ctx, uses, bod.clone(), unrolled_slf)?;
           Ok(())
@@ -184,7 +183,6 @@ pub fn infer(
       let fun_typ = infer(globals, mut_globals, fun_defs, ctx, uses, fun.clone())?;
       match &*reduce(mut_globals, fun_defs, fun_typ).borrow() {
         Graph::All(lam_uses, dom, Closure { idx, env }) => {
-          let dom = reduce(mut_globals, fun_defs, dom.clone());
           check(globals, mut_globals, fun_defs, ctx, *lam_uses * uses, arg.clone(), dom.clone())?;
           // We need to fully clone arg so that it does not get reduced
           let app_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(arg.clone()));
@@ -257,9 +255,8 @@ pub fn infer(
       Ok(term.clone())
     }
     Graph::Ann(typ, exp) => {
-      let typ = reduce(mut_globals, fun_defs, full_clone(typ.clone()));
       check(globals, mut_globals, fun_defs, ctx, uses, exp.clone(), typ.clone())?;
-      Ok(typ)
+      Ok(typ.clone())
     }
     Graph::Lam(..) => Err(CheckError::GenericError(format!("Untyped lambda"))),
     Graph::Dat(..) => Err(CheckError::GenericError(format!("Untyped data"))),
@@ -307,4 +304,30 @@ pub fn infer_lit(lit: &Literal) -> LitType {
     Literal::I64(_) => LitType::I64,
     Literal::I128(_) => LitType::I128,
   }
+}
+
+pub fn check_defs(
+  globals: &Vec<DefCell>,
+  fun_defs: &mut Vec<FunCell>
+) -> Vec<String> {
+  let mut mut_globals = vec![];
+  let mut result = vec![];
+  for DefCell { name, term, typ_ } in globals {
+    let mut_def = DefCell {
+      name: name.clone(),
+      term: full_clone(term.clone()),
+      typ_: typ_.clone(),
+    };
+    mut_globals.push(mut_def);
+  }
+  for i in DEF_START..globals.len() {
+    let DefCell { name, term, typ_ } = &globals[i];
+    let mut ctx = vec![];
+    let check = check(globals, &mut_globals, fun_defs, &mut ctx, Uses::Once, term.clone(), typ_.clone());
+    match check {
+      Ok(()) => result.push(format!("✓ {}", name)),
+      Err(CheckError::GenericError(err)) => result.push(format!("✗ {}: {}", name, err)),
+    }
+  }
+  result
 }
