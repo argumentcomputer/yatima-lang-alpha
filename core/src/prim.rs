@@ -104,7 +104,7 @@ impl Op {
   pub fn to_ipld(self) -> Ipld {
     match self {
       #[cfg(feature = "std")]
-      Self::Io(op) => Ipld::List(vec![Ipld::Integer(-1), op.to_ipld()]),
+      Self::Io(_) => panic!("IO operations cannot be serialized"),
       Self::Nat(op) => Ipld::List(vec![Ipld::Integer(0), op.to_ipld()]),
       Self::Int(op) => Ipld::List(vec![Ipld::Integer(1), op.to_ipld()]),
       Self::Bits(op) => Ipld::List(vec![Ipld::Integer(2), op.to_ipld()]),
@@ -128,8 +128,8 @@ impl Op {
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
-        #[cfg(feature = "std")]
-        [Ipld::Integer(-1), ys] => IoOp::from_ipld(ys).map(Self::Io),
+        //#[cfg(feature = "std")]
+        //[Ipld::Integer(-1), ys] => IoOp::from_ipld(ys).map(Self::Io),
         [Ipld::Integer(0), ys] => NatOp::from_ipld(ys).map(Self::Nat),
         [Ipld::Integer(1), ys] => IntOp::from_ipld(ys).map(Self::Int),
         [Ipld::Integer(2), ys] => BitsOp::from_ipld(ys).map(Self::Bits),
