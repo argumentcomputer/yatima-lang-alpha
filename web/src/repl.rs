@@ -88,7 +88,7 @@ impl Repl for WebRepl {
 
   fn println(&self, s: String) {
     // The term needs \r to move the cursor back to the start of the line
-    let m = s.replace(terminal_sequences::LF, terminal_sequences::CR);
+    let m = s.replace(terminal_sequences::LF, &(terminal_sequences::LF.to_owned() + terminal_sequences::CR));
     self.terminal.writeln(m.as_str());
   }
 
