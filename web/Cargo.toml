@@ -18,9 +18,9 @@ multiaddr = "*"
 sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
+unicode-segmentation = "1.8.0"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 wasm-bindgen-futures = "0.4.22"
-unicode-segmentation = "1.8.0"
 xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
 yatima-core = { path = "../core" }
 yatima-utils = { path = "../utils" }
