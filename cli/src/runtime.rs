@@ -586,7 +586,7 @@ pub fn subst(
   result
 }
 
-// Contract a lambda redex, return the body.
+/// Contract a lambda redex, return the body.
 #[inline]
 pub fn reduce_lam(
   redex: NonNull<App>,
@@ -610,6 +610,7 @@ pub fn reduce_lam(
   top_node
 }
 
+/// Compute the Weak head normal form of the given DAG
 pub fn whnf(dag: &mut DAG, should_count: bool) {
   let mut node = *dag;
   let mut trail: Vec<NonNull<App>> = vec![];
