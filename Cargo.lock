@@ -2034,6 +2034,7 @@ dependencies = [
  "structopt",
  "tokio",
  "yatima-core",
+ "yatima-runtime",
  "yatima-utils",
 ]
 
@@ -2056,6 +2057,14 @@ dependencies = [
  "sp-ipld",
  "sp-multihash",
  "sp-std",
+]
+
+[[package]]
+name = "yatima-runtime"
+version = "0.1.0"
+dependencies = [
+ "sp-std",
+ "yatima-core",
 ]
 
 [[package]]

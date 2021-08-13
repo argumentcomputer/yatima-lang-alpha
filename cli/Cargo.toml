@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 yatima-core = { path = "../core", features = ["std"]}
 yatima-utils = { path = "../utils"}
+yatima-runtime = { path = "../runtime" }
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
 sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }

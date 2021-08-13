@@ -5,19 +5,13 @@ use std::{
   rc::Rc,
 };
 use structopt::StructOpt;
+use yatima_cli::file::store::{
+  FileStore,
+  FileStoreOpts,
+};
 #[cfg(not(target_arch = "wasm32"))]
 use yatima_cli::repl;
-use yatima_cli::{
-  file::store::{
-    FileStore,
-    FileStoreOpts,
-  },
-  runtime,
-};
-use yatima_core::{
-  dll,
-  name::Name,
-};
+use yatima_core::name::Name;
 use yatima_utils::{
   file,
   store::{
@@ -250,19 +244,7 @@ fn run_cli() -> std::io::Result<()> {
         )
       });
 
-      let root =
-        runtime::alloc_val(dll::DLL::singleton(runtime::ParentPtr::Root));
-      let mut term = def.to_owned().term;
-      yatima_cli::execute::transform(checked.clone(), &mut term);
-      let mut dag = runtime::from_term(checked.clone(), &term, Some(root));
-      runtime::whnf(&mut dag, false);
-      // execute_io(dag);
-      // dag.norm(&defs, false);
-      // let graph = DagGraph::from_dag(&dag);
-      // let dot = graph.to_dot();
-
-      // execute_io(dag.to_term(false));
-      // println!("{}", dag);
+      yatima_runtime::run(def.to_owned(), checked);
       Ok(())
     }
   }

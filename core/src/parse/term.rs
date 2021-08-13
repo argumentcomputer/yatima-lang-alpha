@@ -1014,7 +1014,7 @@ macro_rules! yatima {
     let mut quasi = Vec::new();
     $(quasi.push($q);)*
     parse::term::parse_quasi($i,
-      sp_std::rc::Rc::new(sp_std::cell::RefCell::new(crate::defs::Defs::new())),
+      sp_std::rc::Rc::new(sp_std::cell::RefCell::new(defs::Defs::new())),
       sp_std::rc::Rc::new(sp_std::collections::vec_deque::VecDeque::from(quasi)))
       .unwrap().1
   }}

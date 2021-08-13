@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use sp_std::rc::Rc;
 
 use yatima_core::{
   defs,
@@ -7,13 +7,24 @@ use yatima_core::{
   parse,
   prim::io::IoOp,
   term::{
-    Name,
     Op,
     Pos,
     Term,
   },
   yatima,
 };
+
+const IO_RETURN: &str =
+  "bafy2bzaceakfamngkzwsi3zzkxyfz5rfabb5x3t6it7nhsxo7jjb2grpu7gmm";
+
+const IO_PRINT: &str =
+  "bafy2bzaceajjrezmgr6mulbz4htf72yknifanxgsoqquzhno5vtx5wggwo7k6";
+
+const IO_READ: &str =
+  "bafy2bzaceabdrrnmkljwxmj5xe63nhtygjjpgxtptdrdolsipdojrbsjjyrd6";
+
+const IO_BIND: &str =
+  "bafy2bzaceanc3j2lxoz2jttiinlxqge7u3tnmufrfoil4udxptljacv5fmmq6";
 
 pub fn transform(defs: Rc<Defs>, term: &mut Term) {
   match term {
@@ -36,36 +47,36 @@ pub fn transform(defs: Rc<Defs>, term: &mut Term) {
     Term::Cse(_pos, boxed) => {
       transform_boxed(defs, boxed);
     }
-    Term::Ref(_pos, _name, exp, _cid2) => {
-      if exp.to_string()
-        == "bafy2bzaceakfamngkzwsi3zzkxyfz5rfabb5x3t6it7nhsxo7jjb2grpu7gmm"
-      {
-        *term = io_return();
+    Term::Ref(_pos, _name, exp, _cid2) => match exp.to_string().as_ref() {
+      IO_RETURN => {
+        *term = yatima!("lambda x => x");
         transform(defs, term);
       }
-      else if exp.to_string()
-        == "bafy2bzaceajjrezmgr6mulbz4htf72yknifanxgsoqquzhno5vtx5wggwo7k6"
-      {
-        *term = io_print();
+      IO_PRINT => {
+        *term = yatima!(
+          "lambda _type x => #$0 x",
+          Term::Opr(Pos::None, Op::Io(write_stdout_op()))
+        );
         transform(defs, term);
       }
-      else if exp.to_string()
-        == "bafy2bzaceabdrrnmkljwxmj5xe63nhtygjjpgxtptdrdolsipdojrbsjjyrd6"
-      {
-        *term = io_read();
+      IO_READ => {
+        *term = yatima!(
+          "lambda _type => #$0",
+          Term::Opr(Pos::None, Op::Io(read_stdin_op()))
+        );
         transform(defs, term);
       }
-      else if exp.to_string()
-        == "bafy2bzaceanc3j2lxoz2jttiinlxqge7u3tnmufrfoil4udxptljacv5fmmq6"
-      {
-        *term = io_bind();
+      IO_BIND => {
+        *term = yatima!("lambda _type1 _type2 io fun => fun io");
         transform(defs, term);
       }
-      else if let Some(def) = defs.defs.get(exp) {
-        *term = def.term.clone();
-        transform(defs, term);
+      _ => {
+        if let Some(def) = defs.defs.get(exp) {
+          *term = def.term.clone();
+          transform(defs, term);
+        }
       }
-    }
+    },
     Term::Let(_pos, _bool, _uses, _name, boxed) => {
       transform_boxed3(defs, boxed);
     }
@@ -144,22 +155,3 @@ fn read_stdin_op() -> IoOp {
     fun_apply2,
   }
 }
-
-fn io_return() -> Term { yatima!("lambda x => x") }
-fn io_print() -> Term {
-  let name = Name::from("_type");
-  Term::Lam(
-    Pos::None,
-    name,
-    Box::new(Term::Opr(Pos::None, Op::Io(write_stdout_op()))),
-  )
-}
-fn io_read() -> Term {
-  let name = Name::from("_type");
-  Term::Lam(
-    Pos::None,
-    name,
-    Box::new(Term::Opr(Pos::None, Op::Io(read_stdin_op()))),
-  )
-}
-fn io_bind() -> Term { yatima!("lambda _type1 _type2 io fun => fun io") }

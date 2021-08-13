@@ -11,9 +11,7 @@
 //#[macro_use]
 extern crate yatima_core;
 
-pub mod execute;
 pub mod file;
-pub mod runtime;
 // TODO make WASI compatible
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ipfs;

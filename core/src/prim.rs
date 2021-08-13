@@ -16,7 +16,6 @@ pub mod u32;
 pub mod u64;
 pub mod u8;
 
-#[cfg(feature = "std")]
 pub mod io;
 
 use sp_std::{
@@ -55,7 +54,6 @@ use crate::prim::{
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Op {
-  #[cfg(feature = "std")]
   Io(IoOp),
   Nat(NatOp),
   Int(IntOp),
@@ -79,7 +77,6 @@ pub enum Op {
 impl Op {
   pub fn symbol(self) -> String {
     match self {
-      #[cfg(feature = "std")]
       Self::Io(op) => format!("#Io.{}", op.symbol()),
       Self::Nat(op) => format!("#Nat.{}", op.symbol()),
       Self::Int(op) => format!("#Int.{}", op.symbol()),
@@ -103,7 +100,6 @@ impl Op {
 
   pub fn to_ipld(self) -> Ipld {
     match self {
-      #[cfg(feature = "std")]
       Self::Io(_) => panic!("IO operations cannot be serialized"),
       Self::Nat(op) => Ipld::List(vec![Ipld::Integer(0), op.to_ipld()]),
       Self::Int(op) => Ipld::List(vec![Ipld::Integer(1), op.to_ipld()]),
