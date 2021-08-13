@@ -10,6 +10,7 @@ use wasm_bindgen::{prelude::*, JsCast};
 use xterm_js_rs::{
   addons::{fit::FitAddon, search::SearchAddon, web_links::WebLinksAddon},
   Terminal, TerminalOptions, Theme,
+  FontWeight,
 };
 use yatima_utils::{
   file::parse::{self, PackageEnv},
@@ -176,6 +177,8 @@ fn terminal_options() -> TerminalOptions {
     .with_draw_bold_text_in_bright_colors(true)
     .with_right_click_selects_word(true)
     .with_theme(&solarized_light_theme())
+    .with_font_family("InconsolataLGCRegular")
+    .with_font_weight(FontWeight::Normal)
     .with_tab_stop_width(TAB_WIDTH.try_into().unwrap());
   terminal_options
 }
