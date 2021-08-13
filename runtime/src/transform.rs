@@ -14,15 +14,19 @@ use yatima_core::{
   yatima,
 };
 
+/// The str CID of IO.Return
 const IO_RETURN: &str =
   "bafy2bzaceakfamngkzwsi3zzkxyfz5rfabb5x3t6it7nhsxo7jjb2grpu7gmm";
 
+/// The str CID of IO.Print
 const IO_PRINT: &str =
   "bafy2bzaceajjrezmgr6mulbz4htf72yknifanxgsoqquzhno5vtx5wggwo7k6";
 
+/// The str CID of IO.Read
 const IO_READ: &str =
   "bafy2bzaceabdrrnmkljwxmj5xe63nhtygjjpgxtptdrdolsipdojrbsjjyrd6";
 
+/// The str CID of IO.Bind
 const IO_BIND: &str =
   "bafy2bzaceanc3j2lxoz2jttiinlxqge7u3tnmufrfoil4udxptljacv5fmmq6";
 

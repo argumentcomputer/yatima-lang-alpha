@@ -1,4 +1,3 @@
-use nom::Finish;
 use sp_cid::Cid;
 use std::{
   path::PathBuf,
@@ -11,7 +10,10 @@ use yatima_cli::file::store::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 use yatima_cli::repl;
-use yatima_core::name::Name;
+use yatima_core::{
+  name::Name,
+  parse::parse_cid,
+};
 use yatima_utils::{
   file,
   store::{
@@ -95,20 +97,6 @@ enum ShowType {
     #[structopt(parse(try_from_str = parse_cid))]
     input: Cid,
   },
-}
-
-fn parse_cid(
-  s: &str,
-) -> Result<
-  Cid,
-  yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>,
-> {
-  let result = yatima_core::parse::package::parse_link(
-    yatima_core::parse::span::Span::new(s),
-  )
-  .finish()
-  .map(|(_, x)| x);
-  result
 }
 
 #[cfg(not(target_arch = "wasm32"))]
