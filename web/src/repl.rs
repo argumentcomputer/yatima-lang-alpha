@@ -130,20 +130,60 @@ impl Repl for WebRepl {
   }
 }
 
+// Solarized colors
+// const BASE03: &str = "#002b36";
+// const BASE02: &str = "#073642";
+// const BASE01: &str = "#586e75";
+const BASE00: &str = "#657b83";
+// const BASE0:  &str = "#839496";
+const BASE1:  &str = "#93a1a1";
+const BASE2:  &str = "#eee8d5";
+const BASE3:  &str = "#fdf6e3";
+const YELLOW: &str = "#b58900";
+// const ORANGE: &str = "#cb4b16";
+const RED:    &str = "#dc322f";
+const MAGENTA:&str = "#d33682";
+// const VIOLET: &str = "#6c71c4";
+const BLUE:   &str = "#268bd2";
+const CYAN:   &str = "#2aa198";
+const GREEN:  &str = "#859900";
+
+fn solarized_light_theme() -> Theme {
+  let theme = Theme::new();
+  theme
+    .with_foreground(BASE00)
+    .with_background(BASE3)
+    .with_bright_yellow(BASE00)
+    .with_bright_cyan(BASE1)
+    .with_white(BASE2)
+    .with_bright_white(BASE3)
+    .with_yellow(YELLOW)
+    .with_red(RED)
+    .with_magenta(MAGENTA)
+    .with_blue(BLUE)
+    .with_cyan(CYAN)
+    .with_green(GREEN);
+  theme
+}
+
+fn terminal_options() -> TerminalOptions {
+  let terminal_options = TerminalOptions::new();
+  terminal_options
+    .with_rows(50)
+    .with_cursor_blink(true)
+    .with_cursor_width(10)
+    .with_font_size(18)
+    .with_draw_bold_text_in_bright_colors(true)
+    .with_right_click_selects_word(true)
+    .with_theme(&solarized_light_theme())
+    .with_tab_stop_width(TAB_WIDTH.try_into().unwrap());
+  terminal_options
+}
+
 impl WebRepl {
   pub fn new() -> Self {
     let terminal: Terminal = Terminal::new(
-      TerminalOptions::new()
-        .with_rows(50)
-        .with_cursor_blink(true)
-        .with_cursor_width(10)
-        .with_font_size(20)
-        .with_draw_bold_text_in_bright_colors(true)
-        .with_right_click_selects_word(true)
-        .with_theme(
-          Theme::new().with_foreground("#98FB98").with_background("#000000"),
-        )
-        .with_tab_stop_width(TAB_WIDTH.try_into().unwrap()),
+      &terminal_options()
     );
 
     let elem = web_sys::window()
@@ -154,11 +194,6 @@ impl WebRepl {
       .unwrap();
 
     terminal.writeln("Yatima REPL");
-    terminal.writeln("Supported keys in this example:");
-    terminal.writeln(
-      " <Printable-Characters> <Enter> <Backspace> <Left-Arrow> <Right-Arrow> \
-       <Ctrl-C> <Ctrl-L> <Ctrl-Left> <Ctrl-Right> <Home> <End>",
-    );
     terminal.open(elem.dyn_into().unwrap());
     prompt(&terminal);
 
