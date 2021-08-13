@@ -271,7 +271,7 @@ programming language is an empowering medium of *individual* expression,
 where the user encounters, and extends their mind through, a computing machine.
 We believe "Programmer" shouldn't be a job description, anymore than "scribe" 
 is a job description in a world with near-universal literacy. Computing belongs 
-to everyone, and computer programming should therefore be maximally accesible 
+to everyone, and computer programming should therefore be maximally accessible 
 to everyone.
 
 Currently, it's not: There are about 5 billion internet users worldwide, but
@@ -333,3 +333,10 @@ systems and their own data. A future where reliable, type-checked,
 formally-verified software is the norm, so you can rely on software engineering
 with the same quotidian confidence you have for civil engineering whenever you 
 drive your car over a bridge.
+
+## Thank you to our Supporters!
+
+<img align="left" width="500" src="img/web3_foundation_grants_badge_white.jpg"/>
+
+
+<img align="left" width="275" src="img/iota_black.png"/>
