@@ -115,8 +115,8 @@ pub fn ir_to_graph(
       };
       new_link(Graph::Fix(clos))
     }
-    IR::Lit(_lit) => {
-      todo!()
+    IR::Lit(lit) => {
+      new_link(Graph::Lit(lit.clone()))
     }
     IR::LTy(lty) => {
       new_link(Graph::LTy(*lty))
@@ -222,8 +222,11 @@ pub fn compile_ir(
         code.push(MK_FIX);
         compile_closure(name.clone(), free, env, bod, code, fun_defs);
       }
-      IR::Lit(_lit) => {
-        todo!()
+      IR::Lit(lit) => {
+        code.push(MK_LIT);
+        let (lit_type, lit) = lit_to_code(lit);
+        code.push(lit_type);
+        code.extend_from_slice(&lit);
       }
       IR::LTy(lty) => {
         code.push(MK_LTY);

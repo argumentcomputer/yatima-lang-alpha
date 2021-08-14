@@ -220,76 +220,96 @@ pub fn code_to_opr(opr_typ: CODE, opr: CODE) -> Op {
 }
 
 #[inline]
-pub fn code_to_lit(lit_typ: CODE, lit: &[CODE]) -> Literal {
+pub fn code_to_lit(lit_typ: CODE, lit: &[CODE]) -> (Literal, usize) {
   match lit_typ {
     0 => {
-      Literal::Nat(BigUint::from_bytes_le(lit))
+      let len = usize::from_le_bytes(
+        [lit[0], lit[1], lit[2], lit[3],
+         lit[4], lit[5], lit[6], lit[7]]);
+      let lit = &lit[8..8+len];
+      (Literal::Nat(BigUint::from_bytes_le(lit)), 8+len)
     }
     1 => {
-      Literal::Int(BigInt::from_signed_bytes_le(lit))
+      let len = usize::from_le_bytes(
+        [lit[0], lit[1], lit[2], lit[3],
+         lit[4], lit[5], lit[6], lit[7]]);
+      let lit = &lit[8..8+len];
+      (Literal::Int(BigInt::from_signed_bytes_le(lit)), 8+len)
     }
     2 => unsafe {
-      Literal::Bits(mem::transmute(lit.to_vec()))
+      let len = usize::from_le_bytes(
+        [lit[0], lit[1], lit[2], lit[3],
+         lit[4], lit[5], lit[6], lit[7]]);
+      let lit = &lit[8..8+len];
+      (Literal::Bits(mem::transmute(lit.to_vec())), 8+len)
     }
     3 => {
-      Literal::Bytes(lit.to_vec())
+      let len = usize::from_le_bytes(
+        [lit[0], lit[1], lit[2], lit[3],
+         lit[4], lit[5], lit[6], lit[7]]);
+      let lit = &lit[8..8+len];
+      (Literal::Bytes(lit.to_vec()), 8+len)
     }
     4 => {
+      let len = usize::from_le_bytes(
+        [lit[0], lit[1], lit[2], lit[3],
+         lit[4], lit[5], lit[6], lit[7]]);
+      let lit = &lit[8..8+len];
       let string = str::from_utf8(lit).unwrap();
-      Literal::Text(Rope::from_str(string))
+      (Literal::Text(Rope::from_str(string)), 8+len)
     }
     5 => {
       let num = u32::from_le_bytes([lit[0], lit[1], lit[2], lit[3]]);
-      Literal::Char(char::from_u32(num).unwrap())
+      (Literal::Char(char::from_u32(num).unwrap()), 4)
     }
     6 => {
-      Literal::Bool(lit[0] != 0)
+      (Literal::Bool(lit[0] != 0), 1)
     }
     7 => {
-      Literal::U8(lit[0])
+      (Literal::U8(lit[0]), 1)
     }
     8 => {
       let bytes = [lit[0], lit[1]];
-      Literal::U16(u16::from_le_bytes(bytes))
+      (Literal::U16(u16::from_le_bytes(bytes)), 2)
     }
     9 => {
       let bytes = [lit[0], lit[1], lit[2], lit[3]];
-      Literal::U32(u32::from_le_bytes(bytes))
+      (Literal::U32(u32::from_le_bytes(bytes)), 4)
     }
     10 => {
       let bytes = [lit[0], lit[1], lit[2], lit[3],
-                            lit[4], lit[5], lit[6], lit[7]];
-      Literal::U64(u64::from_le_bytes(bytes))
+                   lit[4], lit[5], lit[6], lit[7]];
+      (Literal::U64(u64::from_le_bytes(bytes)), 8)
     }
     11 => {
-      Literal::I8(lit[0] as i8)
+      (Literal::I8(lit[0] as i8), 1)
     }
     12 => {
       let bytes = [lit[0], lit[1]];
-      Literal::I16(i16::from_le_bytes(bytes))
+      (Literal::I16(i16::from_le_bytes(bytes)), 2)
     }
     13 => {
       let bytes = [lit[0], lit[1], lit[2], lit[3]];
-      Literal::I32(i32::from_le_bytes(bytes))
+      (Literal::I32(i32::from_le_bytes(bytes)), 4)
     }
     14 => {
       let bytes = [lit[0], lit[1], lit[2], lit[3],
-                            lit[4], lit[5], lit[6], lit[7]];
-      Literal::I64(i64::from_le_bytes(bytes))
+                   lit[4], lit[5], lit[6], lit[7]];
+      (Literal::I64(i64::from_le_bytes(bytes)), 8)
     }
     15 => {
       let bytes = [lit[0], lit[1], lit[2], lit[3],
-                            lit[4], lit[5], lit[6], lit[7],
-                            lit[8], lit[9], lit[10], lit[11],
-                            lit[12], lit[13], lit[14], lit[15]];
-      Literal::U128(u128::from_le_bytes(bytes))
+                   lit[4], lit[5], lit[6], lit[7],
+                   lit[8], lit[9], lit[10], lit[11],
+                   lit[12], lit[13], lit[14], lit[15]];
+      (Literal::U128(u128::from_le_bytes(bytes)), 16)
     }
     16 => {
       let bytes = [lit[0], lit[1], lit[2], lit[3],
-                            lit[4], lit[5], lit[6], lit[7],
-                            lit[8], lit[9], lit[10], lit[11],
-                            lit[12], lit[13], lit[14], lit[15]];
-      Literal::I128(i128::from_le_bytes(bytes))
+                   lit[4], lit[5], lit[6], lit[7],
+                   lit[8], lit[9], lit[10], lit[11],
+                   lit[12], lit[13], lit[14], lit[15]];
+      (Literal::I128(i128::from_le_bytes(bytes)), 16)
     }
     _ => unreachable!(),
   }
@@ -298,15 +318,37 @@ pub fn code_to_lit(lit_typ: CODE, lit: &[CODE]) -> Literal {
 #[inline]
 pub fn lit_to_code(lit: &Literal) -> (CODE, Vec<CODE>) {
   match lit {
-    Literal::Nat(x) => (0, x.to_bytes_le()),
-    Literal::Int(x) => (1, x.to_signed_bytes_le()),
-    Literal::Bits(x) => unsafe {
-      (2, mem::transmute(x.clone()))
+    Literal::Nat(x) => {
+      let bytes = &x.to_bytes_le();
+      let mut result = bytes.len().to_le_bytes().to_vec();
+      result.extend_from_slice(bytes);
+      (0, result)
     },
-    Literal::Bytes(x) => (3, x.clone()),
-    Literal::Text(x) => (4, x.to_string().into_bytes()),
-    Literal::Char(x) => unsafe {
-      let bytes: [u8; 4] = mem::transmute(*x);
+    Literal::Int(x) => {
+      let bytes = &x.to_signed_bytes_le();
+      let mut result = bytes.len().to_le_bytes().to_vec();
+      result.extend_from_slice(bytes);
+      (1, result)
+    },
+    Literal::Bits(x) => unsafe {
+      let bytes: &[u8] = mem::transmute(x as &[bool]);
+      let mut result = bytes.len().to_le_bytes().to_vec();
+      result.extend_from_slice(bytes);
+      (2, result)
+    },
+    Literal::Bytes(bytes) => {
+      let mut result = bytes.len().to_le_bytes().to_vec();
+      result.extend_from_slice(bytes);
+      (3, result)
+    },
+    Literal::Text(x) => {
+      let bytes = &x.to_string().into_bytes();
+      let mut result = bytes.len().to_le_bytes().to_vec();
+      result.extend_from_slice(bytes);
+      (4, result)
+    },
+    Literal::Char(x) => {
+      let bytes: [u8; 4] = (*x as u32).to_le_bytes();
       (5, bytes.to_vec())
     },
     Literal::Bool(x) => (6, vec![*x as u8]),
@@ -590,7 +632,11 @@ pub fn build_graph(
         ));
       },
       MK_LIT => {
-        todo!()
+        let (lit, shift) = code_to_lit(code[pc+1], &code[pc+2..]);
+        pc = pc+1+shift;
+        args.push(new_link(
+          Graph::Lit(lit)
+        ));
       }
       MK_LTY => {
         let lty = code[pc+1];
@@ -1118,7 +1164,9 @@ pub fn stringify_code(
         args.push(format!("(Fix {} {})", arg_name, code_str));
       },
       MK_LIT => {
-        todo!()
+        let (lit, shift) = code_to_lit(code[pc+1], &code[pc+2..]);
+        pc = pc+1+shift;
+        args.push(format!("(Lit {})", lit));
       }
       MK_LTY => {
         let lty = code[pc+1];

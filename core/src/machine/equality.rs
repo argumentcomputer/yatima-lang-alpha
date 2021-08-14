@@ -260,7 +260,9 @@ pub fn hash_code(
         args.push(format!("μ{}", code_str));
       },
       MK_LIT => {
-        todo!()
+        let (lit, shift) = code_to_lit(code[pc+1], &code[pc+2..]);
+        pc = pc+1+shift;
+        args.push(format!("<{}>", lit));
       }
       MK_LTY => {
         let lty = code[pc+1];
