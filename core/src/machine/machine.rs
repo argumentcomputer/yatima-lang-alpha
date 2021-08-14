@@ -19,9 +19,12 @@ use crate::{
   machine::ir,
 };
 
+use ropey::Rope;
 use alloc::string::String;
+use alloc::string::ToString;
 use sp_std::{
   mem,
+  str,
   vec::Vec,
   rc::Rc,
   cell::RefCell,
@@ -32,6 +35,7 @@ use sp_std::{
 
 use num_bigint::{
   BigUint,
+  BigInt,
 };
 
 // The maximum byte size of array of globals
@@ -192,26 +196,130 @@ pub fn opr_to_code(opr: Op) -> (CODE, CODE) {
 }
 
 #[inline]
-pub fn code_to_opr(pair: (CODE, CODE)) -> Op {
+pub fn code_to_opr(opr_typ: CODE, opr: CODE) -> Op {
   unsafe {
-    match pair {
-      (0, x) => Op::Nat(mem::transmute(x)),
-      (1, x) => Op::Int(mem::transmute(x)),
-      (2, x) => Op::Bits(mem::transmute(x)),
-      (3, x) => Op::Bytes(mem::transmute(x)),
-      (4, x) => Op::Text(mem::transmute(x)),
-      (5, x) => Op::Char(mem::transmute(x)),
-      (6, x) => Op::Bool(mem::transmute(x)),
-      (7, x) => Op::U8(mem::transmute(x)),
-      (8, x) => Op::U16(mem::transmute(x)),
-      (9, x) => Op::U32(mem::transmute(x)),
-      (10, x) => Op::U64(mem::transmute(x)),
-      (11, x) => Op::I8(mem::transmute(x)),
-      (12, x) => Op::I16(mem::transmute(x)),
-      (13, x) => Op::I32(mem::transmute(x)),
-      (14, x) => Op::I64(mem::transmute(x)),
+    match opr_typ {
+      0 => Op::Nat(mem::transmute(opr)),
+      1 => Op::Int(mem::transmute(opr)),
+      2 => Op::Bits(mem::transmute(opr)),
+      3 => Op::Bytes(mem::transmute(opr)),
+      4 => Op::Text(mem::transmute(opr)),
+      5 => Op::Char(mem::transmute(opr)),
+      6 => Op::Bool(mem::transmute(opr)),
+      7 => Op::U8(mem::transmute(opr)),
+      8 => Op::U16(mem::transmute(opr)),
+      9 => Op::U32(mem::transmute(opr)),
+      10 => Op::U64(mem::transmute(opr)),
+      11 => Op::I8(mem::transmute(opr)),
+      12 => Op::I16(mem::transmute(opr)),
+      13 => Op::I32(mem::transmute(opr)),
+      14 => Op::I64(mem::transmute(opr)),
       _ => unreachable!(),
     }
+  }
+}
+
+#[inline]
+pub fn code_to_lit(lit_typ: CODE, lit: &[CODE]) -> Literal {
+  match lit_typ {
+    0 => {
+      Literal::Nat(BigUint::from_bytes_le(lit))
+    }
+    1 => {
+      Literal::Int(BigInt::from_signed_bytes_le(lit))
+    }
+    2 => unsafe {
+      Literal::Bits(mem::transmute(lit.to_vec()))
+    }
+    3 => {
+      Literal::Bytes(lit.to_vec())
+    }
+    4 => {
+      let string = str::from_utf8(lit).unwrap();
+      Literal::Text(Rope::from_str(string))
+    }
+    5 => {
+      let num = u32::from_le_bytes([lit[0], lit[1], lit[2], lit[3]]);
+      Literal::Char(char::from_u32(num).unwrap())
+    }
+    6 => {
+      Literal::Bool(lit[0] != 0)
+    }
+    7 => {
+      Literal::U8(lit[0])
+    }
+    8 => {
+      let bytes = [lit[0], lit[1]];
+      Literal::U16(u16::from_le_bytes(bytes))
+    }
+    9 => {
+      let bytes = [lit[0], lit[1], lit[2], lit[3]];
+      Literal::U32(u32::from_le_bytes(bytes))
+    }
+    10 => {
+      let bytes = [lit[0], lit[1], lit[2], lit[3],
+                            lit[4], lit[5], lit[6], lit[7]];
+      Literal::U64(u64::from_le_bytes(bytes))
+    }
+    11 => {
+      Literal::I8(lit[0] as i8)
+    }
+    12 => {
+      let bytes = [lit[0], lit[1]];
+      Literal::I16(i16::from_le_bytes(bytes))
+    }
+    13 => {
+      let bytes = [lit[0], lit[1], lit[2], lit[3]];
+      Literal::I32(i32::from_le_bytes(bytes))
+    }
+    14 => {
+      let bytes = [lit[0], lit[1], lit[2], lit[3],
+                            lit[4], lit[5], lit[6], lit[7]];
+      Literal::I64(i64::from_le_bytes(bytes))
+    }
+    15 => {
+      let bytes = [lit[0], lit[1], lit[2], lit[3],
+                            lit[4], lit[5], lit[6], lit[7],
+                            lit[8], lit[9], lit[10], lit[11],
+                            lit[12], lit[13], lit[14], lit[15]];
+      Literal::U128(u128::from_le_bytes(bytes))
+    }
+    16 => {
+      let bytes = [lit[0], lit[1], lit[2], lit[3],
+                            lit[4], lit[5], lit[6], lit[7],
+                            lit[8], lit[9], lit[10], lit[11],
+                            lit[12], lit[13], lit[14], lit[15]];
+      Literal::I128(i128::from_le_bytes(bytes))
+    }
+    _ => unreachable!(),
+  }
+}
+
+#[inline]
+pub fn lit_to_code(lit: &Literal) -> (CODE, Vec<CODE>) {
+  match lit {
+    Literal::Nat(x) => (0, x.to_bytes_le()),
+    Literal::Int(x) => (1, x.to_signed_bytes_le()),
+    Literal::Bits(x) => unsafe {
+      (2, mem::transmute(x.clone()))
+    },
+    Literal::Bytes(x) => (3, x.clone()),
+    Literal::Text(x) => (4, x.to_string().into_bytes()),
+    Literal::Char(x) => unsafe {
+      let bytes: [u8; 4] = mem::transmute(*x);
+      (5, bytes.to_vec())
+    },
+    Literal::Bool(x) => (6, vec![*x as u8]),
+    Literal::U8(x) => (7, vec![*x as u8]),
+    Literal::U16(x) => (8, x.to_le_bytes().to_vec()),
+    Literal::U32(x) => (9, x.to_le_bytes().to_vec()),
+    Literal::U64(x) => (10, x.to_le_bytes().to_vec()),
+    Literal::I8(x) => (11, vec![*x as u8]),
+    Literal::I16(x) => (12, x.to_le_bytes().to_vec()),
+    Literal::I32(x) => (13, x.to_le_bytes().to_vec()),
+    Literal::I64(x) => (14, x.to_le_bytes().to_vec()),
+    Literal::U128(x) => (15, x.to_le_bytes().to_vec()),
+    Literal::I128(x) => (16, x.to_le_bytes().to_vec()),
   }
 }
 
@@ -496,7 +604,7 @@ pub fn build_graph(
         let typ_code = code[pc+1];
         let opr_code = code[pc+2];
         pc = pc+2;
-        let opr = code_to_opr((typ_code, opr_code));
+        let opr = code_to_opr(typ_code, opr_code);
         args.push(new_link(
           Graph::Opr(opr)
         ));
@@ -1022,7 +1130,7 @@ pub fn stringify_code(
         let typ_code = code[pc+1];
         let opr_code = code[pc+2];
         pc = pc+2;
-        let opr = code_to_opr((typ_code, opr_code));
+        let opr = code_to_opr(typ_code, opr_code);
         args.push(format!("(Opr {})", opr));
       }
       EVAL => {

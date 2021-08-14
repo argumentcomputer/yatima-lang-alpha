@@ -272,7 +272,7 @@ pub fn hash_code(
         let typ_code = code[pc+1];
         let opr_code = code[pc+2];
         pc = pc+2;
-        let opr = code_to_opr((typ_code, opr_code));
+        let opr = code_to_opr(typ_code, opr_code);
         args.push(format!("O{}", opr));
       }
       EVAL => {
