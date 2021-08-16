@@ -8,7 +8,10 @@
   },
   "scripts": {
     "build": "PATH=$(npm bin):$PATH webpack --config webpack.config.js",
-    "start": "PATH=$(npm bin):$PATH webpack serve"
+    "start": "PATH=$(npm bin):$PATH webpack serve",
+    "build:release": "PATH=$(npm bin):$PATH webpack --config webpack.config.js --env=release",
+    "start:release": "PATH=$(npm bin):$PATH webpack serve --env=release"
+
   },
   "keywords": [
     "webassembly",
