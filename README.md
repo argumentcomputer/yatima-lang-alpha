@@ -186,10 +186,10 @@ npm start
 
 ### With cargo
 
-Yatima requires nightly Rust:
+Yatima uses nightly Rust pinned to a specific date:
 
 ```bash
-rustup default nightly
+rustup toolchain install $(< rust-toolchain)
 ```
 
 To build yatima:
