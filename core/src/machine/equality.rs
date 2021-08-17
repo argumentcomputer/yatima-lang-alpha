@@ -37,7 +37,9 @@ pub fn equal(
           let Closure { idx: a_idx, env: a_env } = a_clos;
           let Closure { idx: b_idx, env: b_env } = b_clos;
           let a_bod = build_graph(true, globals, fun_defs, *a_idx, a_env, new_var.clone());
+          let a_bod = reduce(globals, fun_defs, a_bod);
           let b_bod = build_graph(true, globals, fun_defs, *b_idx, b_env, new_var);
+          let b_bod = reduce(globals, fun_defs, b_bod);
           triples.push((a_bod, b_bod, dep + 1));
         },
         (Graph::Slf(a_clos), Graph::Slf(b_clos)) => {
@@ -45,7 +47,9 @@ pub fn equal(
           let Closure { idx: a_idx, env: a_env } = a_clos;
           let Closure { idx: b_idx, env: b_env } = b_clos;
           let a_bod = build_graph(true, globals, fun_defs, *a_idx, a_env, new_var.clone());
+          let a_bod = reduce(globals, fun_defs, a_bod);
           let b_bod = build_graph(true, globals, fun_defs, *b_idx, b_env, new_var);
+          let b_bod = reduce(globals, fun_defs, b_bod);
           triples.push((a_bod, b_bod, dep + 1));
         },
         (Graph::Cse(a_bod), Graph::Cse(b_bod)) => {
@@ -68,7 +72,9 @@ pub fn equal(
           let a_dom = reduce(globals, fun_defs, a_dom.clone());
           let b_dom = reduce(globals, fun_defs, b_dom.clone());
           let a_img = build_graph(true, globals, fun_defs, *a_idx, a_env, new_var.clone());
+          let a_img = reduce(globals, fun_defs, a_img);
           let b_img = build_graph(true, globals, fun_defs, *b_idx, b_env, new_var);
+          let b_img = reduce(globals, fun_defs, b_img);
           triples.push((a_dom, b_dom, dep));
           triples.push((a_img, b_img, dep + 1));
         },

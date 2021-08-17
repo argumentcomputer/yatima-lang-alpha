@@ -201,6 +201,9 @@ pub fn infer(
           let cse_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(exp.clone()));
           Ok(cse_typ)
         }
+        Graph::LTy(_lty) => {
+          Err(CheckError::GenericError(format!("TODO: Lit case")))
+        }
         _ => Err(CheckError::GenericError(format!(
           "Tried to case match on an expression which is not an inductive datatype"
         ))),
