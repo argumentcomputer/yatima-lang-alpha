@@ -293,51 +293,19 @@ pub fn infer(
 #[inline]
 pub fn lty_induction(globals: &Vec<DefCell>, fun_defs: &mut Vec<FunCell>, lty: &LitType, term: Link<Graph>) -> Option<Link<Graph>> {
   let idx = match lty {
-    LitType::Nat => {
-      let nat_induction = globals[NAT_INDUCTION].term.borrow();
-      match &*nat_induction {
-        Graph::Lam(Closure { idx, .. }) => *idx,
-        _ => panic!("Implementation of induction of literals incorrect"),
-      }
-    },
-    LitType::Int => {
-      let int_induction = globals[INT_INDUCTION].term.borrow();
-      match &*int_induction {
-        Graph::Lam(Closure { idx, .. }) => *idx,
-        _ => panic!("Implementation of induction of literals incorrect"),
-      }
-    },
-    LitType::Bytes => {
-      let bytes_induction = globals[BYTES_INDUCTION].term.borrow();
-      match &*bytes_induction {
-        Graph::Lam(Closure { idx, .. }) => *idx,
-        _ => panic!("Implementation of induction of literals incorrect"),
-      }
-    },
-    LitType::Bits => {
-      let bits_induction = globals[BITS_INDUCTION].term.borrow();
-      match &*bits_induction {
-        Graph::Lam(Closure { idx, .. }) => *idx,
-        _ => panic!("Implementation of induction of literals incorrect"),
-      }
-    },
-    LitType::Text => {
-      let text_induction = globals[TEXT_INDUCTION].term.borrow();
-      match &*text_induction {
-        Graph::Lam(Closure { idx, .. }) => *idx,
-        _ => panic!("Implementation of induction of literals incorrect"),
-      }
-    },
-    LitType::Bool => {
-      let bool_induction = globals[BOOL_INDUCTION].term.borrow();
-      match &*bool_induction {
-        Graph::Lam(Closure { idx, .. }) => *idx,
-        _ => panic!("Implementation of induction of literals incorrect"),
-      }
-    },
+    LitType::Nat => NAT_INDUCTION,
+    LitType::Int => INT_INDUCTION,
+    LitType::Bytes => BYTES_INDUCTION,
+    LitType::Bits => BITS_INDUCTION,
+    LitType::Text => TEXT_INDUCTION,
+    LitType::Bool => BOOL_INDUCTION,
     _ => return None,
   };
-  Some(build_graph(false, globals, fun_defs, idx, &vec![], term))
+  let induction = globals[idx].term.borrow();
+  match &*induction {
+    Graph::Lam(Closure { idx, .. }) => Some(build_graph(false, globals, fun_defs, *idx, &vec![], term)),
+    _ => panic!("Implementation of induction of literals incorrect"),
+  }
 }
 
 #[inline]
@@ -366,7 +334,7 @@ pub fn infer_lit(lit: &Literal) -> LitType {
 pub fn check_defs(
   globals: &Vec<DefCell>,
   fun_defs: &mut Vec<FunCell>
-) -> Vec<String> {
+) -> Vec<(Name, Result<(), CheckError>)> {
   let mut mut_globals = vec![];
   let mut result = vec![];
   for DefCell { name, term, typ_ } in globals {
@@ -380,11 +348,10 @@ pub fn check_defs(
   for i in DEF_START..globals.len() {
     let DefCell { name, term, typ_ } = &globals[i];
     let mut ctx = vec![];
-    let check = check(globals, &mut_globals, fun_defs, &mut ctx, Uses::Once, term.clone(), typ_.clone());
-    match check {
-      Ok(()) => result.push(format!("✓ {}", name)),
-      Err(CheckError::GenericError(err)) => result.push(format!("✗ {}: {}", name, err)),
-    }
+    result.push((
+      name.clone(),
+      check(globals, &mut_globals, fun_defs, &mut ctx, Uses::Once, term.clone(), typ_.clone())
+    ));
   }
   result
 }

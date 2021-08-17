@@ -15,6 +15,7 @@ use yatima_cli::{
   repl,
 };
 use yatima_core::name::Name;
+use yatima_core::machine::*;
 use yatima_utils::{
   file,
   store::{
@@ -220,14 +221,14 @@ async fn main() -> std::io::Result<()> {
         eprintln!("{}", e);
         std::io::Error::from(std::io::ErrorKind::Other)
       })?;
-      let ir_defs = yatima_core::machine::ir::defs_to_ir(&defs);
+      let ir_defs = ir::defs_to_ir(&defs);
       let mut fun_defs = vec![];
-      let (globals, main) = yatima_core::machine::compilation::defs_to_globals(&ir_defs, &mut fun_defs);
+      let (globals, main) = compilation::defs_to_globals(&ir_defs, &mut fun_defs);
       let idx = main.expect(&format!("No `main` expression in file {:?}", path));
       let graph = globals[idx].term.clone();
-      println!("before evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph.clone()));
-      let graph = yatima_core::machine::machine::reduce(&globals, &fun_defs, graph);
-      println!("after evaluation: {}", yatima_core::machine::machine::stringify_graph(&globals, &fun_defs, graph));
+      println!("before evaluation: {}", machine::stringify_graph(&globals, &fun_defs, graph.clone()));
+      let graph = machine::reduce(&globals, &fun_defs, graph);
+      println!("after evaluation: {}", machine::stringify_graph(&globals, &fun_defs, graph));
       Ok(())
     }
     Command::MachineCheck { path } => {
@@ -236,12 +237,15 @@ async fn main() -> std::io::Result<()> {
         eprintln!("{}", e);
         std::io::Error::from(std::io::ErrorKind::Other)
       })?;
-      let ir_defs = yatima_core::machine::ir::defs_to_ir(&defs);
+      let ir_defs = ir::defs_to_ir(&defs);
       let mut fun_defs = vec![];
-      let (globals, _) = yatima_core::machine::compilation::defs_to_globals(&ir_defs, &mut fun_defs);
-      let checks = yatima_core::machine::typechecking::check_defs(&globals, &mut fun_defs);
+      let (globals, _) = compilation::defs_to_globals(&ir_defs, &mut fun_defs);
+      let checks = typechecking::check_defs(&globals, &mut fun_defs);
       for check in checks {
-        println!("{}", check)
+        match check {
+          (name, Ok(())) => println!("✓ {}", name),
+          (name, Err(typechecking::CheckError::GenericError(err))) => println!("✗ {}: {}", name, err),
+        }
       }
       Ok(())
     }
