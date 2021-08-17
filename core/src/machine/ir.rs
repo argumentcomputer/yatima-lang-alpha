@@ -48,7 +48,13 @@ pub const ZERO_EXPANSION: usize = 4;
 pub const SUCC_EXPANSION: usize = 5;
 pub const NIL_EXPANSION: usize = 6;
 pub const CONS_EXPANSION: usize = 7;
-pub const DEF_START: usize = 8;
+pub const NAT_INDUCTION: usize = 8;
+pub const INT_INDUCTION: usize = 9;
+pub const BYTES_INDUCTION: usize = 10;
+pub const BITS_INDUCTION: usize = 11;
+pub const TEXT_INDUCTION: usize = 12;
+pub const BOOL_INDUCTION: usize = 13;
+pub const DEF_START: usize = 14;
 
 pub fn aux_defs() -> Vec<(Name, IR, IR)> {
   let defs = &mut Defs::new();
@@ -62,6 +68,41 @@ pub fn aux_defs() -> Vec<(Name, IR, IR)> {
   let (nat_succ, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!("λ n P z s => s n"));
   let (nil, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!("λ P n c => n"));
   let (cons, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!("λ x xs P n c => c x xs"));
+  let (nat_induction, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!(
+    "λ self => ∀ (0 P: ∀ #Nat -> Type)
+             (& zero: P 0)
+             (& succ: ∀ (pred: #Nat) -> P (#Nat.suc pred))
+           -> P self
+          "));
+  let (int_induction, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!(
+    "λ self => ∀ (0 P: ∀ #Int -> Type)
+             (& int: ∀ (sign: #Bool) (abs: #Nat) -> P (#Int.new sign abs))
+           -> P self
+          "));
+  let (bytes_induction, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!(
+    "λ self => ∀ (0 P: ∀ #Bytes -> Type)
+             (& nil: P \"\")
+             (& cons: ∀ (x: #U8) (xs: #Bytes) -> P (#Bytes.cons x xs))
+           -> P self
+          "));
+  let (bits_induction, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!(
+    "λ self => ∀ (0 P: ∀ #Bits -> Type)
+             (& nil: P #b)
+             (& cons: ∀ (x: #Bool) (xs: #Bits) -> P (#Bits.cons x xs))
+           -> P self
+          "));
+  let (text_induction, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!(
+    "λ self => ∀ (0 P: ∀ #Text -> Type)
+             (& nil: P \"\")
+             (& cons: ∀ (x: #Char) (xs: #Text) -> P (#Text.cons x xs))
+           -> P self
+          "));
+  let (bool_induction, _) = term_to_ir(defs, done, ir_defs, 0, &yatima!(
+    "λ self => ∀ (0 P: ∀ #Bool -> Type)
+             (& t: P #Bool.true)
+             (& f: P #Bool.false)
+           -> P self
+          "));
   vec![
     (Name::from("#UNARY_FUNC_TYPE"), unary_func, IR::Typ),
     (Name::from("#BINARY_FUNC_TYPE"), binary_func, IR::Typ),
@@ -71,6 +112,12 @@ pub fn aux_defs() -> Vec<(Name, IR, IR)> {
     (Name::from("#SUCC_EXPANSION"), nat_succ, IR::Typ),
     (Name::from("#NIL_EXPANSION"), nil, IR::Typ),
     (Name::from("#CONS_EXPANSION"), cons, IR::Typ),
+    (Name::from("#NAT_INDUCTION"), nat_induction, IR::Typ),
+    (Name::from("#INT_INDUCTION"), int_induction, IR::Typ),
+    (Name::from("#BYTES_INDUCTION"), bytes_induction, IR::Typ),
+    (Name::from("#BITS_INDUCTION"), bits_induction, IR::Typ),
+    (Name::from("#TEXT_INDUCTION"), text_induction, IR::Typ),
+    (Name::from("#BOOL_INDUCTION"), bool_induction, IR::Typ),
   ]
 }
 

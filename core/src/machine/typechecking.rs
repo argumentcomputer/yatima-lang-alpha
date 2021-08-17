@@ -201,8 +201,11 @@ pub fn infer(
           let cse_typ = build_graph(true, mut_globals, fun_defs, *idx, env, full_clone(exp.clone()));
           Ok(cse_typ)
         }
-        Graph::LTy(_lty) => {
-          Err(CheckError::GenericError(format!("TODO: Lit case")))
+        Graph::LTy(lty) => {
+          match lty_induction(globals, fun_defs, lty, exp.clone()) {
+            None => Err(CheckError::GenericError(format!("{} is not an inductive literal", lty))),
+            Some(ind) => Ok(ind),
+          }
         }
         _ => Err(CheckError::GenericError(format!(
           "Tried to case match on an expression which is not an inductive datatype"
@@ -287,6 +290,57 @@ pub fn infer(
   }
 }
 
+#[inline]
+pub fn lty_induction(globals: &Vec<DefCell>, fun_defs: &mut Vec<FunCell>, lty: &LitType, term: Link<Graph>) -> Option<Link<Graph>> {
+  let idx = match lty {
+    LitType::Nat => {
+      let nat_induction = globals[NAT_INDUCTION].term.borrow();
+      match &*nat_induction {
+        Graph::Lam(Closure { idx, .. }) => *idx,
+        _ => panic!("Implementation of induction of literals incorrect"),
+      }
+    },
+    LitType::Int => {
+      let int_induction = globals[INT_INDUCTION].term.borrow();
+      match &*int_induction {
+        Graph::Lam(Closure { idx, .. }) => *idx,
+        _ => panic!("Implementation of induction of literals incorrect"),
+      }
+    },
+    LitType::Bytes => {
+      let bytes_induction = globals[BYTES_INDUCTION].term.borrow();
+      match &*bytes_induction {
+        Graph::Lam(Closure { idx, .. }) => *idx,
+        _ => panic!("Implementation of induction of literals incorrect"),
+      }
+    },
+    LitType::Bits => {
+      let bits_induction = globals[BITS_INDUCTION].term.borrow();
+      match &*bits_induction {
+        Graph::Lam(Closure { idx, .. }) => *idx,
+        _ => panic!("Implementation of induction of literals incorrect"),
+      }
+    },
+    LitType::Text => {
+      let text_induction = globals[TEXT_INDUCTION].term.borrow();
+      match &*text_induction {
+        Graph::Lam(Closure { idx, .. }) => *idx,
+        _ => panic!("Implementation of induction of literals incorrect"),
+      }
+    },
+    LitType::Bool => {
+      let bool_induction = globals[BOOL_INDUCTION].term.borrow();
+      match &*bool_induction {
+        Graph::Lam(Closure { idx, .. }) => *idx,
+        _ => panic!("Implementation of induction of literals incorrect"),
+      }
+    },
+    _ => return None,
+  };
+  Some(build_graph(false, globals, fun_defs, idx, &vec![], term))
+}
+
+#[inline]
 pub fn infer_lit(lit: &Literal) -> LitType {
   match lit {
     Literal::Nat(_) => LitType::Nat,
