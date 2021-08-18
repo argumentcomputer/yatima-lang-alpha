@@ -116,7 +116,30 @@ git clone git@github.com:yatima-inc/yatima.git
 cd yatima
 ```
 
-### With Nix:
+### Using binary cache (optional):
+
+To speed up builds use our binary cache from [cachix](https://github.com/cachix/cachix). Install cachix and run:
+
+```bash
+cachix use yatima
+```
+
+### With Nix flakes:
+
+Assuming you have activated flakes for your nix, otherwise [see here](https://nixos.wiki/wiki/Flakes).
+
+```bash
+# Run standalone
+nix run
+# Build
+nix build
+# Start dev shell
+nix develop
+# Install into your environment
+nix profile install
+```
+
+### With Nix (not flakes):
 
 Set up dev environment assuming [nix](https://nixos.org), [lorri](https://github.com/target/lorri) and direnv are installed.
 ```bash
@@ -248,7 +271,7 @@ programming language is an empowering medium of *individual* expression,
 where the user encounters, and extends their mind through, a computing machine.
 We believe "Programmer" shouldn't be a job description, anymore than "scribe" 
 is a job description in a world with near-universal literacy. Computing belongs 
-to everyone, and computer programming should therefore be maximally accesible 
+to everyone, and computer programming should therefore be maximally accessible 
 to everyone.
 
 Currently, it's not: There are about 5 billion internet users worldwide, but
@@ -310,3 +333,10 @@ systems and their own data. A future where reliable, type-checked,
 formally-verified software is the norm, so you can rely on software engineering
 with the same quotidian confidence you have for civil engineering whenever you 
 drive your car over a bridge.
+
+## Thank you to our Supporters!
+
+<img align="left" width="500" src="img/web3_foundation_grants_badge_white.jpg"/>
+
+
+<img align="left" width="275" src="img/iota_black.png"/>
