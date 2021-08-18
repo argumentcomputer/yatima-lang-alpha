@@ -34,9 +34,11 @@
         pre-commit-hooks = pre-commit;
         nixpkgs = pkgs;
       };
+      web = import ./web/default.nix { nixpkgs = pkgs; inherit system; buildInputs = [ project ]; };
     in
     {
       packages.${crateName} = project;
+      packages."yatima-web" = web;
 
       defaultPackage = self.packages.${system}.${crateName};
 
@@ -58,7 +60,15 @@
       devShell = pkgs.mkShell {
         inherit system;
         inputsFrom = builtins.attrValues self.packages.${system};
-        buildInputs = [ rust ];# ++ builtins.attrValues devTools;
+        buildInputs = [ rust ] ++ builtins.attrValues devTools;
+        nativeBuildInputs = [ rust ];
+        # buildInputs = with pkgs; [
+        #   rust-analyzer
+        #   clippy
+        #   rustfmt
+        #   yarn
+        #   # grin
+        # ];
       };
     });
 }
