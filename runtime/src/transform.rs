@@ -59,14 +59,14 @@ pub fn transform<R: RuntimeIO>(defs: Rc<Defs>, term: &mut Term, runtime: R) {
       IO_PRINT => {
         *term = yatima!(
           "lambda _type x => #$0 x",
-          Term::Opr(Pos::None, Op::Io(runtime.write_stdout_op()))
+          Term::Opr(Pos::None, Op::Io(R::write_stdout_op()))
         );
         transform(defs, term, runtime);
       }
       IO_READ => {
         *term = yatima!(
           "lambda _type => #$0",
-          Term::Opr(Pos::None, Op::Io(runtime.read_stdin_op()))
+          Term::Opr(Pos::None, Op::Io(R::read_stdin_op()))
         );
         transform(defs, term, runtime);
       }
@@ -95,7 +95,7 @@ pub fn transform<R: RuntimeIO>(defs: Rc<Defs>, term: &mut Term, runtime: R) {
   }
 }
 
-fn transform_boxed<R: Runtime>(
+fn transform_boxed<R: RuntimeIO>(
   defs: Rc<Defs>,
   boxed: &mut Box<Term>,
   runtime: R,
@@ -103,7 +103,7 @@ fn transform_boxed<R: Runtime>(
   transform(defs, boxed.as_mut(), runtime)
 }
 
-fn transform_boxed2<R: Runtime>(
+fn transform_boxed2<R: RuntimeIO>(
   defs: Rc<Defs>,
   boxed: &mut Box<(Term, Term)>,
   runtime: R,
@@ -124,7 +124,7 @@ fn transform_boxed3<R: RuntimeIO>(
   transform(defs, t3, runtime);
 }
 
-pub trait RuntimeIO {
+pub trait RuntimeIO: Copy {
   fn write_stdout_op() -> IoOp {
     todo!("write_stdout not implemented for this runtime")
   }
@@ -133,6 +133,7 @@ pub trait RuntimeIO {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct DefaultRuntime {}
 
 impl RuntimeIO for DefaultRuntime {
