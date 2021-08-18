@@ -75,6 +75,15 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
 name = "bitmaps"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
+name = "bitmaps"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "303cec55cd9c5fde944b061b902f142b52a8bb5438cc822481ea1e3ebc96bbcb"
@@ -164,8 +173,9 @@ checksum = "72feb31ffc86498dacdbd0fcebb56138e7177a8cc5cea4516031d15ae85a742e"
 
 [[package]]
 name = "bytecursor"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/bytecursor?branch=main#ceddcf7148286582bdec89a9490a362fb602f4ff"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35497ec36ac85183621f1e7c346cea37b4d9886c9abb17fdeb20dc79e36d3210"
 dependencies = [
  "sp-std",
 ]
@@ -873,19 +883,9 @@ dependencies = [
 
 [[package]]
 name = "nom_locate"
-version = "3.0.0"
-source = "git+https://github.com/yatima-inc/nom_locate?branch=main#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
-dependencies = [
- "bytecount",
- "memchr",
- "nom",
-]
-
-[[package]]
-name = "nom_locate"
-version = "3.0.1"
+version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "302954611858a07e00f85110b4ea61859dea77d63f109bd60ab7b8eb533bbacb"
+checksum = "4689294073dda8a54e484212171efdcb6b12b1908fd70c3dc3eec15b8833b06d"
 dependencies = [
  "bytecount",
  "memchr",
@@ -1406,9 +1406,19 @@ dependencies = [
 [[package]]
 name = "sized-chunks"
 version = "0.6.5"
-source = "git+https://github.com/yatima-inc/sized-chunks?branch=main#ba09facdef63f6150499e7fc7d6a49fba6da3dd5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
+ "typenum",
+]
+
+[[package]]
+name = "sized-chunks"
+version = "0.6.5"
+source = "git+https://github.com/bodil/sized-chunks?branch=master#70b90d36e6d05cc0416896d4b041a6af1bb93d40"
+dependencies = [
+ "bitmaps 3.1.0",
 ]
 
 [[package]]
@@ -1436,7 +1446,8 @@ dependencies = [
 [[package]]
 name = "sp-cid"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-cid?branch=main#f5e9eb55b48b2f6a037198d8f3e96e28fca631cb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da843dbbf2ad94e34a4391b03123399dcd6a5339aa1884d5d81972d2ece64d41"
 dependencies = [
  "bytecursor",
  "multibase",
@@ -1447,13 +1458,14 @@ dependencies = [
 
 [[package]]
 name = "sp-im"
-version = "0.0.1"
-source = "git+https://github.com/yatima-inc/sp-im?branch=main#00cf9a877269e25c5b1b58ea1a867bcda5f1ca37"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30c3320ed23a386f80c2286b2de6837c9628750fa774213ceafa0f5927d37f23"
 dependencies = [
- "bitmaps",
+ "bitmaps 3.1.0",
  "rand_core 0.5.1",
  "rand_xoshiro",
- "sized-chunks",
+ "sized-chunks 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-std",
  "spin",
  "typenum",
@@ -1462,11 +1474,16 @@ dependencies = [
 
 [[package]]
 name = "sp-ipld"
-version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#8e8b698b8ba165475f0a943d155f7d63f60d07a6"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "989cc43356e8d4eeb42e5bc8b1a363e98c45cc8f026ea81d96790a2fc955b3a6"
 dependencies = [
+ "base64",
  "bytecursor",
  "byteorder",
+ "multibase",
+ "serde",
+ "serde_json",
  "sp-cid",
  "sp-multihash",
  "sp-std",
@@ -1476,7 +1493,8 @@ dependencies = [
 [[package]]
 name = "sp-multihash"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=main#5013731551e5d4e77067e14891dfbdf2a1efe349"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c74624433a8926e495041e78f8414771067895e0e2608c22b1771792714001ee"
 dependencies = [
  "blake2b_simd",
  "blake2s_simd",
@@ -1494,7 +1512,8 @@ dependencies = [
 [[package]]
 name = "sp-multihash-derive"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-multihash?branch=main#5013731551e5d4e77067e14891dfbdf2a1efe349"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50f2fec51df320e33df53351cb5a11ca60257b4915f6a76efb667f2ea0662fc2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro-error",
@@ -2018,7 +2037,7 @@ dependencies = [
  "multiaddr",
  "multibase",
  "nom",
- "nom_locate 3.0.0",
+ "nom_locate",
  "quickcheck",
  "quickcheck_macros",
  "rand",
@@ -2026,7 +2045,7 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
- "sized-chunks",
+ "sized-chunks 0.6.5 (git+https://github.com/bodil/sized-chunks?branch=master)",
  "sp-cid",
  "sp-ipld",
  "sp-multihash",
@@ -2043,13 +2062,13 @@ dependencies = [
  "base-x",
  "multibase",
  "nom",
- "nom_locate 3.0.0",
+ "nom_locate",
  "num-bigint",
  "quickcheck",
  "quickcheck_macros",
  "rand",
  "ropey",
- "sized-chunks",
+ "sized-chunks 0.6.5 (git+https://github.com/bodil/sized-chunks?branch=master)",
  "sp-cid",
  "sp-im",
  "sp-ipld",
@@ -2066,13 +2085,13 @@ dependencies = [
  "multiaddr",
  "multibase",
  "nom",
- "nom_locate 3.0.1",
+ "nom_locate",
  "num-bigint",
  "petgraph",
  "ropey",
  "serde",
  "serde_json",
- "sized-chunks",
+ "sized-chunks 0.6.5 (git+https://github.com/bodil/sized-chunks?branch=master)",
  "sp-cid",
  "sp-im",
  "sp-ipld",
@@ -2091,7 +2110,7 @@ dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "multiaddr",
- "sized-chunks",
+ "sized-chunks 0.6.5 (git+https://github.com/bodil/sized-chunks?branch=master)",
  "sp-cid",
  "sp-ipld",
  "unicode-segmentation",
