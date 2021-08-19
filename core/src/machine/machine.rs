@@ -917,7 +917,12 @@ pub fn reduce(
     node = next_node;
   }
   // This is only correct because we are updating the redex nodes.
-  node
+  if trail.is_empty() {
+    node
+  }
+  else {
+    trail[0].clone()
+  }
 }
 
 pub fn expand_lit(lit: &Literal) -> Option<Graph> {
