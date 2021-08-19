@@ -21,6 +21,7 @@ pub mod eval;
 pub mod ipld_error;
 pub mod literal;
 pub mod machine;
+pub mod naive;
 pub mod meta;
 pub mod name;
 pub mod package;

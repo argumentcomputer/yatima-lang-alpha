@@ -147,11 +147,15 @@ pub fn check(
     _ => {
       let depth = ctx.len();
       let detected_typ = infer(globals, mut_globals, fun_defs, ctx, uses, term.clone())?;
-      if equal(mut_globals, fun_defs, depth, typ, detected_typ) {
+      if equal(mut_globals, fun_defs, depth, typ.clone(), detected_typ.clone()) {
         Ok(())
       }
       else {
-        Err(CheckError::GenericError(format!("Wrong types")))
+        Err(CheckError::GenericError(format!(
+          "Wrong types: detected {} found {}",
+          stringify_graph(globals, fun_defs, detected_typ),
+          stringify_graph(globals, fun_defs, typ))
+        ))
       }
     }
   }

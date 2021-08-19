@@ -16,6 +16,7 @@ use yatima_cli::{
 };
 use yatima_core::name::Name;
 use yatima_core::machine::*;
+use yatima_core::naive;
 use yatima_utils::{
   file,
   store::{
@@ -69,6 +70,10 @@ enum Command {
     path: PathBuf,
   },
   MachineCheck {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
+  NaiveCheck {
     #[structopt(parse(from_os_str))]
     path: PathBuf,
   },
@@ -245,6 +250,22 @@ async fn main() -> std::io::Result<()> {
         match check {
           (name, Ok(())) => println!("✓ {}", name),
           (name, Err(typechecking::CheckError::GenericError(err))) => println!("✗ {}: {}", name, err),
+        }
+      }
+      Ok(())
+    }
+    Command::NaiveCheck { path } => {
+      let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
+      let (_, _, defs) = file::parse::parse_file(env).map_err(|e| {
+        eprintln!("{}", e);
+        std::io::Error::from(std::io::ErrorKind::Other)
+      })?;
+      let globals = naive::defs_to_naive(&defs);
+      let checks = naive::check_defs(&globals);
+      for check in checks {
+        match check {
+          (name, Ok(())) => println!("✓ {}", name),
+          (name, Err(naive::CheckError::GenericError(err))) => println!("✗ {}: {}", name, err),
         }
       }
       Ok(())
