@@ -414,7 +414,7 @@ impl DAG {
           }
         }
         DAGPtr::Opr(link) => {
-          let opr = unsafe { (*link.as_ptr()).opr };
+          let opr = unsafe { (*link.as_ptr()).opr.clone() };
           let len = trail.len();
           if len == 0 && opr.arity() == 0 {
             let res = opr.apply0();

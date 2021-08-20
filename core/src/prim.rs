@@ -52,7 +52,7 @@ use crate::prim::{
   u8::U8Op,
 };
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Op {
   Io(IoOp),
   Nat(NatOp),
@@ -75,7 +75,7 @@ pub enum Op {
 }
 
 impl Op {
-  pub fn symbol(self) -> String {
+  pub fn symbol(&self) -> String {
     match self {
       Self::Io(op) => format!("#Io.{}", op.symbol()),
       Self::Nat(op) => format!("#Nat.{}", op.symbol()),
@@ -98,7 +98,7 @@ impl Op {
     }
   }
 
-  pub fn to_ipld(self) -> Ipld {
+  pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Io(_) => panic!("IO operations cannot be serialized"),
       Self::Nat(op) => Ipld::List(vec![Ipld::Integer(0), op.to_ipld()]),
@@ -149,7 +149,7 @@ impl Op {
     }
   }
 
-  pub fn arity(self) -> u64 {
+  pub fn arity(&self) -> u64 {
     match self {
       #[cfg(feature = "std")]
       Self::Io(op) => op.arity(),
@@ -173,7 +173,7 @@ impl Op {
     }
   }
 
-  pub fn apply0(self) -> Option<Literal> {
+  pub fn apply0(&self) -> Option<Literal> {
     match self {
       #[cfg(feature = "std")]
       Self::Io(op) => op.apply0(),
@@ -191,7 +191,7 @@ impl Op {
     }
   }
 
-  pub fn apply1(self, x: &Literal) -> Option<Literal> {
+  pub fn apply1(&self, x: &Literal) -> Option<Literal> {
     match self {
       #[cfg(feature = "std")]
       Self::Io(op) => op.apply1(x),
@@ -215,7 +215,7 @@ impl Op {
     }
   }
 
-  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
+  pub fn apply2(&self, x: &Literal, y: &Literal) -> Option<Literal> {
     match self {
       #[cfg(feature = "std")]
       Self::Io(op) => op.apply2(x, y),
@@ -242,7 +242,7 @@ impl Op {
   }
 
   pub fn apply3(
-    self,
+    &self,
     x: &Literal,
     y: &Literal,
     z: &Literal,
@@ -255,7 +255,7 @@ impl Op {
     }
   }
 
-  pub fn type_of(self) -> Term {
+  pub fn type_of(&self) -> Term {
     match self {
       #[cfg(feature = "std")]
       Self::Io(op) => op.type_of(),

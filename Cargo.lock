@@ -2090,6 +2090,7 @@ dependencies = [
  "sp-std",
  "wasm-bindgen",
  "yatima-core",
+ "yatima-runtime",
 ]
 
 [[package]]
@@ -2110,5 +2111,6 @@ dependencies = [
  "web-sys",
  "xterm-js-rs",
  "yatima-core",
+ "yatima-runtime",
  "yatima-utils",
 ]

@@ -3,7 +3,7 @@ pub mod error;
 
 use crate::{
   file,
-  log,
+  debug,
   store::{
     self,
     Store,
@@ -14,6 +14,13 @@ use sp_std::{
   cell::RefCell,
   rc::Rc,
   sync::Arc,
+};
+use yatima_runtime::{
+  run,
+  transform::{
+    RunIO,
+    StdIORuntime,
+  },
 };
 
 use std::sync::Mutex;
@@ -41,6 +48,7 @@ pub struct ReplEnv {
   type_system: bool,
   var_index: bool,
   defs: Defs,
+  runtime_io: RunIO,
 }
 
 pub enum LineResult {
@@ -50,7 +58,7 @@ pub enum LineResult {
 
 impl Default for ReplEnv {
   fn default() -> Self {
-    ReplEnv { type_system: true, var_index: false, defs: Defs::new() }
+    ReplEnv { type_system: true, var_index: false, defs: Defs::new(), runtime_io: Rc::new(StdIORuntime {}) }
   }
 }
 
@@ -63,7 +71,7 @@ pub trait Repl {
   fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
 
   /// Print results to the interface suited for this implementation.
-  fn println(&self, s: String);
+  fn println(&self, s: String) -> Result<(), String>;
 
   /// Load the command history
   fn load_history(&mut self);
@@ -85,7 +93,7 @@ pub trait Repl {
   fn handle_line(
     &mut self,
     readline: Result<String, ReplError>,
-  ) -> Result<LineResult, ()> {
+  ) -> Result<LineResult, String> {
     let mutex_env = self.get_env();
     let mut env = mutex_env.lock().unwrap();
     let store = self.get_store();
@@ -107,27 +115,26 @@ pub trait Repl {
                 Reference::Cid(cid) => {
                   store.get(cid).ok_or(format!("Failed to get cid {}", cid))
                 }
-              }
-              .map_err(|e| log!("{}", e))?;
+              }?;
 
               if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
                 env.defs.flat_merge_mut(ds);
                 Ok(LineResult::Success)
               }
               else {
-                Err(())
+                Err("Type checking failed.".to_owned())
               }
             }
             Command::Show { typ_, link } => {
               let var_index = env.var_index;
               match store::show(store, link, typ_, var_index) {
                 Ok(s) => {
-                  self.println(format!("{}", s));
+                  self.println(format!("{}", s))?;
                   Ok(LineResult::Success)
                 }
                 Err(s) => {
-                  self.println(format!("{}", s));
-                  Err(())
+                  self.println(format!("{}", s))?;
+                  Err("Show failed.".to_owned())
                 }
               }
             }
@@ -137,7 +144,7 @@ pub trait Repl {
                 self.println(format!(
                   "type-system: {}",
                   if setting { "on" } else { "off" }
-                ));
+                ))?;
                 Ok(LineResult::Success)
               }
               "var-index" => {
@@ -145,43 +152,45 @@ pub trait Repl {
                 self.println(format!(
                   "var-index: {}",
                   if setting { "on" } else { "off" }
-                ));
+                ))?;
                 Ok(LineResult::Success)
               }
               _ => {
-                self.println(format!("Error: Unknown setting {}", field));
-                Err(())
+                self.println(format!("Error: Unknown setting {}", field))?;
+                Err("".to_owned())
               }
             },
             Command::Eval(term) => {
               let mut dag = DAG::from_term(&term);
               if env.type_system {
-                let res = infer_term(&env.defs, *term, false);
+                let res = infer_term(&env.defs, &term, false);
                 match res {
                   Ok(typ) => {
-                    dag.norm(&env.defs, false);
-                    self.println(format!("{}", dag));
-                    self.println(format!(": {}", typ));
+                    let mut mterm = term;
+                    run(&mut mterm, Rc::new(env.defs.clone()), env.runtime_io.clone());
+                    // dag.norm(&env.defs, false);
+                    self.println(format!("{}", dag))?;
+                    self.println(format!(": {}", typ))?;
                     Ok(LineResult::Success)
                   }
                   Err(e) => {
-                    self.println(format!("Type Error: {}", e));
-                    Err(())
+                    self.println(format!("Type Error: {}", e))?;
+                    Err("Type Error.".to_owned())
                   }
                 }
               }
               else {
                 dag.norm(&env.defs, false);
-                self.println(format!("{}", dag));
+                self.println(format!("{}", dag))?;
                 Ok(LineResult::Success)
               }
             }
             Command::Type(term) => {
-              let res = infer_term(&env.defs, *term, false);
+              let res = infer_term(&env.defs, &term, false);
               match res {
-                Ok(term) => self.println(format!("{}", term)),
-                Err(e) => self.println(format!("Error: {}", e)),
-              }
+                Ok(term) => self.println(format!("{}", term))?,
+                Err(e) => self.println(format!("Error: {}", e))?,
+              };
               Ok(LineResult::Success)
             }
             Command::Define(boxed) => {
@@ -197,50 +206,54 @@ pub trait Repl {
                     "{} : {}",
                     n,
                     res.pretty(Some(&n.to_string()), false)
-                  ))
+                  ))?;
                 }
-                Err(e) => self.println(format!("Error: {}", e)),
+                Err(e) => {
+                  self.println(format!("Error: {}", e))?;
+                }
               }
               Ok(LineResult::Success)
             }
             Command::Browse => {
               for (n, d) in env.defs.named_defs() {
-                self.println(format!("{}", d.pretty(n.to_string(), false)))
+                self.println(format!("{}", d.pretty(n.to_string(), false)))?;
               }
               Ok(LineResult::Success)
             }
             Command::Quit => {
-              self.println(format!("Goodbye."));
+              self.println(format!("Goodbye."))?;
               Ok(LineResult::Quit)
             }
           },
           Err(e) => {
             match e {
-              Err::Incomplete(_) => self.println(format!("Incomplete Input")),
+              Err::Incomplete(_) => {
+                self.println(format!("Incomplete Input"))?;
+              }
               Err::Failure(e) => {
-                self.println(format!("Parse Failure:\n"));
-                self.println(format!("{}", e));
+                self.println(format!("Parse Failure:\n"))?;
+                self.println(format!("{}", e))?;
               }
               Err::Error(e) => {
-                self.println(format!("Parse Error:\n"));
-                self.println(format!("{}", e));
+                self.println(format!("Parse Error:\n"))?;
+                self.println(format!("{}", e))?;
               }
             };
-            Err(())
+            Err("Command Error.".to_owned())
           }
         }
       }
       Err(ReplError::Interrupted) => {
-        self.println(format!("CTRL-C"));
+        self.println(format!("CTRL-C"))?;
         Ok(LineResult::Quit)
       }
       Err(ReplError::Eof) => {
-        self.println(format!("CTRL-D"));
+        self.println(format!("CTRL-D"))?;
         Ok(LineResult::Quit)
       }
       Err(ReplError::Other(err)) => {
-        self.println(format!("Error: {}", err));
-        Err(())
+        self.println(format!("Error: {}", err))?;
+        Err("Other Error".to_owned())
       }
     }
   }
@@ -253,7 +266,9 @@ pub fn run_repl(rl: &mut dyn Repl) {
     match rl.handle_line(readline) {
       Ok(LineResult::Success) => continue,
       Ok(LineResult::Quit) => break,
-      Err(()) => continue,
+      Err(e) => {
+        debug!("handle_line: {}", e);
+      },
     }
   }
   rl.save_history();

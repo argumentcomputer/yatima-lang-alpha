@@ -30,7 +30,7 @@ const IO_READ: &str =
 const IO_BIND: &str =
   "bafy2bzaceanc3j2lxoz2jttiinlxqge7u3tnmufrfoil4udxptljacv5fmmq6";
 
-pub fn transform<R: RuntimeIO>(defs: Rc<Defs>, term: &mut Term, runtime: R) {
+pub fn transform(defs: Rc<Defs>, term: &mut Term, runtime: RunIO) {
   match term {
     Term::Var(_pos, _name, _index) => {}
     Term::Lam(_pos, _name, boxed) => {
@@ -59,14 +59,14 @@ pub fn transform<R: RuntimeIO>(defs: Rc<Defs>, term: &mut Term, runtime: R) {
       IO_PRINT => {
         *term = yatima!(
           "lambda _type x => #$0 x",
-          Term::Opr(Pos::None, Op::Io(R::write_stdout_op()))
+          Term::Opr(Pos::None, Op::Io(runtime.write_stdout_op()))
         );
         transform(defs, term, runtime);
       }
       IO_READ => {
         *term = yatima!(
           "lambda _type => #$0",
-          Term::Opr(Pos::None, Op::Io(R::read_stdin_op()))
+          Term::Opr(Pos::None, Op::Io(runtime.read_stdin_op()))
         );
         transform(defs, term, runtime);
       }
@@ -95,54 +95,64 @@ pub fn transform<R: RuntimeIO>(defs: Rc<Defs>, term: &mut Term, runtime: R) {
   }
 }
 
-fn transform_boxed<R: RuntimeIO>(
+fn transform_boxed(
   defs: Rc<Defs>,
   boxed: &mut Box<Term>,
-  runtime: R,
+  runtime: RunIO,
 ) {
   transform(defs, boxed.as_mut(), runtime)
 }
 
-fn transform_boxed2<R: RuntimeIO>(
+fn transform_boxed2(
   defs: Rc<Defs>,
   boxed: &mut Box<(Term, Term)>,
-  runtime: R,
+  runtime: RunIO,
 ) {
   let (t1, t2) = boxed.as_mut();
-  transform(defs.clone(), t1, runtime);
+  transform(defs.clone(), t1, runtime.clone());
   transform(defs, t2, runtime);
 }
 
-fn transform_boxed3<R: RuntimeIO>(
+fn transform_boxed3(
   defs: Rc<Defs>,
   boxed: &mut Box<(Term, Term, Term)>,
-  runtime: R,
+  runtime: RunIO,
 ) {
   let (t1, t2, t3) = boxed.as_mut();
-  transform(defs.clone(), t1, runtime);
-  transform(defs.clone(), t2, runtime);
+  transform(defs.clone(), t1, runtime.clone());
+  transform(defs.clone(), t2, runtime.clone());
   transform(defs, t3, runtime);
 }
 
-pub trait RuntimeIO: Copy {
-  fn write_stdout_op() -> IoOp {
+/// A trait defining the behavior of primitive IO operations.
+pub trait RuntimeIO {
+  fn write_stdout_op(&self) -> IoOp {
     todo!("write_stdout not implemented for this runtime")
   }
-  fn read_stdin_op() -> IoOp {
+  fn read_stdin_op(&self) -> IoOp {
     todo!("read_stdin not implemented for this runtime")
   }
 }
+/// An Rc wrapper for a RuntimeIO instance
+pub type RunIO = Rc<dyn RuntimeIO>;
 
-#[derive(Copy, Clone)]
-pub struct DefaultRuntime {}
+/// A RuntimeIO using std::io
+#[derive(Clone)]
+pub struct StdIORuntime {}
 
-impl RuntimeIO for DefaultRuntime {
-  fn write_stdout_op() -> IoOp {
+impl StdIORuntime {
+  pub fn new() -> Self {
+    StdIORuntime {}
+  }
+}
+
+impl RuntimeIO for StdIORuntime {
+  fn write_stdout_op(&self) -> IoOp {
     fn fun_symbol() -> String { "write_stdout".to_string() }
     fn fun_type_of() -> Term { yatima!("#Bytes -> #Bool") }
     fn fun_arity() -> u64 { 1 }
     fn fun_apply0() -> Option<Literal> { None }
-    fn fun_apply1(lit: Literal) -> Option<Literal> {
+    let fun_apply1 = Rc::new(|lit: Literal| -> Option<Literal> {
       match lit {
         Literal::Bytes(bytes) => {
           use std::io::Write;
@@ -151,7 +161,7 @@ impl RuntimeIO for DefaultRuntime {
         }
         _ => None,
       }
-    }
+    });
     fn fun_apply2(_: Literal, _: Literal) -> Option<Literal> { None }
     IoOp {
       fun_symbol,
@@ -163,7 +173,7 @@ impl RuntimeIO for DefaultRuntime {
     }
   }
 
-  fn read_stdin_op() -> IoOp {
+  fn read_stdin_op(&self) -> IoOp {
     fn fun_symbol() -> String { "read_stdin".to_string() }
     fn fun_type_of() -> Term { yatima!("#Bytes") }
     fn fun_arity() -> u64 { 0 }
@@ -173,7 +183,7 @@ impl RuntimeIO for DefaultRuntime {
       let _ = stdin.read_line(&mut buf).unwrap();
       Some(Literal::Bytes(buf.as_bytes().to_vec()))
     }
-    fn fun_apply1(_: Literal) -> Option<Literal> { None }
+    let fun_apply1 = Rc::new(|_: Literal| -> Option<Literal> { None });
     fn fun_apply2(_: Literal, _: Literal) -> Option<Literal> { None }
     IoOp {
       fun_symbol,

@@ -742,11 +742,11 @@ pub fn infer_lit(lit: Literal) -> Term {
 
 pub fn infer_term(
   defs: &Defs,
-  term: Term,
+  term: &Term,
   should_count: bool,
 ) -> Result<Term, CheckError> {
   let typ_dag =
-    infer(&None, defs, &mut vec![], Uses::Once, &term, should_count)?;
+    infer(&None, defs, &mut vec![], Uses::Once, term, should_count)?;
   let typ = DAG::to_term(&typ_dag, true);
   typ_dag.free();
   Ok(typ)

@@ -81,7 +81,7 @@ fn clear_line(term: &Terminal) {
   set_column(&term, 0);
 }
 
-struct WebRepl {
+pub struct WebRepl {
   terminal: Terminal,
   env: Arc<Mutex<ReplEnv>>,
   shell_state: Arc<Mutex<ShellState>>,
@@ -90,7 +90,7 @@ struct WebRepl {
 }
 
 #[derive(Debug, Clone)]
-struct ShellState {
+pub struct ShellState {
   line: String,
   cursor_col: usize,
   history_index: usize,
@@ -111,10 +111,11 @@ impl Repl for WebRepl {
 
   fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
-  fn println(&self, s: String) {
+  fn println(&self, s: String) -> Result<(), String> {
     // The term needs \r to move the cursor back to the start of the line
     let m = s.replace("\n", "\r");
     self.terminal.writeln(m.as_str());
+    Ok(())
   }
 
   fn load_history(&mut self) {
@@ -229,7 +230,7 @@ impl WebRepl {
           term.writeln("");
           match self.handle_line(Ok(line.clone())) {
             Ok(_) => term.writeln("Ok"),
-            Err(()) => term.writeln("Error"),
+            Err(e) => term.writeln(&format!("Error: {}", e)),
           }
           line.clear();
           cursor_col = 0;
@@ -368,10 +369,10 @@ impl WebRepl {
       }
       RETURN | LINEFEED | "\n" | "\r" => {
         if !ss.line.is_empty() {
-          self.println("".to_owned());
+          self.println("".to_owned()).unwrap();
           match self.handle_line(Ok(ss.line.clone())) {
             Ok(_) => term.writeln("Ok"),
-            Err(()) => term.writeln("Error"),
+            Err(e) => term.writeln(&format!("Error: {}", e)),
           }
           ss.line.clear();
           ss.cursor_col = 0;

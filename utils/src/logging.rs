@@ -43,7 +43,7 @@ pub fn debug(s: &str) {
 
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => ($crate::utils::debug(&format!($($arg)*)));
+    ($($arg:tt)*) => ($crate::logging::debug(&format!($($arg)*)));
 }
 
 /// Logs info to std out

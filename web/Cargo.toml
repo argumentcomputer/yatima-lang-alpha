@@ -12,6 +12,7 @@ default = ["console_error_panic_hook"]
 [dependencies]
 yatima-core = { path = "../core" }
 yatima-utils = { path = "../utils" }
+yatima-runtime = { path = "../runtime" }
 sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
 bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }

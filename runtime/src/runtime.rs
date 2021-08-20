@@ -652,7 +652,7 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
         node = *bod;
       },
       DAG::Opr(link) => {
-        let opr = unsafe { (*link.as_ptr()).opr };
+        let opr = unsafe { (*link.as_ptr()).opr.clone() };
         let len = trail.len();
         if len == 0 && opr.arity() == 0 {
           let res = opr.apply0();
@@ -813,7 +813,7 @@ pub fn from_term_inner(
       (DAG::Lit(alloc_val(Lit { lit: lit.clone(), parents })), maybe_fix)
     }
     Term::Opr(_, opr) => {
-      (DAG::Opr(alloc_val(Opr { opr: *opr, parents })), maybe_fix)
+      (DAG::Opr(alloc_val(Opr { opr: opr.clone(), parents })), maybe_fix)
     }
     Term::Ref(_, nam, exp, _) => {
       if let Some(def) = defs.defs.get(exp) {

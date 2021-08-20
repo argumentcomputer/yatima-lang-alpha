@@ -14,6 +14,7 @@ use yatima_core::{
   name::Name,
   parse::parse_cid,
 };
+use yatima_runtime::transform::StdIORuntime;
 use yatima_utils::{
   file,
   store::{
@@ -231,8 +232,9 @@ fn run_cli() -> std::io::Result<()> {
           p.name, path
         )
       });
+      let runtime_io = Rc::new(StdIORuntime::new());
 
-      yatima_runtime::run(def.to_owned(), checked);
+      yatima_runtime::run(&mut def.to_owned().term, checked, runtime_io);
       Ok(())
     }
   }

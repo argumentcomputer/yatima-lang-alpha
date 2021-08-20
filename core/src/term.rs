@@ -235,7 +235,7 @@ impl Term {
       }
       Self::Lit(pos, lit) => (Anon::Lit(lit.clone()), Meta::Lit(*pos)),
       Self::LTy(pos, lty) => (Anon::LTy(*lty), Meta::LTy(*pos)),
-      Self::Opr(pos, opr) => (Anon::Opr(*opr), Meta::Opr(*pos)),
+      Self::Opr(pos, opr) => (Anon::Opr(opr.clone()), Meta::Opr(*pos)),
       Self::Rec(pos) => (Anon::Rec, Meta::Rec(*pos)),
       Self::Typ(pos) => (Anon::Typ, Meta::Typ(*pos)),
       Self::Lam(pos, name, body) => {
@@ -310,7 +310,7 @@ impl Term {
       }
       (Anon::Lit(lit), Meta::Lit(pos)) => Ok(Self::Lit(*pos, lit.clone())),
       (Anon::LTy(lty), Meta::LTy(pos)) => Ok(Self::LTy(*pos, *lty)),
-      (Anon::Opr(opr), Meta::Opr(pos)) => Ok(Self::Opr(*pos, *opr)),
+      (Anon::Opr(opr), Meta::Opr(pos)) => Ok(Self::Opr(*pos, opr.clone())),
       (Anon::Typ, Meta::Typ(pos)) => Ok(Self::Typ(*pos)),
       (Anon::Rec, Meta::Rec(pos)) => Ok(Self::Rec(*pos)),
       (Anon::Lam(anon_bod), Meta::Lam(pos, nam, meta_bod)) => {
