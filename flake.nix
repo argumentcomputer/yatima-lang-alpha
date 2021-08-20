@@ -1,21 +1,22 @@
 {
   inputs = {
     utils.url = "github:yatima-inc/nix-utils";
-    cargo-wasi.url = "github:yatima-inc/cargo-wasi";
-    # grin.url = "github:yatima-inc/grin";
+    # cargo-wasi.url = "github:yatima-inc/cargo-wasi";
+    pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
   outputs =
     { self
     , utils
-    , cargo-wasi
-      # , grin
+    # , cargo-wasi
+    , pre-commit-hooks
     }:
     let
       flake-utils = utils.inputs.flake-utils;
     in
     flake-utils.lib.eachDefaultSystem (system:
     let
+      pre-commit = import pre-commit-hooks { inherit system; };
       lib = utils.lib.${system};
       pkgs = utils.nixpkgs.${system};
       inherit (lib) buildRustProject testRustProject rustDefault filterRustProject naerskDefault;
@@ -30,9 +31,16 @@
         inherit naersk rust src system;
         nixpkgs = pkgs;
       };
+      devTools = import ./nix/devTools.nix { 
+        inherit rust;
+        pre-commit-hooks = pre-commit;
+        nixpkgs = pkgs;
+      };
+      web = import ./web/default.nix { nixpkgs = pkgs; inherit system; buildInputs = [ project ]; };
     in
     {
       packages.${crateName} = project;
+      packages."yatima-web" = web;
 
       defaultPackage = self.packages.${system}.${crateName};
 
@@ -52,15 +60,9 @@
 
       # `nix develop`
       devShell = pkgs.mkShell {
+        inherit system;
         inputsFrom = builtins.attrValues self.packages.${system};
-        nativeBuildInputs = [ rust ];
-        buildInputs = with pkgs; [
-          rust-analyzer
-          clippy
-          rustfmt
-          cargo-wasi.${system}.cargo-wasi
-          # grin
-        ];
+        buildInputs = [ rust ] ++ builtins.attrValues devTools;
       };
     });
 }

@@ -1,30 +1,12 @@
 {
   "nodes": {
-    "cargo-wasi": {
-      "inputs": {
-        "utils": "utils"
-      },
-      "locked": {
-        "lastModified": 1626709453,
-        "narHash": "sha256-LK4axIN2hf0+y4yQTuCr9OK3cf6mTLUCs8r7Cuv3qJs=",
-        "owner": "yatima-inc",
-        "repo": "cargo-wasi",
-        "rev": "c895f18edea0d8013818ad148f6c2cef6cc2c5b7",
-        "type": "github"
-      },
-      "original": {
-        "owner": "yatima-inc",
-        "repo": "cargo-wasi",
-        "type": "github"
-      }
-    },
     "flake-utils": {
       "locked": {
-        "lastModified": 1623875721,
-        "narHash": "sha256-A8BU7bjS5GirpAUv4QA+QnJ4CceLHkcXdRp4xITDB0s=",
+        "lastModified": 1619345332,
+        "narHash": "sha256-qHnQkEp1uklKTpx3MvKtY6xzgcqXDsz5nLilbbuL+3A=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "f7e004a55b120c02ecb6219596820fcd32ca8772",
+        "rev": "2ebf2558e5bf978c7fb8ea927dfaed8fefab2e28",
         "type": "github"
       },
       "original": {
@@ -50,25 +32,7 @@
     },
     "naersk": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
-      },
-      "locked": {
-        "lastModified": 1623927034,
-        "narHash": "sha256-sGxlmfp5eXL5sAMNqHSb04Zq6gPl+JeltIZ226OYN0w=",
-        "owner": "nmattia",
-        "repo": "naersk",
-        "rev": "e09c320446c5c2516d430803f7b19f5833781337",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nmattia",
-        "repo": "naersk",
-        "type": "github"
-      }
-    },
-    "naersk_2": {
-      "inputs": {
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": "nixpkgs_2"
       },
       "locked": {
         "lastModified": 1623927034,
@@ -86,11 +50,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1626198252,
-        "narHash": "sha256-OF9Adtb2puee7EqFTcWnNxlnfjSrDuUawgc0s+kKfiQ=",
+        "lastModified": 1619531122,
+        "narHash": "sha256-ovm5bo6PkZzNKh2YGXbRKYIjega0EjiEP0YDwyeXEYU=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "81e24d81e47fb7608f7935d6f4ace6f64681c31c",
+        "rev": "bb80d578e8ad3cb5a607f468ac00cc546d0396dc",
         "type": "github"
       },
       "original": {
@@ -102,6 +66,20 @@
       "locked": {
         "lastModified": 1626198252,
         "narHash": "sha256-OF9Adtb2puee7EqFTcWnNxlnfjSrDuUawgc0s+kKfiQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "81e24d81e47fb7608f7935d6f4ace6f64681c31c",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "nixpkgs_3": {
+      "locked": {
+        "lastModified": 1626198252,
+        "narHash": "sha256-OF9Adtb2puee7EqFTcWnNxlnfjSrDuUawgc0s+kKfiQ=",
         "owner": "nixos",
         "repo": "nixpkgs",
         "rev": "81e24d81e47fb7608f7935d6f4ace6f64681c31c",
@@ -113,66 +91,36 @@
         "type": "github"
       }
     },
-    "nixpkgs_3": {
+    "pre-commit-hooks": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "nixpkgs": "nixpkgs"
+      },
       "locked": {
-        "lastModified": 1626280718,
-        "narHash": "sha256-LYACRCCsota6BUEkPf9JWpTZoj4v52Lt3eKDCG9AsaM=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "8a815af4280f3e0d5ff740faa7d489e2b9e36829",
+        "lastModified": 1624971177,
+        "narHash": "sha256-Amf/nBj1E77RmbSSmV+hg6YOpR+rddCbbVgo5C7BS0I=",
+        "owner": "cachix",
+        "repo": "pre-commit-hooks.nix",
+        "rev": "397f0713d007250a2c7a745e555fa16c5dc8cadb",
         "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
-      }
-    },
-    "nixpkgs_4": {
-      "locked": {
-        "lastModified": 1626280718,
-        "narHash": "sha256-LYACRCCsota6BUEkPf9JWpTZoj4v52Lt3eKDCG9AsaM=",
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "8a815af4280f3e0d5ff740faa7d489e2b9e36829",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixos",
-        "repo": "nixpkgs",
+        "owner": "cachix",
+        "repo": "pre-commit-hooks.nix",
         "type": "github"
       }
     },
     "root": {
       "inputs": {
-        "cargo-wasi": "cargo-wasi",
-        "utils": "utils_2"
+        "pre-commit-hooks": "pre-commit-hooks",
+        "utils": "utils"
       }
     },
     "utils": {
       "inputs": {
-        "flake-utils": "flake-utils",
-        "naersk": "naersk",
-        "nixpkgs": "nixpkgs_2"
-      },
-      "locked": {
-        "lastModified": 1626252346,
-        "narHash": "sha256-Atvn4gWBv2O7aMJWl9l8b3jMU84w5uwShizZu0WlWRs=",
-        "owner": "yatima-inc",
-        "repo": "nix-utils",
-        "rev": "0fde737c9c6d04533e70febf5b7b57fdd561a604",
-        "type": "github"
-      },
-      "original": {
-        "owner": "yatima-inc",
-        "repo": "nix-utils",
-        "type": "github"
-      }
-    },
-    "utils_2": {
-      "inputs": {
         "flake-utils": "flake-utils_2",
-        "naersk": "naersk_2",
-        "nixpkgs": "nixpkgs_4"
+        "naersk": "naersk",
+        "nixpkgs": "nixpkgs_3"
       },
       "locked": {
         "lastModified": 1626252346,
