@@ -619,7 +619,7 @@ pub mod test {
     parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
   }
 
-  fn norm_assert(input: &str, result: &str) {
+  pub fn norm_assert(input: &str, result: &str) {
     match parse(&input) {
       Ok((_, mut dag)) => {
         dag.norm(&Defs::new(), false);
@@ -628,7 +628,8 @@ pub mod test {
       Err(_) => panic!("Did not parse."),
     }
   }
-  fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
+
+  pub fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
     match parse(&input) {
       Ok((_, mut dag)) => {
         dag.norm(&defs, false);

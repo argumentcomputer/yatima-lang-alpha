@@ -13,10 +13,12 @@ default = ["console_error_panic_hook"]
 yatima-core = { path = "../core" }
 yatima-utils = { path = "../utils" }
 yatima-runtime = { path = "../runtime" }
-sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
+sp-cid = "0.1.0"
+# sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
 base64 = "0.13.0"
-bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+# bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+bytecursor = "0.1.2"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 js-sys = "0.3.49"
 multiaddr = "*"
@@ -25,6 +27,8 @@ unicode-segmentation = "1.8.0"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 wasm-bindgen-futures = "0.4.22"
 xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
+reqwest = { version = "0.11.3", features = [ "multipart", "json", "blocking" ] }
+serde_json = { version = "1.0" }
 
 [dependencies.web-sys]
 version = "0.3.49"

@@ -13,10 +13,13 @@ path = "src/main.rs"
 yatima-core = { path = "../core", features = ["std"]}
 yatima-utils = { path = "../utils"}
 yatima-runtime = { path = "../runtime" }
-sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
-sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
+# sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
+sp-cid = "0.1.0"
+# sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
+sp-multihash = "0.1.0"
 sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
-bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+# bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
+bytecursor = "0.1.2"
 sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
 multibase = "0.9.1"
 multiaddr = "*"
@@ -30,7 +33,7 @@ directories-next = "2.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
- # ipfs = "0.2.1"
+# ipfs = "0.2.1"
 
 # Not wasm/wasi compatible
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

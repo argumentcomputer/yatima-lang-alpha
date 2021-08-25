@@ -45,7 +45,7 @@ fn insert_mode(term: &Terminal) {
   term.write(&terminal_sequences::set_mode(vec![4]));
 }
 
-fn replace_mode(term: &Terminal) {
+pub fn replace_mode(term: &Terminal) {
   term.write(&terminal_sequences::reset_mode(vec![4]));
 }
 

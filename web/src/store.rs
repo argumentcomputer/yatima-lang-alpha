@@ -20,12 +20,17 @@ use yatima_utils::{
   log,
   store::Store,
 };
+use crate::ipfs::{
+  self,
+  IpfsApiConfig,
+};
 
 #[derive(Debug, Clone)]
 pub struct WebStore {
   window: Window,
   storage: Storage,
   ipfs: Ipfs,
+  api_config: IpfsApiConfig,
 }
 
 #[wasm_bindgen(module = "ipfs-core")]
@@ -51,8 +56,9 @@ impl WebStore {
     let storage =
       window.local_storage().expect("should have local storage").unwrap();
     let ipfs = create().into();
+    let api_config = IpfsApiConfig::default();
 
-    WebStore { window, storage, ipfs }
+    WebStore { window, storage, ipfs, api_config }
   }
 }
 
@@ -79,8 +85,10 @@ impl Store for WebStore {
         Some(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
-        let res = self.ipfs.get(&link.to_string());
-        log!("Failed to get {} {:?}", link, res);
+
+        let res = ipfs::dag_get(&self.api_config, link.to_string()).map_err(|e| log!("dag_get: {:?}", e)).ok()?;
+        // let res = self.ipfs.get(&link.to_string());
+        log!("Failed to get {} {:?}", &link, res);
         None
       }
     }
@@ -96,8 +104,8 @@ impl Store for WebStore {
       Ok(()) => (),
       Err(_) => log!("Failed to put to local_storage"),
     }
-    let res = self.ipfs.add(data.into_inner());
-    log!("{:?}", res);
+    // let res = self.ipfs.add(data.into_inner());
+    // log!("{:?}", res);
 
     link
   }
