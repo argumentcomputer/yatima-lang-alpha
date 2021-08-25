@@ -25,7 +25,7 @@ multibase = { version = "0.9.1", default-features = false }
 nom_locate = { version = "3.0", default-features = false }
 ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
 sp-cid = { version = "0.1", default-features = false }
-sp-multihash = {version = "0.1", default-features = false }
+sp-multihash = { version = "0.1", default-features = false }
 sp-ipld = { version = "0.1.1", default-features = false, features = ["dag-cbor"] }
 sp-im = { version = "0.1", default-features = false }
 sized-chunks = { git = "https://github.com/bodil/sized-chunks", branch = "master", default-features = false }
