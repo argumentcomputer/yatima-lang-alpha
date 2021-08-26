@@ -169,7 +169,6 @@ nix-build default.nix
 ```bash
 nix-shell
 cd web
-wasm-pack build
 ```
 
 Then run the following command to install required dependencies:
