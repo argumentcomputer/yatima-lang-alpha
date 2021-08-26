@@ -141,31 +141,6 @@ nix develop
 nix profile install
 ```
 
-### With Nix (not flakes):
-
-Set up dev environment assuming [nix](https://nixos.org), [lorri](https://github.com/target/lorri) and direnv are installed.
-```bash
-direnv allow
-```
-This should load correct versions of dependencies into your shell. To build yatima using naersk:
-
-```bash
-nix-build yatima.nix
-```
-
-To install the yatima binary into your environment:
-
-```bash
-nix-env -i -f yatima.nix
-```
-
-To run the test-suite and CI:
-
-```bash
-nix-build default.nix
-```
-[Niv](https://github.com/nmattia/niv) fixes upgrading dependencies for development.
-
 ### Compiling to WASM
 
 ```bash
