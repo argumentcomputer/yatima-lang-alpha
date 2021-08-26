@@ -2,7 +2,7 @@ const path = require("path");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
-module.exports = function (env, argv) {
+module.exports = function(env, argv) {
   return {
     entry: "./bootstrap.js",
     output: {
