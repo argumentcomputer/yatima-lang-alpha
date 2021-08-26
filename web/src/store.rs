@@ -25,7 +25,7 @@ use bytecursor::ByteCursor;
 pub struct WebStore {
   window: Window,
   storage: Storage,
-  ipfs: Ipfs,
+  // ipfs: Ipfs,
 }
 
 #[wasm_bindgen(module = "ipfs-core")]
@@ -50,17 +50,17 @@ impl WebStore {
       web_sys::window().expect("should have a window in this context");
     let storage =
       window.local_storage().expect("should have local storage").unwrap();
-    let ipfs = create().into();
+    // let ipfs = create().into();
 
-    WebStore { window, storage, ipfs }
+    WebStore { window, storage }
   }
 }
 
 impl Store for WebStore {
   fn get_by_multiaddr(&self, addr: Multiaddr) -> Result<Ipld, String> {
-    let s = self.ipfs.get(&addr.to_string()).as_string()
-        .ok_or(format!("Failed to load multiaddr {}", addr))?;
-    log!("{:?}", s);
+    // let s = ipfs::dag_get(&addr.to_string())
+    //     .ok_or(format!("Failed to load multiaddr {}", addr))?;
+    // log!("{:?}", s);
     
     Err("nn".to_owned())
   }
@@ -74,8 +74,8 @@ impl Store for WebStore {
         Some(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
-        let res = self.ipfs.get(&link.to_string());
-        log!("Failed to get {} {:?}", link, res);
+        // let res = self.ipfs.get(&link.to_string());
+        // log!("Failed to get {} {:?}", link, res);
         None
       }
     }
@@ -88,8 +88,8 @@ impl Store for WebStore {
       Ok(()) => (),
       Err(_) => log!("Failed to put to local_storage"),
     }
-    let res = self.ipfs.add(data.into_inner());
-    log!("{:?}", res);
+    // let res = self.ipfs.add(data.into_inner());
+    // log!("{:?}", res);
 
     link
   }

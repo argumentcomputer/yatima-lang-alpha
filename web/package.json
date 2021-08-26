@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "A web REPL for Yatima",
   "main": "index.js",
+  "type": "module",
   "bin": {
     "create-wasm-app": ".bin/create-wasm-app.js"
   },
