@@ -32,7 +32,7 @@
     },
     "naersk": {
       "inputs": {
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_3"
       },
       "locked": {
         "lastModified": 1623927034,
@@ -50,6 +50,21 @@
     },
     "nixpkgs": {
       "locked": {
+        "lastModified": 1629982538,
+        "narHash": "sha256-sr7jQ2oNMt92dr3mSc/a8YlBcyi/4z/shIbDWM0Lp0s=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "bc52ddab2d7abc3bb1d7c884680bfd3a664ec6d6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
         "lastModified": 1619531122,
         "narHash": "sha256-ovm5bo6PkZzNKh2YGXbRKYIjega0EjiEP0YDwyeXEYU=",
         "owner": "NixOS",
@@ -62,7 +77,7 @@
         "type": "indirect"
       }
     },
-    "nixpkgs_2": {
+    "nixpkgs_3": {
       "locked": {
         "lastModified": 1626198252,
         "narHash": "sha256-OF9Adtb2puee7EqFTcWnNxlnfjSrDuUawgc0s+kKfiQ=",
@@ -76,25 +91,10 @@
         "type": "indirect"
       }
     },
-    "nixpkgs_3": {
-      "locked": {
-        "lastModified": 1626198252,
-        "narHash": "sha256-OF9Adtb2puee7EqFTcWnNxlnfjSrDuUawgc0s+kKfiQ=",
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "81e24d81e47fb7608f7935d6f4ace6f64681c31c",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "pre-commit-hooks": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs_2"
       },
       "locked": {
         "lastModified": 1624971177,
@@ -112,6 +112,7 @@
     },
     "root": {
       "inputs": {
+        "nixpkgs": "nixpkgs",
         "pre-commit-hooks": "pre-commit-hooks",
         "utils": "utils"
       }
@@ -120,14 +121,16 @@
       "inputs": {
         "flake-utils": "flake-utils_2",
         "naersk": "naersk",
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": [
+          "nixpkgs"
+        ]
       },
       "locked": {
-        "lastModified": 1626252346,
-        "narHash": "sha256-Atvn4gWBv2O7aMJWl9l8b3jMU84w5uwShizZu0WlWRs=",
+        "lastModified": 1629930042,
+        "narHash": "sha256-vDRsjKZqdQPT8gY9K2n+Q5uOnSwtQjtudh0detiBCtE=",
         "owner": "yatima-inc",
         "repo": "nix-utils",
-        "rev": "0fde737c9c6d04533e70febf5b7b57fdd561a604",
+        "rev": "4beedc4b6124d2935d0087240ff4d7c59166ab55",
         "type": "github"
       },
       "original": {

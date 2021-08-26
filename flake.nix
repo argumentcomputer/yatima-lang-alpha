@@ -1,14 +1,15 @@
 {
   inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs";
     utils.url = "github:yatima-inc/nix-utils";
-    # cargo-wasi.url = "github:yatima-inc/cargo-wasi";
+    utils.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
   outputs =
     { self
+    , nixpkgs
     , utils
-    # , cargo-wasi
     , pre-commit-hooks
     }:
     let
@@ -18,9 +19,9 @@
     let
       pre-commit = import pre-commit-hooks { inherit system; };
       lib = utils.lib.${system};
-      pkgs = utils.nixpkgs.${system};
-      inherit (lib) buildRustProject testRustProject rustDefault filterRustProject naerskDefault;
-      rust = rustDefault;
+      pkgs = import nixpkgs { inherit system; };
+      inherit (lib) getRust buildRustProject testRustProject rustDefault filterRustProject naerskDefault;
+      rust = getRust { date = "2021-08-24"; sha256 = "30dHH53OlZt6h2OJxeVJ8IokaQrSaV7aGfhUiv2HU0Q="; };
       naersk = naerskDefault;
 
       crateName = "yatima";
@@ -31,7 +32,7 @@
         inherit naersk rust src system;
         nixpkgs = pkgs;
       };
-      devTools = import ./nix/devTools.nix { 
+      devTools = import ./nix/devTools.nix {
         inherit rust;
         pre-commit-hooks = pre-commit;
         nixpkgs = pkgs;

@@ -64,8 +64,8 @@ impl WebStore {
 
 impl Store for WebStore {
   fn get_by_multiaddr(&self, addr: Multiaddr) -> Result<Ipld, String> {
-    let s = ipfs::dag_get(&addr.to_string())
-        .ok_or(format!("Failed to load multiaddr {}", addr))?;
+    let s = ipfs::dag_get(&self.api_config, addr.to_string())
+        .map_err(|e| format!("Failed to load multiaddr {}: {}", addr, e))?;
     log!("{:?}", s);
     
     Err("nn".to_owned())
