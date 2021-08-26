@@ -7,8 +7,10 @@
     "create-wasm-app": ".bin/create-wasm-app.js"
   },
   "scripts": {
-    "build": "webpack --config webpack.config.js",
-    "start": "webpack-dev-server"
+    "build": "PATH=$(npm bin):$PATH webpack --config webpack.config.js",
+    "start": "PATH=$(npm bin):$PATH webpack serve",
+    "build:release": "PATH=$(npm bin):$PATH webpack --config webpack.config.js --env=release",
+    "start:release": "PATH=$(npm bin):$PATH webpack serve --env=release"
   },
   "keywords": [
     "webassembly",
@@ -25,13 +27,16 @@
     "xterm-addon-web-links": "^0.3.0"
   },
   "devDependencies": {
-    "copy-webpack-plugin": "^5.0.0",
+    "@wasm-tool/wasm-pack-plugin": "^1.5.0",
+    "chokidar": ">= 3.5.2",
+    "copy-webpack-plugin": "^9.0.1",
     "css-loader": "^5.2.6",
     "file-loader": "^6.0.0",
-    "postcss": ">=8.2.10",
+    "glob-parent": ">=5.1.2",
+    "postcss": "^8.3.5",
     "style-loader": "^1.2.1",
-    "webpack": "^4.29.3",
-    "webpack-cli": "^3.1.0",
+    "webpack": "^5.50.0",
+    "webpack-cli": "^4.7.2",
     "webpack-dev-server": "^3.11.2"
   }
 }
