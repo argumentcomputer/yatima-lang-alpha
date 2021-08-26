@@ -1,5 +1,4 @@
-//import * as wasm from "yatima-web";
-
-import("./pkg").then(module => {
-  module.run();
-});
+import css from 'xterm/css/xterm.css';
+import 'xterm/lib/xterm.js';
+import * as wasm from "yatima-web";
+wasm.main()

@@ -29,7 +29,7 @@ use crate::ipfs::{
 pub struct WebStore {
   window: Window,
   storage: Storage,
-  ipfs: Ipfs,
+  // ipfs: Ipfs,
   api_config: IpfsApiConfig,
 }
 
@@ -55,22 +55,19 @@ impl WebStore {
       web_sys::window().expect("should have a window in this context");
     let storage =
       window.local_storage().expect("should have local storage").unwrap();
-    let ipfs = create().into();
+    // let ipfs = create().into();
     let api_config = IpfsApiConfig::default();
 
-    WebStore { window, storage, ipfs, api_config }
+    WebStore { window, storage, api_config }
   }
 }
 
 impl Store for WebStore {
   fn get_by_multiaddr(&self, addr: Multiaddr) -> Result<Ipld, String> {
-    let s = self
-      .ipfs
-      .get(&addr.to_string())
-      .as_string()
-      .ok_or(format!("Failed to load multiaddr {}", addr))?;
+    let s = ipfs::dag_get(&addr.to_string())
+        .ok_or(format!("Failed to load multiaddr {}", addr))?;
     log!("{:?}", s);
-
+    
     Err("nn".to_owned())
   }
 

@@ -124,45 +124,22 @@ To speed up builds use our binary cache from [cachix](https://github.com/cachix/
 cachix use yatima
 ```
 
-### With Nix flakes:
+### With Nix flakes (default):
 
 Assuming you have activated flakes for your nix, otherwise [see here](https://nixos.wiki/wiki/Flakes).
 
 ```bash
+# Activate shell environment
+direnv allow
 # Run standalone
 nix run
 # Build
 nix build
-# Start dev shell
+# Start dev shell. Handled automatically by direnv
 nix develop
 # Install into your environment
 nix profile install
 ```
-
-### With Nix (not flakes):
-
-Set up dev environment assuming [nix](https://nixos.org), [lorri](https://github.com/target/lorri) and direnv are installed.
-```bash
-direnv allow
-```
-This should load correct versions of dependencies into your shell. To build yatima using naersk:
-
-```bash
-nix-build yatima.nix
-```
-
-To install the yatima binary into your environment:
-
-```bash
-nix-env -i -f yatima.nix
-```
-
-To run the test-suite and CI:
-
-```bash
-nix-build default.nix
-```
-[Niv](https://github.com/nmattia/niv) fixes upgrading dependencies for development.
 
 ### Compiling to WASM
 

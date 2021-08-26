@@ -1,19 +1,19 @@
-const path = require("path");
-const CopyWebpackPlugin = require("copy-webpack-plugin");
-const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
+import path from "path";
+import CopyWebpackPlugin from "copy-webpack-plugin";
+import WasmPackPlugin from "@wasm-tool/wasm-pack-plugin";
 
-module.exports = function (env, argv) {
+export default function(env, argv) {
   return {
-    entry: "./bootstrap.js",
+    entry: "./index.js",
     output: {
-      path: path.resolve(__dirname, "dist"),
-      filename: "bootstrap.js",
+      path: path.resolve("./dist"),
+      filename: "index.js",
     },
     mode: "development",
     plugins: [
       new CopyWebpackPlugin({ patterns: ["index.html"] }),
       new WasmPackPlugin({
-        crateDirectory: path.resolve(__dirname, "."),
+        crateDirectory: path.resolve("."),
         args: "--log-level info",
 
         // the mode `development` makes `wasm-pack` build in `debug` mode.
