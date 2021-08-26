@@ -11,7 +11,6 @@
     "start": "PATH=$(npm bin):$PATH webpack serve",
     "build:release": "PATH=$(npm bin):$PATH webpack --config webpack.config.js --env=release",
     "start:release": "PATH=$(npm bin):$PATH webpack serve --env=release"
-
   },
   "keywords": [
     "webassembly",
@@ -20,12 +19,12 @@
     "webpack"
   ],
   "dependencies": {
-    "ipfs-core": "^0.7.1",
-    "xterm": "^4.13.0",
+    "yatima-web": "file:./pkg",
+    "ipfs-core": "^0.7.0",
+    "xterm": "^4.5.0",
     "xterm-addon-fit": "^0.3.0",
     "xterm-addon-search": "^0.3.0",
-    "xterm-addon-web-links": "^0.3.0",
-    "yatima-web": "file:./pkg"
+    "xterm-addon-web-links": "^0.3.0"
   },
   "devDependencies": {
     "@wasm-tool/wasm-pack-plugin": "^1.5.0",
