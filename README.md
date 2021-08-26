@@ -124,16 +124,18 @@ To speed up builds use our binary cache from [cachix](https://github.com/cachix/
 cachix use yatima
 ```
 
-### With Nix flakes:
+### With Nix flakes (default):
 
 Assuming you have activated flakes for your nix, otherwise [see here](https://nixos.wiki/wiki/Flakes).
 
 ```bash
+# Activate shell environment
+direnv allow
 # Run standalone
 nix run
 # Build
 nix build
-# Start dev shell
+# Start dev shell. Handled automatically by direnv
 nix develop
 # Install into your environment
 nix profile install
