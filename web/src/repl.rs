@@ -366,7 +366,7 @@ impl WebRepl {
       }
       // Load previous saved line.
       terminal_sequences::UP => {
-        if ss.history_index < self.history.len() - 1 {
+        if (ss.history_index as i64) < (self.history.len() as i64) - 1 {
           ss.history_index += 1;
           if let Some(l) = self.history.get(ss.history_index) {
             ss.line = l.clone();
