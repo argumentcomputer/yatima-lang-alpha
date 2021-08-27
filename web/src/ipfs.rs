@@ -1,5 +1,5 @@
 use bytecursor::ByteCursor;
-use reqwest_wasm::blocking::{
+use reqwest_wasm::{
   multipart,
   Client,
 };
@@ -11,6 +11,10 @@ use sp_ipld::{
   },
   Codec,
   Ipld,
+};
+use std::sync::{
+  Arc,
+  Mutex,
 };
 use yatima_utils::log;
 
@@ -24,23 +28,38 @@ impl Default for IpfsApiConfig {
   fn default() -> Self { IpfsApiConfig { host: "http://ipfs.yatima.io:5001".to_owned() } }
 }
 
+fn log_err<T,E: std::fmt::Debug>(e: E) -> Result<T, ()> {
+  log!("{:?}", e);
+  Err(())
+}
+
 /// Pin an Ipld using the IPFS API
 pub fn dag_put(config: &IpfsApiConfig, dag: Ipld) -> Result<String, String> {
   let url = format!(
     "{}{}?{}",
     config.host, "/api/v0/dag/put", "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256"
   );
-  let cbor = DagCborCodec.encode(&dag).unwrap().into_inner();
+  let cbor =
+    DagCborCodec.encode(&dag).map_err(|e| format!("encoding error: {:?}", e))?.into_inner();
   let client = Client::new();
   let form = multipart::Form::new().part("file", multipart::Part::bytes(cbor));
-  let response: serde_json::Value = client
-    .post(url)
-    .multipart(form)
-    .send()
-    .map_err(|e| format!("{:?}", e))?
-    .json()
-    .map_err(|e| format!("{:?}", e))?;
+  let ptr: Arc<Mutex<serde_json::Value>> = Arc::new(Mutex::new(serde_json::Value::Null));
+  let ptr2 = ptr.clone();
+  wasm_bindgen_futures::spawn_local(async move {
+    let r: serde_json::Value = client
+      .post(&url)
+      .multipart(form)
+      .send()
+      .await
+      .or_else(log_err)
+      .unwrap()
+      .json()
+      .await
+      .unwrap();
+    *ptr2.lock().unwrap() = r;
+  });
 
+  let response = ptr.lock().unwrap();
   let ipfs_cid: String = response["Cid"]["/"].as_str().unwrap().to_string();
   let local_cid: String = cid(&dag).to_string();
 
@@ -56,10 +75,25 @@ pub fn dag_put(config: &IpfsApiConfig, dag: Ipld) -> Result<String, String> {
 pub fn dag_get(config: &IpfsApiConfig, cid: String) -> Result<Ipld, reqwest_wasm::Error> {
   let url = format!("{}{}?arg={}", config.host, "/api/v0/block/get", cid);
   let client = Client::new();
-  let response = client.post(url).send()?.bytes()?;
-  let response = response.to_vec();
+  let ptr: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![]));
+  let ptr2 = ptr.clone();
+  wasm_bindgen_futures::spawn_local(async move {
+    let r = client
+      .post(&url)
+      .send()
+      .await
+      .or_else(log_err)
+      .unwrap()
+      .bytes()
+      .await
+      .or_else(log_err)
+      .unwrap()
+      .to_vec(); 
+    *ptr2.lock().unwrap() = r.into();
+  });
+  let response = ptr.lock().unwrap();
   log!("response: {:?}", response);
-  let ipld = DagCborCodec.decode(ByteCursor::new(response)).expect("invalid ipld cbor.");
+  let ipld = DagCborCodec.decode(ByteCursor::new(response.to_vec())).expect("invalid ipld cbor.");
 
   Ok(ipld)
 }
