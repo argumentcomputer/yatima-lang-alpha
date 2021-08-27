@@ -72,7 +72,7 @@ pub fn dag_put(config: &IpfsApiConfig, dag: Ipld) -> Result<String, String> {
 }
 
 /// Load Ipld from the IPFS API
-pub fn dag_get(config: &IpfsApiConfig, cid: String) -> Result<Ipld, reqwest_wasm::Error> {
+pub fn dag_get(config: &IpfsApiConfig, cid: String) -> Result<Ipld, String> {
   let url = format!("{}{}?arg={}", config.host, "/api/v0/block/get", cid);
   let client = Client::new();
   let ptr: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![]));
@@ -93,7 +93,7 @@ pub fn dag_get(config: &IpfsApiConfig, cid: String) -> Result<Ipld, reqwest_wasm
   });
   let response = ptr.lock().unwrap();
   log!("response: {:?}", response);
-  let ipld = DagCborCodec.decode(ByteCursor::new(response.to_vec())).expect("invalid ipld cbor.");
+  let ipld = DagCborCodec.decode(ByteCursor::new(response.to_vec())).map_err(|e| format!("Invalid ipld cbor: {}", e))?;
 
   Ok(ipld)
 }

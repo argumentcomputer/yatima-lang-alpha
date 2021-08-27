@@ -15,6 +15,7 @@ use web_sys::{
   Storage,
   Window,
 };
+use yatima_core::parse::parse_cid;
 use yatima_utils::{
   log,
   store::Store,
@@ -70,8 +71,15 @@ impl Store for WebStore {
     Err("nn".to_owned())
   }
 
-  fn load_by_name(&self, _path: Vec<&str>) -> Result<Ipld, String> {
-    Err("Not implemented".to_owned())
+  fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String> {
+    log!("load_by_name: {:?}", path);
+    if let Some(Ok(link)) = path.last().map(|s| parse_cid(s)) {
+      ipfs::dag_get(&self.api_config, link.to_string())
+        .map_err(|e| format!("Failed to load {}: {}", link, e))
+    }
+    else {
+      Err("Not implemented".to_owned())
+    }
   }
 
   fn get(&self, link: Cid) -> Option<Ipld> {
