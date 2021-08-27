@@ -1,4 +1,5 @@
 import path from "path";
+import webpack from "webpack";
 import CopyWebpackPlugin from "copy-webpack-plugin";
 import WasmPackPlugin from "@wasm-tool/wasm-pack-plugin";
 
@@ -20,6 +21,9 @@ export default function(env, argv) {
         // the mode `production` makes `wasm-pack` build in `release` mode.
         forceMode: env.release ? "production" : "development",
       }),
+      new webpack.DefinePlugin({
+        'process.env.NODE_DEBUG': JSON.stringify(env.release ? "production" : "development")
+      })
     ],
     module: {
       rules: [

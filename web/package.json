@@ -20,7 +20,6 @@
     "webpack"
   ],
   "dependencies": {
-    "ipfs-core": "^0.7.1",
     "xterm": "^4.13.0",
     "xterm-addon-fit": "^0.3.0",
     "xterm-addon-search": "^0.3.0",

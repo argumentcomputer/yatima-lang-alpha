@@ -10,7 +10,6 @@ use sp_ipld::{
   Codec,
   Ipld,
 };
-use wasm_bindgen::prelude::*;
 use web_sys::{
   self,
   Storage,
@@ -33,21 +32,21 @@ pub struct WebStore {
   api_config: IpfsApiConfig,
 }
 
-#[wasm_bindgen(module = "ipfs-core")]
-extern "C" {
-  #[wasm_bindgen(js_name = "Ipfs")]
-  #[derive(Debug, Clone)]
-  pub type Ipfs;
+// #[wasm_bindgen(module = "ipfs-core")]
+// extern "C" {
+//   #[wasm_bindgen(js_name = "Ipfs")]
+//   #[derive(Debug, Clone)]
+//   pub type Ipfs;
 
-  #[wasm_bindgen]
-  pub fn create() -> Ipfs;
+//   #[wasm_bindgen]
+//   pub fn create() -> Ipfs;
 
-  #[wasm_bindgen(method, js_name = "add")]
-  pub fn add(this: &Ipfs, data: Vec<u8>) -> JsValue;
+//   #[wasm_bindgen(method, js_name = "add")]
+//   pub fn add(this: &Ipfs, data: Vec<u8>) -> JsValue;
 
-  #[wasm_bindgen(method, js_name = "get")]
-  pub fn get(this: &Ipfs, link: &str) -> JsValue;
-}
+//   #[wasm_bindgen(method, js_name = "get")]
+//   pub fn get(this: &Ipfs, link: &str) -> JsValue;
+// }
 
 impl WebStore {
   pub fn new() -> Self {
