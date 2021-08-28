@@ -28,11 +28,22 @@ pub trait Store: std::fmt::Debug {
   /// Load a package in a environment agnostic way
   fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String>;
 
+  /// Load a package in a environment agnostic way
+  /// Necessary to circumvent the async limitations of wasm.
+  fn load_by_name_with_callback(&self, path: Vec<&str>, callback: Box<dyn FnOnce(Ipld)>);
+
   /// Put an IPLD expression into the store
   fn put(&self, expr: Ipld) -> Cid;
 
   /// Get an IPLD expression from the store
   fn get(&self, link: Cid) -> Option<Ipld>;
+
+  /// Get an IPLD expression from the store and call the callback asynchronously.
+  /// Necessary to circumvent the async limitations of wasm.
+  fn get_with_callback(&self, link: Cid, callback: Box<dyn FnOnce(Ipld)>);
+
+  /// If this platform requires using callbacks to handle async requests.
+  fn needs_callback(&self) -> bool;
 }
 
 /// Load all the package defs from the store

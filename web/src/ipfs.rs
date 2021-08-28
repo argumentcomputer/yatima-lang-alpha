@@ -28,7 +28,7 @@ impl Default for IpfsApiConfig {
   fn default() -> Self { IpfsApiConfig { host: "http://ipfs.yatima.io:5001".to_owned() } }
 }
 
-fn log_err<T,E: std::fmt::Debug>(e: E) -> Result<T, ()> {
+fn log_err<T, E: std::fmt::Debug>(e: E) -> Result<T, ()> {
   log!("{:?}", e);
   Err(())
 }
@@ -72,30 +72,33 @@ pub fn dag_put(config: &IpfsApiConfig, dag: Ipld) -> Result<String, String> {
 }
 
 /// Load Ipld from the IPFS API
-pub fn dag_get(config: &IpfsApiConfig, cid: String) -> Result<Ipld, String> {
+pub fn dag_get(
+  config: &IpfsApiConfig,
+  cid: String,
+  callback: Box<dyn FnOnce(Result<Ipld, String>)>,
+) {
   let url = format!("{}{}?arg={}", config.host, "/api/v0/block/get", cid);
-  let client = Client::new();
-  let ptr: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![]));
-  let ptr2 = ptr.clone();
+  // let ptr: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![]));
+  // let ptr2 = ptr.clone();
   wasm_bindgen_futures::spawn_local(async move {
-    let r = client
-      .post(&url)
-      .send()
-      .await
-      .or_else(log_err)
-      .unwrap()
-      .bytes()
-      .await
-      .or_else(log_err)
-      .unwrap()
-      .to_vec(); 
-    *ptr2.lock().unwrap() = r.into();
-  });
-  let response = ptr.lock().unwrap();
-  log!("response: {:?}", response);
-  let ipld = DagCborCodec.decode(ByteCursor::new(response.to_vec())).map_err(|e| format!("Invalid ipld cbor: {}", e))?;
+    let client = Client::new();
+    log!("Trying to call IPFS api at {}", url);
+    let response = client.post(&url).send().await.or_else(log_err);
+    if response.is_err() {
+      return;
+    }
+    let response = response.unwrap().bytes().await.or_else(log_err).unwrap().to_vec();
+    log!("response: {:?}", &response);
+    // *ptr2.lock().unwrap() = r.into();
 
-  Ok(ipld)
+    let ipld_res = DagCborCodec
+      .decode(ByteCursor::new(response.to_vec()))
+      .map_err(|e| format!("Invalid ipld cbor: {}", e));
+
+    callback(ipld_res);
+  });
+  // let response = ptr.lock().unwrap();
+  // log!("response: {:?}", response);
 }
 
 #[cfg(test)]

@@ -139,6 +139,17 @@ impl Store for FileStore {
     // TODO implement
     Err("Not implemented".to_owned())
   }
+  fn needs_callback(&self) -> bool {
+    false
+  }
+
+  fn get_with_callback(&self, link: Cid, callback: Box<dyn FnOnce(Ipld)>) {
+    panic!("Not implemented for this platform.")
+  }
+
+  fn load_by_name_with_callback(&self, _path: Vec<&str>, _callback: Box<dyn FnOnce(Ipld)>) {
+    panic!("Not implemented for this platform.")
+  }
 
   fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String> {
     let mut fs_path = self.opts.root.clone();

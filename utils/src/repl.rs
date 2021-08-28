@@ -2,8 +2,8 @@ pub mod command;
 pub mod error;
 
 use crate::{
-  file,
   debug,
+  file,
   store::{
     self,
     Store,
@@ -52,13 +52,19 @@ pub struct ReplEnv {
 }
 
 pub enum LineResult {
+  Async,
   Success,
   Quit,
 }
 
 impl Default for ReplEnv {
   fn default() -> Self {
-    ReplEnv { type_system: true, var_index: false, defs: Defs::new(), runtime_io: Rc::new(StdIORuntime {}) }
+    ReplEnv {
+      type_system: true,
+      var_index: false,
+      defs: Defs::new(),
+      runtime_io: Rc::new(StdIORuntime {}),
+    }
   }
 }
 
@@ -90,10 +96,7 @@ pub trait Repl {
 
   /// Run a single line of input from the user
   /// This will mutably update the shell_state
-  fn handle_line(
-    &mut self,
-    readline: Result<String, ReplError>,
-  ) -> Result<LineResult, String> {
+  fn handle_line(&mut self, readline: Result<String, ReplError>) -> Result<LineResult, String> {
     let mutex_env = self.get_env();
     let mut env = mutex_env.lock().unwrap();
     let store = self.get_store();
@@ -107,22 +110,41 @@ pub trait Repl {
         match res {
           Ok((_, command)) => match command {
             Command::Load(reference) => {
-              let ipld = match reference {
-                Reference::FileName(name) => {
-                  store.load_by_name(name.split('.').collect())
-                }
-                Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
-                Reference::Cid(cid) => {
-                  store.get(cid).ok_or(format!("Failed to get cid {}", cid))
-                }
-              }?;
-
-              if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
-                env.defs.flat_merge_mut(ds);
-                Ok(LineResult::Success)
+              if store.needs_callback() {
+                let name = match reference {
+                  Reference::FileName(n) => n.to_string(),
+                  Reference::Multiaddr(n) => n.to_string(),
+                  Reference::Cid(n) => n.to_string(),
+                };
+                let store_c = store.clone();
+                let mutex_env_c = mutex_env.clone();
+                store.load_by_name_with_callback(name.split('.').collect(), Box::new(move |ipld| {
+                  let mut env = mutex_env_c.lock().unwrap();
+                  if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store_c) {
+                    env.defs.flat_merge_mut(ds);
+                  }
+                  else {
+                    // self.println("Type checking failed.".to_owned());
+                  }
+                }));
+                Ok(LineResult::Async)
               }
               else {
-                Err("Type checking failed.".to_owned())
+                let ipld = match reference {
+                  Reference::FileName(name) => store.load_by_name(name.split('.').collect()),
+                  Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
+                  Reference::Cid(cid) => {
+                    store.get(cid).ok_or(format!("Failed to get cid {}", cid))
+                  }
+                }?;
+
+                if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
+                  env.defs.flat_merge_mut(ds);
+                  Ok(LineResult::Success)
+                }
+                else {
+                  Err("Type checking failed.".to_owned())
+                }
               }
             }
             Command::Show { typ_, link } => {
@@ -141,18 +163,12 @@ pub trait Repl {
             Command::Set(field, setting) => match field.as_str() {
               "type-system" => {
                 env.type_system = setting;
-                self.println(format!(
-                  "type-system: {}",
-                  if setting { "on" } else { "off" }
-                ))?;
+                self.println(format!("type-system: {}", if setting { "on" } else { "off" }))?;
                 Ok(LineResult::Success)
               }
               "var-index" => {
                 env.var_index = setting;
-                self.println(format!(
-                  "var-index: {}",
-                  if setting { "on" } else { "off" }
-                ))?;
+                self.println(format!("var-index: {}", if setting { "on" } else { "off" }))?;
                 Ok(LineResult::Success)
               }
               _ => {
@@ -202,11 +218,7 @@ pub trait Repl {
               match res {
                 Ok(res) => {
                   env.defs.flat_merge_mut(re);
-                  self.println(format!(
-                    "{} : {}",
-                    n,
-                    res.pretty(Some(&n.to_string()), false)
-                  ))?;
+                  self.println(format!("{} : {}", n, res.pretty(Some(&n.to_string()), false)))?;
                 }
                 Err(e) => {
                   self.println(format!("Error: {}", e))?;
@@ -265,10 +277,13 @@ pub fn run_repl(rl: &mut dyn Repl) {
     let readline = rl.readline("⅄ ");
     match rl.handle_line(readline) {
       Ok(LineResult::Success) => continue,
+      Ok(LineResult::Async) => {
+        rl.println("Async call initiated.".to_owned()).unwrap();
+      },
       Ok(LineResult::Quit) => break,
       Err(e) => {
         debug!("handle_line: {}", e);
-      },
+      }
     }
   }
   rl.save_history();

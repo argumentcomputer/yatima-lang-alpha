@@ -14,8 +14,7 @@ use xterm_js_rs::{
 };
 use yatima_utils::{
   file::parse::{self, PackageEnv},
-  log,
-  logging::log,
+  debug,
   repl::{error::ReplError, LineResult, Repl, ReplEnv},
   store::Store,
 };
@@ -106,9 +105,9 @@ impl Repl for WebRepl {
       }
       // Blank line is the current line
       self.history.push_front("".to_owned());
-      log("History loaded");
+      debug!("History loaded");
     } else {
-      log("Could not load history");
+      debug!("Could not load history");
     }
   }
 
@@ -125,9 +124,9 @@ impl Repl for WebRepl {
     let v: Vec<String> = self.history.clone().into();
     let history = v.join(terminal_sequences::LF);
     if let Ok(()) = storage.set("history.txt", &history) {
-      log("History saved");
+      debug!("History saved");
     } else {
-      log("Could not save history");
+      debug!("Could not save history");
     }
   }
 }
@@ -418,10 +417,11 @@ impl WebRepl {
         if !ss.line.is_empty() {
           self.println("".to_owned()).unwrap();
           match self.handle_line(Ok(ss.line.clone())) {
-            Ok(LineResult::Success) => term.writeln("Ok"),
-            Ok(LineResult::Quit) => term.writeln("Quit"),
-            Err(e) => term.writeln(&format!("Error: {}", e)),
-          }
+            Ok(LineResult::Success) => self.println("Ok".to_string()),
+            Ok(LineResult::Async) => self.println("Async call initiated.".to_string()),
+            Ok(LineResult::Quit) => self.println("Quit".to_string()),
+            Err(e) => self.println(format!("Error: {}", e)),
+          }.unwrap();
           ss.line.clear();
           ss.cursor = GraphemeCursor::new(0, 0, true);
           ss.history_index = 0;
@@ -483,14 +483,14 @@ impl WebRepl {
         self.save_history();
       }
     }
-    log!("cursor: {:X?}", ss.cursor.cur_cursor());
-    log!("line: {:X?}", ss.line);
-    log!("line.len: {:X?}", ss.line.len());
-    log!("data: {:X?}", data);
-    log!("data.len: {:X?}", data.len());
-    log!("is_boundary: {:X?}", ss.cursor.is_boundary(&ss.line, 0));
-    log!("prev_boundary: {:X?}", ss.cursor.clone().prev_boundary(&ss.line, 0));
-    log!("next_boundary: {:X?}", ss.cursor.clone().next_boundary(&ss.line, 0));
+    // debug!("cursor: {:X?}", ss.cursor.cur_cursor());
+    // debug!("line: {:X?}", ss.line);
+    // debug!("line.len: {:X?}", ss.line.len());
+    // debug!("data: {:X?}", data);
+    // debug!("data.len: {:X?}", data.len());
+    // debug!("is_boundary: {:X?}", ss.cursor.is_boundary(&ss.line, 0));
+    // debug!("prev_boundary: {:X?}", ss.cursor.clone().prev_boundary(&ss.line, 0));
+    // debug!("next_boundary: {:X?}", ss.cursor.clone().next_boundary(&ss.line, 0));
     self.update_shell_state(ss);
   }
 }
@@ -522,6 +522,6 @@ pub fn parse_source(source: &str) -> Result<JsValue, JsValue> {
   let store = Rc::new(WebStore::new());
   let env = PackageEnv::new(PathBuf::new(), PathBuf::new(), store.clone());
   let (cid, p, _) = parse::parse_text(&source, env)?;
-  log(&format!("parsed {} {:#?}", cid, p));
+  debug!("parsed {} {:#?}", cid, p);
   Ok("ok".into())
 }
