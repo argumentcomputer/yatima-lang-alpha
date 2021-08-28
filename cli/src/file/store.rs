@@ -143,7 +143,7 @@ impl Store for FileStore {
     false
   }
 
-  fn get_with_callback(&self, link: Cid, callback: Box<dyn FnOnce(Ipld)>) {
+  fn get_with_callback(&self, _link: Cid, _callback: Box<dyn FnOnce(Ipld)>) {
     panic!("Not implemented for this platform.")
   }
 
