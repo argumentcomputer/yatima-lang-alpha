@@ -35,26 +35,26 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1623927034,
-        "narHash": "sha256-sGxlmfp5eXL5sAMNqHSb04Zq6gPl+JeltIZ226OYN0w=",
-        "owner": "nmattia",
+        "lastModified": 1618844365,
+        "narHash": "sha256-Z9t0rr+5OG/ru3jdg3jivfYVU4ydV/nqt8UwIut7uHs=",
+        "owner": "yatima-inc",
         "repo": "naersk",
-        "rev": "e09c320446c5c2516d430803f7b19f5833781337",
+        "rev": "32e3ba39d9d83098b13720a4384bdda191dd0445",
         "type": "github"
       },
       "original": {
-        "owner": "nmattia",
+        "owner": "yatima-inc",
         "repo": "naersk",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1629982538,
-        "narHash": "sha256-sr7jQ2oNMt92dr3mSc/a8YlBcyi/4z/shIbDWM0Lp0s=",
+        "lastModified": 1630149055,
+        "narHash": "sha256-pl+JPqFm1V0DYf05gSXoLxny+zCwob+ifkdt3QZxg3s=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "bc52ddab2d7abc3bb1d7c884680bfd3a664ec6d6",
+        "rev": "09818c59fa5bd365fbeae2b4d49567d61546f07a",
         "type": "github"
       },
       "original": {
@@ -126,11 +126,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1629930042,
-        "narHash": "sha256-vDRsjKZqdQPT8gY9K2n+Q5uOnSwtQjtudh0detiBCtE=",
+        "lastModified": 1630152091,
+        "narHash": "sha256-3geoLMXCbCv87a2lVfIotijrY4M+a+hbmr3KoZzGKas=",
         "owner": "yatima-inc",
         "repo": "nix-utils",
-        "rev": "4beedc4b6124d2935d0087240ff4d7c59166ab55",
+        "rev": "aaf706f221c5dacdfe1bba61cf0a4b297936acdb",
         "type": "github"
       },
       "original": {
