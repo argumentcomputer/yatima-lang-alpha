@@ -513,7 +513,6 @@ impl fmt::Display for Term {
 pub mod tests {
 
   use super::{
-    Term::*,
     *,
   };
   use crate::{
@@ -616,7 +615,7 @@ pub mod tests {
         Self::Rec => Term::Rec(Pos::None),
         Self::Typ => Term::Typ(Pos::None),
         Self::Ref(n, d, a) => Term::Ref(Pos::None, n.clone(), *d, *a),
-        Self::Opr(x) => Term::Opr(Pos::None, *x),
+        Self::Opr(x) => Term::Opr(Pos::None, x.clone()),
         Self::Lit(x) => Term::Lit(Pos::None, x.clone()),
         Self::LTy(x) => Term::LTy(Pos::None, *x),
         Self::Lam(n, bod) => {

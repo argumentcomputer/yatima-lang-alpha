@@ -19,7 +19,7 @@
 naersk.buildPackage {
   name = "yatima";
   version = "0.1.0";
-  buildInputs = with nixpkgs; [ openssl pkg-config ];
+  buildInputs = with nixpkgs; [ openssl pkg-config glibc ];
   PKG_CONFIG_PATH = "${nixpkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
   inherit src;
