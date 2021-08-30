@@ -1,7 +1,3 @@
-use crate::ipfs::{
-  self,
-  IpfsApiConfig,
-};
 use base64;
 use bytecursor::ByteCursor;
 use multiaddr::Multiaddr;
@@ -21,8 +17,11 @@ use web_sys::{
 };
 use yatima_core::parse::parse_cid;
 use yatima_utils::{
-  log,
   debug,
+  ipfs::{
+    IpfsApi,
+  },
+  log,
   store::Store,
 };
 
@@ -31,7 +30,7 @@ pub struct WebStore {
   window: Window,
   storage: Storage,
   // ipfs: Ipfs,
-  api_config: IpfsApiConfig,
+  api: IpfsApi,
 }
 
 // #[wasm_bindgen(module = "ipfs-core")]
@@ -55,15 +54,15 @@ impl WebStore {
     let window = web_sys::window().expect("should have a window in this context");
     let storage = window.local_storage().expect("should have local storage").unwrap();
     // let ipfs = create().into();
-    let api_config = IpfsApiConfig::local_daemon();
+    let api = IpfsApi::local_daemon();
 
-    WebStore { window, storage, api_config }
+    WebStore { window, storage, api }
   }
 }
 
 impl Store for WebStore {
   fn get_by_multiaddr(&self, _addr: Multiaddr) -> Result<Ipld, String> {
-    // let s = ipfs::dag_get(&self.api_config, addr.to_string())
+    // let s = ipfs::dag_get(&self.api, addr.to_string())
     //   .map_err(|e| format!("Failed to load multiaddr {}: {}", addr, e))?;
     // log!("{:?}", s);
 
@@ -77,8 +76,7 @@ impl Store for WebStore {
   fn load_by_name_with_callback(&self, path: Vec<&str>, callback: Box<dyn FnOnce(Ipld)>) {
     debug!("load_by_name: {:?}", path);
     if let Some(Ok(link)) = path.last().map(|s| parse_cid(s)) {
-      ipfs::dag_get(
-        &self.api_config,
+      self.api.dag_get_with_callback(
         link.to_string(),
         Box::new(|result| match result {
           Ok(ipld) => callback(ipld),
@@ -99,7 +97,7 @@ impl Store for WebStore {
       }
       _ => {
         // ipfs::dag_get(
-        //   &self.api_config,
+        //   &self.api,
         //   link.to_string(),
         //   Box::new(|result| result.map_err(|e| log!("dag_get: {:?}", e)).ok()?),
         // );
@@ -120,8 +118,7 @@ impl Store for WebStore {
         callback(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
-        ipfs::dag_get(
-          &self.api_config,
+        self.api.dag_get_with_callback(
           link.to_string(),
           Box::new(|result| match result {
             Ok(ipld) => callback(ipld),

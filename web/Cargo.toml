@@ -28,7 +28,6 @@ unicode-segmentation = "1.8.0"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 wasm-bindgen-futures = "0.4.22"
 xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
-reqwest-wasm = { version = "0.11", features = [ "multipart", "json", "blocking" ] }
 serde_json = { version = "1.0" }
 
 [dependencies.web-sys]

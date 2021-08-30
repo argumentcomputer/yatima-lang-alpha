@@ -1322,43 +1322,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reqwest-wasm"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f95c6f51c387d62928baa7c144f1e58a318ee8297c632ae224a9ba4ff9b39e12"
-dependencies = [
- "base64",
- "bytes",
- "encoding_rs",
- "futures",
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "hyper",
- "hyper-tls",
- "ipnet",
- "js-sys",
- "lazy_static",
- "log",
- "mime",
- "mime_guess",
- "native-tls",
- "percent-encoding",
- "pin-project-lite",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "tokio",
- "tokio-native-tls",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "winreg",
-]
-
-[[package]]
 name = "ropey"
 version = "1.2.0"
 source = "git+https://github.com/yatima-inc/ropey?branch=main#a963a69cd748846ad5810413817178ce28501acd"
@@ -2178,12 +2141,14 @@ version = "0.1.0"
 dependencies = [
  "base-x",
  "bit-vec",
+ "bytecursor",
  "multiaddr",
  "multibase",
  "nom",
  "nom_locate 3.0.2",
  "num-bigint 0.3.2",
  "petgraph",
+ "reqwest",
  "ropey",
  "serde_json",
  "sized-chunks",
@@ -2193,6 +2158,7 @@ dependencies = [
  "sp-multihash",
  "sp-std",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "yatima-core",
  "yatima-runtime",
 ]
@@ -2206,7 +2172,6 @@ dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "multiaddr",
- "reqwest-wasm",
  "serde_json",
  "sized-chunks",
  "sp-cid",
