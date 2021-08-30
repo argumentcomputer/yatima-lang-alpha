@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@wasm-tool/wasm-pack-plugin": "^1.5.0",
+    "@webpack-cli/serve": "^1.5.2",
     "chokidar": ">= 3.5.2",
     "copy-webpack-plugin": "^9.0.1",
     "css-loader": "^5.2.7",
