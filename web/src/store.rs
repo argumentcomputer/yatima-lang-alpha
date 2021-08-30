@@ -55,7 +55,7 @@ impl WebStore {
     let window = web_sys::window().expect("should have a window in this context");
     let storage = window.local_storage().expect("should have local storage").unwrap();
     // let ipfs = create().into();
-    let api_config = IpfsApiConfig::default();
+    let api_config = IpfsApiConfig::local_daemon();
 
     WebStore { window, storage, api_config }
   }

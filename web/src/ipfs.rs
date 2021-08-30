@@ -24,8 +24,9 @@ pub struct IpfsApiConfig {
   host: String,
 }
 
-impl Default for IpfsApiConfig {
-  fn default() -> Self { IpfsApiConfig { host: "http://ipfs.yatima.io:5001".to_owned() } }
+impl IpfsApiConfig {
+  pub fn ipfs_yatima_io() -> Self { IpfsApiConfig { host: "http://ipfs.yatima.io:5001".to_owned() } }
+  pub fn local_daemon() -> Self { IpfsApiConfig { host: "http://localhost:5001".to_owned() } }
 }
 
 fn log_err<T, E: std::fmt::Debug>(e: E) -> Result<T, ()> {
