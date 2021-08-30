@@ -3,6 +3,7 @@ pub mod error;
 
 use crate::{
   debug,
+  log,
   file,
   store::{
     self,
@@ -111,27 +112,38 @@ pub trait Repl {
           Ok((_, command)) => match command {
             Command::Load(reference) => {
               if store.needs_callback() {
-                let name = match reference {
-                  Reference::FileName(n) => n.to_string(),
-                  Reference::Multiaddr(n) => n.to_string(),
-                  Reference::Cid(n) => n.to_string(),
-                };
                 let store_c = store.clone();
                 let mutex_env_c = mutex_env.clone();
-                store.load_by_name_with_callback(name.split('.').collect(), Box::new(move |ipld| {
+                let callback = Box::new(move |ipld| {
                   let mut env = mutex_env_c.lock().unwrap();
-                  if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store_c) {
-                    env.defs.flat_merge_mut(ds);
+                  log!("Got ipld {:?}", ipld);
+                  match file::check_all_in_ipld(ipld, store_c) {
+                    Ok((_package, ds)) => {
+                      env.defs.flat_merge_mut(ds);
+                    },
+                    Err(e) => {
+                      log!("Type checking failed. {:?}", e);
+                    }
                   }
-                  else {
-                    // self.println("Type checking failed.".to_owned());
-                  }
-                }));
+                });
+                match reference {
+                  Reference::FileName(name) => {
+                    store.load_by_name_with_callback(name.split('.').collect(), callback);
+                  },
+                  Reference::Multiaddr(addr) => {
+                    store.get_by_multiaddr(addr).unwrap();
+                  },
+                  Reference::Cid(cid) => {
+                    store.get_with_callback(cid, callback);
+                  },
+                }
                 Ok(LineResult::Async)
               }
               else {
                 let ipld = match reference {
-                  Reference::FileName(name) => store.load_by_name(name.split('.').collect()),
+                  Reference::FileName(name) => {
+                    store.load_by_name(name.split('.').collect())
+                  },
                   Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
                   Reference::Cid(cid) => {
                     store.get(cid).ok_or(format!("Failed to get cid {}", cid))

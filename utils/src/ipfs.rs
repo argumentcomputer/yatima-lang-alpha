@@ -83,8 +83,6 @@ impl IpfsApi {
     callback: Box<dyn FnOnce(Result<Ipld, String>)>,
   ) {
     let url = format!("{}{}?arg={}", self.host, "/api/v0/block/get", cid);
-    // let ptr: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![]));
-    // let ptr2 = ptr.clone();
     wasm_bindgen_futures::spawn_local(async move {
       let client = Client::new();
       log!("Trying to call IPFS api at {}", url);
@@ -93,8 +91,6 @@ impl IpfsApi {
         return;
       }
       let response = response.unwrap().bytes().await.or_else(log_err).unwrap().to_vec();
-      debug!("response: {:?}", &response);
-      // *ptr2.lock().unwrap() = r.into();
 
       let ipld_res = DagCborCodec
         .decode(ByteCursor::new(response.to_vec()))
@@ -102,8 +98,6 @@ impl IpfsApi {
 
       callback(ipld_res);
     });
-    // let response = ptr.lock().unwrap();
-    // log!("response: {:?}", response);
   }
 
   pub async fn dag_put(&self, dag: Ipld) -> Result<String, reqwest::Error> {
