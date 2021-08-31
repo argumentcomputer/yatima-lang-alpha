@@ -12,16 +12,16 @@ path = "src/main.rs"
 [dependencies]
 yatima-core = { path = "../core", features = ["std"]}
 yatima-utils = { path = "../utils"}
-sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main"  }
-sp-multihash = { git = "https://github.com/yatima-inc/sp-multihash", branch = "main"  }
-sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main"  }
-bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
-sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
+sp-cid = "0.1"
+sp-multihash = "0.1"
+sp-ipld = "0.1.1"
+bytecursor = "0.1"
+sized-chunks = "0.6.5"
 multibase = "0.9.1"
 multiaddr = "*"
 structopt = "0.3.21"
 nom = "6.0.1"
-nom_locate = { git = "https://github.com/yatima-inc/nom_locate", branch = "main"}
+nom_locate = "3.0.2" 
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"

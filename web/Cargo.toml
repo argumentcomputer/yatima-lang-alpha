@@ -11,13 +11,13 @@ default = ["console_error_panic_hook"]
 
 [dependencies]
 base64 = "0.13.0"
-bytecursor = { git = "https://github.com/yatima-inc/bytecursor", branch = "main"  }
 console_error_panic_hook = { version = "0.1.6", optional = true }
 js-sys = "0.3.49"
 multiaddr = "*"
-sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "main", default-features = false }
-sp-cid = { git = "https://github.com/yatima-inc/sp-cid", branch = "main" }
-sp-ipld = { git = "https://github.com/yatima-inc/sp-ipld", branch = "main" }
+sp-cid = "0.1"
+sp-ipld = "0.1.1"
+bytecursor = "0.1"
+sized-chunks = "0.6.5"
 unicode-segmentation = "1.8.0"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 wasm-bindgen-futures = "0.4.22"
