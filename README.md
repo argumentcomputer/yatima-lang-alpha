@@ -26,13 +26,13 @@
 
 Yatima is a pure functional programming language implemented in Rust with the following features:
 
-- **Content-Addressing** powers reproducible builds, and peer-to-peer
+- **Content-Addressing** powers reproducible builds and peer-to-peer
   package management. A Yatima content-address represents an
   _immutable_ program and all its dependencies. That means if someones shares an
   address with you, you can perfectly replicate their computation (and in
   principle even their computing environment!). Since the program is immutable,
   the way it runs the first time is the way it runs everytime.
-- **First-class types**. This lets you the programmer to tell the compiler what
+- **First-class types** let you, the programmer, tell the compiler what
   you _intend_ to do in your program. Then, like a helpful robot assistant, the
   compiler will check to make sure that what you're _actually doing_ matches
   those expressed intentions. Type-driven programming lets the compiler act as
@@ -43,7 +43,7 @@ Yatima is a pure functional programming language implemented in Rust with the fo
   memory safety benefits of using a high-level language, while also allowing you
   to work "close to the metal" when you want to.
 - **Type-safe dependent metaprogramming** lets Yatima have the flexibility and
-  extensibility of a dynamically-typed language, without sacrificing the safety
+  extensibility of a dynamically-typed language without sacrificing the safety
   of static-typing.
 
 ## Examples
@@ -255,7 +255,7 @@ only an estimated 25 million software developers. That's a "Programming Literacy
 rate" of less than 1%. Furthermore, that population is not demographically
 representative. It skews heavily toward men, the Global North, and those from
 privileged socioeconomic or ethnic backgrounds. This is a disgrace.
-It is if we live in some absurd dystopia where only people with green eyes 
+It is as if we live in some absurd dystopia where only people with green eyes 
 play music.
 
 A new programming language isn't going to be some panacea that solves that
@@ -269,12 +269,12 @@ problem on its own, but there are some ways in a programming language can help:
 2. Make explicit in the language the connection between computing and
    mathematics. These two seemingly separate fields are actually, in essence,
    the same: All proofs are programs, all programs are proofs. A student
-   doing math homework *is* programming, even if they don't conceptualize at
+   doing math homework *is* programming, even if they don't conceptualize it as
    such.
 
    Many people dislike math due to the tedium of manual computation and the
    unclear relevance of the results. And many people dislike programming because
-   the concrete mechanics often seem arbitrary and frustrating. These are are
+   the concrete mechanics often seem arbitrary and frustrating. These are
    complementary complaints. Math is more fun when you have a computer to take
    care of the detail-work. And computing is much easier when you have a clear
    notion of the theory of what you're doing.
@@ -303,7 +303,7 @@ problem on its own, but there are some ways in a programming language can help:
    run than ones which do not.
 
 The future we want to build is one where billions of people use, understand and
-love their mathematical computing machines, as natural extensions of
+love their mathematical computing machines as natural extensions of
 themselves. A future where users have autonomy and privacy over their own
 systems and their own data. A future where reliable, type-checked,
 formally-verified software is the norm, so you can rely on software engineering
