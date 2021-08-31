@@ -28,7 +28,7 @@ sp-cid = { version = "0.1", default-features = false }
 sp-multihash = { version = "0.1", default-features = false }
 sp-ipld = { version = "0.1.1", default-features = false, features = ["dag-cbor"] }
 sp-im = { version = "0.1", default-features = false }
-sized-chunks = { git = "https://github.com/bodil/sized-chunks", branch = "master", default-features = false }
+sized-chunks = { version = "0.6.5", default-features = false }
 
 [dev-dependencies]
 quickcheck = "1.0.3"
