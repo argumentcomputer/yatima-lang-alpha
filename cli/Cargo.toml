@@ -16,7 +16,7 @@ sp-cid = "0.1"
 sp-multihash = "0.1"
 sp-ipld = "0.1.1"
 bytecursor = "0.1"
-sized-chunks = "0.6.5"
+sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "master" }
 multibase = "0.9.1"
 multiaddr = "*"
 structopt = "0.3.21"
