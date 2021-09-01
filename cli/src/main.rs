@@ -28,11 +28,7 @@ use yatima_utils::{
 #[structopt(about = "A programming language for the decentralized web")]
 struct Cli {
   /// Pin data to the local IPFS daemon
-  #[structopt(
-    short = "i",
-    long = "ipfs",
-    help = "Turn on adding data to the IPFS daemon."
-  )]
+  #[structopt(short = "i", long = "ipfs", help = "Turn on adding data to the IPFS daemon.")]
   ipfs_host: Option<Option<String>>,
 
   #[structopt(
@@ -125,7 +121,14 @@ fn run_cli() -> std::io::Result<()> {
   let root = cli.root.unwrap_or_else(|| std::env::current_dir().unwrap());
   let store = Rc::new(FileStore::new(
     FileStoreOpts { use_file_store: !cli.no_file_store, root: root.clone() },
-    cli.ipfs_host.map(|option| option.map(|host| IpfsApi::new(host))).flatten(),
+    cli
+      .ipfs_host
+      .map(|option| {
+        option
+          .map(|host| IpfsApi::new(host))
+          .or_else(|| Some(IpfsApi::new("localhost:5001".to_string())))
+      })
+      .flatten(),
   ));
   match cli.command {
     Command::Repl => repl(store),
