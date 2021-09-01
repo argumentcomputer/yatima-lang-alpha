@@ -17,6 +17,7 @@ use yatima_core::{
 use yatima_runtime::transform::StdIORuntime;
 use yatima_utils::{
   file,
+  ipfs::IpfsApi,
   store::{
     show,
     Store,
@@ -27,20 +28,20 @@ use yatima_utils::{
 #[structopt(about = "A programming language for the decentralized web")]
 struct Cli {
   /// Pin data to the local IPFS daemon
-  #[structopt(short, long, help = "Turn on adding data to the IPFS daemon.")]
-  use_ipfs_daemon: bool,
+  #[structopt(
+    short = "i",
+    long = "ipfs",
+    help = "Turn on adding data to the IPFS daemon."
+  )]
+  ipfs_host: Option<Option<String>>,
 
   #[structopt(
     long,
-    help = "Turn off writing to the file system. Data will only be kept in \
-            memory."
+    help = "Turn off writing to the file system. Data will only be kept in memory."
   )]
   no_file_store: bool,
 
-  #[structopt(
-    long,
-    help = "The root directory we are reading files relative to."
-  )]
+  #[structopt(long, help = "The root directory we are reading files relative to.")]
   root: Option<PathBuf>,
 
   /// Command to execute
@@ -122,11 +123,10 @@ fn repl(_store: Rc<dyn Store>) -> std::io::Result<()> {
 fn run_cli() -> std::io::Result<()> {
   let cli = Cli::from_args();
   let root = cli.root.unwrap_or_else(|| std::env::current_dir().unwrap());
-  let store = Rc::new(FileStore::new(FileStoreOpts {
-    use_ipfs_daemon: cli.use_ipfs_daemon,
-    use_file_store: !cli.no_file_store,
-    root: root.clone(),
-  }));
+  let store = Rc::new(FileStore::new(
+    FileStoreOpts { use_file_store: !cli.no_file_store, root: root.clone() },
+    cli.ipfs_host.map(|option| option.map(|host| IpfsApi::new(host))).flatten(),
+  ));
   match cli.command {
     Command::Repl => repl(store),
     Command::Show { typ: ShowType::File { path } } => {
@@ -217,20 +217,15 @@ fn run_cli() -> std::io::Result<()> {
     }
     Command::Run { path } => {
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) =
-        file::parse::parse_file(env).map_err(handle_error_string)?;
+      let (_, p, defs) = file::parse::parse_file(env).map_err(handle_error_string)?;
       let p = Rc::new(p);
       let defs = Rc::new(defs);
 
       let _cid = store.put(p.to_ipld());
 
-      let checked =
-        file::check_all(p.clone(), defs, store).map_err(handle_error_string)?;
+      let checked = file::check_all(p.clone(), defs, store).map_err(handle_error_string)?;
       let def = checked.get(&Name::from("main")).unwrap_or_else(|| {
-        panic!(
-          "No `main` expression in package {} from file {:?}",
-          p.name, path
-        )
+        panic!("No `main` expression in package {} from file {:?}", p.name, path)
       });
       let runtime_io = Rc::new(StdIORuntime::new());
 

@@ -1,5 +1,4 @@
 use crate::{
-  debug,
   log,
 };
 use bytecursor::ByteCursor;
@@ -34,14 +33,16 @@ fn log_err<T, E: std::fmt::Debug>(e: E) -> Result<T, ()> {
 }
 
 impl IpfsApi {
-  pub fn ipfs_yatima_io() -> Self { IpfsApi { host: "http://ipfs.yatima.io:5001".to_owned() } }
+  pub fn new(host: String) -> Self { IpfsApi { host } }
 
-  pub fn local_daemon() -> Self { IpfsApi { host: "http://localhost:5001".to_owned() } }
+  pub fn ipfs_yatima_io() -> Self { Self::new("http://ipfs.yatima.io:5001".to_owned()) }
+
+  pub fn local_daemon() -> Self { Self::new("http://localhost:5001".to_owned()) }
 
   /// Pin an Ipld using the IPFS API
   pub fn dag_put_with_callback(&self, dag: Ipld) -> Result<String, String> {
     let url = format!(
-      "{}{}?{}",
+      "http://{}{}?{}",
       self.host, "/api/v0/dag/put", "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256"
     );
     let cbor =
@@ -82,7 +83,7 @@ impl IpfsApi {
     cid: String,
     callback: Box<dyn FnOnce(Result<Ipld, String>)>,
   ) {
-    let url = format!("{}{}?arg={}", self.host, "/api/v0/block/get", cid);
+    let url = format!("http://{}{}?arg={}", self.host, "/api/v0/block/get", cid);
     wasm_bindgen_futures::spawn_local(async move {
       let client = Client::new();
       log!("Trying to call IPFS api at {}", url);
@@ -102,7 +103,7 @@ impl IpfsApi {
 
   pub async fn dag_put(&self, dag: Ipld) -> Result<String, reqwest::Error> {
     let url = format!(
-      "{}{}?{}",
+      "http://{}{}?{}",
       self.host, "/api/v0/dag/put", "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256"
     );
     let cbor = DagCborCodec.encode(&dag).unwrap().into_inner();
@@ -123,11 +124,10 @@ impl IpfsApi {
   }
 
   pub async fn dag_get(&self, cid: String) -> Result<Ipld, reqwest::Error> {
-    let url = format!("{}{}?arg={}", self.host, "/api/v0/block/get", cid);
+    let url = format!("http://{}{}?arg={}", self.host, "/api/v0/block/get", cid);
     let client = Client::new();
     let response = client.post(url).send().await?.bytes().await?;
     let response = response.to_vec();
-    debug!("response: {:?}", response);
     let ipld = DagCborCodec.decode(ByteCursor::new(response)).expect("invalid ipld cbor.");
 
     Ok(ipld)
