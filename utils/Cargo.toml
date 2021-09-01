@@ -14,7 +14,7 @@ sp-multihash = "0.1"
 sp-ipld = "0.1"
 multibase = "0.9.1"
 multiaddr = "*"
-sp-im = "0.1"
+sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "sb/no-std", default-features = false }
 sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "master" }
 bit-vec = "0.6.3"
 num-bigint = "0.3.1"

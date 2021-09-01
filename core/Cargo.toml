@@ -24,10 +24,10 @@ base-x = { version = "0.2.8", default-features = false }
 multibase = { version = "0.9.1", default-features = false }
 nom_locate = { version = "3.0", default-features = false }
 ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
-sp-cid = { version = "0.1", default-features = false }
+sp-cid = { version = "0.1"}
 sp-multihash = { version = "0.1", default-features = false }
 sp-ipld = { version = "0.1.1", default-features = false, features = ["dag-cbor"] }
-sp-im = { version = "0.1", default-features = false }
+sp-im = { git = "https://github.com/yatima-inc/sp-im", branch = "sb/no-std", default-features = false }
 sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "master", default-features = false }
 
 [dev-dependencies]
