@@ -1,6 +1,4 @@
-use nom::{
-  Finish,
-};
+use nom::Finish;
 use sp_cid::Cid;
 use std::{
   path::PathBuf,
@@ -12,11 +10,13 @@ use yatima_cli::{
     FileStore,
     FileStoreOpts,
   },
+  ipfs::dag_put,
   repl,
 };
 use yatima_core::name::Name;
 use yatima_utils::{
   file,
+  file::parse::parse_file,
   store::{
     show,
     Store,
@@ -32,11 +32,15 @@ struct Cli {
 
   #[structopt(
     long,
-    help = "Turn off writing to the file system. Data will only be kept in memory."
+    help = "Turn off writing to the file system. Data will only be kept in \
+            memory."
   )]
   no_file_store: bool,
 
-  #[structopt(long, help = "The root directory we are reading files relative to.")]
+  #[structopt(
+    long,
+    help = "The root directory we are reading files relative to."
+  )]
   root: Option<PathBuf>,
 
   /// Command to execute
@@ -64,6 +68,14 @@ enum Command {
     path: PathBuf,
   },
   Repl,
+  Pin {
+    #[structopt(parse(from_os_str))]
+    path: PathBuf,
+  },
+  Clone {
+    #[structopt(parse(from_os_str))]
+    cid: String,
+  },
 }
 
 #[derive(Debug, StructOpt)]
@@ -98,10 +110,15 @@ enum ShowType {
 
 fn parse_cid(
   s: &str,
-) -> Result<Cid, yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>> {
-  let result = yatima_core::parse::package::parse_link(yatima_core::parse::span::Span::new(&s))
-    .finish()
-    .map(|(_, x)| x);
+) -> Result<
+  Cid,
+  yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>,
+> {
+  let result = yatima_core::parse::package::parse_link(
+    yatima_core::parse::span::Span::new(&s),
+  )
+  .finish()
+  .map(|(_, x)| x);
   result
 }
 
@@ -214,12 +231,53 @@ async fn main() -> std::io::Result<()> {
       })?;
 
       let _cid = store.put(p.to_ipld());
-      let def = defs
-        .get(&Name::from("main"))
-        .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
+      let def = defs.get(&Name::from("main")).expect(&format!(
+        "No `main` expression in package {} from file {:?}",
+        p.name, path
+      ));
       let mut dag = yatima_core::dag::DAG::from_term(&def.to_owned().term);
       dag.norm(&defs, false);
       println!("{}", dag);
+      Ok(())
+    }
+
+    // Parse file into Package and Defs
+    // Turn package into Ipld
+    // Dag_put the Ipld object
+    Command::Pin { path } => {
+      for file in std::fs::read_dir(path)? {
+        let file = file?;
+        let path = file.path();
+        let env = file::parse::PackageEnv::new(
+          root.clone(),
+          path.clone(),
+          store.clone(),
+        );
+        let info = parse_file(env).unwrap();
+        let pkg = info.1;
+        let defs = info.2;
+        for (name, _) in defs.names.iter() {
+          let def = defs.get(name).unwrap();
+          let (term_anon, term_meta) = def.term.embed();
+          let (typ_anon, typ_meta) = def.typ_.embed();
+          dag_put(term_anon.to_ipld()).await.unwrap();
+          dag_put(term_meta.to_ipld()).await.unwrap();
+          dag_put(typ_anon.to_ipld()).await.unwrap();
+          dag_put(typ_meta.to_ipld()).await.unwrap();
+          let entry = def.embed().0;
+          dag_put(entry.to_ipld()).await.unwrap();
+        }
+        for import in &pkg.imports {
+          dag_put(import.to_ipld()).await.unwrap();
+        }
+        dag_put(pkg.to_ipld()).await.unwrap();
+      }
+      println!("Pinned directory to IPFS");
+      Ok(())
+    }
+    Command::Clone { cid } => {
+      let dir = dag_get(cid).await.unwrap();
+      println!("Cloned directory from IPFS");
       Ok(())
     }
   }
