@@ -7,7 +7,7 @@ export default function(env, argv) {
   return {
     entry: "./index.js",
     output: {
-      path: path.resolve("./dist"),
+      path: path.resolve("./dist/" + (env.release ? "production" : "development")),
       filename: "index.js",
     },
     mode: "development",

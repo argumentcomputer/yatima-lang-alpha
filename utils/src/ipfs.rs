@@ -35,9 +35,9 @@ fn log_err<T, E: std::fmt::Debug>(e: E) -> Result<T, ()> {
 impl IpfsApi {
   pub fn new(host: String) -> Self { IpfsApi { host } }
 
-  pub fn ipfs_yatima_io() -> Self { Self::new("http://ipfs.yatima.io:5001".to_owned()) }
+  pub fn ipfs_yatima_io() -> Self { Self::new("ipfs.yatima.io:5001".to_owned()) }
 
-  pub fn local_daemon() -> Self { Self::new("http://localhost:5001".to_owned()) }
+  pub fn local_daemon() -> Self { Self::new("localhost:5001".to_owned()) }
 
   /// Pin an Ipld using the IPFS API
   pub fn dag_put_with_callback(&self, dag: Ipld) -> Result<String, String> {
