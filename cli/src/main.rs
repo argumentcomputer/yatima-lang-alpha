@@ -1,5 +1,6 @@
 use nom::Finish;
 use sp_cid::Cid;
+use sp_ipld::Ipld;
 use std::{
   path::PathBuf,
   rc::Rc,
@@ -10,7 +11,6 @@ use yatima_cli::{
     FileStore,
     FileStoreOpts,
   },
-  ipfs::dag_put,
   repl,
 };
 use yatima_core::name::Name;
@@ -73,7 +73,6 @@ enum Command {
     path: PathBuf,
   },
   Clone {
-    #[structopt(parse(from_os_str))]
     cid: String,
   },
 }
@@ -240,47 +239,88 @@ async fn main() -> std::io::Result<()> {
       println!("{}", dag);
       Ok(())
     }
-
-    // Parse file into Package and Defs
-    // Turn package into Ipld
-    // Dag_put the Ipld object
     Command::Pin { path } => {
-      for file in std::fs::read_dir(path)? {
-        let file = file?;
-        let path = file.path();
-        let env = file::parse::PackageEnv::new(
-          root.clone(),
-          path.clone(),
-          store.clone(),
-        );
-        let info = parse_file(env).unwrap();
-        let pkg = info.1;
-        let defs = info.2;
-        for (name, _) in defs.names.iter() {
-          let def = defs.get(name).unwrap();
-          let (term_anon, term_meta) = def.term.embed();
-          let (typ_anon, typ_meta) = def.typ_.embed();
-          dag_put(term_anon.to_ipld()).await.unwrap();
-          dag_put(term_meta.to_ipld()).await.unwrap();
-          dag_put(typ_anon.to_ipld()).await.unwrap();
-          dag_put(typ_meta.to_ipld()).await.unwrap();
-          let entry = def.embed().0;
-          dag_put(entry.to_ipld()).await.unwrap();
-        }
-        for import in &pkg.imports {
-          dag_put(import.to_ipld()).await.unwrap();
-        }
-        dag_put(pkg.to_ipld()).await.unwrap();
-      }
-      println!("Pinned directory to IPFS");
+      pin(path, root, store);
       Ok(())
     }
     Command::Clone { cid } => {
-      let dir = dag_get(cid).await.unwrap();
+      let cid = parse_cid(&cid).unwrap();
+      clone(cid, root, store);
       println!("Cloned directory from IPFS");
       Ok(())
     }
   }
+}
+
+fn pin(path: PathBuf, root: PathBuf, store: Rc<FileStore>) {
+  let env =
+    file::parse::PackageEnv::new(root.clone(), path.clone(), store.clone());
+  let info = parse_file(env).unwrap();
+  let pkg = info.1;
+  let imports = &pkg.imports;
+  for import in imports {
+    let mut import_path = root.clone();
+    for n in import.name.split('.') {
+      import_path.push(n);
+    }
+    import_path.set_extension("ya");
+    pin(import_path, root.clone(), store.clone());
+  }
+  let source = std::fs::read_to_string(&path)
+    .map_err(|e| format!("file {:?} not found {:?}", &path, e))
+    .unwrap();
+  let defs = info.2;
+  for (name, _) in defs.names.iter() {
+    let def = defs.get(name).unwrap();
+    let entry = def.embed().0;
+    store.put(Ipld::Link(entry.type_anon));
+    store.put(Ipld::Link(entry.term_anon));
+    store.put(entry.type_meta.to_ipld());
+    store.put(entry.term_meta.to_ipld());
+    store.put(entry.to_ipld());
+  }
+  store.put(Ipld::String(source.clone()));
+  // let cid = store.put(Ipld::String(source.clone()));
+  // println!("Pinned {} with CID {}", source, cid.to_string());
+  let cid = store.put(pkg.to_ipld());
+  println!("Pinned {} with CID {}", pkg, cid.to_string());
+}
+
+use yatima_core::{
+  package::Package,
+  position::Pos,
+};
+
+// Convert a package and each import into files and write to flat directory
+fn clone(cid: Cid, root: PathBuf, store: Rc<FileStore>) {
+  // For each import, convert to a package and recurse
+  let ipld = store.get(cid).unwrap();
+  let pkg = Package::from_ipld(&ipld).unwrap();
+  let imports = &pkg.imports;
+  for import in imports {
+    clone(import.cid, root.clone(), store.clone());
+  }
+  // Convert package name to file path
+  let mut path = root.clone();
+  for n in pkg.name.split('.') {
+    path.push(n);
+  }
+  path.set_extension("ya");
+  // First, get source cid from Package
+  let src_cid = match pkg.pos {
+    Pos::Some(p) => Some(p.input),
+    Pos::None => None,
+  };
+  let src_name = path.to_str().unwrap();
+  // Convert cid into Ipld object
+  let src_ipld = store.get(src_cid.unwrap()).unwrap();
+  let src_txt = match src_ipld {
+    Ipld::String(text) => text,
+    _ => panic!("not a string"),
+  };
+  println!("{}", src_txt);
+  // Convert Ipld into text
+  std::fs::write(src_name, src_txt).unwrap();
 }
 
 // for valgrind testing
