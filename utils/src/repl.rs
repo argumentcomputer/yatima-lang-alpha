@@ -3,10 +3,12 @@ pub mod error;
 
 use crate::{
   debug,
-  log,
   file,
+  log,
   store::{
     self,
+    CallbackMonitor,
+    CallbackResult,
     Store,
   },
 };
@@ -32,6 +34,7 @@ use yatima_core::{
   },
   dag::DAG,
   defs::Defs,
+  package::Package,
   parse::{
     span::Span,
     term::input_cid,
@@ -115,35 +118,43 @@ pub trait Repl {
                 let store_c = store.clone();
                 let mutex_env_c = mutex_env.clone();
                 let callback = Box::new(move |ipld| {
-                  let mut env = mutex_env_c.lock().unwrap();
-                  log!("Got ipld {:?}", ipld);
-                  match file::check_all_in_ipld(ipld, store_c) {
-                    Ok((_package, ds)) => {
-                      env.defs.flat_merge_mut(ds);
-                    },
-                    Err(e) => {
-                      log!("Type checking failed. {:?}", e);
+                  let p = Rc::new(Package::from_ipld(&ipld).unwrap());
+                  let p2 = p.clone();
+                  let store_c1 = store_c.clone();
+                  // This is called when all other callbacks has completed
+                  let final_callback = Arc::new(move |ptr: Arc<Mutex<Defs>>| {
+                    let mut env = mutex_env_c.lock().unwrap();
+                    let defs = ptr.clone().into_inner().unwrap();
+                    // log!("Got ipld {:?}", ipld);
+
+                    match file::check_all(p2, Rc::new(defs), store_c1) {
+                      Ok(ds) => {
+                        env.defs.flat_merge_mut(ds);
+                      }
+                      Err(e) => {
+                        log!("Type checking failed. {:?}", e);
+                      }
                     }
-                  }
+                  });
+                  let mon = CallbackMonitor::<Defs>::new(final_callback);
+                  store::load_package_defs(store_c.clone(), p, Some(mon));
                 });
                 match reference {
                   Reference::FileName(name) => {
                     store.load_by_name_with_callback(name.split('.').collect(), callback);
-                  },
+                  }
                   Reference::Multiaddr(addr) => {
                     store.get_by_multiaddr(addr).unwrap();
-                  },
+                  }
                   Reference::Cid(cid) => {
                     store.get_with_callback(cid, callback);
-                  },
+                  }
                 }
                 Ok(LineResult::Async)
               }
               else {
                 let ipld = match reference {
-                  Reference::FileName(name) => {
-                    store.load_by_name(name.split('.').collect())
-                  },
+                  Reference::FileName(name) => store.load_by_name(name.split('.').collect()),
                   Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
                   Reference::Cid(cid) => {
                     store.get(cid).ok_or(format!("Failed to get cid {}", cid))
@@ -291,7 +302,7 @@ pub fn run_repl(rl: &mut dyn Repl) {
       Ok(LineResult::Success) => continue,
       Ok(LineResult::Async) => {
         rl.println("Async call initiated.".to_owned()).unwrap();
-      },
+      }
       Ok(LineResult::Quit) => break,
       Err(e) => {
         debug!("handle_line: {}", e);
