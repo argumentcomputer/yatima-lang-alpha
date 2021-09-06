@@ -8,7 +8,6 @@ use crate::{
   store::{
     self,
     CallbackMonitor,
-    CallbackResult,
     Store,
   },
 };
@@ -122,12 +121,12 @@ pub trait Repl {
                   let p2 = p.clone();
                   let store_c1 = store_c.clone();
                   // This is called when all other callbacks has completed
-                  let final_callback = Arc::new(move |ptr: Arc<Mutex<Defs>>| {
+                  let final_callback = Some(Box::new(move |defs: Defs| {
                     let mut env = mutex_env_c.lock().unwrap();
-                    let defs = ptr.clone().into_inner().unwrap();
+                    // let defs = ptr.into_inner().unwrap();
                     // log!("Got ipld {:?}", ipld);
 
-                    match file::check_all(p2, Rc::new(defs), store_c1) {
+                    match file::check_all(p2.clone(), Rc::new(defs), store_c1) {
                       Ok(ds) => {
                         env.defs.flat_merge_mut(ds);
                       }
@@ -135,9 +134,9 @@ pub trait Repl {
                         log!("Type checking failed. {:?}", e);
                       }
                     }
-                  });
-                  let mon = CallbackMonitor::<Defs>::new(final_callback);
-                  store::load_package_defs(store_c.clone(), p, Some(mon));
+                  }) as Box<dyn FnOnce(_)>);
+                  let mon = Arc::new(Mutex::new(CallbackMonitor::<Defs>::new(final_callback)));
+                  store::load_package_defs(store_c.clone(), p, Some(mon)).unwrap();
                 });
                 match reference {
                   Reference::FileName(name) => {

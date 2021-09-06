@@ -34,37 +34,42 @@ pub enum CallbackResult<T> {
 }
 
 /// Monitors the execution of several callbacks.
-#[derive(Clone)]
 pub struct CallbackMonitor<T> {
-  pub result: Arc<Mutex<T>>,
-  callback_completed: Arc<Mutex<HashMap<String, bool>>>,
-  final_callback: Arc<dyn FnOnce(Arc<Mutex<T>>)>,
+  pub result: Option<T>,
+  callback_completed: HashMap<String, bool>,
+  final_callback: Option<Box<dyn FnOnce(T)>>,
   executed: bool,
 }
 
 impl<T> CallbackMonitor<T> {
-  pub fn new<U: Default>(final_callback: Arc<dyn FnOnce(Arc<Mutex<U>>)>) -> CallbackMonitor<U> {
-    let result = Arc::new(Mutex::new(Default::default()));
-    let callback_completed: Arc<Mutex<HashMap<String, bool>>> =
-      Arc::new(Mutex::new(Default::default()));
+  pub fn new<U: Default>(final_callback: Option<Box<dyn FnOnce(U)>>) -> CallbackMonitor<U> {
+    let result = Default::default();
+    let callback_completed: HashMap<String, bool> = Default::default();
     CallbackMonitor { result, callback_completed, final_callback, executed: false }
   }
 
   /// Tell the monitor to wait until notified by this callback id
-  pub fn register_callback(&self, id: String) {
-    let mut mon = self.callback_completed.lock().unwrap();
-    mon.insert(id, false);
-  }
+  pub fn register_callback(&mut self, id: String) { self.callback_completed.insert(id, false); }
 
   /// Let the monitor know that a callback has completed.
-  pub fn notify(self, id: String) {
-    let mut mons = self.callback_completed.lock().unwrap();
+  pub fn notify(&mut self, id: String) {
+    let mons = &mut self.callback_completed;
     debug!("Notified by {}", &id);
     mons.insert(id, true);
     if mons.values().all(|&b| b) {
       debug!("final_callback");
-      let fc = self.final_callback.clone();
-      fc(self.result.clone());
+      if let Some(fc) = self.final_callback.take() {
+        if let Some(result) = self.result.take() {
+          fc(result);
+          self.executed = true;
+        }
+      }
+    }
+  }
+
+  pub fn update_result(&mut self, f: Box<dyn FnOnce(&mut T)>) {
+    if let Some(res) = &mut self.result {
+      f(res);
     }
   }
 }
@@ -100,76 +105,75 @@ pub trait Store: std::fmt::Debug {
 pub fn load_package_defs(
   store: Rc<dyn Store>,
   package: Rc<Package>,
-  monitor_opt: Option<CallbackMonitor<Defs>>,
+  monitor_opt: Option<Arc<Mutex<CallbackMonitor<Defs>>>>,
 ) -> Result<CallbackResult<Defs>, String> {
   let Index(def_refs) = &package.index;
   let imports = &package.imports;
-  if store.needs_callback() {
-    let monitor =
-      monitor_opt.as_ref().expect("When needing callback a CallbackMonitor must be provided");
-    let ptr = &monitor.result;
+  if let Some(monitor) = monitor_opt {
+    // let ptr = &.result;
     for import in imports {
       let store_c = store.clone();
       let monitor_c = monitor.clone();
       let import_id = import.cid.to_string();
-      monitor.register_callback(import_id.clone());
+      monitor.lock().unwrap().register_callback(import_id.clone());
       store.get_with_callback(
         import.cid.clone(),
         Box::new(move |package_ipld| {
           let imported_package =
             Package::from_ipld(&package_ipld).map_err(|e| format!("{:?}", e)).unwrap();
           // let imported_defs =
-          load_package_defs(store_c, Rc::new(imported_package), Some(monitor_c.clone()))
-              .unwrap();
+          load_package_defs(store_c, Rc::new(imported_package), Some(monitor_c.clone())).unwrap();
           // let defs = ptr.lock().unwrap();
           // *defs = defs.merge(imported_defs, &import);
-          monitor_c.notify(import_id.clone());
+          monitor_c.lock().unwrap().notify(import_id.clone());
         }),
       );
     }
     for (name, cid) in def_refs {
       let name = name.clone();
       let store_c1 = store.clone();
-      let ptr_c = ptr.clone();
+      // let ptr_c = ptr.clone();
       let entry_id = cid.clone().to_string();
       let monitor_c = monitor.clone();
       let monitor_c1 = monitor.clone();
       let monitor_c2 = monitor.clone();
-      monitor.register_callback(entry_id.clone());
+      monitor.lock().unwrap().register_callback(entry_id.clone());
       store.get_with_callback(
         cid.clone(),
         Box::new(move |entry_ipld| {
           let entry = Entry::from_ipld(&entry_ipld).map_err(|e| format!("{:?}", e)).unwrap();
           let store_c2 = store_c1.clone();
           let type_anon_id = entry.type_anon.to_string();
-          monitor_c.register_callback(type_anon_id.clone());
+          monitor_c.lock().unwrap().register_callback(type_anon_id.clone());
           store_c1.get_with_callback(
             entry.type_anon,
             Box::new(move |type_anon_ipld| {
               let type_anon =
                 anon::Anon::from_ipld(&type_anon_ipld).map_err(|e| format!("{:?}", e)).unwrap();
               let term_anon_id = entry.term_anon.to_string();
-              monitor_c1.register_callback(type_anon_id.clone());
+              monitor_c1.lock().unwrap().register_callback(type_anon_id.clone());
               store_c2.get_with_callback(
                 entry.term_anon,
                 Box::new(move |term_anon_ipld| {
                   let term_anon = anon::Anon::from_ipld(&term_anon_ipld)
                     .map_err(|e| format!("{:?}", e))
                     .unwrap();
-                  let mut defs = ptr_c.lock().unwrap();
-                  defs.insert(
-                    name,
-                    Def::unembed(entry, type_anon, term_anon)
-                      .map_err(|e| format!("{:?}", e))
-                      .unwrap(),
-                  );
-                  monitor_c2.notify(term_anon_id);
+                  let mut mon = monitor_c2.lock().unwrap();
+                  mon.update_result(Box::new(|defs: &mut Defs| {
+                    defs.insert(
+                      name,
+                      Def::unembed(entry, type_anon, term_anon)
+                        .map_err(|e| format!("{:?}", e))
+                        .unwrap(),
+                    );
+                  }));
+                  mon.notify(term_anon_id);
                 }),
               );
-              monitor_c1.notify(type_anon_id);
+              monitor_c1.lock().unwrap().notify(type_anon_id);
             }),
           );
-          monitor_c.notify(entry_id);
+          monitor_c.lock().unwrap().notify(entry_id);
         }),
       );
     }
