@@ -37,7 +37,7 @@ pub enum CallbackResult<T> {
 #[derive(Clone)]
 pub struct CallbackMonitor<T> {
   pub result: Arc<Mutex<T>>,
-  callback_monitor: Arc<Mutex<HashMap<String, bool>>>,
+  callback_completed: Arc<Mutex<HashMap<String, bool>>>,
   final_callback: Arc<dyn FnOnce(Arc<Mutex<T>>)>,
   executed: bool,
 }
@@ -45,20 +45,20 @@ pub struct CallbackMonitor<T> {
 impl<T> CallbackMonitor<T> {
   pub fn new<U: Default>(final_callback: Arc<dyn FnOnce(Arc<Mutex<U>>)>) -> CallbackMonitor<U> {
     let result = Arc::new(Mutex::new(Default::default()));
-    let callback_monitor: Arc<Mutex<HashMap<String, bool>>> =
+    let callback_completed: Arc<Mutex<HashMap<String, bool>>> =
       Arc::new(Mutex::new(Default::default()));
-    CallbackMonitor { result, callback_monitor, final_callback, executed: false }
+    CallbackMonitor { result, callback_completed, final_callback, executed: false }
   }
 
   /// Tell the monitor to wait until notified by this callback id
   pub fn register_callback(&self, id: String) {
-    let mut mon = self.callback_monitor.lock().unwrap();
+    let mut mon = self.callback_completed.lock().unwrap();
     mon.insert(id, false);
   }
 
   /// Let the monitor know that a callback has completed.
-  pub fn notify(&self, id: String) {
-    let mut mons = self.callback_monitor.lock().unwrap();
+  pub fn notify(self, id: String) {
+    let mut mons = self.callback_completed.lock().unwrap();
     debug!("Notified by {}", &id);
     mons.insert(id, true);
     if mons.values().all(|&b| b) {
