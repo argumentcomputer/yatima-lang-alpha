@@ -46,9 +46,9 @@ pub struct CallbackStatus {
   /// Parent id if recursive
   pub parent_id: Option<String>,
   /// Whether it has children callbacks that needs to complete
-  recursive: bool,
+  pub recursive: bool,
   /// Updated when the callback has completed
-  completed: bool,
+  pub completed: bool,
 }
 
 impl CallbackStatus {
