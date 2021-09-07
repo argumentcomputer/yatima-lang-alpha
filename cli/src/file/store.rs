@@ -29,11 +29,15 @@ use tokio::{
   runtime::Handle,
   task,
 };
+use yatima_core::defs::Defs;
 use yatima_utils::{
   debug,
   file::parse,
   ipfs::IpfsApi,
-  store::Store,
+  store::{
+    Callback,
+    Store,
+  },
 };
 
 pub fn hashspace_directory() -> PathBuf {
@@ -139,11 +143,11 @@ impl Store for FileStore {
 
   fn needs_callback(&self) -> bool { false }
 
-  fn get_with_callback(&self, _link: Cid, _callback: Box<dyn FnOnce(Ipld)>) {
+  fn get_with_callback(&self, _link: Cid, _callback: Callback<Ipld, Defs>) {
     panic!("Not implemented for this platform.")
   }
 
-  fn load_by_name_with_callback(&self, _path: Vec<&str>, _callback: Box<dyn FnOnce(Ipld)>) {
+  fn load_by_name_with_callback(&self, _path: Vec<&str>, _callback: Callback<Ipld, Defs>) {
     panic!("Not implemented for this platform.")
   }
 
@@ -187,7 +191,7 @@ impl Store for FileStore {
             Ok(_r) => {
               // debug!("Put success {:?}\n", r)
               ()
-            },
+            }
             Err(e) => debug!("Put error {:?}\n", e),
           }
         })

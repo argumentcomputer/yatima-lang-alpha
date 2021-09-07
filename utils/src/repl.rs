@@ -7,7 +7,9 @@ use crate::{
   log,
   store::{
     self,
+    Callback,
     CallbackMonitor,
+    CallbackStatus,
     Store,
   },
 };
@@ -140,12 +142,30 @@ pub trait Repl {
                 });
                 match reference {
                   Reference::FileName(name) => {
-                    store.load_by_name_with_callback(name.split('.').collect(), callback);
+                    let parts: Vec<&str> = name.split('.').collect();
+                    let monitor = Arc::new(Mutex::new(CallbackMonitor::<Defs>::new(None)));
+                    if let Some(id) = parts.last() {
+                      let callback = Callback {
+                        f: callback,
+                        id: id.to_string(),
+                        monitor,
+                        status: CallbackStatus::new(true, None),
+                      };
+                      store.load_by_name_with_callback(parts, callback);
+                    }
                   }
                   Reference::Multiaddr(addr) => {
                     store.get_by_multiaddr(addr).unwrap();
                   }
                   Reference::Cid(cid) => {
+                    let id = cid.to_string();
+                    let monitor = Arc::new(Mutex::new(CallbackMonitor::<Defs>::new(None)));
+                    let callback = Callback {
+                      f: callback,
+                      id,
+                      monitor,
+                      status: CallbackStatus::new(true, None),
+                    };
                     store.get_with_callback(cid, callback);
                   }
                 }

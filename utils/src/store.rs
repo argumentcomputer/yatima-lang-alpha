@@ -36,65 +36,71 @@ pub enum CallbackResult<T> {
 /// Monitors the execution of several callbacks.
 pub struct CallbackMonitor<T> {
   pub result: Option<T>,
-  callback_completed: HashMap<String, CallbackStatus>,
+  callback_status: HashMap<String, CallbackStatus>,
   final_callback: Option<Box<dyn FnOnce(T)>>,
   executed: bool,
 }
 
 /// Status of the callback|
 pub struct CallbackStatus {
-  /// Parent id if recurrsive
-  parent_id: Option<String>,
+  /// Parent id if recursive
+  pub parent_id: Option<String>,
   /// Whether it has children callbacks that needs to complete
-  recurrsive: bool,
+  recursive: bool,
   /// Updated when the callback has completed
   completed: bool,
 }
 
 impl CallbackStatus {
-  pub fn new(recurrsive: bool, parent_id: Option<String>) -> Self {
-    CallbackStatus { recurrsive, parent_id, completed: false }
+  pub fn new(recursive: bool, parent_id: Option<String>) -> Self {
+    CallbackStatus { recursive, parent_id, completed: false }
   }
 }
 
 /// Convenience struct for callbacks. To be consumed
 pub struct Callback<T, R> {
-  callback: Box<dyn FnOnce(T)>,
-  callback_monitor: Arc<Mutex<CallbackMonitor<R>>>,
+  /// The function pointer to call once
+  pub f: Box<dyn FnOnce(T)>,
+  /// The callback monitor to register and notify status
+  pub monitor: Arc<Mutex<CallbackMonitor<R>>>,
   /// A unique id for this callback
-  id: String,
+  pub id: String,
   /// Initial callback status
-  status: CallbackStatus,
+  pub status: CallbackStatus,
 }
 
 impl<T> CallbackMonitor<T> {
   pub fn new<U: Default>(final_callback: Option<Box<dyn FnOnce(U)>>) -> CallbackMonitor<U> {
     let result = Default::default();
-    let callback_completed: HashMap<String, bool> = Default::default();
-    CallbackMonitor { result, callback_completed, final_callback, executed: false }
+    let callback_status: HashMap<String, CallbackStatus> = Default::default();
+    CallbackMonitor { result, callback_status, final_callback, executed: false }
   }
 
   /// Tell the monitor to wait until notified by this callback id
   pub fn register_callback(&mut self, id: String, status: CallbackStatus) {
-    self.callback_completed.insert(id, status);
+    self.callback_status.insert(id, status);
   }
 
   /// Let the monitor know that a callback has completed.
   pub fn notify(&mut self, id: String) {
-    let mons = &mut self.callback_completed;
+    let mons = &mut self.callback_status;
     debug!("Notified by {}", &id);
-    mons.insert(id, true);
-    if mons.values().all(|&b| b) {
+    if let Some(c_status) = mons.get_mut(&id) {
+      c_status.completed = true;
+    }
+    let mut leaves = mons.values().filter(|&s| s.recursive);
+    if leaves.all(|s| s.completed) {
       debug!("final_callback");
       if let Some(fc) = self.final_callback.take() {
         if let Some(result) = self.result.take() {
           fc(result);
           self.executed = true;
-        } else {
+        }
+        else {
           debug!("result already consumed!");
         }
-
-      } else {
+      }
+      else {
         debug!("final_callback already run!");
       }
     }
@@ -118,7 +124,7 @@ pub trait Store: std::fmt::Debug {
 
   /// Load a package in a environment agnostic way
   /// Necessary to circumvent the async limitations of wasm.
-  fn load_by_name_with_callback(&self, path: Vec<&str>, callback: Box<dyn FnOnce(Ipld)>);
+  fn load_by_name_with_callback(&self, path: Vec<&str>, callback: Callback<Ipld, Defs>);
 
   /// Put an IPLD expression into the store
   fn put(&self, expr: Ipld) -> Cid;
@@ -143,51 +149,42 @@ pub fn load_package_defs(
   let Index(def_refs) = &package.index;
   let imports = &package.imports;
   if let Some(monitor) = monitor_opt {
-    // let ptr = &.result;
     for import in imports {
       let store_c = store.clone();
       let monitor_c = monitor.clone();
       let import_id = import.cid.to_string();
-      monitor.lock().unwrap().register_callback(import_id.clone());
-      store.get_with_callback(
-        import.cid.clone(),
-        Box::new(move |package_ipld| {
+      store.get_with_callback(import.cid.clone(), Callback {
+        f: Box::new(move |package_ipld| {
           let imported_package =
             Package::from_ipld(&package_ipld).map_err(|e| format!("{:?}", e)).unwrap();
-          // let imported_defs =
-          load_package_defs(store_c, Rc::new(imported_package), Some(monitor_c.clone())).unwrap();
-          // let defs = ptr.lock().unwrap();
-          // *defs = defs.merge(imported_defs, &import);
-          monitor_c.lock().unwrap().notify(import_id.clone());
+          load_package_defs(store_c, Rc::new(imported_package), Some(monitor_c)).unwrap();
         }),
-      );
+        monitor: monitor.clone(),
+        id: import_id,
+        status: CallbackStatus::new(true, None),
+      });
     }
     for (name, cid) in def_refs {
       let name = name.clone();
       let store_c1 = store.clone();
-      // let ptr_c = ptr.clone();
       let entry_id = cid.clone().to_string();
+      let entry_id_1 = entry_id.clone();
+      let entry_id_2 = entry_id.clone();
       let monitor_c = monitor.clone();
       let monitor_c1 = monitor.clone();
       let monitor_c2 = monitor.clone();
-      monitor.lock().unwrap().register_callback(entry_id.clone());
-      store.get_with_callback(
-        cid.clone(),
-        Box::new(move |entry_ipld| {
+      store.get_with_callback(cid.clone(), Callback {
+        f: Box::new(move |entry_ipld| {
           let entry = Entry::from_ipld(&entry_ipld).map_err(|e| format!("{:?}", e)).unwrap();
           let store_c2 = store_c1.clone();
           let type_anon_id = entry.type_anon.to_string();
-          monitor_c.lock().unwrap().register_callback(type_anon_id.clone());
-          store_c1.get_with_callback(
-            entry.type_anon,
-            Box::new(move |type_anon_ipld| {
+          store_c1.get_with_callback(entry.type_anon, Callback {
+            f: Box::new(move |type_anon_ipld| {
               let type_anon =
                 anon::Anon::from_ipld(&type_anon_ipld).map_err(|e| format!("{:?}", e)).unwrap();
               let term_anon_id = entry.term_anon.to_string();
-              monitor_c1.lock().unwrap().register_callback(type_anon_id.clone());
-              store_c2.get_with_callback(
-                entry.term_anon,
-                Box::new(move |term_anon_ipld| {
+              store_c2.get_with_callback(entry.term_anon, Callback {
+                f: Box::new(move |term_anon_ipld| {
                   let term_anon = anon::Anon::from_ipld(&term_anon_ipld)
                     .map_err(|e| format!("{:?}", e))
                     .unwrap();
@@ -200,15 +197,21 @@ pub fn load_package_defs(
                         .unwrap(),
                     );
                   }));
-                  mon.notify(term_anon_id);
                 }),
-              );
-              monitor_c1.lock().unwrap().notify(type_anon_id);
+                monitor: monitor_c1,
+                id: term_anon_id,
+                status: CallbackStatus::new(false, Some(entry_id_2)),
+              });
             }),
-          );
-          monitor_c.lock().unwrap().notify(entry_id);
+            monitor: monitor_c,
+            id: type_anon_id,
+            status: CallbackStatus::new(true, Some(entry_id_1)),
+          });
         }),
-      );
+        monitor: monitor.clone(),
+        id: entry_id.clone(),
+        status: CallbackStatus::new(true, None),
+      });
     }
     Ok(CallbackResult::Callback)
   }

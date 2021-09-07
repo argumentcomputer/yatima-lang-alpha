@@ -15,12 +15,18 @@ use web_sys::{
   Storage,
   Window,
 };
-use yatima_core::parse::parse_cid;
+use yatima_core::{
+  defs::Defs,
+  parse::parse_cid,
+};
 use yatima_utils::{
   debug,
   ipfs::IpfsApi,
   log,
-  store::Store,
+  store::{
+    Callback,
+    Store,
+  },
 };
 
 #[derive(Debug, Clone)]
@@ -71,14 +77,24 @@ impl Store for WebStore {
     Err("Not implemented".to_owned())
   }
 
-  fn load_by_name_with_callback(&self, path: Vec<&str>, callback: Box<dyn FnOnce(Ipld)>) {
+  fn load_by_name_with_callback(&self, path: Vec<&str>, callback: Callback<Ipld, Defs>) {
     debug!("load_by_name: {:?}", path);
     if let Some(Ok(link)) = path.last().map(|s| parse_cid(s)) {
+      let monitor = callback.monitor;
+      let id = callback.id;
+      let monitor_c = monitor.clone();
+      let f = callback.f;
+      let status = callback.status;
+      monitor.lock().unwrap().register_callback(id.clone(), status);
       self.api.dag_get_with_callback(
         link.to_string(),
-        Box::new(|result| match result {
-          Ok(ipld) => callback(ipld),
-          Err(e) => log!("dag_get: {:?}", e),
+        Box::new(move |result| {
+          match result {
+            Ok(ipld) => f(ipld),
+            Err(e) => log!("Error dag_get: {:?}", e),
+          }
+
+          monitor_c.lock().unwrap().notify(id);
         }),
       );
     }
@@ -94,13 +110,6 @@ impl Store for WebStore {
         Some(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
-        // ipfs::dag_get(
-        //   &self.api,
-        //   link.to_string(),
-        //   Box::new(|result| result.map_err(|e| log!("dag_get: {:?}", e)).ok()?),
-        // );
-        // let res = self.ipfs.get(&link.to_string());
-        // log!("Failed to get {} {:?}", &link, res);
         None
       }
     }
@@ -113,18 +122,21 @@ impl Store for WebStore {
     match self.storage.get(&link.to_string()) {
       Ok(Some(s)) => {
         let bin = ByteCursor::new(base64::decode(s).expect("invalid base64"));
-        callback(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
+        let f = callback.f;
+        f(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
-        let monitor = callback.callback_monitor;
+        let monitor = callback.monitor;
         let id = callback.id;
+        let f = callback.f;
+        let status = callback.status;
         let monitor_c = monitor.clone();
-        monitor.lock().unwrap().register_callback(id.clone(), callback.status);
+        monitor.lock().unwrap().register_callback(id.clone(), status);
         self.api.dag_get_with_callback(
           link.to_string(),
           Box::new(move |result| {
             match result {
-              Ok(ipld) => callback.callback(ipld),
+              Ok(ipld) => f(ipld),
               Err(e) => log!("Error dag_get: {:?}", e),
             }
 
