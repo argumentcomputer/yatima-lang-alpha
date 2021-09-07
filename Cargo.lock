@@ -883,16 +883,6 @@ dependencies = [
 
 [[package]]
 name = "nom_locate"
-version = "3.0.0"
-source = "git+https://github.com/yatima-inc/nom_locate?branch=main#ef7e281ec3912304af1cd03b6996e7986e2fa4f1"
-dependencies = [
- "bytecount",
- "memchr",
- "nom",
-]
-
-[[package]]
-name = "nom_locate"
 version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4689294073dda8a54e484212171efdcb6b12b1908fd70c3dc3eec15b8833b06d"
@@ -1519,7 +1509,8 @@ dependencies = [
 [[package]]
 name = "sp-im"
 version = "0.1.0"
-source = "git+https://github.com/yatima-inc/sp-im?branch=main#f26846405ee8e03772cfa6507aaee54ff91857d4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30c3320ed23a386f80c2286b2de6837c9628750fa774213ceafa0f5927d37f23"
 dependencies = [
  "bitmaps 3.1.0",
  "rand_core 0.5.1",
@@ -1534,7 +1525,8 @@ dependencies = [
 [[package]]
 name = "sp-ipld"
 version = "0.1.1"
-source = "git+https://github.com/yatima-inc/sp-ipld?branch=main#084deb553752885ade23347fc31566ce038fb870"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "989cc43356e8d4eeb42e5bc8b1a363e98c45cc8f026ea81d96790a2fc955b3a6"
 dependencies = [
  "base64",
  "bytecursor",
@@ -2086,7 +2078,7 @@ dependencies = [
  "multiaddr",
  "multibase",
  "nom",
- "nom_locate 3.0.0",
+ "nom_locate",
  "quickcheck",
  "quickcheck_macros",
  "rand",
@@ -2114,7 +2106,7 @@ dependencies = [
  "base-x",
  "multibase",
  "nom",
- "nom_locate 3.0.0",
+ "nom_locate",
  "num-bigint 0.3.2",
  "quickcheck",
  "quickcheck_macros",
@@ -2146,7 +2138,7 @@ dependencies = [
  "multiaddr",
  "multibase",
  "nom",
- "nom_locate 3.0.2",
+ "nom_locate",
  "num-bigint 0.3.2",
  "petgraph",
  "reqwest",
