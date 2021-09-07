@@ -226,7 +226,7 @@ pub trait Repl {
                   Ok(typ) => {
                     let mut mterm = term;
                     run(&mut mterm, Rc::new(env.defs.clone()), env.runtime_io.clone());
-                    // dag.norm(&env.defs, false);
+                    dag.norm(&env.defs, false);
                     self.println(format!("{}", dag))?;
                     self.println(format!(": {}", typ))?;
                     Ok(LineResult::Success)
