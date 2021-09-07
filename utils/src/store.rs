@@ -71,7 +71,7 @@ pub struct Callback<T, R> {
 
 impl<T> CallbackMonitor<T> {
   pub fn new<U: Default>(final_callback: Option<Box<dyn FnOnce(U)>>) -> CallbackMonitor<U> {
-    let result = Default::default();
+    let result = Some(Default::default());
     let callback_status: HashMap<String, CallbackStatus> = Default::default();
     CallbackMonitor { result, callback_status, final_callback, executed: false }
   }
@@ -88,7 +88,7 @@ impl<T> CallbackMonitor<T> {
     if let Some(c_status) = mons.get_mut(&id) {
       c_status.completed = true;
     }
-    let mut leaves = mons.values().filter(|&s| s.recursive);
+    let mut leaves = mons.values();
     if leaves.all(|s| s.completed) {
       debug!("final_callback");
       if let Some(fc) = self.final_callback.take() {
