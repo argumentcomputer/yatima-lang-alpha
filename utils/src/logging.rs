@@ -38,7 +38,7 @@ macro_rules! log {
 #[cfg(debug_assertions)]
 #[cfg(not(target_arch = "wasm32"))]
 pub fn debug(s: &str) {
-  io::stdout().write_all(["[DEBUG]", s].join(" ").as_bytes()).unwrap();
+  io::stdout().write_all(["[DEBUG]", s, "\n"].join(" ").as_bytes()).unwrap();
 }
 
 #[macro_export]
@@ -49,5 +49,5 @@ macro_rules! debug {
 /// Logs info to std out
 #[cfg(not(target_arch = "wasm32"))]
 pub fn log(s: &str) {
-  io::stdout().write_all(["[INFO]", s].join(" ").as_bytes()).unwrap();
+  io::stdout().write_all(["[INFO]", s, "\n"].join(" ").as_bytes()).unwrap();
 }

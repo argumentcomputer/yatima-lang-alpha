@@ -29,7 +29,7 @@ use yatima_utils::{
 struct Cli {
   /// Pin data to the local IPFS daemon
   #[structopt(short = "i", long = "ipfs", help = "Turn on adding data to the IPFS daemon.")]
-  ipfs_host: Option<Option<String>>,
+  use_ipfs: bool,
 
   #[structopt(
     long,
@@ -119,16 +119,10 @@ fn repl(_store: Rc<dyn Store>) -> std::io::Result<()> {
 fn run_cli() -> std::io::Result<()> {
   let cli = Cli::from_args();
   let root = cli.root.unwrap_or_else(|| std::env::current_dir().unwrap());
+  let ipfs = if cli.use_ipfs { Some(IpfsApi::new("localhost:5001".to_string())) } else { None };
   let store = Rc::new(FileStore::new(
     FileStoreOpts { use_file_store: !cli.no_file_store, root: root.clone() },
-    cli
-      .ipfs_host
-      .map(|option| {
-        option
-          .map(|host| IpfsApi::new(host))
-          .or_else(|| Some(IpfsApi::new("localhost:5001".to_string())))
-      })
-      .flatten(),
+    ipfs,
   ));
   match cli.command {
     Command::Repl => repl(store),
