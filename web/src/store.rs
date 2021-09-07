@@ -18,9 +18,7 @@ use web_sys::{
 use yatima_core::parse::parse_cid;
 use yatima_utils::{
   debug,
-  ipfs::{
-    IpfsApi,
-  },
+  ipfs::IpfsApi,
   log,
   store::Store,
 };
@@ -111,18 +109,26 @@ impl Store for WebStore {
   fn needs_callback(&self) -> bool { true }
 
   /// Necessary to circumvent the async limitations of wasm
-  fn get_with_callback(&self, link: Cid, callback: Box<dyn FnOnce(Ipld)>) {
+  fn get_with_callback(&self, link: Cid, callback: Callback<Ipld, Defs>) {
     match self.storage.get(&link.to_string()) {
       Ok(Some(s)) => {
         let bin = ByteCursor::new(base64::decode(s).expect("invalid base64"));
         callback(DagCborCodec.decode(bin).expect("invalid cbor bytes"))
       }
       _ => {
+        let monitor = callback.callback_monitor;
+        let id = callback.id;
+        let monitor_c = monitor.clone();
+        monitor.lock().unwrap().register_callback(id.clone(), callback.status);
         self.api.dag_get_with_callback(
           link.to_string(),
-          Box::new(|result| match result {
-            Ok(ipld) => callback(ipld),
-            Err(e) => log!("dag_get: {:?}", e),
+          Box::new(move |result| {
+            match result {
+              Ok(ipld) => callback.callback(ipld),
+              Err(e) => log!("Error dag_get: {:?}", e),
+            }
+
+            monitor_c.lock().unwrap().notify(id);
           }),
         );
       }

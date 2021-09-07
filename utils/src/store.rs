@@ -36,9 +36,35 @@ pub enum CallbackResult<T> {
 /// Monitors the execution of several callbacks.
 pub struct CallbackMonitor<T> {
   pub result: Option<T>,
-  callback_completed: HashMap<String, bool>,
+  callback_completed: HashMap<String, CallbackStatus>,
   final_callback: Option<Box<dyn FnOnce(T)>>,
   executed: bool,
+}
+
+/// Status of the callback|
+pub struct CallbackStatus {
+  /// Parent id if recurrsive
+  parent_id: Option<String>,
+  /// Whether it has children callbacks that needs to complete
+  recurrsive: bool,
+  /// Updated when the callback has completed
+  completed: bool,
+}
+
+impl CallbackStatus {
+  pub fn new(recurrsive: bool, parent_id: Option<String>) -> Self {
+    CallbackStatus { recurrsive, parent_id, completed: false }
+  }
+}
+
+/// Convenience struct for callbacks. To be consumed
+pub struct Callback<T, R> {
+  callback: Box<dyn FnOnce(T)>,
+  callback_monitor: Arc<Mutex<CallbackMonitor<R>>>,
+  /// A unique id for this callback
+  id: String,
+  /// Initial callback status
+  status: CallbackStatus,
 }
 
 impl<T> CallbackMonitor<T> {
@@ -49,7 +75,9 @@ impl<T> CallbackMonitor<T> {
   }
 
   /// Tell the monitor to wait until notified by this callback id
-  pub fn register_callback(&mut self, id: String) { self.callback_completed.insert(id, false); }
+  pub fn register_callback(&mut self, id: String, status: CallbackStatus) {
+    self.callback_completed.insert(id, status);
+  }
 
   /// Let the monitor know that a callback has completed.
   pub fn notify(&mut self, id: String) {
@@ -62,7 +90,12 @@ impl<T> CallbackMonitor<T> {
         if let Some(result) = self.result.take() {
           fc(result);
           self.executed = true;
+        } else {
+          debug!("result already consumed!");
         }
+
+      } else {
+        debug!("final_callback already run!");
       }
     }
   }
@@ -95,7 +128,7 @@ pub trait Store: std::fmt::Debug {
 
   /// Get an IPLD expression from the store and call the callback
   /// asynchronously. Necessary to circumvent the async limitations of wasm.
-  fn get_with_callback(&self, link: Cid, callback: Box<dyn FnOnce(Ipld)>);
+  fn get_with_callback(&self, link: Cid, callback: Callback<Ipld, Defs>);
 
   /// If this platform requires using callbacks to handle async requests.
   fn needs_callback(&self) -> bool;
