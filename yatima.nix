@@ -12,10 +12,14 @@
   # This is impure so it should be provided with the correct information
 , system ? builtins.currentSystem
 }:
+let
+  inherit (nixpkgs) lib stdenv;
+in
 naersk.buildPackage {
   name = "yatima";
   version = "0.1.0";
-  buildInputs = with nixpkgs; [ openssl pkg-config glibc ];
+  buildInputs = with nixpkgs; [ openssl pkg-config ] ++
+    lib.optionals stdenv.isLinux [ glibc ];
   PKG_CONFIG_PATH = "${nixpkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
   inherit src;
