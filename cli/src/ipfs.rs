@@ -17,12 +17,15 @@ pub async fn dag_put(dag: Ipld) -> Result<String, reqwest::Error> {
   let host = "http://127.0.0.1:5001";
   let url = format!(
     "{}{}?{}",
-    host, "/api/v0/dag/put", "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256"
+    host,
+    "/api/v0/dag/put",
+    "format=cbor&pin=true&input-enc=cbor&hash=blake2b-256"
   );
   let cbor = DagCborCodec.encode(&dag).unwrap().into_inner();
   let client = reqwest::Client::new();
   let form = multipart::Form::new().part("file", multipart::Part::bytes(cbor));
-  let response: serde_json::Value = client.post(url).multipart(form).send().await?.json().await?;
+  let response: serde_json::Value =
+    client.post(url).multipart(form).send().await?.json().await?;
 
   let ipfs_cid: String = response["Cid"]["/"].as_str().unwrap().to_string();
   let local_cid: String = cid(&dag).to_string();
@@ -42,28 +45,25 @@ pub async fn dag_get(cid: String) -> Result<Ipld, reqwest::Error> {
   let response = client.post(url).send().await?.bytes().await?;
   let response = response.to_vec();
   println!("response: {:?}", response);
-  let ipld = DagCborCodec.decode(ByteCursor::new(response)).expect("invalid ipld cbor.");
+  let ipld =
+    DagCborCodec.decode(ByteCursor::new(response)).expect("invalid ipld cbor.");
 
   Ok(ipld)
 }
 
 #[cfg(test)]
 mod tests {
+  use crate::file::store::{
+    FileStore,
+    FileStoreOpts,
+  };
   use std::{
-    rc::Rc,
     path::PathBuf,
+    rc::Rc,
   };
-  use crate::{
-    file::store::{
-      FileStore,
-      FileStoreOpts
-    },
-  };
-  use yatima_utils::{
-      file::parse::{
-          parse_text,
-          PackageEnv,
-      }
+  use yatima_utils::file::parse::{
+    parse_text,
+    PackageEnv,
   };
   #[ignore]
   #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -91,11 +91,16 @@ mod tests {
 
     def Bool.neq (x y: Bool): Bool = Bool.not (Bool.eql x y)
 
-    def Bool.if (A: Type) (bool : Bool) (t f: A): A = (case bool) (λ _ => A) t f
+    def Bool.if (A: Type) (bool : Bool) (t f: A): A = (case bool) (λ _ => A) t \
+               f
     ";
     let root = std::env::current_dir().unwrap();
     let path = PathBuf::from("bool.ya");
-    let store = Rc::new(FileStore::new(FileStoreOpts { use_ipfs_daemon: true, use_file_store: true, root: root.clone() }));
+    let store = Rc::new(FileStore::new(FileStoreOpts {
+      use_ipfs_daemon: true,
+      use_file_store: true,
+      root: root.clone(),
+    }));
     let env = PackageEnv::new(root, path, store);
     let (cid, p, _defs) = parse_text(src, env).unwrap();
 

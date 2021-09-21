@@ -1,9 +1,9 @@
 use crate::ipld_error::IpldError;
 use sp_ipld::Ipld;
 use sp_std::{
+  borrow::ToOwned,
   fmt,
   ops,
-  borrow::ToOwned,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -149,8 +149,8 @@ pub mod tests {
   use crate::tests::frequency;
 
   use sp_std::{
-    vec::Vec,
     boxed::Box,
+    vec::Vec,
   };
 
   impl Arbitrary for Uses {

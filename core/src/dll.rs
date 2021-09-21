@@ -4,12 +4,13 @@ use core::{
 };
 
 use sp_std::{
-  fmt,
   boxed::Box,
+  fmt,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 // A doubly-linked list (DLL) node

@@ -1,4 +1,3 @@
-use sp_cid::Cid;
 use petgraph::{
   dot::{
     Config,
@@ -10,7 +9,13 @@ use petgraph::{
     NodeIndex,
   },
 };
+use sp_cid::Cid;
 
+use core::ptr::NonNull;
+use std::collections::{
+  HashMap,
+  HashSet,
+};
 use yatima_core::{
   dag::*,
   dll::DLL,
@@ -22,11 +27,6 @@ use yatima_core::{
   package::Package,
   prim::Op,
   uses::Uses,
-};
-use core::ptr::NonNull;
-use std::collections::{
-  HashMap,
-  HashSet,
 };
 
 use std::fmt;

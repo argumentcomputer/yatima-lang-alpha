@@ -1,25 +1,25 @@
 use base64;
+use bytecursor::ByteCursor;
+use multiaddr::Multiaddr;
+use sp_cid::Cid;
+use sp_ipld::{
+  dag_cbor::{
+    cid,
+    DagCborCodec,
+  },
+  Codec,
+  Ipld,
+};
 use wasm_bindgen::prelude::*;
 use web_sys::{
   self,
   Storage,
   Window,
 };
-use multiaddr::Multiaddr;
 use yatima_utils::{
   log,
   store::Store,
 };
-use sp_cid::Cid;
-use sp_ipld::{
-  Codec,
-  dag_cbor::{
-    DagCborCodec,
-    cid
-  },
-  Ipld,
-};
-use bytecursor::ByteCursor;
 
 #[derive(Debug, Clone)]
 pub struct WebStore {
@@ -61,11 +61,13 @@ impl Store for WebStore {
     // let s = ipfs::dag_get(&addr.to_string())
     //     .ok_or(format!("Failed to load multiaddr {}", addr))?;
     // log!("{:?}", s);
-    
+
     Err("nn".to_owned())
   }
 
-  fn load_by_name(&self, _path: Vec<&str>) -> Result<Ipld, String> { Err("Not implemented".to_owned()) }
+  fn load_by_name(&self, _path: Vec<&str>) -> Result<Ipld, String> {
+    Err("Not implemented".to_owned())
+  }
 
   fn get(&self, link: Cid) -> Option<Ipld> {
     match self.storage.get(&link.to_string()) {
@@ -84,7 +86,10 @@ impl Store for WebStore {
   fn put(&self, expr: Ipld) -> Cid {
     let link = cid(&expr);
     let data = DagCborCodec.encode(&expr).unwrap();
-    match self.storage.set(&link.to_string(), &base64::encode(data.clone().into_inner())) {
+    match self
+      .storage
+      .set(&link.to_string(), &base64::encode(data.clone().into_inner()))
+    {
       Ok(()) => (),
       Err(_) => log!("Failed to put to local_storage"),
     }

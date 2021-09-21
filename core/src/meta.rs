@@ -9,8 +9,8 @@ use sp_cid::Cid;
 use sp_ipld::Ipld;
 
 use sp_std::{
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
 };
 
 use alloc::string::ToString;

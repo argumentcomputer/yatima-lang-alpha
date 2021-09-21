@@ -15,9 +15,9 @@ use crate::{
 };
 
 use sp_std::{
-  convert::TryInto,
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
+  convert::TryInto,
 };
 
 #[derive(PartialEq, Clone, Debug)]

@@ -9,8 +9,8 @@ use crate::{
 
 use sp_std::{
   collections::btree_map::BTreeMap,
-  vec::Vec,
   mem,
+  vec::Vec,
 };
 
 use alloc::string::String;
@@ -32,7 +32,13 @@ enum Branch {
 
 // Substitute a variable
 #[inline]
-pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool) -> DAGPtr {
+pub fn subst(
+  bod: DAGPtr,
+  var: &Var,
+  arg: DAGPtr,
+  fix: bool,
+  should_count: bool,
+) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
   let mut result = arg;
@@ -253,7 +259,11 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
 
 // Contract a lambda redex, return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAGPtr {
+pub fn reduce_lam(
+  redex: NonNull<App>,
+  lam: NonNull<Lam>,
+  should_count: bool,
+) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -370,7 +380,8 @@ impl DAG {
               *bod,
               var,
               DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
-              true, should_count
+              true,
+              should_count,
             );
             new_fix.bod = result;
             add_to_parents(
