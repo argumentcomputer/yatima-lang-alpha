@@ -31,15 +31,16 @@ use sp_ipld::{
 };
 
 use sp_std::{
+  borrow::ToOwned,
+  boxed::Box,
+  cell::RefCell,
   rc::Rc,
   vec::Vec,
-  boxed::Box,
-  borrow::ToOwned,
-  cell::RefCell,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 use crate::parse::span::Span;
@@ -81,8 +82,10 @@ use nom::{
 };
 use sp_std::collections::vec_deque::VecDeque;
 
+/// Parsing context to store expression names
 pub type Ctx = ConsList<Name>;
 
+/// Returns a list of reserved Yatima symbols
 pub fn reserved_symbols() -> VecDeque<String> {
   VecDeque::from(vec![
     String::from("//"),
@@ -108,23 +111,28 @@ pub fn reserved_symbols() -> VecDeque<String> {
   ])
 }
 
+/// Parses a line comment
 pub fn parse_line_comment(i: Span) -> IResult<Span, Span, ParseError<Span>> {
   let (i, _) = tag("//")(i)?;
   let (i, com) = take_till(|c| c == '\n')(i)?;
   Ok((i, com))
 }
+
+/// Parses zero or more spaces or control characters
 pub fn parse_space(i: Span) -> IResult<Span, Vec<Span>, ParseError<Span>> {
   let (i, _) = multispace0(i)?;
   let (i, com) = many0(terminated(parse_line_comment, multispace1))(i)?;
   Ok((i, com))
 }
 
+/// Parses one or more spaces or control characters
 pub fn parse_space1(i: Span) -> IResult<Span, Vec<Span>, ParseError<Span>> {
   let (i, _) = multispace1(i)?;
   let (i, com) = many0(terminated(parse_line_comment, multispace1))(i)?;
   Ok((i, com))
 }
 
+/// Parses a name
 pub fn parse_name(from: Span) -> IResult<Span, Name, ParseError<Span>> {
   let (i, s) = take_till1(|x| {
     char::is_whitespace(x)
@@ -154,6 +162,7 @@ pub fn parse_name(from: Span) -> IResult<Span, Name, ParseError<Span>> {
   }
 }
 
+/// Checks if a string represents an unsigned number
 pub fn is_numeric_symbol_string1(s: &str) -> bool {
   s.starts_with('0')
     || s.starts_with('1')
@@ -166,6 +175,8 @@ pub fn is_numeric_symbol_string1(s: &str) -> bool {
     || s.starts_with('8')
     || s.starts_with('9')
 }
+
+/// Checks if a string represents a signed number
 pub fn is_numeric_symbol_string2(s: &str) -> bool {
   s.starts_with("-0")
     || s.starts_with("-1")
@@ -189,6 +200,7 @@ pub fn is_numeric_symbol_string2(s: &str) -> bool {
     || s.starts_with("+9")
 }
 
+/// Checks if a char represents a valid syntactical character
 pub fn is_valid_symbol_char(c: char) -> bool {
   c != ':'
     && c != ';'
@@ -201,6 +213,7 @@ pub fn is_valid_symbol_char(c: char) -> bool {
     && !char::is_control(c)
 }
 
+/// Checks if a string represents valid text
 pub fn is_valid_symbol_string(s: &str) -> bool {
   let invalid_chars = s.starts_with('"')
     || s.starts_with('\'')
@@ -235,6 +248,7 @@ pub fn parse_antiquote(
   }
 }
 
+/// Parses a variable
 pub fn parse_var(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -266,6 +280,7 @@ pub fn parse_var(
   }
 }
 
+/// Parses a λ term
 pub fn parse_lam(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -300,6 +315,7 @@ pub fn parse_lam(
   }
 }
 
+/// Parses a Uses dependent type
 pub fn parse_uses(
   default: Uses,
 ) -> impl Fn(Span) -> IResult<Span, Uses, ParseError<Span>> {
@@ -506,6 +522,7 @@ pub fn parse_binders1(
   }
 }
 
+/// Parses a forall (∀)
 pub fn parse_all(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -548,6 +565,7 @@ pub fn parse_all(
   }
 }
 
+/// Parses a Typ (type of types) term
 pub fn parse_type(
   input: Cid,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
@@ -558,6 +576,7 @@ pub fn parse_type(
   }
 }
 
+/// Parses a self type
 pub fn parse_self(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -583,6 +602,7 @@ pub fn parse_self(
   }
 }
 
+/// Parses a self type destructor
 pub fn parse_case(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -605,6 +625,7 @@ pub fn parse_case(
   }
 }
 
+/// Parses a self type constructor
 pub fn parse_data(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -695,6 +716,7 @@ pub fn parse_bound_expression(
   }
 }
 
+/// Parses a local function definition
 pub fn parse_let(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -736,6 +758,7 @@ pub fn parse_let(
   }
 }
 
+/// Parses a syntactical character
 pub fn parse_builtin_symbol_end()
 -> impl Fn(Span) -> IResult<Span, (), ParseError<Span>> {
   move |from: Span| {
@@ -753,6 +776,7 @@ pub fn parse_builtin_symbol_end()
   }
 }
 
+/// Parses a literal type
 pub fn parse_lty(
   input: Cid,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
@@ -798,6 +822,7 @@ pub fn parse_lty(
 //  }
 //}
 
+/// Parses a literal
 pub fn parse_lit(
   input: Cid,
 ) -> impl Fn(Span) -> IResult<Span, Term, ParseError<Span>> {
@@ -913,6 +938,7 @@ pub fn parse_apps(
   }
 }
 
+/// Parses each term variant
 pub fn parse_term(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -976,6 +1002,7 @@ pub fn parse_term(
   }
 }
 
+/// Generates a content id for an arbitrary string
 pub fn input_cid(i: &str) -> Cid {
   Cid::new_v1(
     0x55,
@@ -994,6 +1021,8 @@ pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
     Rc::new(VecDeque::new()),
   )(Span::new(i))
 }
+
+/// Parses a quasiquoted expression
 pub fn parse_quasi(
   i: &str,
   defs: Rc<RefCell<Defs>>,
@@ -1004,6 +1033,8 @@ pub fn parse_quasi(
   ))
 }
 
+/// The quasiquoter, which typechecks and evaluates a code fragment for
+/// REPL-like use within a program
 #[macro_export]
 macro_rules! yatima {
   ($i:literal) => {
