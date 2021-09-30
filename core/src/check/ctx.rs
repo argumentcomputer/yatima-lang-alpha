@@ -6,8 +6,8 @@ use crate::{
 
 use sp_std::{
   collections::{
-    vec_deque::VecDeque,
     btree_map::BTreeMap,
+    vec_deque::VecDeque,
   },
   vec::Vec,
 };
@@ -74,6 +74,7 @@ pub fn error_context(ctx: &Ctx) -> ErrCtx {
   res
 }
 
+/// Formats the context for pretty-printing
 pub fn pretty_context(ctx: &ErrCtx) -> String {
   let mut res: String = String::new();
   for (n, uses, typ) in ctx {

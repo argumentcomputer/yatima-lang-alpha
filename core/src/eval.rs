@@ -9,8 +9,8 @@ use crate::{
 
 use sp_std::{
   collections::btree_map::BTreeMap,
-  vec::Vec,
   mem,
+  vec::Vec,
 };
 
 use alloc::string::String;
@@ -30,9 +30,15 @@ enum Branch {
   Let(NonNull<Let>),
 }
 
-// Substitute a variable
+/// Substitutes a variable.
 #[inline]
-pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool) -> DAGPtr {
+pub fn subst(
+  bod: DAGPtr,
+  var: &Var,
+  arg: DAGPtr,
+  fix: bool,
+  should_count: bool,
+) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
   let mut result = arg;
@@ -251,9 +257,13 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
   result
 }
 
-// Contract a lambda redex, return the body.
+/// Contracts a lambda redex and return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAGPtr {
+pub fn reduce_lam(
+  redex: NonNull<App>,
+  lam: NonNull<Lam>,
+  should_count: bool,
+) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -271,7 +281,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) ->
   top_node
 }
 
-// Contract a let redex, return the body.
+/// Contracts a let redex and return the body.
 #[inline]
 pub fn reduce_let(redex: NonNull<Let>, should_count: bool) -> DAGPtr {
   let Let { bod: lam, exp: arg, .. } = unsafe { redex.as_ref() };
@@ -301,7 +311,7 @@ pub fn print_trail(trail: &Vec<NonNull<App>>) -> Vec<String> {
 }
 
 impl DAG {
-  // Reduce term to its weak head normal form
+  /// Reduces a term to its weak head normal form.
   pub fn whnf(&mut self, defs: &Defs, should_count: bool) {
     let mut node = self.head;
     let mut trail: Vec<NonNull<App>> = vec![];
@@ -370,7 +380,8 @@ impl DAG {
               *bod,
               var,
               DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
-              true, should_count
+              true,
+              should_count,
             );
             new_fix.bod = result;
             add_to_parents(
@@ -511,7 +522,7 @@ impl DAG {
     }
   }
 
-  // Reduce term to its normal form
+  /// Reduces a term to its normal form.
   pub fn norm(&mut self, defs: &Defs, should_count: bool) {
     self.whnf(defs, should_count);
     let mut trail = vec![self.head];

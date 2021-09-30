@@ -5,10 +5,12 @@ use sp_std::{
   rc::Rc,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
+/// The name for packages, defs, and expressions
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Name {
   inner: Rc<str>,

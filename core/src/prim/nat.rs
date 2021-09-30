@@ -2,8 +2,8 @@ use num_bigint::BigUint;
 use sp_ipld::Ipld;
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;
@@ -15,6 +15,7 @@ use crate::{
   yatima,
 };
 
+/// Primitive natural number operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum NatOp {
   Suc,
@@ -32,6 +33,7 @@ pub enum NatOp {
 }
 
 impl NatOp {
+  /// Gets the syntax string of a nat operation
   pub fn symbol(self) -> String {
     match self {
       Self::Suc => "suc".to_owned(),
@@ -49,6 +51,7 @@ impl NatOp {
     }
   }
 
+  /// Gets a nat operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "suc" => Some(Self::Suc),
@@ -67,6 +70,7 @@ impl NatOp {
     }
   }
 
+  /// Returns the type of a nat operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Suc => yatima!("∀ #Nat -> #Nat"),
@@ -84,6 +88,7 @@ impl NatOp {
     }
   }
 
+  /// Converts a nat operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Suc => Ipld::Integer(0),
@@ -101,6 +106,7 @@ impl NatOp {
     }
   }
 
+  /// Converts an IPLD object into a nat operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Suc),
@@ -119,6 +125,7 @@ impl NatOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Eql => 2,
@@ -136,6 +143,7 @@ impl NatOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -152,6 +160,7 @@ impl NatOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     let tt = Bool(true);
@@ -182,18 +191,18 @@ impl fmt::Display for NatOp {
 #[cfg(test)]
 pub mod tests {
   use super::*;
+  use num_bigint::BigUint;
   use quickcheck::{
     Arbitrary,
     Gen,
-    TestResult
+    TestResult,
   };
   use rand::Rng;
-  use Literal::{
-    Nat,
-    Bool
-  };
-  use num_bigint::BigUint;
   use sp_std::mem;
+  use Literal::{
+    Bool,
+    Nat,
+  };
   impl Arbitrary for NatOp {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -224,68 +233,37 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: NatOp,
-    a: u64,
-    b: u64
-  ) -> TestResult {
+  fn test_apply(op: NatOp, a: u64, b: u64) -> TestResult {
     let big = BigUint::from;
     let apply1_nat = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        NatOp::apply1(
-          op,
-          &Nat(big(a))
-        ) ==
-        expected
-      )
+      TestResult::from_bool(NatOp::apply1(op, &Nat(big(a))) == expected)
     };
 
     let apply2_nat_nat = |expected: Option<Literal>| -> TestResult {
       TestResult::from_bool(
-        NatOp::apply2(
-          op,
-          &Nat(big(a)),
-          &Nat(big(b))
-        ) ==
-        expected
+        NatOp::apply2(op, &Nat(big(a)), &Nat(big(b))) == expected,
       )
     };
 
     match op {
       NatOp::Suc => apply1_nat(Some(Nat(big(a) + big(1)))),
-      NatOp::Pre => apply1_nat(Some(Nat(big(if a == 0 {
-        a
-      } else {
-        a - 1
-      })))),
+      NatOp::Pre => apply1_nat(Some(Nat(big(if a == 0 { a } else { a - 1 })))),
       NatOp::Eql => apply2_nat_nat(Some(Bool(a == b))),
       NatOp::Lte => apply2_nat_nat(Some(Bool(a <= b))),
       NatOp::Lth => apply2_nat_nat(Some(Bool(a < b))),
       NatOp::Gte => apply2_nat_nat(Some(Bool(a >= b))),
       NatOp::Gth => apply2_nat_nat(Some(Bool(a > b))),
       NatOp::Add => apply2_nat_nat(Some(Nat(big(a) + big(b)))),
-      NatOp::Sub => apply2_nat_nat(
-          if a >= b {
-          Some(Nat(big(a - b)))
-        } else {
-          None
-        }
-      ),
+      NatOp::Sub => {
+        apply2_nat_nat(if a >= b { Some(Nat(big(a - b))) } else { None })
+      }
       NatOp::Mul => apply2_nat_nat(Some(Nat(big(a) * big(b)))),
-      NatOp::Div => apply2_nat_nat(
-          if b != 0 {
-          Some(Nat(big(a / b)))
-        } else {
-          None
-        }
-      ),
-      NatOp::Mod => apply2_nat_nat(
-          if b != 0 {
-          Some(Nat(big(a % b)))
-        } else {
-          None
-        }
-      ),
+      NatOp::Div => {
+        apply2_nat_nat(if b != 0 { Some(Nat(big(a / b))) } else { None })
+      }
+      NatOp::Mod => {
+        apply2_nat_nat(if b != 0 { Some(Nat(big(a % b))) } else { None })
+      }
     }
   }
 
@@ -297,77 +275,57 @@ pub mod tests {
     test_arg_2: bool,
   ) -> TestResult {
     let big = BigUint::from;
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          NatOp::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(NatOp::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        NatOp::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(NatOp::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 1, valid is Nat.
-      NatOp::Suc | 
-      NatOp::Pre => test_apply1_none_on_invalid(Nat(big(b))),
+      NatOp::Suc | NatOp::Pre => test_apply1_none_on_invalid(Nat(big(b))),
       // Arity 2, valid are Nat on a and b.
-      NatOp::Eql |
-      NatOp::Lte |
-      NatOp::Lth |
-      NatOp::Gte |
-      NatOp::Gth |
-      NatOp::Add |
-      NatOp::Sub |
-      NatOp::Mul |
-      NatOp::Div |
-      NatOp::Mod => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          Nat(big(b)),
-          a,
-          Nat(big(b))
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          Nat(big(b)),
-          Nat(big(b)),
-          a
-        )
-      },
+      NatOp::Eql
+      | NatOp::Lte
+      | NatOp::Lth
+      | NatOp::Gte
+      | NatOp::Gth
+      | NatOp::Add
+      | NatOp::Sub
+      | NatOp::Mul
+      | NatOp::Div
+      | NatOp::Mod => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(Nat(big(b)), a, Nat(big(b)))
+        }
+        else {
+          test_apply2_none_on_invalid(Nat(big(b)), Nat(big(b)), a)
+        }
+      }
     }
   }
 

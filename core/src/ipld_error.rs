@@ -1,10 +1,11 @@
+use alloc::string::String;
 use sp_ipld::Ipld;
 use sp_std::{
   num::TryFromIntError,
   vec::Vec,
 };
-use alloc::string::String;
 
+/// IPLD objects that fail during conversion
 #[derive(PartialEq, Debug, Clone)]
 pub enum IpldError {
   Utf8(Vec<u8>, alloc::string::FromUtf8Error),
@@ -45,7 +46,5 @@ pub enum IpldError {
 }
 
 impl From<IpldError> for String {
-  fn from(e: IpldError) -> String {
-    format!("{:?}", e)
-  }
+  fn from(e: IpldError) -> String { format!("{:?}", e) }
 }

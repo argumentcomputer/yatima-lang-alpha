@@ -1,9 +1,9 @@
 use sp_ipld::Ipld;
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryFrom,
   fmt,
-  borrow::ToOwned,
 };
 
 use alloc::string::String;
@@ -18,6 +18,7 @@ use crate::{
 
 use num_bigint::BigUint;
 
+/// Primitive 16-bit unsigned integer operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum U16Op {
   Max,
@@ -59,6 +60,7 @@ pub enum U16Op {
 }
 
 impl U16Op {
+  /// Gets the syntax string of a u16 operation
   pub fn symbol(self) -> String {
     match self {
       Self::Max => "max".to_owned(),
@@ -100,6 +102,7 @@ impl U16Op {
     }
   }
 
+  /// Gets a u16 operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "max" => Some(Self::Max),
@@ -142,6 +145,7 @@ impl U16Op {
     }
   }
 
+  /// Gets a u16 operation from a syntax string
   pub fn type_of(self) -> Term {
     match self {
       Self::Max => yatima!("#U16"),
@@ -183,6 +187,7 @@ impl U16Op {
     }
   }
 
+  /// Converts a u16 operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Max => Ipld::Integer(0),
@@ -224,6 +229,7 @@ impl U16Op {
     }
   }
 
+  /// Converts an IPLD object into a u16 operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Max),
@@ -266,6 +272,7 @@ impl U16Op {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Max => 0,
@@ -307,6 +314,7 @@ impl U16Op {
     }
   }
 
+  /// Applies a nullary operation to a literal and returns it if successful
   pub fn apply0(self) -> Option<Literal> {
     use Literal::*;
     match self {
@@ -316,6 +324,7 @@ impl U16Op {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -343,6 +352,7 @@ impl U16Op {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {

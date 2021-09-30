@@ -1,9 +1,9 @@
 use sp_ipld::Ipld;
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryFrom,
   fmt,
-  borrow::ToOwned,
 };
 
 use alloc::string::String;
@@ -18,6 +18,7 @@ use crate::{
 
 use num_bigint::BigUint;
 
+/// Primitive 8-bit signed integer operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum I8Op {
   Abs,
@@ -61,6 +62,7 @@ pub enum I8Op {
 }
 
 impl I8Op {
+  /// Gets the syntax string of an i8 operation
   pub fn symbol(self) -> String {
     match self {
       Self::Abs => "abs".to_owned(),
@@ -104,6 +106,7 @@ impl I8Op {
     }
   }
 
+  /// Gets an i8 operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "abs" => Some(Self::Abs),
@@ -148,6 +151,7 @@ impl I8Op {
     }
   }
 
+  /// Returns the type of an i8 operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Abs => yatima!("∀ #I8 -> #U8"),
@@ -191,6 +195,7 @@ impl I8Op {
     }
   }
 
+  /// Converts an i8 operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Abs => Ipld::Integer(0),
@@ -234,6 +239,7 @@ impl I8Op {
     }
   }
 
+  /// Converts an IPLD object into an i8 operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Abs),
@@ -278,6 +284,7 @@ impl I8Op {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Abs => 1,
@@ -321,6 +328,7 @@ impl I8Op {
     }
   }
 
+  /// Applies a nullary operation to a literal and returns it if successful
   pub fn apply0(self) -> Option<Literal> {
     use Literal::*;
     match self {
@@ -330,6 +338,7 @@ impl I8Op {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -342,23 +351,29 @@ impl I8Op {
       (Self::ToU32, I8(x)) => u32::try_from(*x).ok().map(U32),
       (Self::ToU64, I8(x)) => u64::try_from(*x).ok().map(U64),
       (Self::ToU128, I8(x)) => u128::try_from(*x).ok().map(U128),
-      (Self::ToNat, I8(x)) => if x.is_negative() {
-        None
-      } else {
-        Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
-      },
+      (Self::ToNat, I8(x)) => {
+        if x.is_negative() {
+          None
+        }
+        else {
+          Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
+        }
+      }
       (Self::ToI16, I8(x)) => Some(I16((*x).into())),
       (Self::ToI32, I8(x)) => Some(I32((*x).into())),
       (Self::ToI64, I8(x)) => Some(I64((*x).into())),
       (Self::ToI128, I8(x)) => Some(I128((*x).into())),
       (Self::Not, I8(x)) => Some(I8(!x)),
       (Self::ToInt, I8(x)) => Some(Int((*x).into())),
-      (Self::ToBits, I8(x)) => Some(Bits(bits::bytes_to_bits(8, &x.to_be_bytes().into()))),
+      (Self::ToBits, I8(x)) => {
+        Some(Bits(bits::bytes_to_bits(8, &x.to_be_bytes().into())))
+      }
       (Self::ToBytes, I8(x)) => Some(Bytes(x.to_be_bytes().into())),
       _ => None,
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
@@ -373,16 +388,22 @@ impl I8Op {
       (Self::Add, I8(x), I8(y)) => Some(I8(x.wrapping_add(*y))),
       (Self::Sub, I8(x), I8(y)) => Some(I8(x.wrapping_sub(*y))),
       (Self::Mul, I8(x), I8(y)) => Some(I8(x.wrapping_mul(*y))),
-      (Self::Div, I8(x), I8(y)) => if *y == 0 {
-        None
-      } else {
-        Some(I8(x.wrapping_div(*y)))
-      },
-      (Self::Mod, I8(x), I8(y)) => if *y == 0 {
-        None
-      } else {
-        Some(I8(x.wrapping_rem(*y)))
-      },
+      (Self::Div, I8(x), I8(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(I8(x.wrapping_div(*y)))
+        }
+      }
+      (Self::Mod, I8(x), I8(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(I8(x.wrapping_rem(*y)))
+        }
+      }
       (Self::Pow, I8(x), U32(y)) => Some(I8(x.wrapping_pow(*y))),
       (Self::Shl, U32(x), I8(y)) => Some(I8(y.wrapping_shl(*x))),
       (Self::Shr, U32(x), I8(y)) => Some(I8(y.wrapping_shr(*x))),
@@ -402,36 +423,36 @@ impl fmt::Display for I8Op {
 #[cfg(test)]
 pub mod tests {
   use super::*;
-  use quickcheck::{
-    Arbitrary,
-    Gen,
-    TestResult
-  };
-  use rand::Rng;
-  use Literal::{
-    I8,
-    U8,
-    Bool,
-    Nat,
-    Int,
-    Bits,
-    Bytes,
-    U32
-  };
   use crate::prim::{
-    U8Op,
-    U16Op,
-    U32Op,
-    U64Op,
     I16Op,
     I32Op,
     I64Op,
-  };
-  use sp_std::{
-    convert::TryInto,
-    mem
+    U16Op,
+    U32Op,
+    U64Op,
+    U8Op,
   };
   use num_bigint::BigUint;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+    TestResult,
+  };
+  use rand::Rng;
+  use sp_std::{
+    convert::TryInto,
+    mem,
+  };
+  use Literal::{
+    Bits,
+    Bool,
+    Bytes,
+    Int,
+    Nat,
+    I8,
+    U32,
+    U8,
+  };
   impl Arbitrary for I8Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -473,8 +494,8 @@ pub mod tests {
         33 => Self::ToInt,
         34 => Self::ToBits,
         _ => Self::ToBytes,
-        // 29 => Self::ToU128,
-        // 34 => Self::ToI128,
+        /* 29 => Self::ToU128,
+         * 34 => Self::ToI128, */
       }
     }
   }
@@ -488,60 +509,25 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: I8Op,
-    a: i8,
-    b: i8,
-    c: u32
-  ) -> TestResult {
+  fn test_apply(op: I8Op, a: i8, b: i8, c: u32) -> TestResult {
     let apply0_go = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I8Op::apply0(op) ==
-        expected
-      )
+      TestResult::from_bool(I8Op::apply0(op) == expected)
     };
 
     let apply1_i8 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I8Op::apply1(
-          op,
-          &I8(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I8Op::apply1(op, &I8(a)) == expected)
     };
 
     let apply2_i8_i8 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I8Op::apply2(
-          op,
-          &I8(a),
-          &I8(b)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I8Op::apply2(op, &I8(a), &I8(b)) == expected)
     };
 
     let apply2_i8_u32 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I8Op::apply2(
-          op,
-          &I8(a),
-          &U32(c)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I8Op::apply2(op, &I8(a), &U32(c)) == expected)
     };
 
     let apply2_u32_i8 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I8Op::apply2(
-          op,
-          &U32(c),
-          &I8(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I8Op::apply2(op, &U32(c), &I8(a)) == expected)
     };
 
     let from_bool = TestResult::from_bool;
@@ -563,20 +549,12 @@ pub mod tests {
       I8Op::Add => apply2_i8_i8(Some(I8(a.wrapping_add(b)))),
       I8Op::Sub => apply2_i8_i8(Some(I8(a.wrapping_sub(b)))),
       I8Op::Mul => apply2_i8_i8(Some(I8(a.wrapping_mul(b)))),
-      I8Op::Div => apply2_i8_i8(
-        if b == 0 {
-          None
-        } else {
-          Some(I8(a.wrapping_div(b)))
-        }
-      ),
-      I8Op::Mod => apply2_i8_i8(
-        if b == 0 {
-          None
-        } else {
-          Some(I8(a.wrapping_rem(b)))
-        }
-      ),
+      I8Op::Div => {
+        apply2_i8_i8(if b == 0 { None } else { Some(I8(a.wrapping_div(b))) })
+      }
+      I8Op::Mod => {
+        apply2_i8_i8(if b == 0 { None } else { Some(I8(a.wrapping_rem(b))) })
+      }
       I8Op::Pow => apply2_i8_u32(Some(I8(a.wrapping_pow(c)))),
       I8Op::Shl => apply2_u32_i8(Some(I8(a.wrapping_shl(c)))),
       I8Op::Shr => apply2_u32_i8(Some(I8(a.wrapping_shr(c)))),
@@ -584,73 +562,60 @@ pub mod tests {
       I8Op::Ror => apply2_u32_i8(Some(I8(a.rotate_right(c)))),
       I8Op::CountZeros => apply1_i8(Some(U32(a.count_zeros()))),
       I8Op::CountOnes => apply1_i8(Some(U32(a.count_ones()))),
-      I8Op::ToU8 => from_bool(
-        if a < u8::MIN.try_into().unwrap() {
-          I8Op::apply1(op, &I8(a)) == None
-        } else {
-          U8Op::apply1(
-            U8Op::ToI8,
-            &I8Op::apply1(op, &I8(a)).unwrap()
-          ) == Some(I8(a))
-        }
-      ),
-      I8Op::ToU16 => from_bool(
-        if a < u16::MIN.try_into().unwrap() {
-          I8Op::apply1(op, &I8(a)) == None
-        } else {
-          U16Op::apply1(
-            U16Op::ToI8,
-            &I8Op::apply1(op, &I8(a)).unwrap()
-          ) == Some(I8(a))
-        }
-      ),
-      I8Op::ToU32 => from_bool(
-        if a < u32::MIN.try_into().unwrap() {
-          I8Op::apply1(op, &I8(a)) == None
-        } else {
-          U32Op::apply1(
-            U32Op::ToI8,
-            &I8Op::apply1(op, &I8(a)).unwrap()
-          ) == Some(I8(a))
-        }
-      ),
-      I8Op::ToU64 => from_bool(
-        if a < u64::MIN.try_into().unwrap() {
-          I8Op::apply1(op, &I8(a)) == None
-        } else {
-          U64Op::apply1(
-            U64Op::ToI8,
-            &I8Op::apply1(op, &I8(a)).unwrap()
-          ) == Some(I8(a))
-        }
-      ),
+      I8Op::ToU8 => from_bool(if a < u8::MIN.try_into().unwrap() {
+        I8Op::apply1(op, &I8(a)) == None
+      }
+      else {
+        U8Op::apply1(U8Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a))
+      }),
+      I8Op::ToU16 => from_bool(if a < u16::MIN.try_into().unwrap() {
+        I8Op::apply1(op, &I8(a)) == None
+      }
+      else {
+        U16Op::apply1(U16Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a))
+      }),
+      I8Op::ToU32 => from_bool(if a < u32::MIN.try_into().unwrap() {
+        I8Op::apply1(op, &I8(a)) == None
+      }
+      else {
+        U32Op::apply1(U32Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a))
+      }),
+      I8Op::ToU64 => from_bool(if a < u64::MIN.try_into().unwrap() {
+        I8Op::apply1(op, &I8(a)) == None
+      }
+      else {
+        U64Op::apply1(U64Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a))
+      }),
       I8Op::ToU128 => TestResult::discard(),
-      I8Op::ToNat => if a.is_negative() {
-        apply1_i8(None)
-      } else {
-        apply1_i8(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
-      },
+      I8Op::ToNat => {
+        if a.is_negative() {
+          apply1_i8(None)
+        }
+        else {
+          apply1_i8(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
+        }
+      }
       I8Op::ToI16 => from_bool(
-        I16Op::apply1(
-          I16Op::ToI8,
-          &I8Op::apply1(op, &I8(a)).unwrap()
-        ) == Some(I8(a))
+        I16Op::apply1(I16Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a)),
       ),
       I8Op::ToI32 => from_bool(
-        I32Op::apply1(
-          I32Op::ToI8,
-          &I8Op::apply1(op, &I8(a)).unwrap()
-        ) == Some(I8(a))
+        I32Op::apply1(I32Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a)),
       ),
       I8Op::ToI64 => from_bool(
-        I64Op::apply1(
-          I64Op::ToI8,
-          &I8Op::apply1(op, &I8(a)).unwrap()
-        ) == Some(I8(a))
+        I64Op::apply1(I64Op::ToI8, &I8Op::apply1(op, &I8(a)).unwrap())
+          == Some(I8(a)),
       ),
       I8Op::ToI128 => TestResult::discard(),
       I8Op::ToInt => apply1_i8(Some(Int(a.into()))),
-      I8Op::ToBits => apply1_i8(Some(Bits(bits::bytes_to_bits(8, &a.to_be_bytes().into())))),
+      I8Op::ToBits => {
+        apply1_i8(Some(Bits(bits::bytes_to_bits(8, &a.to_be_bytes().into()))))
+      }
       I8Op::ToBytes => apply1_i8(Some(Bytes(a.to_be_bytes().into()))),
     }
   }
@@ -663,130 +628,97 @@ pub mod tests {
     c: u32,
     test_arg_2: bool,
   ) -> TestResult {
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          I8Op::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(I8Op::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        I8Op::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(I8Op::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 0.
-      I8Op::Max |
-      I8Op::Min => TestResult::discard(),
+      I8Op::Max | I8Op::Min => TestResult::discard(),
       // Arity 1, valid is I8.
-      I8Op::Abs |
-      I8Op::Sgn |
-      I8Op::Not |
-      I8Op::CountZeros |
-      I8Op::CountOnes |
-      I8Op::ToU8 |
-      I8Op::ToU16 |
-      I8Op::ToU32 |
-      I8Op::ToU64 |
-      I8Op::ToU128 |
-      I8Op::ToNat |
-      I8Op::ToI16 |
-      I8Op::ToI32 |
-      I8Op::ToI64 |
-      I8Op::ToI128 |
-      I8Op::ToInt |
-      I8Op::ToBytes |
-      I8Op::ToBits => test_apply1_none_on_invalid(I8(b)),
+      I8Op::Abs
+      | I8Op::Sgn
+      | I8Op::Not
+      | I8Op::CountZeros
+      | I8Op::CountOnes
+      | I8Op::ToU8
+      | I8Op::ToU16
+      | I8Op::ToU32
+      | I8Op::ToU64
+      | I8Op::ToU128
+      | I8Op::ToNat
+      | I8Op::ToI16
+      | I8Op::ToI32
+      | I8Op::ToI64
+      | I8Op::ToI128
+      | I8Op::ToInt
+      | I8Op::ToBytes
+      | I8Op::ToBits => test_apply1_none_on_invalid(I8(b)),
       // Arity 2, valid are I8 on a and b.
-      I8Op::Eql |
-      I8Op::Lte |
-      I8Op::Lth |
-      I8Op::Gth |
-      I8Op::Gte |
-      I8Op::And |
-      I8Op::Or |
-      I8Op::Xor |
-      I8Op::Add |
-      I8Op::Sub |
-      I8Op::Mul |
-      I8Op::Div |
-      I8Op::Mod => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          I8(b),
-          a,
-          I8(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          I8(b),
-          I8(b),
-          a
-        )
-      },
+      I8Op::Eql
+      | I8Op::Lte
+      | I8Op::Lth
+      | I8Op::Gth
+      | I8Op::Gte
+      | I8Op::And
+      | I8Op::Or
+      | I8Op::Xor
+      | I8Op::Add
+      | I8Op::Sub
+      | I8Op::Mul
+      | I8Op::Div
+      | I8Op::Mod => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(I8(b), a, I8(b))
+        }
+        else {
+          test_apply2_none_on_invalid(I8(b), I8(b), a)
+        }
+      }
       // Arity 2, valid are I8 on a and U32 on b.
-      I8Op::Pow => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          I8(b),
-          a,
-          U32(c)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U32(c),
-          I8(b),
-          a
-        )
-      },
+      I8Op::Pow => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(I8(b), a, U32(c))
+        }
+        else {
+          test_apply2_none_on_invalid(U32(c), I8(b), a)
+        }
+      }
       // Arity 2, valid are U32 on a and I8 on b.
-      I8Op::Shl |
-      I8Op::Shr |
-      I8Op::Rol |
-      I8Op::Ror => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          U32(c),
-          a,
-          I8(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          I8(b),
-          U32(c),
-          a
-        )
-      },
+      I8Op::Shl | I8Op::Shr | I8Op::Rol | I8Op::Ror => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(U32(c), a, I8(b))
+        }
+        else {
+          test_apply2_none_on_invalid(I8(b), U32(c), a)
+        }
+      }
     }
   }
 }

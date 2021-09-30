@@ -14,16 +14,19 @@ use crate::{
 use sp_cid::Cid;
 
 use sp_std::{
-  fmt,
-  vec::Vec,
-  rc::Rc,
   collections::btree_map::BTreeMap,
+  fmt,
+  rc::Rc,
+  vec::Vec,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
+/// A type-annotated definition with content ids for the def and its
+/// data, represented as an AST
 #[derive(Clone, Debug)]
 pub struct Def {
   pub pos: Pos,
@@ -42,7 +45,7 @@ impl PartialEq for Def {
   }
 }
 
-/// A map of content-ids to defs, with content ids for the def
+/// A map of content ids to defs, with content ids for the def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Defs {
   pub defs: BTreeMap<Cid, Def>,
@@ -50,6 +53,7 @@ pub struct Defs {
 }
 
 impl Def {
+  /// Creates a def and a corresponding package entry
   pub fn make(pos: Pos, typ_: Term, term: Term) -> (Self, Entry) {
     let (type_anon, type_meta) = typ_.embed();
     let (term_anon, term_meta) = term.embed();
@@ -65,6 +69,7 @@ impl Def {
     (def, defn)
   }
 
+  /// Embeds the def's data and type into a package entry
   pub fn embed(&self) -> (Entry, Anon, Anon) {
     let (type_anon, type_meta) = self.typ_.embed();
     let (term_anon, term_meta) = self.term.embed();
@@ -78,6 +83,7 @@ impl Def {
     (d, type_anon, term_anon)
   }
 
+  /// Retrieves a def from a package and anonymous data
   pub fn unembed(
     def: Entry,
     type_anon: Anon,
@@ -94,6 +100,7 @@ impl Def {
     })
   }
 
+  /// Formats the def for pretty-printing
   pub fn pretty(&self, name: String, ind: bool) -> String {
     format!(
       "def {} : {} = {}",
@@ -105,8 +112,12 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
+  /// Creates a new map of content ids to defs and names to content ids
+  pub fn new() -> Self {
+    Defs { defs: BTreeMap::new(), names: BTreeMap::new() }
+  }
 
+  /// Gets a list of the name keys in sorted order
   pub fn names(&self) -> Vec<Name> {
     let mut res = Vec::new();
     for (n, _) in &self.names {
@@ -115,6 +126,7 @@ impl Defs {
     res
   }
 
+  /// Gets a list of the named defs
   pub fn named_defs(&self) -> Vec<(Name, Def)> {
     let mut res = Vec::new();
     for (n, cid) in &self.names {
@@ -123,17 +135,19 @@ impl Defs {
     res
   }
 
+  /// Adds a def and its name to the defs
   pub fn insert(&mut self, name: Name, def: Def) -> Option<Def> {
     self.names.insert(name, def.def_cid);
     self.defs.insert(def.def_cid, def)
   }
 
+  /// Gets a def from the defs
   pub fn get(&self, name: &Name) -> Option<&Def> {
     let def_cid = self.names.get(name)?;
     self.defs.get(&def_cid)
   }
 
-  /// Merge Defs from an Import
+  /// Merges Defs from an Import
   pub fn merge(self, other: Defs, import: &Import) -> Self {
     let mut defs = self.defs;
     for (k, v) in other.defs {
@@ -148,7 +162,7 @@ impl Defs {
     Defs { defs, names }
   }
 
-  /// Merge Defs mutably at the same level like in a REPL env
+  /// Merges Defs mutably at the same level like in a REPL env
   pub fn flat_merge_mut(&mut self, other: Rc<Defs>) {
     for (k, v) in other.defs.iter() {
       self.defs.insert(*k, v.clone());
@@ -158,7 +172,7 @@ impl Defs {
     }
   }
 
-  /// Merge Defs at the same level like in a REPL env
+  /// Merges Defs at the same level like in a REPL env
   pub fn flat_merge(self, other: Defs) -> Self {
     let mut defs = self.defs;
     for (k, v) in other.defs {
@@ -214,8 +228,7 @@ pub mod tests {
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
-    let term =
-      arbitrary_term(g, true, test_defs(), Vector::new());
+    let term = arbitrary_term(g, true, test_defs(), Vector::new());
     Def::make(Pos::None, typ_, term)
   }
 

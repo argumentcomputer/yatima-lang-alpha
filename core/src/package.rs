@@ -14,14 +14,16 @@ use sp_ipld::{
 };
 
 use sp_std::{
-  vec::Vec,
   borrow::ToOwned,
+  vec::Vec,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
+/// Namespace of definitions and imports
 #[derive(PartialEq, Clone, Debug)]
 pub struct Package {
   pub pos: Pos,
@@ -30,6 +32,7 @@ pub struct Package {
   pub index: Index,
 }
 
+/// Imported package
 #[derive(PartialEq, Clone, Debug)]
 pub struct Import {
   pub cid: Cid,
@@ -38,9 +41,11 @@ pub struct Import {
   pub with: Vec<Name>,
 }
 
+/// Map of names to entries in a package
 #[derive(PartialEq, Clone, Debug)]
 pub struct Index(pub Vec<(Name, Cid)>);
 
+/// IPLD encoding of a def
 #[derive(PartialEq, Clone, Debug)]
 pub struct Entry {
   pub pos: Pos,
@@ -51,6 +56,7 @@ pub struct Entry {
 }
 
 impl Entry {
+  /// Converts an Entry into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
       self.pos.to_ipld(),
@@ -61,6 +67,7 @@ impl Entry {
     ])
   }
 
+  /// Converts an IPLD object into an Entry
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -88,6 +95,7 @@ impl Entry {
     }
   }
 
+  /// Generates a content id for the entry
   pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 }
 
@@ -103,6 +111,7 @@ impl fmt::Display for Entry {
 }
 
 impl Index {
+  /// Converts an Index into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(
       self
@@ -115,6 +124,7 @@ impl Index {
     )
   }
 
+  /// Converts an IPLD object into an Index
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => {
@@ -140,6 +150,7 @@ impl Index {
     }
   }
 
+  /// Returns a list of names in the index
   pub fn keys(&self) -> Vec<Name> {
     let mut res = Vec::new();
     for (n, _) in &self.0 {
@@ -160,6 +171,7 @@ impl fmt::Display for Index {
 }
 
 impl Import {
+  /// Converts an import into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
       Ipld::Link(self.cid),
@@ -171,6 +183,7 @@ impl Import {
     ])
   }
 
+  /// Converts an IPLD object into an import
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -218,6 +231,7 @@ impl fmt::Display for Import {
   }
 }
 
+/// Returns the local alias for an import
 pub fn import_alias(name: Name, import: &Import) -> Name {
   if import.with.iter().any(|x| *x == name) {
     if import.alias.is_empty() {
@@ -233,6 +247,7 @@ pub fn import_alias(name: Name, import: &Import) -> Name {
 }
 
 impl Package {
+  /// Converts a package into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     Ipld::List(vec![
       self.pos.to_ipld(),
@@ -242,6 +257,7 @@ impl Package {
     ])
   }
 
+  /// Converts an IPLD object into a package
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -261,6 +277,7 @@ impl Package {
     }
   }
 
+  /// Generates a content id for the package
   pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 }
 

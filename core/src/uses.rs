@@ -1,11 +1,12 @@
 use crate::ipld_error::IpldError;
 use sp_ipld::Ipld;
 use sp_std::{
+  borrow::ToOwned,
   fmt,
   ops,
-  borrow::ToOwned,
 };
 
+/// Defines the number of times a function may be used at the type level
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Uses {
   None,
@@ -55,12 +56,12 @@ impl ops::Sub for Uses {
   }
 }
 
-// Division-remainder for multiplicities is as follows: if x and y are
-// multiplicities, then x/y and x%y are such that x = y*(x/y) + x%y in such a
-// way that x/y and x%y are maximal, with x/y taking precedence.
 impl ops::Div for Uses {
   type Output = Self;
 
+  /// Division-remainder for multiplicities is as follows: if x and y are
+  /// multiplicities, then x/y and x%y are such that x = y*(x/y) + x%y in such a
+  /// way that x/y and x%y are maximal, with x/y taking precedence.
   fn div(self, rhs: Self) -> Self {
     match (self, rhs) {
       (Self::Many, _) => Self::Many,
@@ -118,6 +119,7 @@ impl Uses {
     }
   }
 
+  /// Converts the number of uses into an IPLD encoding
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::None => Ipld::Integer(0),
@@ -127,6 +129,7 @@ impl Uses {
     }
   }
 
+  /// Converts an IPLD encoding into a Uses variant
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::None),
@@ -149,8 +152,8 @@ pub mod tests {
   use crate::tests::frequency;
 
   use sp_std::{
-    vec::Vec,
     boxed::Box,
+    vec::Vec,
   };
 
   impl Arbitrary for Uses {

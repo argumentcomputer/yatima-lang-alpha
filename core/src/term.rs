@@ -26,22 +26,38 @@ use alloc::string::{
   ToString,
 };
 
+/// Yatima terms with source positions
 #[derive(Clone)]
 pub enum Term {
+  // Local variable
   Var(Pos, Name, u64),
+  // Lambda
   Lam(Pos, Name, Box<Term>),
+  // Application of a function to an argument
   App(Pos, Box<(Term, Term)>),
+  // Forall
   All(Pos, Uses, Name, Box<(Term, Term)>),
+  // Self type
   Slf(Pos, Name, Box<Term>),
+  // Self type constructor
   Dat(Pos, Box<Term>),
+  // Self type destructor
   Cse(Pos, Box<Term>),
+  // Immutable global reference to a term
   Ref(Pos, Name, Cid, Cid),
+  // Inline local definition
   Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
+  // Type of types
   Typ(Pos),
+  // Type annotation
   Ann(Pos, Box<(Term, Term)>),
+  // Primitive literal
   Lit(Pos, Literal),
+  // The type of a literal
   LTy(Pos, LitType),
+  // Primitive operation
   Opr(Pos, Op),
+  // Recursion marker
   Rec(Pos),
 }
 
@@ -108,6 +124,7 @@ impl PartialEq for Term {
 }
 
 impl Term {
+  /// Returns the position of the term
   pub fn pos(&self) -> Pos {
     match self {
       Term::Var(pos, ..) => *pos,
@@ -128,6 +145,7 @@ impl Term {
     }
   }
 
+  /// Shifts the term's de Bruijn index by a given incrementor
   pub fn shift(self, inc: i64, dep: Option<u64>) -> Self {
     match self {
       Self::Var(pos, nam, idx) => match dep {
@@ -177,6 +195,7 @@ impl Term {
     }
   }
 
+  /// Unwinds a recursive function
   pub fn un_rec(self, trm: Rc<Term>) -> Self {
     match self {
       Self::Rec(_) => trm.as_ref().clone(),
@@ -223,6 +242,8 @@ impl Term {
     }
   }
 
+  /// Embeds term into anonymous data and metadata for package definition and
+  /// IPFS storage
   pub fn embed(&self) -> (Anon, Meta) {
     match self {
       Self::Var(pos, name, idx) => {
@@ -298,6 +319,7 @@ impl Term {
     }
   }
 
+  /// Unembeds anon and meta into term
   pub fn unembed(anon: &Anon, meta: &Meta) -> Result<Self, EmbedError> {
     match (anon, meta) {
       (Anon::Var(idx), Meta::Var(pos, nam)) => {
@@ -366,6 +388,7 @@ impl Term {
     }
   }
 
+  /// Formats term for pretty-printing
   pub fn pretty(&self, rec: Option<&String>, ind: bool) -> String {
     use Term::*;
     const WILDCARD: &str = "_";

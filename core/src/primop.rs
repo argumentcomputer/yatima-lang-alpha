@@ -17,13 +17,14 @@ use num_bigint::{
 };
 
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
   vec::Vec,
 };
 
 use alloc::string::String;
 
+/// Primitive operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum PrimOp {
   NatSuc,
@@ -88,6 +89,7 @@ pub enum PrimOp {
 }
 
 impl PrimOp {
+  /// Gets the syntax string of a primitive operation
   pub fn symbol(self) -> String {
     match self {
       Self::NatSuc => "#Nat.suc".to_owned(),
@@ -152,6 +154,7 @@ impl PrimOp {
     }
   }
 
+  /// Gets a primitive operation from a syntax string
   pub fn from_symbol(s: String) -> Option<Self> {
     match s.as_str() {
       "#Nat.suc" => Some(Self::NatSuc),
@@ -217,6 +220,7 @@ impl PrimOp {
     }
   }
 
+  /// Returns the type of a primitive operation
   pub fn type_of(self) -> Term {
     match self {
       Self::NatSuc => yatima!("∀ #Nat -> #Nat"),
@@ -282,6 +286,7 @@ impl PrimOp {
     }
   }
 
+  /// Converts a primitive operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::NatSuc => Ipld::List(vec![Ipld::Integer(0), Ipld::Integer(0)]),
@@ -346,6 +351,7 @@ impl PrimOp {
     }
   }
 
+  /// Converts an IPLD object into a primitive operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -414,6 +420,7 @@ impl PrimOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::NatEql => 2,
@@ -479,6 +486,7 @@ impl PrimOp {
   }
 }
 
+/// Applies a unary operation to a literal and returns it if successful
 pub fn apply_una_op(opr: PrimOp, x: &Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;
@@ -495,6 +503,7 @@ pub fn apply_una_op(opr: PrimOp, x: &Literal) -> Option<Literal> {
   }
 }
 
+/// Applies a binary operation to a literal and returns it if successful
 pub fn apply_bin_op(opr: PrimOp, x: &Literal, y: &Literal) -> Option<Literal> {
   use Literal::*;
   use PrimOp::*;

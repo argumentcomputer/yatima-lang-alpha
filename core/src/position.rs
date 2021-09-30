@@ -7,13 +7,14 @@ use sp_cid::Cid;
 use sp_ipld::Ipld;
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryInto,
   fmt,
-  borrow::ToOwned,
 };
 
 use alloc::string::String;
 
+/// Source code position of an expression in a file
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Position {
   pub input: Cid,
@@ -25,6 +26,7 @@ pub struct Position {
   pub upto_column: u64,
 }
 
+/// Wrapper optional type for Position
 #[derive(PartialEq, Clone, Copy)]
 pub enum Pos {
   None,
@@ -35,6 +37,7 @@ impl fmt::Debug for Pos {
 }
 
 impl Position {
+  ///
   pub fn range(self, input: String) -> String {
     let mut res = String::new();
     let gutter = format!("{}", self.upto_line).len();
@@ -61,6 +64,7 @@ impl Position {
     res
   }
 
+  /// Converts a position into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     Ipld::List(vec![
       Ipld::Link(self.input),
@@ -73,6 +77,7 @@ impl Position {
     ])
   }
 
+  ///
   pub fn from_upto(input: Cid, from: Span, upto: Span) -> Self {
     Self {
       input,
@@ -85,6 +90,7 @@ impl Position {
     }
   }
 
+  /// Converts an IPLD object into a position
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -126,6 +132,7 @@ impl Position {
 }
 
 impl Pos {
+  /// Converts a pos into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::None => Ipld::Null,
@@ -133,6 +140,7 @@ impl Pos {
     }
   }
 
+  /// Converts an IPLD object into a pos
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Null => Ok(Self::None),

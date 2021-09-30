@@ -9,12 +9,13 @@ use sp_cid::Cid;
 use sp_ipld::Ipld;
 
 use sp_std::{
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
 };
 
 use alloc::string::ToString;
 
+/// Metadata term containing only name, source position, and content id
 #[derive(PartialEq, Clone, Debug)]
 pub enum Meta {
   Var(Pos, Name),
@@ -35,6 +36,7 @@ pub enum Meta {
 }
 
 impl Meta {
+  /// Converts a metadata term into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Var(pos, nam) => Ipld::List(vec![
@@ -113,6 +115,7 @@ impl Meta {
     }
   }
 
+  /// Converts an IPLD object into a metadata term
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {

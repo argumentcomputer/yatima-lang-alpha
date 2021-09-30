@@ -1,9 +1,9 @@
 use sp_ipld::Ipld;
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryFrom,
   fmt,
-  borrow::ToOwned,
 };
 
 use alloc::string::String;
@@ -18,6 +18,7 @@ use crate::{
 
 use num_bigint::BigUint;
 
+/// Primitive 64-bit signed integer operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum I64Op {
   Abs,
@@ -61,6 +62,7 @@ pub enum I64Op {
 }
 
 impl I64Op {
+  /// Gets the syntax string of an i64 operation
   pub fn symbol(self) -> String {
     match self {
       Self::Abs => "abs".to_owned(),
@@ -104,6 +106,7 @@ impl I64Op {
     }
   }
 
+  /// Gets an i64 operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "abs" => Some(Self::Abs),
@@ -148,6 +151,7 @@ impl I64Op {
     }
   }
 
+  /// Returns the type of an i64 operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Abs => yatima!("∀ #I64 -> #U64"),
@@ -191,6 +195,7 @@ impl I64Op {
     }
   }
 
+  /// Converts an i64 operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Abs => Ipld::Integer(0),
@@ -234,6 +239,7 @@ impl I64Op {
     }
   }
 
+  /// Converts an IPLD object into an i64 operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Abs),
@@ -278,6 +284,7 @@ impl I64Op {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Abs => 1,
@@ -321,6 +328,7 @@ impl I64Op {
     }
   }
 
+  /// Applies a nullary operation to a literal and returns it if successful
   pub fn apply0(self) -> Option<Literal> {
     use Literal::*;
     match self {
@@ -330,6 +338,7 @@ impl I64Op {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -342,23 +351,29 @@ impl I64Op {
       (Self::ToU32, I64(x)) => u32::try_from(*x).ok().map(U32),
       (Self::ToU64, I64(x)) => u64::try_from(*x).ok().map(U64),
       (Self::ToU128, I64(x)) => u128::try_from(*x).ok().map(U128),
-      (Self::ToNat, I64(x)) => if x.is_negative() {
-        None
-      } else {
-        Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
-      },
+      (Self::ToNat, I64(x)) => {
+        if x.is_negative() {
+          None
+        }
+        else {
+          Some(Nat(BigUint::from(u64::try_from(*x).unwrap())))
+        }
+      }
       (Self::ToI8, I64(x)) => i8::try_from(*x).ok().map(I8),
       (Self::ToI16, I64(x)) => i16::try_from(*x).ok().map(I16),
       (Self::ToI32, I64(x)) => i32::try_from(*x).ok().map(I32),
       (Self::ToI128, I64(x)) => Some(I128((*x).into())),
       (Self::Not, I64(x)) => Some(I64(!x)),
       (Self::ToInt, I64(x)) => Some(Int((*x).into())),
-      (Self::ToBits, I64(x)) => Some(Bits(bits::bytes_to_bits(64, &x.to_be_bytes().into()))),
+      (Self::ToBits, I64(x)) => {
+        Some(Bits(bits::bytes_to_bits(64, &x.to_be_bytes().into())))
+      }
       (Self::ToBytes, I64(x)) => Some(Bytes(x.to_be_bytes().into())),
       _ => None,
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
@@ -373,16 +388,22 @@ impl I64Op {
       (Self::Add, I64(x), I64(y)) => Some(I64(x.wrapping_add(*y))),
       (Self::Sub, I64(x), I64(y)) => Some(I64(x.wrapping_sub(*y))),
       (Self::Mul, I64(x), I64(y)) => Some(I64(x.wrapping_mul(*y))),
-      (Self::Div, I64(x), I64(y)) => if *y == 0 {
-        None
-      } else {
-        Some(I64(x.wrapping_div(*y)))
-      },
-      (Self::Mod, I64(x), I64(y)) => if *y == 0 {
-        None
-      } else {
-        Some(I64(x.wrapping_rem(*y)))
-      },
+      (Self::Div, I64(x), I64(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(I64(x.wrapping_div(*y)))
+        }
+      }
+      (Self::Mod, I64(x), I64(y)) => {
+        if *y == 0 {
+          None
+        }
+        else {
+          Some(I64(x.wrapping_rem(*y)))
+        }
+      }
       (Self::Pow, I64(x), U32(y)) => Some(I64(x.wrapping_pow(*y))),
       (Self::Shl, U32(x), I64(y)) => Some(I64(y.wrapping_shl(*x))),
       (Self::Shr, U32(x), I64(y)) => Some(I64(y.wrapping_shr(*x))),
@@ -402,36 +423,36 @@ impl fmt::Display for I64Op {
 #[cfg(test)]
 pub mod tests {
   use super::*;
-  use quickcheck::{
-    Arbitrary,
-    Gen,
-    TestResult
-  };
-  use rand::Rng;
-  use Literal::{
-    I64,
-    U64,
-    Bool,
-    Nat,
-    Int,
-    Bits,
-    Bytes,
-    U32
-  };
   use crate::prim::{
-    U8Op,
+    I16Op,
+    I32Op,
+    I8Op,
     U16Op,
     U32Op,
     U64Op,
-    I8Op,
-    I16Op,
-    I32Op,
-  };
-  use sp_std::{
-    convert::TryInto,
-    mem
+    U8Op,
   };
   use num_bigint::BigUint;
+  use quickcheck::{
+    Arbitrary,
+    Gen,
+    TestResult,
+  };
+  use rand::Rng;
+  use sp_std::{
+    convert::TryInto,
+    mem,
+  };
+  use Literal::{
+    Bits,
+    Bool,
+    Bytes,
+    Int,
+    Nat,
+    I64,
+    U32,
+    U64,
+  };
   impl Arbitrary for I64Op {
     fn arbitrary(_g: &mut Gen) -> Self {
       let mut rng = rand::thread_rng();
@@ -473,8 +494,8 @@ pub mod tests {
         33 => Self::ToInt,
         34 => Self::ToBytes,
         _ => Self::ToBits,
-        // 29 => Self::ToU128,
-        // 34 => Self::ToI128,
+        /* 29 => Self::ToU128,
+         * 34 => Self::ToI128, */
       }
     }
   }
@@ -488,60 +509,25 @@ pub mod tests {
   }
 
   #[quickcheck]
-  fn test_apply(
-    op: I64Op,
-    a: i64,
-    b: i64,
-    c: u32
-  ) -> TestResult {
+  fn test_apply(op: I64Op, a: i64, b: i64, c: u32) -> TestResult {
     let apply0_go = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I64Op::apply0(op) ==
-        expected
-      )
+      TestResult::from_bool(I64Op::apply0(op) == expected)
     };
 
     let apply1_i64 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I64Op::apply1(
-          op,
-          &I64(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I64Op::apply1(op, &I64(a)) == expected)
     };
 
     let apply2_i64_i64 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I64Op::apply2(
-          op,
-          &I64(a),
-          &I64(b)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I64Op::apply2(op, &I64(a), &I64(b)) == expected)
     };
 
     let apply2_i64_u32 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I64Op::apply2(
-          op,
-          &I64(a),
-          &U32(c)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I64Op::apply2(op, &I64(a), &U32(c)) == expected)
     };
 
     let apply2_u32_i64 = |expected: Option<Literal>| -> TestResult {
-      TestResult::from_bool(
-        I64Op::apply2(
-          op,
-          &U32(c),
-          &I64(a)
-        ) ==
-        expected
-      )
+      TestResult::from_bool(I64Op::apply2(op, &U32(c), &I64(a)) == expected)
     };
 
     let from_bool = TestResult::from_bool;
@@ -563,20 +549,12 @@ pub mod tests {
       I64Op::Add => apply2_i64_i64(Some(I64(a.wrapping_add(b)))),
       I64Op::Sub => apply2_i64_i64(Some(I64(a.wrapping_sub(b)))),
       I64Op::Mul => apply2_i64_i64(Some(I64(a.wrapping_mul(b)))),
-      I64Op::Div => apply2_i64_i64(
-        if b == 0 {
-          None
-        } else {
-          Some(I64(a.wrapping_div(b)))
-        }
-      ),
-      I64Op::Mod => apply2_i64_i64(
-        if b == 0 {
-          None
-        } else {
-          Some(I64(a.wrapping_rem(b)))
-        }
-      ),
+      I64Op::Div => {
+        apply2_i64_i64(if b == 0 { None } else { Some(I64(a.wrapping_div(b))) })
+      }
+      I64Op::Mod => {
+        apply2_i64_i64(if b == 0 { None } else { Some(I64(a.wrapping_rem(b))) })
+      }
       I64Op::Pow => apply2_i64_u32(Some(I64(a.wrapping_pow(c)))),
       I64Op::Shl => apply2_u32_i64(Some(I64(a.wrapping_shl(c)))),
       I64Op::Shr => apply2_u32_i64(Some(I64(a.wrapping_shr(c)))),
@@ -584,85 +562,77 @@ pub mod tests {
       I64Op::Ror => apply2_u32_i64(Some(I64(a.rotate_right(c)))),
       I64Op::CountZeros => apply1_i64(Some(U32(a.count_zeros()))),
       I64Op::CountOnes => apply1_i64(Some(U32(a.count_ones()))),
-      I64Op::ToU8 => from_bool(
-        if a < u8::MIN.into()  || a > u8::MAX.into()  {
+      I64Op::ToU8 => from_bool(if a < u8::MIN.into() || a > u8::MAX.into() {
+        I64Op::apply1(op, &I64(a)) == None
+      }
+      else {
+        U8Op::apply1(U8Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+          == Some(I64(a))
+      }),
+      I64Op::ToU16 => {
+        from_bool(if a < u16::MIN.into() || a > u16::MAX.into() {
           I64Op::apply1(op, &I64(a)) == None
-        } else {
-          U8Op::apply1(
-            U8Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
         }
-      ),
-      I64Op::ToU16 => from_bool(
-        if a < u16::MIN.into()  || a > u16::MAX.into()  {
+        else {
+          U16Op::apply1(U16Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+            == Some(I64(a))
+        })
+      }
+      I64Op::ToU32 => {
+        from_bool(if a < u32::MIN.into() || a > u32::MAX.into() {
           I64Op::apply1(op, &I64(a)) == None
-        } else {
-          U16Op::apply1(
-            U16Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
         }
-      ),
-      I64Op::ToU32 => from_bool(
-        if a < u32::MIN.into() || a > u32::MAX.into() {
-          I64Op::apply1(op, &I64(a)) == None
-        } else {
-          U32Op::apply1(
-            U32Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
-        }
-      ),
-      I64Op::ToU64 => from_bool(
-        if a < u64::MIN.try_into().unwrap() {
-          I64Op::apply1(op, &I64(a)) == None
-        } else {
-          U64Op::apply1(
-            U64Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
-        }
-      ),
+        else {
+          U32Op::apply1(U32Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+            == Some(I64(a))
+        })
+      }
+      I64Op::ToU64 => from_bool(if a < u64::MIN.try_into().unwrap() {
+        I64Op::apply1(op, &I64(a)) == None
+      }
+      else {
+        U64Op::apply1(U64Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+          == Some(I64(a))
+      }),
       I64Op::ToU128 => TestResult::discard(),
-      I64Op::ToNat => if a.is_negative() {
-        apply1_i64(None)
-      } else {
-        apply1_i64(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
-      },
-      I64Op::ToI8 => from_bool(
-        if a < i8::MIN.into() || a > i8::MAX.into() {
-          I64Op::apply1(op, &I64(a)) == None
-        } else {
-          I8Op::apply1(
-            I8Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
+      I64Op::ToNat => {
+        if a.is_negative() {
+          apply1_i64(None)
         }
-      ),
-      I64Op::ToI16 => from_bool(
-        if a < i16::MIN.into() || a > i16::MAX.into() {
-          I64Op::apply1(op, &I64(a)) == None
-        } else {
-          I16Op::apply1(
-            I16Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
+        else {
+          apply1_i64(Some(Nat(BigUint::from(u64::try_from(a).unwrap()))))
         }
-      ),
-      I64Op::ToI32 => from_bool(
-        if a < i32::MIN.into() || a > i32::MAX.into() {
+      }
+      I64Op::ToI8 => from_bool(if a < i8::MIN.into() || a > i8::MAX.into() {
+        I64Op::apply1(op, &I64(a)) == None
+      }
+      else {
+        I8Op::apply1(I8Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+          == Some(I64(a))
+      }),
+      I64Op::ToI16 => {
+        from_bool(if a < i16::MIN.into() || a > i16::MAX.into() {
           I64Op::apply1(op, &I64(a)) == None
-        } else {
-          I32Op::apply1(
-            I32Op::ToI64,
-            &I64Op::apply1(op, &I64(a)).unwrap()
-          ) == Some(I64(a))
         }
-      ),
+        else {
+          I16Op::apply1(I16Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+            == Some(I64(a))
+        })
+      }
+      I64Op::ToI32 => {
+        from_bool(if a < i32::MIN.into() || a > i32::MAX.into() {
+          I64Op::apply1(op, &I64(a)) == None
+        }
+        else {
+          I32Op::apply1(I32Op::ToI64, &I64Op::apply1(op, &I64(a)).unwrap())
+            == Some(I64(a))
+        })
+      }
       I64Op::ToI128 => TestResult::discard(),
       I64Op::ToInt => apply1_i64(Some(Int(a.into()))),
-      I64Op::ToBits => apply1_i64(Some(Bits(bits::bytes_to_bits(64, &a.to_be_bytes().into())))),
+      I64Op::ToBits => {
+        apply1_i64(Some(Bits(bits::bytes_to_bits(64, &a.to_be_bytes().into()))))
+      }
       I64Op::ToBytes => apply1_i64(Some(Bytes(a.to_be_bytes().into()))),
     }
   }
@@ -675,130 +645,97 @@ pub mod tests {
     c: u32,
     test_arg_2: bool,
   ) -> TestResult {
-    let test_apply1_none_on_invalid = |
-      valid_arg: Literal
-    | -> TestResult {
+    let test_apply1_none_on_invalid = |valid_arg: Literal| -> TestResult {
       if mem::discriminant(&valid_arg) == mem::discriminant(&a) {
         TestResult::discard()
-      } else {
-        TestResult::from_bool(
-          I64Op::apply1(
-            op,
-            &a
-          ) ==
-          None
-        )
+      }
+      else {
+        TestResult::from_bool(I64Op::apply1(op, &a) == None)
       }
     };
 
-    let test_apply2_none_on_invalid = |
-      valid_arg: Literal,
-      a_: Literal,
-      b_: Literal
-    | -> TestResult {
-      let go = || TestResult::from_bool(
-        I64Op::apply2(
-          op,
-          &a_,
-          &b_
-        ) ==
-        None
-      );
-      if test_arg_2 {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
-          TestResult::discard()
-        } else {
-          go()
+    let test_apply2_none_on_invalid =
+      |valid_arg: Literal, a_: Literal, b_: Literal| -> TestResult {
+        let go = || TestResult::from_bool(I64Op::apply2(op, &a_, &b_) == None);
+        if test_arg_2 {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&a_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      } else {
-        if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
-          TestResult::discard()
-        } else {
-          go()
+        else {
+          if mem::discriminant(&valid_arg) == mem::discriminant(&b_) {
+            TestResult::discard()
+          }
+          else {
+            go()
+          }
         }
-      }
-    };
+      };
 
     match op {
       // Arity 0.
-      I64Op::Max |
-      I64Op::Min => TestResult::discard(),
+      I64Op::Max | I64Op::Min => TestResult::discard(),
       // Arity 1, valid is I64.
-      I64Op::Abs |
-      I64Op::Sgn |
-      I64Op::Not |
-      I64Op::CountZeros |
-      I64Op::CountOnes |
-      I64Op::ToU8 |
-      I64Op::ToU16 |
-      I64Op::ToU32 |
-      I64Op::ToU64 |
-      I64Op::ToU128 |
-      I64Op::ToNat |
-      I64Op::ToI8 |
-      I64Op::ToI16 |
-      I64Op::ToI32 |
-      I64Op::ToI128 |
-      I64Op::ToInt |
-      I64Op::ToBytes |
-      I64Op::ToBits => test_apply1_none_on_invalid(I64(b)),
+      I64Op::Abs
+      | I64Op::Sgn
+      | I64Op::Not
+      | I64Op::CountZeros
+      | I64Op::CountOnes
+      | I64Op::ToU8
+      | I64Op::ToU16
+      | I64Op::ToU32
+      | I64Op::ToU64
+      | I64Op::ToU128
+      | I64Op::ToNat
+      | I64Op::ToI8
+      | I64Op::ToI16
+      | I64Op::ToI32
+      | I64Op::ToI128
+      | I64Op::ToInt
+      | I64Op::ToBytes
+      | I64Op::ToBits => test_apply1_none_on_invalid(I64(b)),
       // Arity 2, valid are I64 on a and b.
-      I64Op::Eql |
-      I64Op::Lte |
-      I64Op::Lth |
-      I64Op::Gth |
-      I64Op::Gte |
-      I64Op::And |
-      I64Op::Or |
-      I64Op::Xor |
-      I64Op::Add |
-      I64Op::Sub |
-      I64Op::Mul |
-      I64Op::Div |
-      I64Op::Mod => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          I64(b),
-          a,
-          I64(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          I64(b),
-          I64(b),
-          a
-        )
-      },
+      I64Op::Eql
+      | I64Op::Lte
+      | I64Op::Lth
+      | I64Op::Gth
+      | I64Op::Gte
+      | I64Op::And
+      | I64Op::Or
+      | I64Op::Xor
+      | I64Op::Add
+      | I64Op::Sub
+      | I64Op::Mul
+      | I64Op::Div
+      | I64Op::Mod => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(I64(b), a, I64(b))
+        }
+        else {
+          test_apply2_none_on_invalid(I64(b), I64(b), a)
+        }
+      }
       // Arity 2, valid are I64 on a and U32 on b.
-      I64Op::Pow => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          I64(b),
-          a,
-          U32(c)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          U32(c),
-          I64(b),
-          a
-        )
-      },
+      I64Op::Pow => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(I64(b), a, U32(c))
+        }
+        else {
+          test_apply2_none_on_invalid(U32(c), I64(b), a)
+        }
+      }
       // Arity 2, valid are U32 on a and I64 on b.
-      I64Op::Shl |
-      I64Op::Shr |
-      I64Op::Rol |
-      I64Op::Ror => if test_arg_2 {
-        test_apply2_none_on_invalid(
-          U32(c),
-          a,
-          I64(b)
-        )
-      } else {
-        test_apply2_none_on_invalid(
-          I64(b),
-          U32(c),
-          a
-        )
-      },
+      I64Op::Shl | I64Op::Shr | I64Op::Rol | I64Op::Ror => {
+        if test_arg_2 {
+          test_apply2_none_on_invalid(U32(c), a, I64(b))
+        }
+        else {
+          test_apply2_none_on_invalid(I64(b), U32(c), a)
+        }
+      }
     }
   }
 }

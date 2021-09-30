@@ -1,6 +1,6 @@
 use sp_std::{
-  fmt,
   borrow::ToOwned,
+  fmt,
 };
 
 use alloc::string::String;
@@ -13,6 +13,7 @@ use crate::{
   uses::Uses,
 };
 
+/// Errors that may occur during typechecking
 #[derive(Debug)]
 pub enum CheckError {
   UndefinedReference(Pos, String),
@@ -31,6 +32,7 @@ pub enum CheckError {
 }
 
 impl CheckError {
+  /// Returns the source position of a typecheck error
   pub fn pos(&self) -> Pos {
     match self {
       Self::TypeMismatch(pos, ..) => *pos,
@@ -40,6 +42,7 @@ impl CheckError {
   }
 }
 
+/// Formats the source position for pretty-printing
 pub fn pretty_pos(pos: Pos) -> String {
   if let Pos::Some(pos) = pos {
     format!(
