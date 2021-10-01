@@ -222,6 +222,8 @@ pub fn is_valid_symbol_string(s: &str) -> bool {
   !s.is_empty() && !invalid_chars
 }
 
+/// parse an antiquotation (useful when embedding Yatima expressions in a Rust
+/// source file)
 pub fn parse_antiquote(
   ctx: Ctx,
   quasi: Rc<VecDeque<Term>>,
@@ -330,6 +332,7 @@ pub fn parse_uses(
   }
 }
 
+/// Parse the full form of a binder (<uses> <var>* : <type>)
 pub fn parse_binder_full(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -361,6 +364,7 @@ pub fn parse_binder_full(
   }
 }
 
+/// Parse the short form of a binder, which is only a type
 pub fn parse_binder_short(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -383,6 +387,7 @@ pub fn parse_binder_short(
   }
 }
 
+/// Parse a binder in either its long or short form
 pub fn parse_binder(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -426,6 +431,7 @@ pub fn parse_binder(
   }
 }
 
+/// Parse zero or more binders
 pub fn parse_binders(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -473,6 +479,7 @@ pub fn parse_binders(
   }
 }
 
+/// Parse one or more binders
 pub fn parse_binders1(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -847,6 +854,8 @@ pub fn parse_lit(
   }
 }
 
+/// Parse an expression which is an application sequence with a possible type
+/// annotation `f a b c :: F A B C`
 pub fn parse_expression(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -879,7 +888,7 @@ pub fn parse_expression(
     }
   }
 }
-
+/// Parse the termination marker of an application sequence
 pub fn parse_app_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
   let (i, _) = alt((
     peek(tag("def")),
@@ -897,6 +906,7 @@ pub fn parse_app_end(i: Span) -> IResult<Span, (), ParseError<Span>> {
   Ok((i, ()))
 }
 
+/// Parse an application sequence `f a b c`
 pub fn parse_apps(
   input: Cid,
   defs: Rc<RefCell<Defs>>,
@@ -1012,6 +1022,7 @@ pub fn input_cid(i: &str) -> Cid {
   )
 }
 
+/// A convenient top-level parser with default arguments
 pub fn parse(i: &str, defs: Defs) -> IResult<Span, Term, ParseError<Span>> {
   parse_expression(
     input_cid(i),
@@ -1033,8 +1044,14 @@ pub fn parse_quasi(
   ))
 }
 
-/// The quasiquoter, which typechecks and evaluates a code fragment for
-/// REPL-like use within a program
+/// The quasiquotion macro, which allows direct use of Yatima syntax in a Rust
+/// source file for making Yatima expressions. For example `yatima!("λ x => x")`
+/// will return `Term::Lam(.., Name::from("x"), Term::Var(.., Name::from("x"),
+/// 0)`.
+///
+/// Antiquotation can be used to directly pass in Rust expressions:
+/// `yatima!("λ x => #$0", Term::Lit(Literal::U64( 2u64 - 1u64)))` is
+/// identical to `yatima!("λ x => 1u64")`
 #[macro_export]
 macro_rules! yatima {
   ($i:literal) => {

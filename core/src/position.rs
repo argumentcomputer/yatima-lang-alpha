@@ -37,7 +37,8 @@ impl fmt::Debug for Pos {
 }
 
 impl Position {
-  ///
+  /// Use the range information in a Position to pretty-print that range within
+  /// a string
   pub fn range(self, input: String) -> String {
     let mut res = String::new();
     let gutter = format!("{}", self.upto_line).len();
@@ -77,7 +78,7 @@ impl Position {
     ])
   }
 
-  ///
+  /// Construct a position from the difference of two Spans
   pub fn from_upto(input: Cid, from: Span, upto: Span) -> Self {
     Self {
       input,

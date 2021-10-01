@@ -29,35 +29,35 @@ use alloc::string::{
 /// Yatima terms with source positions
 #[derive(Clone)]
 pub enum Term {
-  // Local variable
+  /// Local variable
   Var(Pos, Name, u64),
-  // Lambda
+  /// Lambda
   Lam(Pos, Name, Box<Term>),
-  // Application of a function to an argument
+  /// Application of a function to an argument
   App(Pos, Box<(Term, Term)>),
-  // Forall
+  /// Forall
   All(Pos, Uses, Name, Box<(Term, Term)>),
-  // Self type
+  /// Self type
   Slf(Pos, Name, Box<Term>),
-  // Self type constructor
+  /// Self type constructor
   Dat(Pos, Box<Term>),
-  // Self type destructor
+  /// Self type destructor
   Cse(Pos, Box<Term>),
-  // Immutable global reference to a term
+  /// Immutable global reference to a term
   Ref(Pos, Name, Cid, Cid),
-  // Inline local definition
+  /// Inline local definition
   Let(Pos, bool, Uses, Name, Box<(Term, Term, Term)>),
-  // Type of types
+  /// Type of types
   Typ(Pos),
-  // Type annotation
+  /// Type annotation
   Ann(Pos, Box<(Term, Term)>),
-  // Primitive literal
+  /// Primitive literal
   Lit(Pos, Literal),
-  // The type of a literal
+  /// The type of a literal
   LTy(Pos, LitType),
-  // Primitive operation
+  /// Primitive operation
   Opr(Pos, Op),
-  // Recursion marker
+  /// Recursion marker
   Rec(Pos),
 }
 

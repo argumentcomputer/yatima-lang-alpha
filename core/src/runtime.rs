@@ -33,6 +33,7 @@ pub enum DAG {
   Opr(NonNull<Opr>),
 }
 
+/// A pointer to the parent node, i.e. the graph uplinks in the λ-DAG model
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ParentPtr {
   Root,

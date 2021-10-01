@@ -342,7 +342,7 @@ pub fn infer(
   }
 }
 
-/// Infers the type of a recursive term
+/// Infers the type of a `Rec` recursive marker
 #[inline]
 pub fn infer_rec(
   rec: &Option<(Name, Cid, Cid)>,
@@ -400,7 +400,7 @@ pub fn infer_var(
   Ok(typ)
 }
 
-/// Infers the type of an IPFS reference
+/// Infers the type of an global content-addressed reference
 #[inline]
 pub fn infer_ref(
   defs: &Defs,
