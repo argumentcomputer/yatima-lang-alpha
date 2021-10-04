@@ -54,10 +54,11 @@ impl Repl for RustyLineRepl {
     })
   }
 
-  fn println(&self, s: String) {
+  fn println(&self, s: String) -> Result<(), String> {
     let mut out = io::stdout();
-    out.write(s.as_bytes()).unwrap();
-    out.write("\n".as_bytes()).unwrap();
+    out.write_all(s.as_bytes()).map_err(|_| "Error with stdout")?;
+    out.write_all("\n".as_bytes()).map_err(|_| "Error with stdout")?;
+    Ok(())
   }
 
   fn load_history(&mut self) {

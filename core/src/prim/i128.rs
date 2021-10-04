@@ -14,6 +14,8 @@ use crate::{
   prim::bits,
   term::Term,
   yatima,
+  parse,
+  defs,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]

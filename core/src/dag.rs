@@ -706,7 +706,7 @@ impl DAG {
       }
       DAGPtr::Opr(link) => {
         let Opr { opr, .. } = unsafe { link.as_ref() };
-        Term::Opr(Pos::None, *opr)
+        Term::Opr(Pos::None, opr.clone())
       }
       DAGPtr::Ref(link) => {
         let Ref { nam, exp, ast, rec, .. } = unsafe { link.as_ref() };
@@ -914,7 +914,7 @@ impl DAG {
       Term::Lit(_, lit) => {
         DAGPtr::Lit(alloc_val(Lit { lit: lit.clone(), parents }))
       }
-      Term::Opr(_, opr) => DAGPtr::Opr(alloc_val(Opr { opr: *opr, parents })),
+      Term::Opr(_, opr) => DAGPtr::Opr(alloc_val(Opr { opr: opr.clone(), parents })),
       Term::Ref(_, nam, exp, ast) => DAGPtr::Ref(alloc_val(Ref {
         nam: nam.clone(),
         rec: false,
@@ -1281,8 +1281,8 @@ impl DAG {
         DAGPtr::LTy(node)
       },
       DAGPtr::Opr(link) => unsafe {
-        let Opr { opr, .. } = *link.as_ptr();
-        let node = alloc_val(Opr { opr, parents });
+        let Opr { opr, .. } = &*link.as_ptr();
+        let node = alloc_val(Opr { opr: opr.clone(), parents });
         DAGPtr::Opr(node)
       },
       DAGPtr::Typ(_) => {
@@ -1638,7 +1638,7 @@ impl fmt::Display for DAG {
 
 impl fmt::Display for DAGPtr {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", DAG::new(self.clone()).to_term(false))
+    write!(f, "{}", DAG::new(*self).to_term(false))
   }
 }
 

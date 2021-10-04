@@ -1008,13 +1008,13 @@ pub fn parse_quasi(
 #[macro_export]
 macro_rules! yatima {
   ($i:literal) => {
-    crate::parse::term::parse($i, crate::defs::Defs::new()).unwrap().1
+    parse::term::parse($i, defs::Defs::new()).unwrap().1
   };
   ($i:literal, $($q: expr),*) => {{
     let mut quasi = Vec::new();
     $(quasi.push($q);)*
-    crate::parse::term::parse_quasi($i,
-      sp_std::rc::Rc::new(sp_std::cell::RefCell::new(crate::defs::Defs::new())),
+    parse::term::parse_quasi($i,
+      sp_std::rc::Rc::new(sp_std::cell::RefCell::new(defs::Defs::new())),
       sp_std::rc::Rc::new(sp_std::collections::vec_deque::VecDeque::from(quasi)))
       .unwrap().1
   }}
@@ -1071,6 +1071,10 @@ pub mod tests {
   }
   #[test]
   fn test_parse_binder_full() {
+    use crate::{
+      defs,
+      parse,
+    };
     fn test(
       ctx: Vec<Name>,
       i: &str,

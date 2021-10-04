@@ -328,7 +328,7 @@ impl DagGraph {
         }
         else {
           let Opr { opr, parents, .. } = unsafe { &mut *link.as_ptr() };
-          let ix = self.inner.add_node(DagNode::Opr { opr: *opr });
+          let ix = self.inner.add_node(DagNode::Opr { opr: opr.clone() });
           map.insert(*node, ix);
           self.add_parent_edges(ix, map, *parents);
           ix

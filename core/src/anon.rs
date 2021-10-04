@@ -143,15 +143,15 @@ impl Anon {
           Ok(Anon::Ann(Box::new((typ, exp))))
         }
         [Ipld::Integer(11), lit] => {
-          let lit = Literal::from_ipld(&lit)?;
+          let lit = Literal::from_ipld(lit)?;
           Ok(Self::Lit(lit))
         }
         [Ipld::Integer(12), lty] => {
-          let lty = LitType::from_ipld(&lty)?;
+          let lty = LitType::from_ipld(lty)?;
           Ok(Self::LTy(lty))
         }
         [Ipld::Integer(13), opr] => {
-          let opr = Op::from_ipld(&opr)?;
+          let opr = Op::from_ipld(opr)?;
           Ok(Self::Opr(opr))
         }
         [Ipld::Integer(14)] => Ok(Self::Rec),

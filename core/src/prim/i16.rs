@@ -9,8 +9,10 @@ use sp_std::{
 use alloc::string::String;
 
 use crate::{
+  defs,
   ipld_error::IpldError,
   literal::Literal,
+  parse,
   prim::bits,
   term::Term,
   yatima,

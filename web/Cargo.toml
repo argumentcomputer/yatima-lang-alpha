@@ -10,20 +10,22 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
+yatima-core = { path = "../core" }
+yatima-utils = { path = "../utils" }
+yatima-runtime = { path = "../runtime" }
 base64 = "0.13.0"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 js-sys = "0.3.49"
 multiaddr = "*"
-sp-cid = "0.1"
-sp-ipld = "0.1.1"
-bytecursor = "0.1"
-sized-chunks = { git = "https://github.com/yatima-inc/sized-chunks", branch = "master" }
+sp-cid = "0.2"
+sp-ipld = "0.1.2"
+bytecursor = "0.1.2"
+sp-sized-chunks = { version = "0.1.0", default-features = false }
 unicode-segmentation = "1.8.0"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 wasm-bindgen-futures = "0.4.22"
 xterm-js-rs = { version = "0.1.1", features = ["xterm-addon-fit", "xterm-addon-search", "xterm-addon-web-links"] }
-yatima-core = { path = "../core" }
-yatima-utils = { path = "../utils" }
+serde_json = { version = "1.0" }
 
 [dependencies.web-sys]
 version = "0.3.49"

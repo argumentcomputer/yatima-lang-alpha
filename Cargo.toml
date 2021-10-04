@@ -4,6 +4,7 @@ members = [
   "cli",
   "utils",
   "web",
+  "runtime"
 ]
 
 [profile.dev]

@@ -380,7 +380,7 @@ impl TypeDef {
         .clone()
         .into_iter()
         // The multiplicities of the typ_params are set to 0 in constructors
-        .map(|(u, n, t)| (Uses::None, n, t))
+        .map(|(_u, n, t)| (Uses::None, n, t))
         .chain(v.bind.clone().into_iter())
         .rev()
         .fold(img, |acc, (u, n, t)| {

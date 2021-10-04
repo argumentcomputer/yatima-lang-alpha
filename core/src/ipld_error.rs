@@ -34,6 +34,7 @@ pub enum IpldError {
   I32Op(Ipld),
   I64Op(Ipld),
   I128Op(Ipld),
+  IoOp(Ipld),
   Anon(Ipld),
   Meta(Ipld),
   Entry(Ipld),

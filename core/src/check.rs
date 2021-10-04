@@ -6,10 +6,12 @@ use error::CheckError;
 
 use crate::{
   dag::*,
+  defs,
   defs::Defs,
   dll::*,
   literal::Literal,
   name::Name,
+  parse,
   position::Pos,
   term::Term,
   uses::*,
@@ -136,7 +138,7 @@ pub fn check(
         detected_typ.free();
         Err(CheckError::TypeMismatch(
           term.pos(),
-          error_context(&ctx),
+          error_context(ctx),
           expected,
           detected,
         ))
@@ -202,7 +204,7 @@ pub fn check_lam(
       let against = typ.to_term(false);
       Err(CheckError::LamAllMismatch(
         *pos,
-        error_context(&ctx),
+        error_context(ctx),
         checked,
         against,
       ))
@@ -259,7 +261,7 @@ pub fn check_dat(
       let against = typ.to_term(false);
       Err(CheckError::DatSlfMismatch(
         *pos,
-        error_context(&ctx),
+        error_context(ctx),
         checked,
         against,
       ))
@@ -328,10 +330,10 @@ pub fn infer(
     Term::LTy(..) => Ok(DAG::from_term(&yatima!("Type"))),
     Term::Opr(_, opr) => Ok(DAG::from_term(&opr.type_of())),
     Term::Lam(..) => {
-      Err(CheckError::UntypedLambda(term.pos(), error_context(&ctx)))
+      Err(CheckError::UntypedLambda(term.pos(), error_context(ctx)))
     }
     Term::Dat(..) => {
-      Err(CheckError::UntypedData(term.pos(), error_context(&ctx)))
+      Err(CheckError::UntypedData(term.pos(), error_context(ctx)))
     }
   }
 }
@@ -368,7 +370,7 @@ pub fn infer_var(
   let bind = ctx.get(dep).ok_or_else(|| {
     CheckError::UnboundVariable(
       *pos,
-      error_context(&ctx),
+      error_context(ctx),
       nam.to_string(),
       dep as u64,
     )
@@ -376,7 +378,7 @@ pub fn infer_var(
   let subtract_use = (bind.1 - uses).ok_or_else(|| {
     CheckError::QuantityTooMuch(
       *pos,
-      error_context(&ctx),
+      error_context(ctx),
       nam.to_string(),
       bind.1,
       uses,
@@ -453,7 +455,7 @@ pub fn infer_app(
     }
     _ => Err(CheckError::AppFunMismatch(
       *pos,
-      error_context(&ctx),
+      error_context(ctx),
       fun.clone(),
       fun_typ.to_term(false),
     )),
@@ -498,7 +500,7 @@ pub fn infer_cse(
       let root = alloc_val(DLL::singleton(ParentPtr::Root));
       match lty.induction(exp.clone()) {
         None => {
-          Err(CheckError::NonInductiveLitType(*pos, error_context(&ctx), *lty))
+          Err(CheckError::NonInductiveLitType(*pos, error_context(ctx), *lty))
         }
         Some(ind) => {
           let induction = DAG::from_term_inner(
@@ -514,7 +516,7 @@ pub fn infer_cse(
     }
     _ => Err(CheckError::CseDatMismatch(
       *pos,
-      error_context(&ctx),
+      error_context(ctx),
       exp.clone(),
       exp_typ.to_term(false),
     )),
@@ -740,11 +742,11 @@ pub fn infer_lit(lit: Literal) -> Term {
 
 pub fn infer_term(
   defs: &Defs,
-  term: Term,
+  term: &Term,
   should_count: bool,
 ) -> Result<Term, CheckError> {
   let typ_dag =
-    infer(&None, &defs, &mut vec![].into(), Uses::Once, &term, should_count)?;
+    infer(&None, defs, &mut vec![], Uses::Once, term, should_count)?;
   let typ = DAG::to_term(&typ_dag, true);
   typ_dag.free();
   Ok(typ)
@@ -766,7 +768,7 @@ pub fn check_def(
   check(
     &rec,
     &defs,
-    &mut vec![].into(),
+    &mut vec![],
     Uses::Once,
     &def.term,
     &mut typ,

@@ -189,7 +189,7 @@ pub fn parse_load() -> impl Fn(Span) -> IResult<Span, Command, FileError<Span>>
     let (i, _) = alt((tag(":load"), tag(":l")))(i)?;
     let (i, _) = parse_space1(i).map_err(error::convert)?;
     let (i, reference) =
-      alt((parse_multiaddr, parse_name_reference, parse_cid_reference))(i)
+      alt((parse_cid_reference, parse_multiaddr, parse_name_reference))(i)
         .map_err(error::convert)?;
     Ok((i, Command::Load(reference)))
   }
