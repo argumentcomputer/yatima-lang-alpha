@@ -8,7 +8,7 @@ use crate::{
   yatima,
 };
 
-use ropey;
+use sp_ropey;
 
 use num_bigint::{
   BigInt,
