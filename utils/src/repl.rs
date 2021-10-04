@@ -2,10 +2,14 @@ pub mod command;
 pub mod error;
 
 use crate::{
+  debug,
   file,
   log,
   store::{
     self,
+    Callback,
+    CallbackMonitor,
+    CallbackStatus,
     Store,
   },
 };
@@ -14,6 +18,13 @@ use sp_std::{
   cell::RefCell,
   rc::Rc,
   sync::Arc,
+};
+use yatima_runtime::{
+  run,
+  transform::{
+    RunIO,
+    StdIORuntime,
+  },
 };
 
 use std::sync::Mutex;
@@ -24,6 +35,7 @@ use yatima_core::{
   },
   dag::DAG,
   defs::Defs,
+  package::Package,
   parse::{
     span::Span,
     term::input_cid,
@@ -41,16 +53,23 @@ pub struct ReplEnv {
   type_system: bool,
   var_index: bool,
   defs: Defs,
+  runtime_io: RunIO,
 }
 
 pub enum LineResult {
+  Async,
   Success,
   Quit,
 }
 
 impl Default for ReplEnv {
   fn default() -> Self {
-    ReplEnv { type_system: true, var_index: false, defs: Defs::new() }
+    ReplEnv {
+      type_system: true,
+      var_index: false,
+      defs: Defs::new(),
+      runtime_io: Rc::new(StdIORuntime {}),
+    }
   }
 }
 
@@ -63,7 +82,7 @@ pub trait Repl {
   fn readline(&mut self, prompt: &str) -> Result<String, ReplError>;
 
   /// Print results to the interface suited for this implementation.
-  fn println(&self, s: String);
+  fn println(&self, s: String) -> Result<(), String>;
 
   /// Load the command history
   fn load_history(&mut self);
@@ -82,10 +101,7 @@ pub trait Repl {
 
   /// Run a single line of input from the user
   /// This will mutably update the shell_state
-  fn handle_line(
-    &mut self,
-    readline: Result<String, ReplError>,
-  ) -> Result<LineResult, ()> {
+  fn handle_line(&mut self, readline: Result<String, ReplError>) -> Result<LineResult, String> {
     let mutex_env = self.get_env();
     let mut env = mutex_env.lock().unwrap();
     let store = self.get_store();
@@ -99,89 +115,140 @@ pub trait Repl {
         match res {
           Ok((_, command)) => match command {
             Command::Load(reference) => {
-              let ipld = match reference {
-                Reference::FileName(name) => {
-                  store.load_by_name(name.split('.').collect())
-                }
-                Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
-                Reference::Cid(cid) => {
-                  store.get(cid).ok_or(format!("Failed to get cid {}", cid))
-                }
-              }
-              .map_err(|e| log!("{}", e))?;
+              if store.needs_callback() {
+                let store_c = store.clone();
+                let mutex_env_c = mutex_env.clone();
+                let callback = Box::new(move |ipld| {
+                  let p = Rc::new(Package::from_ipld(&ipld).unwrap());
+                  let p2 = p.clone();
+                  let store_c1 = store_c.clone();
+                  // This is called when all other callbacks has completed
+                  let final_callback = Some(Box::new(move |defs: Defs| {
+                    let mut env = mutex_env_c.lock().unwrap();
+                    // let defs = ptr.into_inner().unwrap();
+                    // log!("Got ipld {:?}", ipld);
 
-              if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
-                env.defs.flat_merge_mut(ds);
-                Ok(LineResult::Success)
+                    match file::check_all(p2.clone(), Rc::new(defs), store_c1) {
+                      Ok(ds) => {
+                        env.defs.flat_merge_mut(ds);
+                      }
+                      Err(e) => {
+                        log!("Type checking failed. {:?}", e);
+                      }
+                    }
+                  }) as Box<dyn FnOnce(_)>);
+                  let mon = Arc::new(Mutex::new(CallbackMonitor::<Defs>::new(final_callback)));
+                  store::load_package_defs(store_c.clone(), p, Some(mon)).unwrap();
+                });
+                match reference {
+                  Reference::FileName(name) => {
+                    let parts: Vec<&str> = name.split('.').collect();
+                    let monitor = Arc::new(Mutex::new(CallbackMonitor::<Defs>::new(None)));
+                    if let Some(id) = parts.last() {
+                      let callback = Callback {
+                        f: callback,
+                        id: id.to_string(),
+                        monitor,
+                        status: CallbackStatus::new(true, None),
+                      };
+                      store.load_by_name_with_callback(parts, callback);
+                    }
+                  }
+                  Reference::Multiaddr(addr) => {
+                    store.get_by_multiaddr(addr).unwrap();
+                  }
+                  Reference::Cid(cid) => {
+                    let id = cid.to_string();
+                    let monitor = Arc::new(Mutex::new(CallbackMonitor::<Defs>::new(None)));
+                    let callback = Callback {
+                      f: callback,
+                      id,
+                      monitor,
+                      status: CallbackStatus::new(true, None),
+                    };
+                    store.get_with_callback(cid, callback);
+                  }
+                }
+                Ok(LineResult::Async)
               }
               else {
-                Err(())
+                let ipld = match reference {
+                  Reference::FileName(name) => store.load_by_name(name.split('.').collect()),
+                  Reference::Multiaddr(addr) => store.get_by_multiaddr(addr),
+                  Reference::Cid(cid) => {
+                    store.get(cid).ok_or(format!("Failed to get cid {}", cid))
+                  }
+                }?;
+
+                if let Ok((_package, ds)) = file::check_all_in_ipld(ipld, store) {
+                  env.defs.flat_merge_mut(ds);
+                  Ok(LineResult::Success)
+                }
+                else {
+                  Err("Type checking failed.".to_owned())
+                }
               }
             }
             Command::Show { typ_, link } => {
               let var_index = env.var_index;
               match store::show(store, link, typ_, var_index) {
                 Ok(s) => {
-                  self.println(format!("{}", s));
+                  self.println(format!("{}", s))?;
                   Ok(LineResult::Success)
                 }
                 Err(s) => {
-                  self.println(format!("{}", s));
-                  Err(())
+                  self.println(format!("{}", s))?;
+                  Err("Show failed.".to_owned())
                 }
               }
             }
             Command::Set(field, setting) => match field.as_str() {
               "type-system" => {
                 env.type_system = setting;
-                self.println(format!(
-                  "type-system: {}",
-                  if setting { "on" } else { "off" }
-                ));
+                self.println(format!("type-system: {}", if setting { "on" } else { "off" }))?;
                 Ok(LineResult::Success)
               }
               "var-index" => {
                 env.var_index = setting;
-                self.println(format!(
-                  "var-index: {}",
-                  if setting { "on" } else { "off" }
-                ));
+                self.println(format!("var-index: {}", if setting { "on" } else { "off" }))?;
                 Ok(LineResult::Success)
               }
               _ => {
-                self.println(format!("Error: Unknown setting {}", field));
-                Err(())
+                self.println(format!("Error: Unknown setting {}", field))?;
+                Err("".to_owned())
               }
             },
             Command::Eval(term) => {
               let mut dag = DAG::from_term(&term);
               if env.type_system {
-                let res = infer_term(&env.defs, *term, false);
+                let res = infer_term(&env.defs, &term, false);
                 match res {
                   Ok(typ) => {
+                    let mut mterm = term;
+                    run(&mut mterm, Rc::new(env.defs.clone()), env.runtime_io.clone());
                     dag.norm(&env.defs, false);
-                    self.println(format!("{}", dag));
-                    self.println(format!(": {}", typ));
+                    self.println(format!("{}", dag))?;
+                    self.println(format!(": {}", typ))?;
                     Ok(LineResult::Success)
                   }
                   Err(e) => {
-                    self.println(format!("Type Error: {}", e));
-                    Err(())
+                    self.println(format!("Type Error: {}", e))?;
+                    Err("Type Error.".to_owned())
                   }
                 }
               }
               else {
                 dag.norm(&env.defs, false);
-                self.println(format!("{}", dag));
+                self.println(format!("{}", dag))?;
                 Ok(LineResult::Success)
               }
             }
             Command::Type(term) => {
-              let res = infer_term(&env.defs, *term, false);
+              let res = infer_term(&env.defs, &term, false);
               match res {
-                Ok(term) => self.println(format!("{}", term)),
-                Err(e) => self.println(format!("Error: {}", e)),
-              }
+                Ok(term) => self.println(format!("{}", term))?,
+                Err(e) => self.println(format!("Error: {}", e))?,
+              };
               Ok(LineResult::Success)
             }
             Command::Define(boxed) => {
@@ -193,54 +260,54 @@ pub trait Repl {
               match res {
                 Ok(res) => {
                   env.defs.flat_merge_mut(re);
-                  self.println(format!(
-                    "{} : {}",
-                    n,
-                    res.pretty(Some(&n.to_string()), false)
-                  ))
+                  self.println(format!("{} : {}", n, res.pretty(Some(&n.to_string()), false)))?;
                 }
-                Err(e) => self.println(format!("Error: {}", e)),
+                Err(e) => {
+                  self.println(format!("Error: {}", e))?;
+                }
               }
               Ok(LineResult::Success)
             }
             Command::Browse => {
               for (n, d) in env.defs.named_defs() {
-                self.println(format!("{}", d.pretty(n.to_string(), false)))
+                self.println(format!("{}", d.pretty(n.to_string(), false)))?;
               }
               Ok(LineResult::Success)
             }
             Command::Quit => {
-              self.println(format!("Goodbye."));
+              self.println(format!("Goodbye."))?;
               Ok(LineResult::Quit)
             }
           },
           Err(e) => {
             match e {
-              Err::Incomplete(_) => self.println(format!("Incomplete Input")),
+              Err::Incomplete(_) => {
+                self.println(format!("Incomplete Input"))?;
+              }
               Err::Failure(e) => {
-                self.println(format!("Parse Failure:\n"));
-                self.println(format!("{}", e));
+                self.println(format!("Parse Failure:\n"))?;
+                self.println(format!("{}", e))?;
               }
               Err::Error(e) => {
-                self.println(format!("Parse Error:\n"));
-                self.println(format!("{}", e));
+                self.println(format!("Parse Error:\n"))?;
+                self.println(format!("{}", e))?;
               }
             };
-            Err(())
+            Err("Command Error.".to_owned())
           }
         }
       }
       Err(ReplError::Interrupted) => {
-        self.println(format!("CTRL-C"));
+        self.println(format!("CTRL-C"))?;
         Ok(LineResult::Quit)
       }
       Err(ReplError::Eof) => {
-        self.println(format!("CTRL-D"));
+        self.println(format!("CTRL-D"))?;
         Ok(LineResult::Quit)
       }
       Err(ReplError::Other(err)) => {
-        self.println(format!("Error: {}", err));
-        Err(())
+        self.println(format!("Error: {}", err))?;
+        Err("Other Error".to_owned())
       }
     }
   }
@@ -252,8 +319,13 @@ pub fn run_repl(rl: &mut dyn Repl) {
     let readline = rl.readline("⅄ ");
     match rl.handle_line(readline) {
       Ok(LineResult::Success) => continue,
+      Ok(LineResult::Async) => {
+        rl.println("Async call initiated.".to_owned()).unwrap();
+      }
       Ok(LineResult::Quit) => break,
-      Err(()) => continue,
+      Err(e) => {
+        debug!("handle_line: {}", e);
+      }
     }
   }
   rl.save_history();

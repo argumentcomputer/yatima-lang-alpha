@@ -14,12 +14,13 @@ use sp_ipld::{
 };
 
 use sp_std::{
-  vec::Vec,
   borrow::ToOwned,
+  vec::Vec,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -211,8 +212,8 @@ impl fmt::Display for Import {
         self.name, self.alias, self.cid
       )?;
     }
-    for withIdent in self.with.clone() {
-      writeln!(f, "  {}", withIdent)?;
+    for with_ident in self.with.clone() {
+      writeln!(f, "  {}", with_ident)?;
     }
     Ok(())
   }

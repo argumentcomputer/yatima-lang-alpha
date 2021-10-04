@@ -109,11 +109,15 @@ impl PackageEnv {
 pub fn parse_file(env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
   let mut path = env.root.clone();
   path.push(env.path.clone());
-  let txt = fs::read_to_string(&path).map_err(|e| format!("file {:?} not found {:?}", &path, e))?;
+  let txt = fs::read_to_string(&path)
+    .map_err(|e| format!("file {:?} not found {:?}", &path, e))?;
   parse_text(txt.as_str(), env)
 }
 
-pub fn parse_text(txt: &str, env: PackageEnv) -> Result<(Cid, Package, Defs), String> {
+pub fn parse_text(
+  txt: &str,
+  env: PackageEnv,
+) -> Result<(Cid, Package, Defs), String> {
   let path = env.path.clone();
   let input_cid = env.store.put(Ipld::String(txt.to_owned()));
   match parse_package(input_cid, env)(Span::new(&txt)) {
@@ -218,13 +222,21 @@ pub fn parse_import(
       else {
         let env = PackageEnv {
           root: env.root.clone(),
-          path: import_path.clone(),
+          path: import_path
+            .clone()
+            .strip_prefix(env.root.clone())
+            .unwrap()
+            .to_path_buf(),
           open: env.open.clone(),
           done: env.done.clone(),
           store: env.store.clone(),
         };
-        let (from, pack, defs) = parse_file(env.clone())
-            .map_err(|e| nom::Err::Error(error::FileError::new(i, error::FileErrorKind::SystemError(e))))?;
+        let (from, pack, defs) = parse_file(env.clone()).map_err(|e| {
+          nom::Err::Error(error::FileError::new(
+            i,
+            error::FileErrorKind::SystemError(e),
+          ))
+        })?;
         env.remove_open(import_path.clone());
         env.insert_done(import_path, from);
         let names = pack.index.keys();

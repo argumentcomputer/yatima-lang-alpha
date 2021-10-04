@@ -1,4 +1,4 @@
-use crate::{
+use yatima_core::{
   defs::Defs,
   dll::*,
   literal::Literal,
@@ -6,12 +6,18 @@ use crate::{
   term::Term,
 };
 
-use core::ptr::NonNull;
-use core::sync::atomic::{AtomicUsize, Ordering};
-use sp_std::{
+use std::{
   boxed::Box,
-  vec::Vec,
+  collections::BTreeSet,
+  fmt,
   mem,
+  ptr::NonNull,
+  rc::Rc,
+  sync::atomic::{
+    AtomicUsize,
+    Ordering,
+  },
+  vec::Vec,
 };
 
 pub type Parents = DLL<ParentPtr>;
@@ -31,16 +37,17 @@ pub enum ParentPtr {
   Root,
   LamBod(NonNull<Lam>),
   FixBod(NonNull<Fix>),
-  AppLam(NonNull<App>),
+  AppFun(NonNull<App>),
   AppArg(NonNull<App>),
 }
 
 // Runtime DAG nodes
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Var {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Lam {
   pub bod: DAG,
   pub bod_ref: Parents,
@@ -48,6 +55,7 @@ pub struct Lam {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct App {
   pub fun: DAG,
   pub arg: DAG,
@@ -57,6 +65,7 @@ pub struct App {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Fix {
   pub bod: DAG,
   pub bod_ref: Parents,
@@ -64,14 +73,131 @@ pub struct Fix {
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Lit {
   pub lit: Literal,
   pub parents: Option<NonNull<Parents>>,
 }
 
+#[derive(Debug)]
 pub struct Opr {
   pub opr: Op,
   pub parents: Option<NonNull<Parents>>,
+}
+
+impl fmt::Debug for DAG {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    #[inline]
+    fn format_uplink(p: ParentPtr) -> String {
+      match p {
+        ParentPtr::Root => String::from("ROOT"),
+        ParentPtr::LamBod(link) => format!("LamBod<{:?}>", link.as_ptr()),
+        ParentPtr::FixBod(link) => format!("FixBod<{:?}>", link.as_ptr()),
+        ParentPtr::AppFun(link) => format!("AppFun<{:?}>", link.as_ptr()),
+        ParentPtr::AppArg(link) => format!("AppArg<{:?}>", link.as_ptr()),
+      }
+    }
+    #[inline]
+    fn format_parents(dll: Option<NonNull<Parents>>) -> String {
+      match dll {
+        Some(dll) => unsafe {
+          let mut iter = (*dll.as_ptr()).iter();
+          let head =
+            &iter.next().map_or(String::from(""), |head| format_uplink(*head));
+          let mut msg = String::from("[ ") + head;
+          for val in iter {
+            msg = msg + " <-> " + &format_uplink(*val);
+          }
+          msg + " ]"
+        },
+        _ => String::from("[]"),
+      }
+    }
+    fn go(term: DAG, set: &mut BTreeSet<usize>) -> String {
+      match term {
+        DAG::Var(link) => {
+          let Var { parents } = unsafe { link.as_ref() };
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nVar<{:?}> parents: {}",
+              link.as_ptr(),
+              format_parents(*parents)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAG::Lit(link) => {
+          let Lit { parents, lit, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nLit<{:?}> parents: {} (value: {:?})",
+            (link.as_ptr()),
+            format_parents(*parents),
+            lit
+          )
+        }
+        DAG::Opr(link) => {
+          let Opr { parents, .. } = unsafe { link.as_ref() };
+          format!(
+            "\nOpr<{:?}> parents: {}",
+            (link.as_ptr()),
+            format_parents(*parents)
+          )
+        }
+        DAG::Lam(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            let Lam { parents, bod, .. } = unsafe { link.as_ref() };
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nLam<{:?}> parents: {}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAG::Fix(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            let Fix { parents, bod, .. } = unsafe { link.as_ref() };
+            set.insert(link.as_ptr() as usize);
+            format!(
+              "\nFix<{:?}> parents: {}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              go(*bod, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{:?}>", link.as_ptr())
+          }
+        }
+        DAG::App(link) => {
+          if set.get(&(link.as_ptr() as usize)).is_none() {
+            set.insert(link.as_ptr() as usize);
+            let App { fun, arg, parents, copy, .. } = unsafe { link.as_ref() };
+            let copy = copy.map(|link| link.as_ptr() as usize);
+            format!(
+              "\nApp<{:?}> parents: {} copy: {:?}{}{}",
+              link.as_ptr(),
+              format_parents(*parents),
+              copy,
+              go(*fun, set),
+              go(*arg, set)
+            )
+          }
+          else {
+            format!("\nSHARE<{}>", link.as_ptr() as usize)
+          }
+        }
+      }
+    }
+    write!(f, "{}", go(*self, &mut BTreeSet::new()))
+  }
 }
 
 pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -111,7 +237,7 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAG) {
     match parent {
       ParentPtr::LamBod(parent) => (*parent.as_ptr()).bod = newchild,
       ParentPtr::FixBod(parent) => (*parent.as_ptr()).bod = newchild,
-      ParentPtr::AppLam(parent) => (*parent.as_ptr()).fun = newchild,
+      ParentPtr::AppFun(parent) => (*parent.as_ptr()).fun = newchild,
       ParentPtr::AppArg(parent) => (*parent.as_ptr()).arg = newchild,
       ParentPtr::Root => (),
     }
@@ -191,7 +317,7 @@ pub fn free_dead_node(node: DAG) {
       DAG::Opr(link) => {
         Box::from_raw(link.as_ptr());
       }
-      _ => panic!("Runtime error")
+      DAG::Var(_) => (),
     }
   }
 }
@@ -216,7 +342,7 @@ pub fn clean_up(cc: &ParentPtr) {
         clean_up(parent);
       }
     },
-    ParentPtr::AppLam(mut link) | ParentPtr::AppArg(mut link) => unsafe {
+    ParentPtr::AppFun(mut link) | ParentPtr::AppArg(mut link) => unsafe {
       let app = link.as_mut();
       if let Some(app_copy) = app.copy {
         let App { fun, arg, fun_ref, arg_ref, .. } = &mut *app_copy.as_ptr();
@@ -238,10 +364,7 @@ pub fn alloc_val<T>(val: T) -> NonNull<T> {
 }
 
 #[inline]
-pub fn alloc_lam(
-  bod: DAG,
-  parents: Option<NonNull<Parents>>,
-) -> NonNull<Lam> {
+pub fn alloc_lam(bod: DAG, parents: Option<NonNull<Parents>>) -> NonNull<Lam> {
   unsafe {
     let lam = alloc_val(Lam {
       var: Var { parents: None },
@@ -255,10 +378,7 @@ pub fn alloc_lam(
 }
 
 #[inline]
-pub fn alloc_fix(
-  bod: DAG,
-  parents: Option<NonNull<Parents>>,
-) -> NonNull<Fix> {
+pub fn alloc_fix(bod: DAG, parents: Option<NonNull<Parents>>) -> NonNull<Fix> {
   unsafe {
     let fix = alloc_val(Fix {
       var: Var { parents: None },
@@ -286,12 +406,11 @@ pub fn alloc_app(
       arg_ref: mem::zeroed(),
       parents,
     });
-    (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppLam(app));
+    (*app.as_ptr()).fun_ref = DLL::singleton(ParentPtr::AppFun(app));
     (*app.as_ptr()).arg_ref = DLL::singleton(ParentPtr::AppArg(app));
     app
   }
 }
-
 
 // The core up-copy function.
 pub fn upcopy(new_child: DAG, cc: ParentPtr, should_count: bool) {
@@ -326,7 +445,7 @@ pub fn upcopy(new_child: DAG, cc: ParentPtr, should_count: bool) {
           upcopy(DAG::Fix(new_fix), *parent, should_count)
         }
       }
-      ParentPtr::AppLam(link) => {
+      ParentPtr::AppFun(link) => {
         let App { copy, arg, parents, .. } = link.as_ref();
         match copy {
           Some(cache) => {
@@ -368,7 +487,13 @@ enum Single {
 
 // Substitute a variable
 #[inline]
-pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool, should_count: bool) -> DAG {
+pub fn subst(
+  bod: DAG,
+  var: &Var,
+  arg: DAG,
+  fix: bool,
+  should_count: bool,
+) -> DAG {
   let mut input = bod;
   let mut top_app = None;
   let mut spine = vec![];
@@ -461,9 +586,13 @@ pub fn subst(bod: DAG, var: &Var, arg: DAG, fix: bool, should_count: bool) -> DA
   result
 }
 
-// Contract a lambda redex, return the body.
+/// Contract a lambda redex, return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAG {
+pub fn reduce_lam(
+  redex: NonNull<App>,
+  lam: NonNull<Lam>,
+  should_count: bool,
+) -> DAG {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -481,6 +610,7 @@ pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) ->
   top_node
 }
 
+/// Compute the Weak head normal form of the given DAG
 pub fn whnf(dag: &mut DAG, should_count: bool) {
   let mut node = *dag;
   let mut trail: Vec<NonNull<App>> = vec![];
@@ -502,21 +632,27 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
       DAG::Fix(link) => unsafe {
         let Fix { var, bod, .. } = &mut *link.as_ptr();
         replace_child(node, *bod);
-        if !var.parents.is_none() {
+        if var.parents.is_some() {
           let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
-          let result = subst(*bod, var, DAG::Var(NonNull::new_unchecked(&mut new_fix.var)), true, should_count);
+          let result = subst(
+            *bod,
+            var,
+            DAG::Var(NonNull::new_unchecked(&mut new_fix.var)),
+            true,
+            should_count,
+          );
           new_fix.bod = result;
           add_to_parents(result, NonNull::new_unchecked(&mut new_fix.bod_ref));
           replace_child(
             DAG::Var(NonNull::new(var).unwrap()),
-            DAG::Fix(NonNull::new_unchecked(new_fix))
+            DAG::Fix(NonNull::new_unchecked(new_fix)),
           );
         }
         free_dead_node(node);
         node = *bod;
       },
       DAG::Opr(link) => {
-        let opr = unsafe { (*link.as_ptr()).opr };
+        let opr = unsafe { (*link.as_ptr()).opr.clone() };
         let len = trail.len();
         if len == 0 && opr.arity() == 0 {
           let res = opr.apply0();
@@ -536,7 +672,8 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
               let res = opr.apply1(x);
               if let Some(res) = res {
                 let top = DAG::App(trail.pop().unwrap());
-                let new_node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+                let new_node =
+                  DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
                 replace_child(top, new_node);
                 free_dead_node(top);
                 node = new_node;
@@ -561,7 +698,8 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
               if let Some(res) = res {
                 trail.pop();
                 let top = DAG::App(trail.pop().unwrap());
-                let new_node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+                let new_node =
+                  DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
                 replace_child(top, new_node);
                 free_dead_node(top);
                 node = new_node;
@@ -581,11 +719,7 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
           whnf(arg2, should_count);
           whnf(arg3, should_count);
           match (*arg1, *arg2, *arg3) {
-            (
-              DAG::Lit(x_link),
-              DAG::Lit(y_link),
-              DAG::Lit(z_link),
-            ) => {
+            (DAG::Lit(x_link), DAG::Lit(y_link), DAG::Lit(z_link)) => {
               let x = unsafe { &(*x_link.as_ptr()).lit };
               let y = unsafe { &(*y_link.as_ptr()).lit };
               let z = unsafe { &(*z_link.as_ptr()).lit };
@@ -594,7 +728,8 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
                 trail.pop();
                 trail.pop();
                 let top = DAG::App(trail.pop().unwrap());
-                let new_node = DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
+                let new_node =
+                  DAG::Lit(alloc_val(Lit { lit: res, parents: None }));
                 replace_child(top, new_node);
                 free_dead_node(top);
                 node = new_node;
@@ -623,9 +758,9 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
 
 // Assumes erased terms
 pub fn from_term(
-  defs: &Defs,
+  defs: Rc<Defs>,
   term: &Term,
-  parents: Option<NonNull<Parents>>
+  parents: Option<NonNull<Parents>>,
 ) -> DAG {
   let (bod, maybe_fix) = from_term_inner(defs, term, &mut vec![], None, None);
   match maybe_fix {
@@ -639,16 +774,16 @@ pub fn from_term(
     None => {
       set_parents(bod, parents);
       bod
-    },
+    }
   }
 }
 
 pub fn from_term_inner(
-  defs: &Defs,
+  defs: Rc<Defs>,
   term: &Term,
   ctx: &mut Vec<DAG>,
   parents: Option<NonNull<Parents>>,
-  maybe_fix: Option<NonNull<Fix>>
+  maybe_fix: Option<NonNull<Fix>>,
 ) -> (DAG, Option<NonNull<Fix>>) {
   match term {
     Term::Rec(_) => unsafe {
@@ -673,32 +808,27 @@ pub fn from_term_inner(
         (*val, maybe_fix)
       }
       None => panic!("Free variable found"),
-    }
+    },
     Term::Lit(_, lit) => {
       (DAG::Lit(alloc_val(Lit { lit: lit.clone(), parents })), maybe_fix)
     }
     Term::Opr(_, opr) => {
-      (DAG::Opr(alloc_val(Opr { opr: *opr, parents })), maybe_fix)
+      (DAG::Opr(alloc_val(Opr { opr: opr.clone(), parents })), maybe_fix)
     }
     Term::Ref(_, nam, exp, _) => {
       if let Some(def) = defs.defs.get(exp) {
-        (from_term(defs, &def.term, parents), maybe_fix)
+        (from_term(defs.clone(), &def.term, parents), maybe_fix)
       }
       else {
         panic!("undefined runtime reference: {}, {}", nam, exp);
       }
-    },
+    }
     Term::Lam(_, _, bod) => unsafe {
       let lam = alloc_lam(mem::zeroed(), parents);
       let Lam { var, bod_ref, .. } = &mut *lam.as_ptr();
       ctx.push(DAG::Var(NonNull::new(var).unwrap()));
-      let (bod, maybe_fix) = from_term_inner(
-        defs,
-        &**bod,
-        ctx,
-        NonNull::new(bod_ref),
-        maybe_fix,
-      );
+      let (bod, maybe_fix) =
+        from_term_inner(defs, &**bod, ctx, NonNull::new(bod_ref), maybe_fix);
       (*lam.as_ptr()).bod = bod;
       (DAG::Lam(lam), maybe_fix)
     },
@@ -709,19 +839,14 @@ pub fn from_term_inner(
       let app = alloc_app(mem::zeroed(), mem::zeroed(), parents);
       let App { fun_ref, arg_ref, .. } = &mut *app.as_ptr();
       let (fun, maybe_fix) = from_term_inner(
-        defs,
+        defs.clone(),
         fun,
         &mut ctx.clone(),
         NonNull::new(fun_ref),
         maybe_fix,
       );
-      let (arg, maybe_fix) = from_term_inner(
-        defs,
-        arg,
-        ctx,
-        NonNull::new(arg_ref),
-        maybe_fix,
-      );
+      let (arg, maybe_fix) =
+        from_term_inner(defs, arg, ctx, NonNull::new(arg_ref), maybe_fix);
       (*app.as_ptr()).fun = fun;
       (*app.as_ptr()).arg = arg;
       (DAG::App(app), maybe_fix)
@@ -729,22 +854,30 @@ pub fn from_term_inner(
     Term::Ann(_, typ_exp) => {
       let (_, exp) = (**typ_exp).clone();
       from_term_inner(defs, &exp, ctx, parents, maybe_fix)
-    },
+    }
     Term::Let(_, rec, _, _, typ_exp_bod) => unsafe {
       let (_, exp, bod) = &**typ_exp_bod;
       let (exp, maybe_fix) = if *rec {
         let new_fix = alloc_fix(mem::zeroed(), None).as_mut();
-        let (bod, maybe_fix) = from_term_inner(defs, &exp, &mut ctx.clone(), parents, maybe_fix);
+        let (bod, maybe_fix) = from_term_inner(
+          defs.clone(),
+          exp,
+          &mut ctx.clone(),
+          parents,
+          maybe_fix,
+        );
         new_fix.bod = bod;
         add_to_parents(bod, NonNull::new_unchecked(&mut new_fix.bod_ref));
         (DAG::Fix(NonNull::new_unchecked(new_fix)), maybe_fix)
       }
       else {
-        from_term_inner(defs, &exp, &mut ctx.clone(), None, maybe_fix)
+        from_term_inner(defs.clone(), exp, &mut ctx.clone(), None, maybe_fix)
       };
       ctx.push(exp);
-      from_term_inner(defs, &bod, ctx, parents, maybe_fix)
+      from_term_inner(defs, bod, ctx, parents, maybe_fix)
     },
-    _ => panic!("Runtime cannot contain type level terms")
+    _ => {
+      (DAG::Lit(alloc_val(Lit { lit: Literal::I32(0), parents })), maybe_fix)
+    }
   }
 }

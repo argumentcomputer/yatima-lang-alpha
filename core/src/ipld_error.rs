@@ -1,9 +1,9 @@
+use alloc::string::String;
 use sp_ipld::Ipld;
 use sp_std::{
   num::TryFromIntError,
   vec::Vec,
 };
-use alloc::string::String;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum IpldError {
@@ -34,6 +34,7 @@ pub enum IpldError {
   I32Op(Ipld),
   I64Op(Ipld),
   I128Op(Ipld),
+  IoOp(Ipld),
   Anon(Ipld),
   Meta(Ipld),
   Entry(Ipld),
@@ -45,7 +46,5 @@ pub enum IpldError {
 }
 
 impl From<IpldError> for String {
-  fn from(e: IpldError) -> String {
-    format!("{:?}", e)
-  }
+  fn from(e: IpldError) -> String { format!("{:?}", e) }
 }

@@ -14,14 +14,15 @@ use crate::{
 use sp_cid::Cid;
 
 use sp_std::{
-  fmt,
-  vec::Vec,
-  rc::Rc,
   collections::btree_map::BTreeMap,
+  fmt,
+  rc::Rc,
+  vec::Vec,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(Clone, Debug)]
@@ -105,15 +106,11 @@ impl Def {
 }
 
 impl Defs {
-  pub fn new() -> Self { Defs { defs: BTreeMap::new(), names: BTreeMap::new() } }
-
-  pub fn names(&self) -> Vec<Name> {
-    let mut res = Vec::new();
-    for (n, _) in &self.names {
-      res.push(n.clone())
-    }
-    res
+  pub fn new() -> Self {
+    Defs { defs: BTreeMap::new(), names: BTreeMap::new() }
   }
+
+  pub fn names(&self) -> Vec<Name> { self.names.keys().cloned().collect() }
 
   pub fn named_defs(&self) -> Vec<(Name, Def)> {
     let mut res = Vec::new();
@@ -130,7 +127,7 @@ impl Defs {
 
   pub fn get(&self, name: &Name) -> Option<&Def> {
     let def_cid = self.names.get(name)?;
-    self.defs.get(&def_cid)
+    self.defs.get(def_cid)
   }
 
   /// Merge Defs from an Import
@@ -214,8 +211,7 @@ pub mod tests {
 
   pub fn arbitrary_def(g: &mut Gen) -> (Def, Entry) {
     let typ_: Term = Arbitrary::arbitrary(g);
-    let term =
-      arbitrary_term(g, true, test_defs(), Vector::new());
+    let term = arbitrary_term(g, true, test_defs(), Vector::new());
     Def::make(Pos::None, typ_, term)
   }
 

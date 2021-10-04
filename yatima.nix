@@ -1,6 +1,5 @@
 # import niv sources and the pinned nixpkgs
-{ sources ? import ./nix/sources.nix
-, nixpkgs ? import sources.nixpkgs { overlays = [ (import ./nix/rust-overlay.nix) ]; }
+{ nixpkgs ? import <nixpkgs> { overlays = [ (import ./nix/rust-overlay.nix) ]; }
 , target ? null
 , rust ? import ./nix/rust.nix {
     inherit nixpkgs;
@@ -8,18 +7,19 @@
   # Wether to run the tests when building
 , doCheck ? true
   # configure naersk to use our pinned rust compiler
-, naersk ? nixpkgs.callPackage sources.naersk {
-    rustc = rust;
-    cargo = rust;
-  }
+, naersk
 , src ? ./.
   # This is impure so it should be provided with the correct information
 , system ? builtins.currentSystem
 }:
+let
+  inherit (nixpkgs) lib stdenv;
+in
 naersk.buildPackage {
   name = "yatima";
   version = "0.1.0";
-  buildInputs = with nixpkgs; [ openssl pkg-config ];
+  buildInputs = with nixpkgs; [ openssl pkg-config ] ++
+    lib.optionals stdenv.isLinux [ glibc ];
   PKG_CONFIG_PATH = "${nixpkgs.openssl.dev}/lib/pkgconfig";
   targets = if target then [ target ] else [ ];
   inherit src;

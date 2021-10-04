@@ -8,10 +8,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 yatima-core = { path = "../core" }
+yatima-runtime = { path = "../runtime" }
 sp-std = { version = "3", default-features = false }
 sp-cid = "0.1"
 sp-multihash = "0.1"
 sp-ipld = "0.1"
+bytecursor = "0.1"
 multibase = "0.9.1"
 multiaddr = "*"
 sp-im = "0.1"
@@ -23,9 +25,7 @@ nom_locate = "3.0.1"
 base-x = "0.2.8"
 petgraph = "0.5.1"
 ropey = {git = "https://github.com/yatima-inc/ropey", branch = "main"}
-serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
-
-[target."wasm32-unknown-unknown".dependencies]
-# This is to allow for universal logging macros
+reqwest = { version = "0.11", features = [ "multipart", "json", "blocking" ] }
 wasm-bindgen = "0.2.72"
+wasm-bindgen-futures = "0.4.22"

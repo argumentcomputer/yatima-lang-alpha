@@ -23,11 +23,11 @@ use nom::{
 };
 
 use sp_std::{
-  vec::Vec,
-  boxed::Box,
   borrow::ToOwned,
+  boxed::Box,
+  vec::Vec,
 };
-   
+
 use alloc::string::String;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]

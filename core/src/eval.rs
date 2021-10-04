@@ -9,8 +9,8 @@ use crate::{
 
 use sp_std::{
   collections::btree_map::BTreeMap,
-  vec::Vec,
   mem,
+  vec::Vec,
 };
 
 use alloc::string::String;
@@ -32,7 +32,13 @@ enum Branch {
 
 // Substitute a variable
 #[inline]
-pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool) -> DAGPtr {
+pub fn subst(
+  bod: DAGPtr,
+  var: &Var,
+  arg: DAGPtr,
+  fix: bool,
+  should_count: bool,
+) -> DAGPtr {
   let mut input = bod;
   let mut top_branch = None;
   let mut result = arg;
@@ -253,7 +259,11 @@ pub fn subst(bod: DAGPtr, var: &Var, arg: DAGPtr, fix: bool, should_count: bool)
 
 // Contract a lambda redex, return the body.
 #[inline]
-pub fn reduce_lam(redex: NonNull<App>, lam: NonNull<Lam>, should_count: bool) -> DAGPtr {
+pub fn reduce_lam(
+  redex: NonNull<App>,
+  lam: NonNull<Lam>,
+  should_count: bool,
+) -> DAGPtr {
   let App { arg, .. } = unsafe { redex.as_ref() };
   let Lam { var, bod, parents, .. } = unsafe { &mut *lam.as_ptr() };
   let top_node = if DLL::is_singleton(*parents) {
@@ -363,14 +373,15 @@ impl DAG {
         DAGPtr::Fix(link) => unsafe {
           let Fix { var, bod, .. } = &mut *link.as_ptr();
           replace_child(node, *bod);
-          if !var.parents.is_none() {
+          if var.parents.is_some() {
             let new_fix =
               alloc_fix(var.nam.clone(), 0, mem::zeroed(), None).as_mut();
             let result = subst(
               *bod,
               var,
               DAGPtr::Var(NonNull::new_unchecked(&mut new_fix.var)),
-              true, should_count
+              true,
+              should_count,
             );
             new_fix.bod = result;
             add_to_parents(
@@ -392,7 +403,7 @@ impl DAG {
             let parents = *ref_parents;
             *ref_parents = None;
             let ref_node = node;
-            node = DAG::from_ref(&def, nam.clone(), *exp, *ast, parents);
+            node = DAG::from_ref(def, nam.clone(), *exp, *ast, parents);
             free_dead_node(ref_node);
             for parent in DLL::iter_option(parents) {
               install_child(parent, node);
@@ -403,7 +414,7 @@ impl DAG {
           }
         }
         DAGPtr::Opr(link) => {
-          let opr = unsafe { (*link.as_ptr()).opr };
+          let opr = unsafe { (*link.as_ptr()).opr.clone() };
           let len = trail.len();
           if len == 0 && opr.arity() == 0 {
             let res = opr.apply0();
@@ -597,7 +608,7 @@ pub mod test {
   #[test]
   pub fn parse_test() {
     fn parse_assert(input: &str) {
-      match parse(&input) {
+      match parse(input) {
         Ok((_, dag)) => assert_eq!(format!("{}", dag), input),
         Err(_) => panic!("Did not parse."),
       }
@@ -608,7 +619,7 @@ pub mod test {
     parse_assert("λ y => (λ z => z z) ((λ x => x) y)");
   }
 
-  fn norm_assert(input: &str, result: &str) {
+  pub fn norm_assert(input: &str, result: &str) {
     match parse(&input) {
       Ok((_, mut dag)) => {
         dag.norm(&Defs::new(), false);
@@ -617,7 +628,8 @@ pub mod test {
       Err(_) => panic!("Did not parse."),
     }
   }
-  fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
+
+  pub fn norm_assert_defs(input: &str, result: &str, defs: Defs) {
     match parse(&input) {
       Ok((_, mut dag)) => {
         dag.norm(&defs, false);

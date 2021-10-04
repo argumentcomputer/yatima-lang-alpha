@@ -1,5 +1,7 @@
 use crate::{
+  defs,
   ipld_error::IpldError,
+  parse,
   parse::base,
   position::Pos,
   prim::{
@@ -21,14 +23,15 @@ use num_bigint::{
 };
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryInto,
   fmt,
   vec::Vec,
-  borrow::ToOwned,
 };
 
-use alloc::{
-  string::{String, ToString},
+use alloc::string::{
+  String,
+  ToString,
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -301,9 +304,7 @@ impl Literal {
           let bits = bits::bytes_to_bits(*len as usize, x);
           Ok(Self::Bits(bits))
         }
-        [Ipld::Integer(3), Ipld::Bytes(x)] => {
-          Ok(Self::Bytes(x.to_owned().into()))
-        }
+        [Ipld::Integer(3), Ipld::Bytes(x)] => Ok(Self::Bytes(x.to_owned())),
         [Ipld::Integer(4), Ipld::Bytes(x)] => String::from_utf8(x.to_owned())
           .map_or_else(
             |e| Err(IpldError::Utf8(x.clone(), e)),
@@ -537,8 +538,8 @@ pub mod tests {
 
   use crate::tests::frequency;
   use sp_std::{
-    vec::Vec,
     boxed::Box,
+    vec::Vec,
   };
 
   pub fn arbitrary_nat() -> Box<dyn Fn(&mut Gen) -> Literal> {
@@ -566,7 +567,7 @@ pub mod tests {
   pub fn arbitrary_bytes() -> Box<dyn Fn(&mut Gen) -> Literal> {
     Box::new(move |g: &mut Gen| {
       let x: Vec<u8> = Arbitrary::arbitrary(g);
-      Literal::Bytes(x.into())
+      Literal::Bytes(x)
     })
   }
 

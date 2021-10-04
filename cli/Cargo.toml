@@ -12,11 +12,12 @@ path = "src/main.rs"
 [dependencies]
 yatima-core = { path = "../core", features = ["std"]}
 yatima-utils = { path = "../utils"}
+yatima-runtime = { path = "../runtime" }
+sized-chunks = { version = "0.6.5", default-features = false }
 sp-cid = "0.1"
 sp-multihash = "0.1"
 sp-ipld = "0.1.1"
 bytecursor = "0.1"
-sized-chunks = "0.6.5"
 multibase = "0.9.1"
 multiaddr = "*"
 structopt = "0.3.21"
@@ -25,13 +26,17 @@ nom_locate = "3.0.2"
 bit-vec = "0.6.3"
 base-x = "0.2.8"
 futures = "0.3.13"
-rustyline = "7.1.0"
 directories-next = "2.0.0"
-reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
-# ipfs = "0.2.1"
+ropey = { git = "https://github.com/yatima-inc/ropey", branch = "main" }
+url = "2.2.2"
+
+# Not wasm/wasi compatible
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rustyline = "7.1.0"
 tokio = { version = "1.5", features = ["rt", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.11.3", features = [ "multipart", "json" ] }
 
 [dev-dependencies]
 quickcheck = "1.0.3"
