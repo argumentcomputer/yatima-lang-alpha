@@ -6,8 +6,8 @@ use crate::{
 
 use sp_std::{
   collections::{
-    vec_deque::VecDeque,
     btree_map::BTreeMap,
+    vec_deque::VecDeque,
   },
   vec::Vec,
 };

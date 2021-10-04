@@ -1,5 +1,8 @@
 #[cfg(not(target_arch = "wasm32"))]
-use std::io::{self, Write};
+use std::io::{
+  self,
+  Write,
+};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -34,7 +37,9 @@ macro_rules! log {
 /// Logs when compiled with debug
 #[cfg(debug_assertions)]
 #[cfg(not(target_arch = "wasm32"))]
-pub fn debug(s: &str) { io::stdout().write(["[DEBUG]", s].join(" ").as_bytes()).unwrap(); }
+pub fn debug(s: &str) {
+  io::stdout().write(["[DEBUG]", s].join(" ").as_bytes()).unwrap();
+}
 
 #[macro_export]
 macro_rules! debug {

@@ -3,8 +3,13 @@ use crate::{
   dll::*,
 };
 
-use core::ptr::NonNull;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::{
+  ptr::NonNull,
+  sync::atomic::{
+    AtomicUsize,
+    Ordering,
+  },
+};
 
 pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 

@@ -7,9 +7,9 @@ use sp_cid::Cid;
 use sp_ipld::Ipld;
 
 use sp_std::{
+  borrow::ToOwned,
   convert::TryInto,
   fmt,
-  borrow::ToOwned,
 };
 
 use alloc::string::String;
