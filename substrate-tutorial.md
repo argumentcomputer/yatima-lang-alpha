@@ -8,8 +8,7 @@
    version = '3.0.0'
    [dependencies.yatima-core]
    default-features = false
-   git = 'https://github.com/yatima-inc/yatima'
-   branch = "sb/no-std" 
+   version = '0.1.1'
    ```
    Add `yatima-core`'s `std` feature
    ```rust

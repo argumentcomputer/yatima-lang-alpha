@@ -1,6 +1,6 @@
 [package]
 name = "yatima-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = [
     "John C. Burnham <john@yatima.io>",
@@ -26,11 +26,11 @@ nom = { version = "6", default-features = false, features = ["alloc"] }
 base-x = { version = "0.2.8", default-features = false }
 multibase = { version = "0.9.1", default-features = false }
 nom_locate = { version = "3.0", default-features = false }
-sp-cid = { version = "0.2.0" }
+sp-cid = { version = "0.2.0", default-features = false }
 sp-multihash = { version = "0.2.0", default-features = false }
 sp-ipld = { version = "0.1.2", default-features = false, features = ["dag-cbor"] }
 sp-sized-chunks = { version = "0.1.0", default-features = false }
-sp-im = { version = "0.1.0", default-features = false }
+sp-im = { version = "0.2.1", default-features = false }
 sp-ropey = { version = "0.1.0", default-features = false }
 
 [dev-dependencies]

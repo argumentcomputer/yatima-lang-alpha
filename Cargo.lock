@@ -75,15 +75,6 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitmaps"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
-dependencies = [
- "typenum",
-]
-
-[[package]]
-name = "bitmaps"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "303cec55cd9c5fde944b061b902f142b52a8bb5438cc822481ea1e3ebc96bbcb"
@@ -1395,16 +1386,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sized-chunks"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
-dependencies = [
- "bitmaps 2.1.0",
- "typenum",
-]
-
-[[package]]
 name = "slab"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1441,14 +1422,14 @@ dependencies = [
 
 [[package]]
 name = "sp-im"
-version = "0.1.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30c3320ed23a386f80c2286b2de6837c9628750fa774213ceafa0f5927d37f23"
+checksum = "47f6283955ad2b89754e7574a482bd1ee85f69066bc637d2c360a33fe83723ad"
 dependencies = [
- "bitmaps 3.1.0",
+ "bitmaps",
  "rand_core 0.5.1",
  "rand_xoshiro",
- "sized-chunks",
+ "sp-sized-chunks",
  "sp-std",
  "spin",
  "typenum",
@@ -1521,7 +1502,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48b91f9c361e49548aae5e54de185b17f09485803cd09bd61f25a168a4ff0e93"
 dependencies = [
- "bitmaps 3.1.0",
+ "bitmaps",
 ]
 
 [[package]]
@@ -2052,7 +2033,7 @@ dependencies = [
 
 [[package]]
 name = "yatima-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base-x",
  "multibase",

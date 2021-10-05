@@ -16,7 +16,7 @@ sp-ipld = "0.1.2"
 bytecursor = "0.1.2"
 multibase = "0.9.1"
 multiaddr = "*"
-sp-im = { version = "0.1.0", default-features = false }
+sp-im = { version = "0.2.1", default-features = false }
 sp-sized-chunks = { version = "0.1.0", default-features = false }
 bit-vec = "0.6.3"
 num-bigint = "0.3.1"
