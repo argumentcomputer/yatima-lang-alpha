@@ -150,7 +150,10 @@ impl Store for WebStore {
   fn put(&self, expr: Ipld) -> Cid {
     let link = cid(&expr);
     let data = DagCborCodec.encode(&expr).unwrap();
-    match self.storage.set(&link.to_string(), &base64::encode(data.clone().into_inner())) {
+    match self
+      .storage
+      .set(&link.to_string(), &base64::encode(data.clone().into_inner()))
+    {
       Ok(()) => (),
       Err(_) => log!("Failed to put to local_storage"),
     }

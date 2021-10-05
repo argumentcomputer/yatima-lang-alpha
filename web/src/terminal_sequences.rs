@@ -28,12 +28,18 @@ pub mod terminal_sequences {
   /// The behavior of the bell is further customizable with https://docs.rs/xterm-js-rs/0.1.1/xterm_js_rs/xterm/struct.TerminalOptions.html#method.set_bell_style and https://docs.rs/xterm-js-rs/0.1.1/xterm_js_rs/xterm/struct.TerminalOptions.html#method.set_bell_sound.
   pub const BEL: &str = "\u{07}";
   /// Move the cursor one position to the left.
-  /// By default it is not possible to move the cursor past the leftmost position. If `reverse wrap-around` (`CSI ? 45 h`) is set, a previous soft line wrap (DECAWM) can be undone with BS within the scroll margins. In that case the cursor will wrap back to the end of the previous row. Note that it is not possible to peek back into the scrollbuffer with the cursor, thus at the home position (top-leftmost cell) this has no effect.
+  /// By default it is not possible to move the cursor past the leftmost
+  /// position. If `reverse wrap-around` (`CSI ? 45 h`) is set, a previous soft
+  /// line wrap (DECAWM) can be undone with BS within the scroll margins. In
+  /// that case the cursor will wrap back to the end of the previous row. Note
+  /// that it is not possible to peek back into the scrollbuffer with the
+  /// cursor, thus at the home position (top-leftmost cell) this has no effect.
   pub const BS: &str = "\u{08}";
   /// Move the cursor to the next character tab stop.
   pub const HT: &str = "\u{09}";
   /// Move the cursor one row down, scrolling if needed.
-  /// Scrolling is restricted to scroll margins and will only happen on the bottom line.
+  /// Scrolling is restricted to scroll margins and will only happen on the
+  /// bottom line.
   pub const LF: &str = "\u{0A}";
   /// Treated as LF.
   pub const VT: &str = "\u{0B}";
@@ -75,7 +81,9 @@ pub mod terminal_sequences {
   pub const DA2: &str = "\u{9B}>c";
   /// Reset several terminal attributes to initial state.
   ///
-  /// There are two terminal reset sequences - RIS and DECSTR. While RIS performs almost a full terminal bootstrap, DECSTR only resets certain attributes. For most needs DECSTR should be sufficient.
+  /// There are two terminal reset sequences - RIS and DECSTR. While RIS
+  /// performs almost a full terminal bootstrap, DECSTR only resets certain
+  /// attributes. For most needs DECSTR should be sufficient.
   ///
   /// The following terminal attributes are reset to default values:
   ///
@@ -104,13 +112,17 @@ pub mod terminal_sequences {
   // Parameterised sequences (accepts parameters ``ps``, `Pm` or `Pt`)
   // CSI
   /// ICH: Insert `ps` (blank) characters (default = 1).
-  /// The ICH sequence inserts `ps` blank characters. The cursor remains at the beginning of the blank characters. Text between the cursor and right margin moves to the right. Characters moved past the right margin are lost.
+  /// The ICH sequence inserts `ps` blank characters. The cursor remains at the
+  /// beginning of the blank characters. Text between the cursor and right
+  /// margin moves to the right. Characters moved past the right margin are
+  /// lost.
   pub fn insert_characters(ps: usize) -> String {
     String::from(format!("{}{}@", CSI, ps))
   }
 
   /// SL: Scroll viewport `ps` times to the left.
-  /// Moves the content of all lines within the scroll margins `ps` times to the left. Has no effect outside of the scroll margins.
+  /// Moves the content of all lines within the scroll margins `ps` times to the
+  /// left. Has no effect outside of the scroll margins.
   pub fn scroll_left(ps: usize) -> String {
     String::from(format!("{}{} @", CSI, ps))
   }
@@ -122,7 +134,9 @@ pub mod terminal_sequences {
   }
 
   /// SR: Scroll viewport `ps` times to the right.
-  /// Moves the content of all lines within the scroll margins `ps` times to the right. Content at the right margin is lost. Has no effect outside of the scroll margins.
+  /// Moves the content of all lines within the scroll margins `ps` times to the
+  /// right. Content at the right margin is lost. Has no effect outside of the
+  /// scroll margins.
   pub fn scroll_right(ps: usize) -> String {
     String::from(format!("{}{} A", CSI, ps))
   }
@@ -161,7 +175,10 @@ pub mod terminal_sequences {
   }
 
   /// CUP: Set cursor to position [`ps_a`, `ps_b`] (default = [1, 1]).
-  /// If ORIGIN mode is set, places the cursor to the absolute position within the scroll margins. If ORIGIN mode is not set, places the cursor to the absolute position within the viewport. Note that the coordinates are 1-based, thus the top left position starts at 1 ; 1.
+  /// If ORIGIN mode is set, places the cursor to the absolute position within
+  /// the scroll margins. If ORIGIN mode is not set, places the cursor to the
+  /// absolute position within the viewport. Note that the coordinates are
+  /// 1-based, thus the top left position starts at 1 ; 1.
   pub fn cursor_position(ps_a: usize, ps_b: usize) -> String {
     String::from(format!("{}{};{}H", CSI, ps_a, ps_b))
   }
@@ -201,19 +218,25 @@ pub mod terminal_sequences {
   }
 
   /// IL: Insert `ps` blank lines at active row (default=1).
-  /// For every inserted line at the scroll top one line at the scroll bottom gets removed. The cursor is set to the first column. IL has no effect if the cursor is outside the scroll margins.
+  /// For every inserted line at the scroll top one line at the scroll bottom
+  /// gets removed. The cursor is set to the first column. IL has no effect if
+  /// the cursor is outside the scroll margins.
   pub fn insert_lines(ps: usize) -> String {
     String::from(format!("{}{}L", CSI, ps))
   }
 
   /// DL: Delete `ps` lines at active row (default=1).
-  /// For every deleted line at the scroll top one blank line at the scroll bottom gets appended. The cursor is set to the first column. DL has no effect if the cursor is outside the scroll margins.
+  /// For every deleted line at the scroll top one blank line at the scroll
+  /// bottom gets appended. The cursor is set to the first column. DL has no
+  /// effect if the cursor is outside the scroll margins.
   pub fn delete_lines(ps: usize) -> String {
     String::from(format!("{}{}M", CSI, ps))
   }
 
   /// DCH: Delete `ps` characters (default=1).
-  /// As characters are deleted, the remaining characters between the cursor and right margin move to the left. Character attributes move with the characters. The terminal adds blank characters at the right margin.
+  /// As characters are deleted, the remaining characters between the cursor and
+  /// right margin move to the left. Character attributes move with the
+  /// characters. The terminal adds blank characters at the right margin.
   pub fn delete_characters(ps: usize) -> String {
     String::from(format!("{}{}P", CSI, ps))
   }
@@ -228,8 +251,9 @@ pub mod terminal_sequences {
     String::from(format!("{}{}T", CSI, ps))
   }
 
-  /// ECH: Erase `ps` characters from current cursor position to the right (default=1).
-  /// ED erases `ps` characters from current cursor position to the right. ED works inside or outside the scrolling margins.
+  /// ECH: Erase `ps` characters from current cursor position to the right
+  /// (default=1). ED erases `ps` characters from current cursor position to
+  /// the right. ED works inside or outside the scrolling margins.
   pub fn erase_characters(ps: usize) -> String {
     String::from(format!("{}{}X", CSI, ps))
   }
@@ -250,7 +274,10 @@ pub mod terminal_sequences {
   }
 
   /// REP: Repeat preceding character `ps` times (default=1).
-  /// Repeats the previous character `ps` times advancing the cursor, also wrapping if DECAWM is set. Has no effect if the sequence does not follow a printable ASCII character (NOOP for any other sequence in between or NON ASCII characters).
+  /// Repeats the previous character `ps` times advancing the cursor, also
+  /// wrapping if DECAWM is set. Has no effect if the sequence does not follow a
+  /// printable ASCII character (NOOP for any other sequence in between or NON
+  /// ASCII characters).
   pub fn repeat_preceding_character(ps: usize) -> String {
     String::from(format!("{}{}b", CSI, ps))
   }
@@ -271,7 +298,8 @@ pub mod terminal_sequences {
   }
 
   /// TBC: Clear tab stops at current position (0) or all (3) (default=0).
-  /// Clearing tabstops off the active row (`ps` = 2, VT100) is currently not supported.
+  /// Clearing tabstops off the active row (`ps` = 2, VT100) is currently not
+  /// supported.
   pub fn tab_clear(ps: usize) -> String {
     String::from(format!("{}{}g", CSI, ps))
   }
@@ -287,7 +315,8 @@ pub mod terminal_sequences {
     for (index, param) in ps.into_iter().enumerate() {
       if index < max_index {
         out.push_str(&format!("{};", param));
-      } else {
+      }
+      else {
         out.push_str(&format!("{}h", param));
       }
     }
@@ -325,7 +354,8 @@ pub mod terminal_sequences {
     for (index, param) in ps.into_iter().enumerate() {
       if index < max_index {
         out.push_str(&format!("{};", param));
-      } else {
+      }
+      else {
         out.push_str(&format!("{}h", param));
       }
     }
@@ -343,7 +373,8 @@ pub mod terminal_sequences {
     for (index, param) in ps.into_iter().enumerate() {
       if index < max_index {
         out.push_str(&format!("{};", param));
-      } else {
+      }
+      else {
         out.push_str(&format!("{}l", param));
       }
     }
@@ -379,7 +410,8 @@ pub mod terminal_sequences {
     for (index, param) in ps.into_iter().enumerate() {
       if index < max_index {
         out.push_str(&format!("{};", param));
-      } else {
+      }
+      else {
         out.push_str(&format!("{}l", param));
       }
     }
@@ -408,25 +440,31 @@ pub mod terminal_sequences {
     String::from(format!("{}{} q", CSI, ps))
   }
 
-  /// DECSTBM: Set top and bottom margins of the viewport [top;bottom] (default = viewport size).
+  /// DECSTBM: Set top and bottom margins of the viewport [top;bottom] (default
+  /// = viewport size).
   pub fn set_top_and_bottom_margin(ps_a: usize, ps_b: usize) -> String {
     String::from(format!("{}{};{}r", CSI, ps_a, ps_b))
   }
 
   /// DECIC: Insert `ps` columns at cursor position.
-  /// Inserts `ps` times blank columns at the cursor position for all lines with the scroll margins, moving content to the right. Content at the right margin is lost. Has no effect outside the scrolling margins.
+  /// Inserts `ps` times blank columns at the cursor position for all lines with
+  /// the scroll margins, moving content to the right. Content at the right
+  /// margin is lost. Has no effect outside the scrolling margins.
   pub fn insert_columns(ps: usize) -> String {
     String::from(format!("{}{}'}}", CSI, ps))
   }
 
   /// DECDC: Delete `ps` columns at cursor position.
-  /// Deletes `ps` times columns at the cursor position for all lines with the scroll margins, moving content to the left. Blank columns are added at the right margin. Has no effect outside the scrolling margins.
+  /// Deletes `ps` times columns at the cursor position for all lines with the
+  /// scroll margins, moving content to the left. Blank columns are added at the
+  /// right margin. Has no effect outside the scrolling margins.
   pub fn delete_columns(ps: usize) -> String {
     String::from(format!("{}{}'~", CSI, ps))
   }
 
   /// 2: Set window title.
-  /// xterm.js does not manipulate the title directly, instead exposes changes via the event `Terminal.onTitleChange`.
+  /// xterm.js does not manipulate the title directly, instead exposes changes
+  /// via the event `Terminal.onTitleChange`.
   pub fn set_window_title(pt: String) -> String {
     String::from(format!("{}2;{}{}", OSC, pt, BEL))
   }

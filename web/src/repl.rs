@@ -3,14 +3,29 @@ use std::{
   convert::TryInto,
   path::PathBuf,
   rc::Rc,
-  sync::{Arc, Mutex},
+  sync::{
+    Arc,
+    Mutex,
+  },
 };
-use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
-use wasm_bindgen::{prelude::*, JsCast};
+use unicode_segmentation::{
+  GraphemeCursor,
+  UnicodeSegmentation,
+};
+use wasm_bindgen::{
+  prelude::*,
+  JsCast,
+};
 use xterm_js_rs::{
-  addons::{fit::FitAddon, search::SearchAddon, web_links::WebLinksAddon},
-  Terminal, TerminalOptions, Theme,
+  addons::{
+    fit::FitAddon,
+    search::SearchAddon,
+    web_links::WebLinksAddon,
+  },
   FontWeight,
+  Terminal,
+  TerminalOptions,
+  Theme,
 };
 use yatima_utils::{
   file::parse::{self, PackageEnv},
@@ -22,7 +37,7 @@ use yatima_utils::{
 use crate::{
   store::WebStore,
   terminal_sequences::terminal_sequences,
-  utils::{self},
+  utils::{self,},
 };
 
 // Assumes this has no tab graphemes.
@@ -78,17 +93,16 @@ impl Repl for WebRepl {
     Ok(self.shell_state.lock().unwrap().clone().line)
   }
 
-  fn get_env(&self) -> Arc<Mutex<ReplEnv>> {
-    self.env.clone()
-  }
+  fn get_env(&self) -> Arc<Mutex<ReplEnv>> { self.env.clone() }
 
-  fn get_store(&self) -> Rc<dyn Store> {
-    self.store.clone()
-  }
+  fn get_store(&self) -> Rc<dyn Store> { self.store.clone() }
 
   fn println(&self, s: String) -> Result<(), String> {
     // The term needs \r to move the cursor back to the start of the line
-    let m = s.replace(terminal_sequences::LF, &(terminal_sequences::LF.to_owned() + terminal_sequences::CR));
+    let m = s.replace(
+      terminal_sequences::LF,
+      &(terminal_sequences::LF.to_owned() + terminal_sequences::CR),
+    );
     self.terminal.writeln(m.as_str());
     Ok(())
   }
@@ -137,17 +151,17 @@ impl Repl for WebRepl {
 // const BASE01: &str = "#586e75";
 const BASE00: &str = "#657b83";
 // const BASE0:  &str = "#839496";
-const BASE1:  &str = "#93a1a1";
-const BASE2:  &str = "#eee8d5";
-const BASE3:  &str = "#fdf6e3";
+const BASE1: &str = "#93a1a1";
+const BASE2: &str = "#eee8d5";
+const BASE3: &str = "#fdf6e3";
 const YELLOW: &str = "#b58900";
 // const ORANGE: &str = "#cb4b16";
-const RED:    &str = "#dc322f";
-const MAGENTA:&str = "#d33682";
+const RED: &str = "#dc322f";
+const MAGENTA: &str = "#d33682";
 // const VIOLET: &str = "#6c71c4";
-const BLUE:   &str = "#268bd2";
-const CYAN:   &str = "#2aa198";
-const GREEN:  &str = "#859900";
+const BLUE: &str = "#268bd2";
+const CYAN: &str = "#2aa198";
+const GREEN: &str = "#859900";
 
 fn solarized_light_theme() -> Theme {
   let theme = Theme::new();
@@ -185,9 +199,7 @@ fn terminal_options() -> TerminalOptions {
 
 impl WebRepl {
   pub fn new() -> Self {
-    let terminal: Terminal = Terminal::new(
-      &terminal_options()
-    );
+    let terminal: Terminal = Terminal::new(&terminal_options());
 
     let elem = web_sys::window()
       .unwrap()
@@ -236,7 +248,8 @@ impl WebRepl {
     shell_state.clone()
   }
 
-  // TODO: (properly) handle newline graphemes in handling of left, right, ^left, ^right, home, end, delete and backspace keys.
+  // TODO: (properly) handle newline graphemes in handling of left, right,
+  // ^left, ^right, home, end, delete and backspace keys.
   pub fn handle_data(&mut self, data: String) {
     let mut ss = self.read_shell_state();
     let term: Terminal = self.get_terminal();
@@ -286,14 +299,16 @@ impl WebRepl {
                 == terminal_sequences::HT
               {
                 term.write(&terminal_sequences::cursor_backwards(TAB_WIDTH));
-              } else {
+              }
+              else {
                 term.write(&terminal_sequences::cursor_backwards(
                   ss.cursor.cur_cursor() - prev_boundary,
                 ));
               }
               ss.cursor.set_cursor(prev_boundary);
               break;
-            } else {
+            }
+            else {
               word_bound_index.next();
             }
           }
@@ -310,14 +325,16 @@ impl WebRepl {
                 == terminal_sequences::HT
               {
                 term.write(&terminal_sequences::cursor_forwards(TAB_WIDTH));
-              } else {
+              }
+              else {
                 term.write(&terminal_sequences::cursor_forwards(
                   next_boundary - ss.cursor.cur_cursor(),
                 ));
               }
               ss.cursor.set_cursor(next_boundary);
               break;
-            } else {
+            }
+            else {
               word_bound_index.next();
             }
           }
@@ -353,7 +370,8 @@ impl WebRepl {
           .fold((0, 0), |acc, grapheme| {
             if grapheme == terminal_sequences::HT {
               (acc.0 + 1, acc.1)
-            } else {
+            }
+            else {
               (acc.0, acc.1 + 1)
             }
           });
@@ -391,7 +409,9 @@ impl WebRepl {
       }
       // Delete previous grapheme.
       terminal_sequences::BS | "\u{7f}" => {
-        // Backspace should only work if the cursor is on a grapheme boundary > the first grapheme boundary (which should be the beginning of the line).
+        // Backspace should only work if the cursor is on a grapheme boundary >
+        // the first grapheme boundary (which should be the beginning of the
+        // line).
         if let (true, Ok(true), Ok(Some(prev_boundary))) = (
           ss.cursor.cur_cursor() > 0,
           ss.cursor.is_boundary(&ss.line, 0),
@@ -431,7 +451,8 @@ impl WebRepl {
       }
       // Delete current grapheme.
       terminal_sequences::DELETE => {
-        // Delete should only work if the cursor is on a grapheme boundary < the last grapheme boundary (which should be the end of the line).
+        // Delete should only work if the cursor is on a grapheme boundary < the
+        // last grapheme boundary (which should be the end of the line).
         if let (true, Ok(true), Ok(Some(next_boundary))) = (
           ss.cursor.cur_cursor() < ss.line.len(),
           ss.cursor.is_boundary(&ss.line, 0),
@@ -469,7 +490,8 @@ impl WebRepl {
       _ => {
         if &data == terminal_sequences::HT {
           term.write(&" ".repeat(TAB_WIDTH));
-        } else {
+        }
+        else {
           term.write(&data);
         }
         ss.line.insert_str(ss.cursor.cur_cursor(), &data);
