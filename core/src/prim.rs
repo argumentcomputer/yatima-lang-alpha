@@ -156,7 +156,7 @@ impl Op {
   /// Returns the number of parameters used in the operation
   pub fn arity(&self) -> u64 {
     match self {
-      #[cfg(feature = "std")]
+      //#[cfg(feature = "std")]
       Self::Io(op) => op.arity(),
       Self::Nat(op) => op.arity(),
       Self::Int(op) => op.arity(),
@@ -181,7 +181,7 @@ impl Op {
   /// Applies a nullary operation to a literal and returns it if successful
   pub fn apply0(&self) -> Option<Literal> {
     match self {
-      #[cfg(feature = "std")]
+      //#[cfg(feature = "std")]
       Self::Io(op) => op.apply0(),
       Self::U8(op) => op.apply0(),
       Self::U16(op) => op.apply0(),
@@ -200,7 +200,7 @@ impl Op {
   /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(&self, x: &Literal) -> Option<Literal> {
     match self {
-      #[cfg(feature = "std")]
+      //#[cfg(feature = "std")]
       Self::Io(op) => op.apply1(x),
       Self::Nat(op) => op.apply1(x),
       Self::Int(op) => op.apply1(x),
@@ -225,7 +225,7 @@ impl Op {
   /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(&self, x: &Literal, y: &Literal) -> Option<Literal> {
     match self {
-      #[cfg(feature = "std")]
+      //#[cfg(feature = "std")]
       Self::Io(op) => op.apply2(x, y),
       Self::Nat(op) => op.apply2(x, y),
       Self::Int(op) => op.apply2(x, y),
@@ -267,7 +267,7 @@ impl Op {
   /// Returns the type of the primitive
   pub fn type_of(&self) -> Term {
     match self {
-      #[cfg(feature = "std")]
+      //#[cfg(feature = "std")]
       Self::Io(op) => op.type_of(),
       Self::Nat(op) => op.type_of(),
       Self::Int(op) => op.type_of(),

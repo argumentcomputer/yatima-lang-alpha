@@ -6,6 +6,7 @@ use sp_std::{
   fmt,
   rc::Rc
 };
+use alloc::string::String;
 
 #[derive(Clone)]
 pub struct IoOp {
