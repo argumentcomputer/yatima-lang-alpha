@@ -29,7 +29,8 @@ use sp_std::{
 use alloc::string::String;
 use sp_cid::Cid;
 
-/// A directed acyclic graph (DAG) used to reduce Yatima terms.
+/// A λ-DAG used to reduce Yatima terms. Acts like a directed acyclice graph,
+/// but has backpointers for the bottom-up reduction algorithm.
 pub struct DAG {
   pub head: DAGPtr,
 }

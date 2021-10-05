@@ -39,7 +39,7 @@ pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   DAG::dag_ptr_to_term(&dag, &mut map, dep, true).embed().0.cid()
 }
 
-/// Checks if two DAGs are equal in weak head normal form
+/// Lazily checks if two DAGs are beta equivalent. 
 pub fn equal(
   defs: &Defs,
   a: &mut DAG,
