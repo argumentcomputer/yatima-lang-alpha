@@ -14,7 +14,7 @@ use crate::{
 
 use sp_ipld::Ipld;
 
-use ropey::Rope;
+use sp_ropey::Rope;
 
 use num_bigint::{
   BigInt,

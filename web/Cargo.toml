@@ -17,10 +17,10 @@ base64 = "0.13.0"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 js-sys = "0.3.49"
 multiaddr = "*"
-sp-cid = "0.1"
-sp-ipld = "0.1"
-bytecursor = "0.1"
-sized-chunks = "0.6.5"
+sp-cid = "0.2"
+sp-ipld = "0.1.2"
+bytecursor = "0.1.2"
+sp-sized-chunks = { version = "0.1.0", default-features = false }
 unicode-segmentation = "1.8.0"
 wasm-bindgen = { version = "0.2.72", features = ["serde-serialize"]  }
 wasm-bindgen-futures = "0.4.22"

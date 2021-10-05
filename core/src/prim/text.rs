@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use ropey::Rope;
+use sp_ropey::Rope;
 use sp_ipld::Ipld;
 
 use sp_std::{
