@@ -9,7 +9,7 @@ authors = [
     "Samuel Burnham <sam@yatima.io>",
 ]
 license = "MIT"
-readme = "README.md"
+readme = "../README.md"
 homepage = "https://yatima.io"
 repository = "https://github.com/yatima-inc/yatima"
 documentation = "https://docs.rs/yatima"
