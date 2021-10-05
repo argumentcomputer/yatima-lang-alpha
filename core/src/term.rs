@@ -1,5 +1,6 @@
 pub use crate::{
   anon::Anon,
+  defs,
   embed_error::EmbedError,
   literal::{
     LitType,
@@ -7,6 +8,7 @@ pub use crate::{
   },
   meta::Meta,
   name::Name,
+  parse,
   position::Pos,
   prim::Op,
   uses::Uses,
@@ -254,7 +256,7 @@ impl Term {
       }
       Self::Lit(pos, lit) => (Anon::Lit(lit.clone()), Meta::Lit(*pos)),
       Self::LTy(pos, lty) => (Anon::LTy(*lty), Meta::LTy(*pos)),
-      Self::Opr(pos, opr) => (Anon::Opr(*opr), Meta::Opr(*pos)),
+      Self::Opr(pos, opr) => (Anon::Opr(opr.clone()), Meta::Opr(*pos)),
       Self::Rec(pos) => (Anon::Rec, Meta::Rec(*pos)),
       Self::Typ(pos) => (Anon::Typ, Meta::Typ(*pos)),
       Self::Lam(pos, name, body) => {
@@ -330,7 +332,7 @@ impl Term {
       }
       (Anon::Lit(lit), Meta::Lit(pos)) => Ok(Self::Lit(*pos, lit.clone())),
       (Anon::LTy(lty), Meta::LTy(pos)) => Ok(Self::LTy(*pos, *lty)),
-      (Anon::Opr(opr), Meta::Opr(pos)) => Ok(Self::Opr(*pos, *opr)),
+      (Anon::Opr(opr), Meta::Opr(pos)) => Ok(Self::Opr(*pos, opr.clone())),
       (Anon::Typ, Meta::Typ(pos)) => Ok(Self::Typ(*pos)),
       (Anon::Rec, Meta::Rec(pos)) => Ok(Self::Rec(*pos)),
       (Anon::Lam(anon_bod), Meta::Lam(pos, nam, meta_bod)) => {
@@ -380,7 +382,7 @@ impl Term {
           *pos,
           *rec,
           *uses,
-          Name::from(name.clone()),
+          name.clone(),
           Box::new((typ, exp, bod)),
         ))
       }
@@ -534,7 +536,6 @@ impl fmt::Display for Term {
 pub mod tests {
 
   use super::{
-    Term::*,
     *,
   };
   use crate::{
@@ -637,7 +638,7 @@ pub mod tests {
         Self::Rec => Term::Rec(Pos::None),
         Self::Typ => Term::Typ(Pos::None),
         Self::Ref(n, d, a) => Term::Ref(Pos::None, n.clone(), *d, *a),
-        Self::Opr(x) => Term::Opr(Pos::None, *x),
+        Self::Opr(x) => Term::Opr(Pos::None, x.clone()),
         Self::Lit(x) => Term::Lit(Pos::None, x.clone()),
         Self::LTy(x) => Term::LTy(Pos::None, *x),
         Self::Lam(n, bod) => {

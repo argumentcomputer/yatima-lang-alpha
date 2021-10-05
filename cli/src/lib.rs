@@ -12,7 +12,11 @@
 extern crate yatima_core;
 
 pub mod file;
+// TODO make WASI compatible
+#[cfg(not(target_arch = "wasm32"))]
 pub mod ipfs;
+// TODO make WASI compatible
+#[cfg(not(target_arch = "wasm32"))]
 pub mod repl;
 
 pub use yatima_core::name::Name;

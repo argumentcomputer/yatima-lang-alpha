@@ -16,6 +16,8 @@ pub mod u32;
 pub mod u64;
 pub mod u8;
 
+pub mod io;
+
 use sp_std::{
   borrow::ToOwned,
   fmt,
@@ -41,6 +43,7 @@ use crate::prim::{
   i64::I64Op,
   i8::I8Op,
   int::IntOp,
+  io::IoOp,
   nat::NatOp,
   text::TextOp,
   u16::U16Op,
@@ -50,8 +53,9 @@ use crate::prim::{
 };
 
 /// Primitive types and their operations
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Op {
+  Io(IoOp),
   Nat(NatOp),
   Int(IntOp),
   Bits(BitsOp),
@@ -73,8 +77,9 @@ pub enum Op {
 
 impl Op {
   /// Gets the syntax string of a primitive operation
-  pub fn symbol(self) -> String {
+  pub fn symbol(&self) -> String {
     match self {
+      Self::Io(op) => format!("#Io.{}", op.symbol()),
       Self::Nat(op) => format!("#Nat.{}", op.symbol()),
       Self::Int(op) => format!("#Int.{}", op.symbol()),
       Self::Text(op) => format!("#Text.{}", op.symbol()),
@@ -96,8 +101,9 @@ impl Op {
   }
 
   /// Converts a primitive operation into an IPLD object
-  pub fn to_ipld(self) -> Ipld {
+  pub fn to_ipld(&self) -> Ipld {
     match self {
+      Self::Io(_) => panic!("IO operations cannot be serialized"),
       Self::Nat(op) => Ipld::List(vec![Ipld::Integer(0), op.to_ipld()]),
       Self::Int(op) => Ipld::List(vec![Ipld::Integer(1), op.to_ipld()]),
       Self::Bits(op) => Ipld::List(vec![Ipld::Integer(2), op.to_ipld()]),
@@ -122,6 +128,8 @@ impl Op {
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
+        //#[cfg(feature = "std")]
+        //[Ipld::Integer(-1), ys] => IoOp::from_ipld(ys).map(Self::Io),
         [Ipld::Integer(0), ys] => NatOp::from_ipld(ys).map(Self::Nat),
         [Ipld::Integer(1), ys] => IntOp::from_ipld(ys).map(Self::Int),
         [Ipld::Integer(2), ys] => BitsOp::from_ipld(ys).map(Self::Bits),
@@ -146,8 +154,10 @@ impl Op {
   }
 
   /// Returns the number of parameters used in the operation
-  pub fn arity(self) -> u64 {
+  pub fn arity(&self) -> u64 {
     match self {
+      #[cfg(feature = "std")]
+      Self::Io(op) => op.arity(),
       Self::Nat(op) => op.arity(),
       Self::Int(op) => op.arity(),
       Self::Bits(op) => op.arity(),
@@ -169,8 +179,10 @@ impl Op {
   }
 
   /// Applies a nullary operation to a literal and returns it if successful
-  pub fn apply0(self) -> Option<Literal> {
+  pub fn apply0(&self) -> Option<Literal> {
     match self {
+      #[cfg(feature = "std")]
+      Self::Io(op) => op.apply0(),
       Self::U8(op) => op.apply0(),
       Self::U16(op) => op.apply0(),
       Self::U32(op) => op.apply0(),
@@ -186,8 +198,10 @@ impl Op {
   }
 
   /// Applies a unary operation to a literal and returns it if successful
-  pub fn apply1(self, x: &Literal) -> Option<Literal> {
+  pub fn apply1(&self, x: &Literal) -> Option<Literal> {
     match self {
+      #[cfg(feature = "std")]
+      Self::Io(op) => op.apply1(x),
       Self::Nat(op) => op.apply1(x),
       Self::Int(op) => op.apply1(x),
       Self::Bits(op) => op.apply1(x),
@@ -209,8 +223,10 @@ impl Op {
   }
 
   /// Applies a binary operation to a literal and returns it if successful
-  pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
+  pub fn apply2(&self, x: &Literal, y: &Literal) -> Option<Literal> {
     match self {
+      #[cfg(feature = "std")]
+      Self::Io(op) => op.apply2(x, y),
       Self::Nat(op) => op.apply2(x, y),
       Self::Int(op) => op.apply2(x, y),
       Self::Bits(op) => op.apply2(x, y),
@@ -235,7 +251,7 @@ impl Op {
 
   /// Applies a ternary operation to a literal and returns it if successful
   pub fn apply3(
-    self,
+    &self,
     x: &Literal,
     y: &Literal,
     z: &Literal,
@@ -249,8 +265,10 @@ impl Op {
   }
 
   /// Returns the type of the primitive
-  pub fn type_of(self) -> Term {
+  pub fn type_of(&self) -> Term {
     match self {
+      #[cfg(feature = "std")]
+      Self::Io(op) => op.type_of(),
       Self::Nat(op) => op.type_of(),
       Self::Int(op) => op.type_of(),
       Self::Bits(op) => op.type_of(),

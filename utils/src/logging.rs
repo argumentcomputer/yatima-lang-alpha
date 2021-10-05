@@ -1,5 +1,8 @@
 #[cfg(not(target_arch = "wasm32"))]
-use std::io::{self, Write};
+use std::io::{
+  self,
+  Write,
+};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -34,15 +37,17 @@ macro_rules! log {
 /// Logs when compiled with debug
 #[cfg(debug_assertions)]
 #[cfg(not(target_arch = "wasm32"))]
-pub fn debug(s: &str) { io::stdout().write(["[DEBUG]", s].join(" ").as_bytes()).unwrap(); }
+pub fn debug(s: &str) {
+  io::stdout().write_all(["[DEBUG]", s, "\n"].join(" ").as_bytes()).unwrap();
+}
 
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => ($crate::utils::debug(&format!($($arg)*)));
+    ($($arg:tt)*) => ($crate::logging::debug(&format!($($arg)*)));
 }
 
 /// Logs info to std out
 #[cfg(not(target_arch = "wasm32"))]
 pub fn log(s: &str) {
-  io::stdout().write(["[INFO]", s].join(" ").as_bytes()).unwrap();
+  io::stdout().write_all(["[INFO]", s, "\n"].join(" ").as_bytes()).unwrap();
 }

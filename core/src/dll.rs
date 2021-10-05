@@ -15,6 +15,7 @@ use alloc::string::{
 
 /// A doubly-linked list (DLL) node
 /// Uses raw pointers in order to share mutable DAG references
+#[derive(Debug)]
 pub struct DLL<T> {
   pub next: Option<NonNull<DLL<T>>>,
   pub prev: Option<NonNull<DLL<T>>>,

@@ -119,11 +119,7 @@ impl Defs {
 
   /// Gets a list of the name keys in sorted order
   pub fn names(&self) -> Vec<Name> {
-    let mut res = Vec::new();
-    for (n, _) in &self.names {
-      res.push(n.clone())
-    }
-    res
+    self.names.keys().cloned().collect()
   }
 
   /// Gets a list of the named defs
@@ -144,7 +140,7 @@ impl Defs {
   /// Gets a def from the defs
   pub fn get(&self, name: &Name) -> Option<&Def> {
     let def_cid = self.names.get(name)?;
-    self.defs.get(&def_cid)
+    self.defs.get(def_cid)
   }
 
   /// Merges Defs from an Import

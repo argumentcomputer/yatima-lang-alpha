@@ -1,22 +1,23 @@
-use nom::{
-  Finish,
-};
 use sp_cid::Cid;
 use std::{
   path::PathBuf,
   rc::Rc,
 };
 use structopt::StructOpt;
-use yatima_cli::{
-  file::store::{
-    FileStore,
-    FileStoreOpts,
-  },
-  repl,
+use yatima_cli::file::store::{
+  FileStore,
+  FileStoreOpts,
 };
-use yatima_core::name::Name;
+#[cfg(not(target_arch = "wasm32"))]
+use yatima_cli::repl;
+use yatima_core::{
+  name::Name,
+  parse::parse_cid,
+};
+use yatima_runtime::transform::StdIORuntime;
 use yatima_utils::{
   file,
+  ipfs::IpfsApi,
   store::{
     show,
     Store,
@@ -27,8 +28,8 @@ use yatima_utils::{
 #[structopt(about = "A programming language for the decentralized web")]
 struct Cli {
   /// Pin data to the local IPFS daemon
-  #[structopt(short, long, help = "Turn on adding data to the IPFS daemon.")]
-  use_ipfs_daemon: bool,
+  #[structopt(short = "i", long = "ipfs", help = "Turn on adding data to the IPFS daemon.")]
+  use_ipfs: bool,
 
   #[structopt(
     long,
@@ -96,32 +97,37 @@ enum ShowType {
   },
 }
 
-fn parse_cid(
-  s: &str,
-) -> Result<Cid, yatima_core::parse::error::ParseError<nom_locate::LocatedSpan<&str>>> {
-  let result = yatima_core::parse::package::parse_link(yatima_core::parse::span::Span::new(&s))
-    .finish()
-    .map(|(_, x)| x);
-  result
+#[cfg(not(target_arch = "wasm32"))]
+#[tokio::main]
+async fn main() -> std::io::Result<()> { run_cli() }
+
+#[cfg(target_arch = "wasm32")]
+fn main() -> std::io::Result<()> { run_cli() }
+
+#[cfg(not(target_arch = "wasm32"))]
+fn repl(store: Rc<FileStore>) -> std::io::Result<()> {
+  repl::main(store);
+  Ok(())
 }
 
-//   Test,
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
+#[cfg(target_arch = "wasm32")]
+fn repl(_store: Rc<dyn Store>) -> std::io::Result<()> {
+  eprintln!("REPL not supported on WASI yet.");
+  Ok(())
+}
+
+fn run_cli() -> std::io::Result<()> {
   let cli = Cli::from_args();
   let root = cli.root.unwrap_or_else(|| std::env::current_dir().unwrap());
-  let store = Rc::new(FileStore::new(FileStoreOpts {
-    use_ipfs_daemon: cli.use_ipfs_daemon,
-    use_file_store: !cli.no_file_store,
-    root: root.clone(),
-  }));
+  let ipfs = if cli.use_ipfs { Some(IpfsApi::new("localhost:5001".to_string())) } else { None };
+  let store = Rc::new(FileStore::new(
+    FileStoreOpts { use_file_store: !cli.no_file_store, root: root.clone() },
+    ipfs,
+  ));
   match cli.command {
-    Command::Repl => {
-      repl::main(store);
-      Ok(())
-    }
+    Command::Repl => repl(store),
     Command::Show { typ: ShowType::File { path } } => {
-      let env = file::parse::PackageEnv::new(root, path, store.clone());
+      let env = file::parse::PackageEnv::new(root, path, store);
       match file::parse::parse_file(env) {
         Ok((_, pack, _)) => {
           println!("{}", pack);
@@ -208,21 +214,27 @@ async fn main() -> std::io::Result<()> {
     }
     Command::Run { path } => {
       let env = file::parse::PackageEnv::new(root, path.clone(), store.clone());
-      let (_, p, defs) = file::parse::parse_file(env).map_err(|e| {
-        eprintln!("{}", e);
-        std::io::Error::from(std::io::ErrorKind::Other)
-      })?;
+      let (_, p, defs) = file::parse::parse_file(env).map_err(handle_error_string)?;
+      let p = Rc::new(p);
+      let defs = Rc::new(defs);
 
       let _cid = store.put(p.to_ipld());
-      let def = defs
-        .get(&Name::from("main"))
-        .expect(&format!("No `main` expression in package {} from file {:?}", p.name, path));
-      let mut dag = yatima_core::dag::DAG::from_term(&def.to_owned().term);
-      dag.norm(&defs, false);
-      println!("{}", dag);
+
+      let checked = file::check_all(p.clone(), defs, store).map_err(handle_error_string)?;
+      let def = checked.get(&Name::from("main")).unwrap_or_else(|| {
+        panic!("No `main` expression in package {} from file {:?}", p.name, path)
+      });
+      let runtime_io = Rc::new(StdIORuntime::new());
+
+      yatima_runtime::run(&mut def.to_owned().term, checked, runtime_io);
       Ok(())
     }
   }
+}
+
+pub fn handle_error_string(e: String) -> std::io::Error {
+  eprintln!("{}", e);
+  std::io::Error::from(std::io::ErrorKind::Other)
 }
 
 // for valgrind testing

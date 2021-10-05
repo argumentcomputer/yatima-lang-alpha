@@ -14,8 +14,10 @@ use alloc::string::{
 };
 
 use crate::{
+  defs,
   ipld_error::IpldError,
   literal::Literal,
+  parse,
   term::Term,
   yatima,
 };

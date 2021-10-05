@@ -14,6 +14,8 @@ use crate::{
   prim::bits,
   term::Term,
   yatima,
+  parse,
+  defs,
 };
 
 /// Primitive 128-bit signed integer operations

@@ -1,6 +1,5 @@
 use directories_next::ProjectDirs;
 
-use crate::ipfs;
 use bytecursor::ByteCursor;
 use multiaddr::Multiaddr;
 use sp_cid::Cid;
@@ -13,25 +12,32 @@ use sp_ipld::{
   Ipld,
 };
 use std::{
-  sync::{
-    Arc,
-    Mutex
-  },
+  collections::HashMap,
   fs,
   path::{
     Path,
     PathBuf,
   },
   rc::Rc,
-  collections::HashMap,
+  sync::{
+    Arc,
+    Mutex,
+  },
 };
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::{
   runtime::Handle,
   task,
 };
+use yatima_core::defs::Defs;
 use yatima_utils::{
+  debug,
   file::parse,
-  store::Store,
+  ipfs::IpfsApi,
+  store::{
+    Callback,
+    Store,
+  },
 };
 
 pub fn hashspace_directory() -> PathBuf {
@@ -106,8 +112,6 @@ pub fn fs_put(expr: Ipld) -> Cid {
 
 #[derive(Debug, Clone)]
 pub struct FileStoreOpts {
-  /// Put and get data from the local IPFS daemon
-  pub use_ipfs_daemon: bool,
   /// Write to the file system
   pub use_file_store: bool,
   /// The relative root directory
@@ -117,14 +121,94 @@ pub struct FileStoreOpts {
 #[derive(Debug, Clone)]
 pub struct FileStore {
   pub opts: FileStoreOpts,
+  /// Put and get data from the IPFS daemon
+  pub ipfs_api: Option<IpfsApi>,
   /// This is used when use_file_store is false
   mem_store: Arc<Mutex<HashMap<Cid, Ipld>>>,
 }
 
 impl FileStore {
-  pub fn new(opts: FileStoreOpts) -> Self { FileStore { opts, mem_store: Default::default() } }
+  pub fn new(opts: FileStoreOpts, ipfs_api: Option<IpfsApi>) -> Self {
+    FileStore { opts, mem_store: Default::default(), ipfs_api }
+  }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl Store for FileStore {
+  fn get_by_multiaddr(&self, _addr: Multiaddr) -> Result<Ipld, String> {
+    // ipfs::get(addr);
+    // TODO implement
+    Err("Not implemented".to_owned())
+  }
+
+  fn needs_callback(&self) -> bool { false }
+
+  fn get_with_callback(&self, _link: Cid, _callback: Callback<Ipld, Defs>) {
+    panic!("Not implemented for this platform.")
+  }
+
+  fn load_by_name_with_callback(&self, _path: Vec<&str>, _callback: Callback<Ipld, Defs>) {
+    panic!("Not implemented for this platform.")
+  }
+
+  fn load_by_name(&self, path: Vec<&str>) -> Result<Ipld, String> {
+    let mut fs_path = self.opts.root.clone();
+    for n in path {
+      fs_path.push(n);
+    }
+    fs_path.set_extension("ya");
+    let env = parse::PackageEnv::new(self.opts.root.clone(), fs_path, Rc::new(self.clone()));
+    let (_cid, p, _ds) = parse::parse_file(env)?;
+    let ipld = p.to_ipld();
+    Ok(ipld)
+  }
+
+  fn get(&self, link: Cid) -> Option<Ipld> {
+    if !self.opts.use_file_store {
+      self.mem_store.lock().unwrap().get(&link).cloned()
+    }
+    else {
+      fs_get(link).or_else(|| {
+        self
+          .ipfs_api
+          .as_ref()
+          .map(|api| {
+            task::block_in_place(move || {
+              Handle::current().block_on(async move { api.dag_get(link.to_string()).await.ok() })
+            })
+          })
+          .flatten()
+      })
+    }
+  }
+
+  fn put(&self, expr: Ipld) -> Cid {
+    self.ipfs_api.as_ref().map(|api| {
+      let expr = expr.clone();
+      task::block_in_place(move || {
+        Handle::current().block_on(async move {
+          match api.dag_put(expr).await {
+            Ok(_r) => {
+              // debug!("Put success {:?}\n", r)
+              ()
+            }
+            Err(e) => debug!("Put error {:?}\n", e),
+          }
+        })
+      });
+    });
+    if !self.opts.use_file_store {
+      let link = cid(&expr);
+      self.mem_store.lock().unwrap().insert(link, expr);
+      link
+    }
+    else {
+      fs_put(expr)
+    }
+  }
+}
+
+#[cfg(target_arch = "wasm32")]
 impl Store for FileStore {
   fn get_by_multiaddr(&self, _addr: Multiaddr) -> Result<Ipld, String> {
     // ipfs::get(addr);
@@ -149,28 +233,11 @@ impl Store for FileStore {
       self.mem_store.lock().unwrap().get(&link).map(|ipld| ipld.clone())
     }
     else {
-      fs_get(link).or_else(|| {
-        if self.opts.use_ipfs_daemon {
-          task::block_in_place(move || {
-            Handle::current().block_on(async move { ipfs::dag_get(link.to_string()).await.ok() })
-          })
-        }
-        else {
-          None
-        }
-      })
+      fs_get(link)
     }
   }
 
   fn put(&self, expr: Ipld) -> Cid {
-    if self.opts.use_ipfs_daemon {
-      let expr = expr.clone();
-      task::block_in_place(move || {
-        Handle::current().block_on(async move {
-          ipfs::dag_put(expr).await.unwrap();
-        })
-      });
-    }
     if !self.opts.use_file_store {
       let link = cid(&expr);
       self.mem_store.lock().unwrap().insert(link, expr);
