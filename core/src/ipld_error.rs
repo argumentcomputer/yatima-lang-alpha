@@ -5,6 +5,7 @@ use sp_std::{
   vec::Vec,
 };
 
+/// IPLD objects that fail during conversion
 #[derive(PartialEq, Debug, Clone)]
 pub enum IpldError {
   Utf8(Vec<u8>, alloc::string::FromUtf8Error),

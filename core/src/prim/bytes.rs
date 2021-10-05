@@ -20,6 +20,7 @@ use crate::{
 
 use core::convert::TryFrom;
 
+/// Primitive byte operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum BytesOp {
   Cons,
@@ -36,6 +37,7 @@ pub enum BytesOp {
 }
 
 impl BytesOp {
+  /// Gets the syntax string of a Bytes operation
   pub fn symbol(self) -> String {
     match self {
       Self::Cons => "cons".to_owned(),
@@ -52,6 +54,7 @@ impl BytesOp {
     }
   }
 
+  /// Gets a Bytes operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "cons" => Some(Self::Cons),
@@ -69,6 +72,7 @@ impl BytesOp {
     }
   }
 
+  /// Returns the type of a Bytes operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Cons => yatima!("∀ #U8 #Bytes -> #Bytes"),
@@ -85,6 +89,7 @@ impl BytesOp {
     }
   }
 
+  /// Converts a Bytes operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Cons => Ipld::Integer(0),
@@ -101,6 +106,7 @@ impl BytesOp {
     }
   }
 
+  /// Converts an IPLD object into a Bytes operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Cons),
@@ -118,6 +124,7 @@ impl BytesOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Cons => 2,
@@ -134,6 +141,7 @@ impl BytesOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -152,6 +160,7 @@ impl BytesOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
@@ -202,6 +211,7 @@ impl BytesOp {
     }
   }
 
+  /// Applies a ternary operation to a literal and returns it if successful
   pub fn apply3(
     self,
     x: &Literal,
@@ -226,6 +236,7 @@ impl BytesOp {
   }
 }
 
+/// Split bytes
 pub fn safe_split(idx: &BigUint, xs: &Vec<u8>) -> (Vec<u8>, Vec<u8>) {
   let idx = usize::try_from(idx);
   match idx {

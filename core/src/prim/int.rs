@@ -20,6 +20,7 @@ use crate::{
   yatima,
 };
 
+/// Primitive integer operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum IntOp {
   New,
@@ -38,6 +39,7 @@ pub enum IntOp {
 }
 
 impl IntOp {
+  /// Gets the syntax string of an integer operation
   pub fn symbol(self) -> String {
     match self {
       Self::New => "new".to_owned(),
@@ -56,6 +58,7 @@ impl IntOp {
     }
   }
 
+  /// Gets an integer operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "new" => Some(Self::New),
@@ -75,6 +78,7 @@ impl IntOp {
     }
   }
 
+  /// Returns the type of an integer operation
   pub fn type_of(self) -> Term {
     match self {
       Self::New => yatima!("∀ #Bool #Nat -> #Int"),
@@ -93,6 +97,7 @@ impl IntOp {
     }
   }
 
+  /// Converts an integer operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::New => Ipld::Integer(0),
@@ -111,6 +116,7 @@ impl IntOp {
     }
   }
 
+  /// Converts an IPLD object into an integer operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::New),
@@ -130,6 +136,7 @@ impl IntOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::New => 2,
@@ -148,6 +155,7 @@ impl IntOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -157,6 +165,7 @@ impl IntOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     let tt = Bool(true);

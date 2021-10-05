@@ -20,6 +20,7 @@ use crate::{
 
 use num_bigint::BigUint;
 
+/// Primitive 64-bit signed integer operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum I64Op {
   Abs,
@@ -63,6 +64,7 @@ pub enum I64Op {
 }
 
 impl I64Op {
+  /// Gets the syntax string of an i64 operation
   pub fn symbol(self) -> String {
     match self {
       Self::Abs => "abs".to_owned(),
@@ -106,6 +108,7 @@ impl I64Op {
     }
   }
 
+  /// Gets an i64 operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "abs" => Some(Self::Abs),
@@ -150,6 +153,7 @@ impl I64Op {
     }
   }
 
+  /// Returns the type of an i64 operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Abs => yatima!("∀ #I64 -> #U64"),
@@ -193,6 +197,7 @@ impl I64Op {
     }
   }
 
+  /// Converts an i64 operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Abs => Ipld::Integer(0),
@@ -236,6 +241,7 @@ impl I64Op {
     }
   }
 
+  /// Converts an IPLD object into an i64 operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Abs),
@@ -280,6 +286,7 @@ impl I64Op {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Abs => 1,
@@ -323,6 +330,7 @@ impl I64Op {
     }
   }
 
+  /// Applies a nullary operation to a literal and returns it if successful
   pub fn apply0(self) -> Option<Literal> {
     use Literal::*;
     match self {
@@ -332,6 +340,7 @@ impl I64Op {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -366,6 +375,7 @@ impl I64Op {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {

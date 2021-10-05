@@ -52,6 +52,7 @@ use crate::prim::{
   u8::U8Op,
 };
 
+/// Primitive types and their operations
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Op {
   Io(IoOp),
@@ -75,6 +76,7 @@ pub enum Op {
 }
 
 impl Op {
+  /// Gets the syntax string of a primitive operation
   pub fn symbol(&self) -> String {
     match self {
       Self::Io(op) => format!("#Io.{}", op.symbol()),
@@ -98,6 +100,7 @@ impl Op {
     }
   }
 
+  /// Converts a primitive operation into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Io(_) => panic!("IO operations cannot be serialized"),
@@ -121,6 +124,7 @@ impl Op {
     }
   }
 
+  /// Converts an IPLD object into a primitive operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -149,6 +153,7 @@ impl Op {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(&self) -> u64 {
     match self {
       #[cfg(feature = "std")]
@@ -173,6 +178,7 @@ impl Op {
     }
   }
 
+  /// Applies a nullary operation to a literal and returns it if successful
   pub fn apply0(&self) -> Option<Literal> {
     match self {
       #[cfg(feature = "std")]
@@ -191,6 +197,7 @@ impl Op {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(&self, x: &Literal) -> Option<Literal> {
     match self {
       #[cfg(feature = "std")]
@@ -215,6 +222,7 @@ impl Op {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(&self, x: &Literal, y: &Literal) -> Option<Literal> {
     match self {
       #[cfg(feature = "std")]
@@ -241,6 +249,7 @@ impl Op {
     }
   }
 
+  /// Applies a ternary operation to a literal and returns it if successful
   pub fn apply3(
     &self,
     x: &Literal,
@@ -255,6 +264,7 @@ impl Op {
     }
   }
 
+  /// Returns the type of the primitive
   pub fn type_of(&self) -> Term {
     match self {
       #[cfg(feature = "std")]

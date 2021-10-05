@@ -19,6 +19,7 @@ use crate::{
 
 use core::convert::TryFrom;
 
+/// Primitive bit operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum BitsOp {
   Cons,
@@ -35,6 +36,7 @@ pub enum BitsOp {
 }
 
 impl BitsOp {
+  /// Gets the syntax string of a Bits operation
   pub fn symbol(self) -> String {
     match self {
       Self::Cons => "cons".to_owned(),
@@ -51,6 +53,7 @@ impl BitsOp {
     }
   }
 
+  /// Gets a Bits operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "cons" => Some(Self::Cons),
@@ -68,6 +71,7 @@ impl BitsOp {
     }
   }
 
+  /// Returns the type of a Bits operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Cons => yatima!("∀ #Bool #Bits -> #Bits"),
@@ -84,6 +88,7 @@ impl BitsOp {
     }
   }
 
+  /// Converts a Bits operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Cons => Ipld::Integer(0),
@@ -100,6 +105,7 @@ impl BitsOp {
     }
   }
 
+  /// Converts an IPLD object into a Bits operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Cons),
@@ -117,6 +123,7 @@ impl BitsOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Cons => 2,
@@ -133,6 +140,7 @@ impl BitsOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -152,6 +160,7 @@ impl BitsOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
@@ -198,6 +207,7 @@ impl BitsOp {
     }
   }
 
+  /// Applies a ternary operation to a literal and returns it if successful
   pub fn apply3(
     self,
     x: &Literal,
@@ -222,6 +232,7 @@ impl BitsOp {
   }
 }
 
+/// Split bits into two lists of bits as booleans
 pub fn safe_split(idx: &BigUint, xs: &Vec<bool>) -> (Vec<bool>, Vec<bool>) {
   let idx = usize::try_from(idx);
   match idx {
@@ -234,6 +245,7 @@ pub fn safe_split(idx: &BigUint, xs: &Vec<bool>) -> (Vec<bool>, Vec<bool>) {
   }
 }
 
+/// Converts a list of 8 bits into a byte
 pub fn bits_to_byte(bits: &[bool]) -> u8 {
   let mut i = 0;
   for b in bits.iter().rev() {
@@ -247,6 +259,7 @@ pub fn bits_to_byte(bits: &[bool]) -> u8 {
   i
 }
 
+/// Converts a byte into a list of 8 bits
 pub fn byte_to_bits(byte: u8) -> [bool; 8] {
   let mut x = byte;
   let mut res: [bool; 8] = [false; 8];
@@ -257,6 +270,7 @@ pub fn byte_to_bits(byte: u8) -> [bool; 8] {
   res
 }
 
+/// Converts a list of arbitrary bits into bytes
 pub fn bits_to_bytes(bits: &Vec<bool>) -> (usize, Vec<u8>) {
   let len = bits.len();
   let mut res = Vec::new();
@@ -273,6 +287,7 @@ pub fn bits_to_bytes(bits: &Vec<bool>) -> (usize, Vec<u8>) {
   (len, res)
 }
 
+/// Converts a list of bytes into bits
 pub fn bytes_to_bits(len: usize, bytes: &Vec<u8>) -> Vec<bool> {
   let mut res = Vec::new();
   for byte in bytes {

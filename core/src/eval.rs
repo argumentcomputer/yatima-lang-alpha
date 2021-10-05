@@ -30,7 +30,7 @@ enum Branch {
   Let(NonNull<Let>),
 }
 
-// Substitute a variable
+/// Substitutes a variable
 #[inline]
 pub fn subst(
   bod: DAGPtr,
@@ -257,7 +257,7 @@ pub fn subst(
   result
 }
 
-// Contract a lambda redex, return the body.
+/// Contracts a lambda redex and return the body.
 #[inline]
 pub fn reduce_lam(
   redex: NonNull<App>,
@@ -281,7 +281,7 @@ pub fn reduce_lam(
   top_node
 }
 
-// Contract a let redex, return the body.
+/// Contracts a let redex and return the body.
 #[inline]
 pub fn reduce_let(redex: NonNull<Let>, should_count: bool) -> DAGPtr {
   let Let { bod: lam, exp: arg, .. } = unsafe { redex.as_ref() };
@@ -311,7 +311,7 @@ pub fn print_trail(trail: &Vec<NonNull<App>>) -> Vec<String> {
 }
 
 impl DAG {
-  // Reduce term to its weak head normal form
+  /// Reduces a DAG to its weak head normal form.
   pub fn whnf(&mut self, defs: &Defs, should_count: bool) {
     let mut node = self.head;
     let mut trail: Vec<NonNull<App>> = vec![];
@@ -522,7 +522,7 @@ impl DAG {
     }
   }
 
-  // Reduce term to its normal form
+  /// Reduces a DAG to its normal form.
   pub fn norm(&mut self, defs: &Defs, should_count: bool) {
     self.whnf(defs, should_count);
     let mut trail = vec![self.head];

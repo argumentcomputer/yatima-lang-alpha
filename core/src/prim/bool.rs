@@ -16,6 +16,7 @@ use crate::{
   yatima,
 };
 
+/// Primitive boolean operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum BoolOp {
   Eql,
@@ -30,6 +31,7 @@ pub enum BoolOp {
 }
 
 impl BoolOp {
+  /// Gets the syntax string of a boolean operation
   pub fn symbol(self) -> String {
     match self {
       Self::Eql => "eql".to_owned(),
@@ -44,6 +46,7 @@ impl BoolOp {
     }
   }
 
+  /// Gets a Bool operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "eql" => Some(Self::Eql),
@@ -59,6 +62,7 @@ impl BoolOp {
     }
   }
 
+  /// Returns the type of a Bool operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Eql => yatima!("∀ #Bool #Bool -> #Bool"),
@@ -73,6 +77,7 @@ impl BoolOp {
     }
   }
 
+  /// Converts a Bool operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Eql => Ipld::Integer(0),
@@ -87,6 +92,7 @@ impl BoolOp {
     }
   }
 
+  /// Converts an IPLD object into a Bool operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Eql),
@@ -102,6 +108,7 @@ impl BoolOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Eql => 2,
@@ -116,6 +123,7 @@ impl BoolOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -124,6 +132,7 @@ impl BoolOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {

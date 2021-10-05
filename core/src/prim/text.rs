@@ -27,6 +27,7 @@ use core::convert::{
   TryInto,
 };
 
+/// Primitive 8-bit signed integer operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum TextOp {
   Cons,
@@ -56,6 +57,7 @@ pub enum TextOp {
 }
 
 impl TextOp {
+  /// Gets the syntax string of an i8 operation
   pub fn symbol(self) -> String {
     match self {
       Self::Cons => "cons".to_owned(),
@@ -85,6 +87,7 @@ impl TextOp {
     }
   }
 
+  /// Gets an i8 operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "cons" => Some(Self::Cons),
@@ -115,6 +118,7 @@ impl TextOp {
     }
   }
 
+  /// Returns the type of an i8 operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Cons => yatima!("∀ #Char #Text -> #Text"),
@@ -144,6 +148,7 @@ impl TextOp {
     }
   }
 
+  /// Converts an i8 operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Cons => Ipld::Integer(0),
@@ -173,6 +178,7 @@ impl TextOp {
     }
   }
 
+  /// Converts an IPLD object into an i8 operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Cons),
@@ -203,6 +209,7 @@ impl TextOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Cons => 2,
@@ -232,6 +239,7 @@ impl TextOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -243,6 +251,7 @@ impl TextOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
@@ -344,6 +353,7 @@ impl TextOp {
     }
   }
 
+  /// Applies a ternary operation to a literal and returns it if successful
   pub fn apply3(
     self,
     x: &Literal,
@@ -369,6 +379,7 @@ impl fmt::Display for TextOp {
   }
 }
 
+/// Inserts text if given index is valid
 pub fn safe_insert(idx: &BigUint, ys: Rope, mut xs: Rope) -> Rope {
   let idx = usize::try_from(idx);
   match idx {
@@ -380,6 +391,7 @@ pub fn safe_insert(idx: &BigUint, ys: Rope, mut xs: Rope) -> Rope {
   }
 }
 
+/// Removes text between two indices
 pub fn safe_remove(from: &BigUint, upto: &BigUint, mut xs: Rope) -> Rope {
   let from = usize::try_from(from);
   let upto = usize::try_from(upto);
@@ -395,6 +407,7 @@ pub fn safe_remove(from: &BigUint, upto: &BigUint, mut xs: Rope) -> Rope {
   }
 }
 
+/// Returns the first character if it exists
 pub fn safe_head(mut x: Rope) -> Option<(char, Rope)> {
   if x.len_chars() == 0 {
     None
@@ -405,6 +418,7 @@ pub fn safe_head(mut x: Rope) -> Option<(char, Rope)> {
   }
 }
 
+/// Splits text in two
 pub fn safe_split(idx: &BigUint, mut xs: Rope) -> (Rope, Rope) {
   let idx = usize::try_from(idx);
   match idx {
@@ -416,6 +430,7 @@ pub fn safe_split(idx: &BigUint, mut xs: Rope) -> (Rope, Rope) {
   }
 }
 
+/// Gets a line of text at given index
 pub fn safe_line(idx: BigUint, xs: Rope) -> Rope {
   if let Ok(i) = usize::try_from(idx) {
     if i > xs.len_chars() { Rope::from_str("") } else { Rope::from(xs.line(i)) }

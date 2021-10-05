@@ -11,8 +11,10 @@ use core::{
   },
 };
 
+/// Counts the number of upcopy calls for benchmarking
 pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
+/// Frees copied nodes between upcopy operations
 pub fn clean_up(cc: &ParentPtr) {
   match cc {
     ParentPtr::LamBod(link) => unsafe {
@@ -110,7 +112,7 @@ pub fn clean_up(cc: &ParentPtr) {
   }
 }
 
-// The core up-copy function.
+/// The core up-copy function
 pub fn upcopy(new_child: DAGPtr, cc: ParentPtr, should_count: bool) {
   if should_count {
     UPCOPY_COUNT.fetch_add(1, Ordering::SeqCst);

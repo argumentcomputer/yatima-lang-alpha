@@ -21,8 +21,10 @@ use alloc::string::String;
 // This double pointer is actually a pointer to the parent's field that
 // references the node. It does not ever change since it is already in whnf by
 // the time we add the child node to the context.
+/// A typechecking ctx which uses λ-DAG pointers
 pub type Ctx = Vec<(String, Uses, *mut DAGPtr)>;
 
+/// Add two contexts and multiply by a Uses scalar
 #[inline]
 pub fn add_mul_ctx(uses: Uses, use_ctx: &mut Ctx, use_ctx2: Ctx) {
   #[allow(clippy::needless_range_loop)]
@@ -31,6 +33,7 @@ pub fn add_mul_ctx(uses: Uses, use_ctx: &mut Ctx, use_ctx2: Ctx) {
   }
 }
 
+/// Add two contexts
 #[inline]
 pub fn add_ctx(use_ctx: &mut Ctx, use_ctx2: Ctx) {
   #[allow(clippy::needless_range_loop)]
@@ -39,6 +42,7 @@ pub fn add_ctx(use_ctx: &mut Ctx, use_ctx2: Ctx) {
   }
 }
 
+/// Multiply a context by a Uses scalar
 #[inline]
 pub fn mul_ctx(uses: Uses, use_ctx: &mut Ctx) {
   #[allow(clippy::needless_range_loop)]
@@ -47,6 +51,7 @@ pub fn mul_ctx(uses: Uses, use_ctx: &mut Ctx) {
   }
 }
 
+/// Divide a context by a Uses scalar
 #[inline]
 pub fn div_ctx(uses: Uses, use_ctx: &mut Ctx) -> Ctx {
   let mut rest = use_ctx.clone();
@@ -58,8 +63,10 @@ pub fn div_ctx(uses: Uses, use_ctx: &mut Ctx) -> Ctx {
   rest
 }
 
+/// An direct representation of context suitable for error reporting
 pub type ErrCtx = VecDeque<(String, Uses, Term)>;
 
+/// Make an ErrCtx from a Ctx
 pub fn error_context(ctx: &Ctx) -> ErrCtx {
   let mut res: ErrCtx = VecDeque::new();
   for (n, uses, ptr) in ctx {
@@ -74,6 +81,7 @@ pub fn error_context(ctx: &Ctx) -> ErrCtx {
   res
 }
 
+/// Formats the context for pretty-printing
 pub fn pretty_context(ctx: &ErrCtx) -> String {
   let mut res: String = String::new();
   for (n, uses, typ) in ctx {

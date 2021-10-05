@@ -1,6 +1,5 @@
-// Bottom-up reduction of lambda DAGs. Based on the paper by Olin Shivers and
-// Mitchel Wand "Bottom-up β-reduction: uplinks and λ-DAGs" (https://www.brics.dk/RS/04/38/BRICS-RS-04-38.pdf)
-
+/// Bottom-up reduction of lambda DAGs. Based on the paper by Olin Shivers
+/// and Mitchel Wand "Bottom-up β-reduction: uplinks and λ-DAGs" (https://www.brics.dk/RS/04/38/BRICS-RS-04-38.pdf)
 use crate::{
   defs::Def,
   dll::*,
@@ -30,11 +29,15 @@ use sp_std::{
 use alloc::string::String;
 use sp_cid::Cid;
 
+/// A λ-DAG used to reduce Yatima terms. Acts like a directed acyclice graph,
+/// but has backpointers for the bottom-up reduction algorithm.
 pub struct DAG {
   pub head: DAGPtr,
 }
 
-// A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
+/// A top-down λ-DAG pointer. Keeps track of what kind of node it points to.
+/// Similar to the Term enum, except it uses a Fix for fixed-point recursion and
+/// keeps the Rec recursion marker as a field in Var
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DAGPtr {
   Var(NonNull<Var>),
@@ -54,11 +57,11 @@ pub enum DAGPtr {
   Opr(NonNull<Opr>),
 }
 
-// Doubly-linked list of parent nodes
+/// Doubly-linked list of parent nodes.
 pub type Parents = DLL<ParentPtr>;
 
-// A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
-// the child and the parent.
+/// A bottom-up (parent) λ-DAG pointer. Keeps track of the relation between
+/// the child and the parent.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ParentPtr {
   Root,
@@ -86,7 +89,7 @@ pub enum BinderPtr {
   Fix(NonNull<Fix>),
 }
 
-// The λ-DAG nodes
+/// The λ-DAG nodes
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct Var {
@@ -115,6 +118,7 @@ pub struct App {
   pub arg: DAGPtr,
   pub fun_ref: Parents,
   pub arg_ref: Parents,
+  // The field `copy` is used for copied DAG nodes during the upcopy operation
   pub copy: Option<NonNull<App>>,
   pub parents: Option<NonNull<Parents>>,
 }
@@ -215,7 +219,7 @@ pub struct Opr {
   pub parents: Option<NonNull<Parents>>,
 }
 
-// Auxiliary allocation functions
+/// Auxiliary allocation functions
 #[inline]
 pub fn alloc_val<T>(val: T) -> NonNull<T> {
   NonNull::new(Box::leak(Box::new(val))).unwrap()
@@ -416,7 +420,7 @@ pub fn alloc_let(
   }
 }
 
-// Auxiliary parent functions
+/// Auxiliary parent functions
 #[inline]
 pub fn get_parents(term: DAGPtr) -> Option<NonNull<Parents>> {
   unsafe {
@@ -463,6 +467,7 @@ pub fn set_parents(term: DAGPtr, pref: Option<NonNull<Parents>>) {
   }
 }
 
+/// Creates a child node by linking an existing pointer to a parent
 #[inline]
 pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
   unsafe {
@@ -491,7 +496,8 @@ pub fn install_child(parent: &mut ParentPtr, newchild: DAGPtr) {
     }
   }
 }
-// Replace one child w/another in the tree.
+
+/// Replace one child w/another in the tree.
 pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
   unsafe {
     let oldpref = get_parents(oldchild);
@@ -514,6 +520,7 @@ pub fn replace_child(oldchild: DAGPtr, newchild: DAGPtr) {
   }
 }
 
+/// Adds the node's parents to the DLL of parent nodes
 #[inline]
 pub fn add_to_parents(node: DAGPtr, plink: NonNull<Parents>) {
   let parents = get_parents(node);
@@ -523,7 +530,7 @@ pub fn add_to_parents(node: DAGPtr, plink: NonNull<Parents>) {
   }
 }
 
-// Free parentless nodes.
+/// Free parentless nodes.
 pub fn free_dead_node(node: DAGPtr) {
   unsafe {
     match node {
@@ -663,8 +670,10 @@ pub fn free_dead_node(node: DAGPtr) {
 }
 
 impl DAG {
+  /// Constructs a new DAG from an existing pointer
   pub fn new(head: DAGPtr) -> DAG { DAG { head } }
 
+  /// Deallocates the DAG
   pub fn free(self) {
     match get_parents(self.head) {
       None => (),
@@ -676,6 +685,7 @@ impl DAG {
     free_dead_node(self.head)
   }
 
+  /// Converts a DAG node into its Term equivalent
   pub fn dag_ptr_to_term(
     node: &DAGPtr,
     map: &mut BTreeMap<*mut Var, u64>,
@@ -820,16 +830,19 @@ impl DAG {
     }
   }
 
+  /// Converts the entire DAG into its Term equivalent
   pub fn to_term(&self, re_rec: bool) -> Term {
     let mut map = BTreeMap::new();
     DAG::dag_ptr_to_term(&self.head, &mut map, 0, re_rec)
   }
 
+  /// Converts a Term into a DAG
   pub fn from_term(tree: &Term) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
     DAG::new(DAG::from_term_inner(tree, 0, BTreeMap::new(), Some(root), None))
   }
 
+  /// Converts a Def into a term and then into a DAG
   pub fn from_def(def: &Def, name: Name) -> Self {
     let root = alloc_val(DLL::singleton(ParentPtr::Root));
     let (d, _, a) = def.embed();
@@ -860,6 +873,7 @@ impl DAG {
     )
   }
 
+  /// Converts a Term into its DAG-node equivalent
   pub fn from_term_inner(
     tree: &Term,
     depth: u64,
@@ -1122,6 +1136,7 @@ impl DAG {
     }
   }
 
+  /// Creates a new DAG from a subsection
   pub fn from_subdag(
     node: DAGPtr,
     map: &mut BTreeMap<DAGPtr, DAGPtr>,
@@ -1295,7 +1310,7 @@ impl DAG {
     new_node
   }
 
-  // Substitution of free variable
+  /// Substitution of free variable
   pub fn subst(&mut self, idx: u64, val: DAGPtr) {
     pub fn go(node: DAGPtr, idx: u64, val: DAGPtr) {
       match node {

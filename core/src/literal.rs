@@ -34,6 +34,7 @@ use alloc::string::{
   ToString,
 };
 
+/// Built-in primitives
 #[derive(PartialEq, Clone, Debug)]
 pub enum Literal {
   Nat(BigUint),
@@ -55,6 +56,7 @@ pub enum Literal {
   I128(i128),
 }
 
+/// The type of each literal
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum LitType {
   Nat,
@@ -167,6 +169,7 @@ impl fmt::Display for Literal {
 }
 
 impl Literal {
+  /// Converts a literal into a lambda expression
   pub fn expand(self) -> Option<Term> {
     match self {
       Self::Nat(n) => {
@@ -217,6 +220,7 @@ impl Literal {
     }
   }
 
+  /// Converts a literal into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Nat(x) => {
@@ -291,6 +295,7 @@ impl Literal {
     }
   }
 
+  /// Converts an IPLD object into a literal
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {
@@ -404,6 +409,7 @@ impl Literal {
 }
 
 impl LitType {
+  /// Converts a primitive datatype into an inductive datatype
   pub fn induction(self, val: Term) -> Option<Term> {
     match self {
       Self::Nat => Some(yatima!(
@@ -457,6 +463,7 @@ impl LitType {
     }
   }
 
+  /// Converts a literal type into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Nat => Ipld::List(vec![Ipld::Integer(0)]),
@@ -479,6 +486,7 @@ impl LitType {
     }
   }
 
+  /// Converts an IPLD object into a literal type
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {

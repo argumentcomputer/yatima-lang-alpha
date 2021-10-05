@@ -17,6 +17,7 @@ use crate::{
   yatima,
 };
 
+/// Primitive natural number operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum NatOp {
   Suc,
@@ -34,6 +35,7 @@ pub enum NatOp {
 }
 
 impl NatOp {
+  /// Gets the syntax string of a nat operation
   pub fn symbol(self) -> String {
     match self {
       Self::Suc => "suc".to_owned(),
@@ -51,6 +53,7 @@ impl NatOp {
     }
   }
 
+  /// Gets a nat operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "suc" => Some(Self::Suc),
@@ -69,6 +72,7 @@ impl NatOp {
     }
   }
 
+  /// Returns the type of a nat operation
   pub fn type_of(self) -> Term {
     match self {
       Self::Suc => yatima!("∀ #Nat -> #Nat"),
@@ -86,6 +90,7 @@ impl NatOp {
     }
   }
 
+  /// Converts a nat operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::Suc => Ipld::Integer(0),
@@ -103,6 +108,7 @@ impl NatOp {
     }
   }
 
+  /// Converts an IPLD object into a nat operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::Suc),
@@ -121,6 +127,7 @@ impl NatOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::Eql => 2,
@@ -138,6 +145,7 @@ impl NatOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -154,6 +162,7 @@ impl NatOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     let tt = Bool(true);

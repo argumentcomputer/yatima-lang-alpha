@@ -22,6 +22,8 @@ use std::{
 
 pub type Parents = DLL<ParentPtr>;
 
+/// A directed acyclic graph (DAG) used to evaluate Yatima terms with
+/// type information erased.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DAG {
   Var(NonNull<Var>),
@@ -32,6 +34,7 @@ pub enum DAG {
   Opr(NonNull<Opr>),
 }
 
+/// A pointer to the parent node, i.e. the graph uplinks in the λ-DAG model
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ParentPtr {
   Root,
@@ -200,9 +203,10 @@ impl fmt::Debug for DAG {
   }
 }
 
+/// Counts the number of upcopy calls for benchmarking
 pub static UPCOPY_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-// Auxiliary parent functions
+/// Auxiliary parent functions.
 #[inline]
 pub fn get_parents(term: DAG) -> Option<NonNull<Parents>> {
   unsafe {
@@ -322,6 +326,7 @@ pub fn free_dead_node(node: DAG) {
   }
 }
 
+/// Frees copied nodes between upcopy operations
 pub fn clean_up(cc: &ParentPtr) {
   match cc {
     ParentPtr::LamBod(link) => unsafe {
@@ -358,6 +363,7 @@ pub fn clean_up(cc: &ParentPtr) {
   }
 }
 
+/// Auxiliary allocation functions
 #[inline]
 pub fn alloc_val<T>(val: T) -> NonNull<T> {
   NonNull::new(Box::leak(Box::new(val))).unwrap()
@@ -412,7 +418,7 @@ pub fn alloc_app(
   }
 }
 
-// The core up-copy function.
+/// The core up-copy function.
 pub fn upcopy(new_child: DAG, cc: ParentPtr, should_count: bool) {
   if should_count {
     UPCOPY_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -485,7 +491,7 @@ enum Single {
   Fix(Var),
 }
 
-// Substitute a variable
+/// Substitute a variable.
 #[inline]
 pub fn subst(
   bod: DAG,
@@ -586,7 +592,7 @@ pub fn subst(
   result
 }
 
-/// Contract a lambda redex, return the body.
+/// Contracts a lambda redex and returns the body.
 #[inline]
 pub fn reduce_lam(
   redex: NonNull<App>,
@@ -756,7 +762,7 @@ pub fn whnf(dag: &mut DAG, should_count: bool) {
   }
 }
 
-// Assumes erased terms
+/// Assumes erased terms
 pub fn from_term(
   defs: Rc<Defs>,
   term: &Term,

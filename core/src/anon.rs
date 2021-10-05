@@ -20,6 +20,8 @@ use sp_std::{
   convert::TryInto,
 };
 
+/// Anonymous term containing only data and content id
+/// This is equivalent to an anonymous abstract syntax tree
 #[derive(PartialEq, Clone, Debug)]
 pub enum Anon {
   Var(u64),
@@ -44,6 +46,7 @@ pub enum Anon {
 /// app: [2, <fun>, <arg>]
 
 impl Anon {
+  /// Converts an anonymous term into an IPLD object
   pub fn to_ipld(&self) -> Ipld {
     match self {
       Self::Var(idx) => {
@@ -92,8 +95,10 @@ impl Anon {
     }
   }
 
+  /// Generates a content id for the anonymous term
   pub fn cid(&self) -> Cid { cid(&self.to_ipld()) }
 
+  /// Converts an IPLD object into an anonymous term
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::List(xs) => match xs.as_slice() {

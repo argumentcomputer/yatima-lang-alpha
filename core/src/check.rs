@@ -33,11 +33,13 @@ use sp_std::{
   rc::Rc,
 };
 
+/// Generates a content id for a DAG pointer's anonymous term
 pub fn hash(dag: DAGPtr, dep: u64) -> Cid {
   let mut map = BTreeMap::new();
   DAG::dag_ptr_to_term(&dag, &mut map, dep, true).embed().0.cid()
 }
 
+/// Lazily checks if two DAGs are beta equivalent. 
 pub fn equal(
   defs: &Defs,
   a: &mut DAG,
@@ -108,6 +110,7 @@ pub fn equal(
   true
 }
 
+/// Typechecks a term, relying on type inference as needed
 pub fn check(
   rec: &Option<(Name, Cid, Cid)>,
   defs: &Defs,
@@ -147,6 +150,7 @@ pub fn check(
   }
 }
 
+/// Typechecks a λ term
 #[inline]
 pub fn check_lam(
   rec: &Option<(Name, Cid, Cid)>,
@@ -212,6 +216,7 @@ pub fn check_lam(
   }
 }
 
+/// Typechecks data as a self type
 #[inline]
 pub fn check_dat(
   rec: &Option<(Name, Cid, Cid)>,
@@ -269,6 +274,7 @@ pub fn check_dat(
   }
 }
 
+/// Infers the type of a term and returns the type DAG
 pub fn infer(
   rec: &Option<(Name, Cid, Cid)>,
   defs: &Defs,
@@ -338,6 +344,7 @@ pub fn infer(
   }
 }
 
+/// Infers the type of a `Rec` recursive marker
 #[inline]
 pub fn infer_rec(
   rec: &Option<(Name, Cid, Cid)>,
@@ -356,6 +363,7 @@ pub fn infer_rec(
   }
 }
 
+/// Infers the type of a variable
 #[inline]
 pub fn infer_var(
   _rec: &Option<(Name, Cid, Cid)>,
@@ -394,6 +402,7 @@ pub fn infer_var(
   Ok(typ)
 }
 
+/// Infers the type of an global content-addressed reference
 #[inline]
 pub fn infer_ref(
   defs: &Defs,
@@ -409,6 +418,7 @@ pub fn infer_ref(
   Ok(typ)
 }
 
+/// Infers the type of a function application
 #[inline]
 pub fn infer_app(
   rec: &Option<(Name, Cid, Cid)>,
@@ -462,6 +472,7 @@ pub fn infer_app(
   }
 }
 
+/// Infers the type of a self type destructor
 #[inline]
 pub fn infer_cse(
   rec: &Option<(Name, Cid, Cid)>,
@@ -523,6 +534,7 @@ pub fn infer_cse(
   }
 }
 
+/// Infers the type of a forall (∀)
 #[inline]
 pub fn infer_all(
   rec: &Option<(Name, Cid, Cid)>,
@@ -549,6 +561,7 @@ pub fn infer_all(
   Ok(typ)
 }
 
+/// Infers the type of a self type
 #[inline]
 pub fn infer_slf(
   rec: &Option<(Name, Cid, Cid)>,
@@ -574,6 +587,7 @@ pub fn infer_slf(
   Ok(typ)
 }
 
+/// Infers the type of a local definition
 #[inline]
 pub fn infer_let(
   rec: &Option<(Name, Cid, Cid)>,
@@ -628,6 +642,7 @@ pub fn infer_let(
   }
 }
 
+/// Infers the type of a recursive local definition
 #[inline]
 pub fn infer_letrec(
   rec: &Option<(Name, Cid, Cid)>,
@@ -696,6 +711,7 @@ pub fn infer_letrec(
   }
 }
 
+/// Infers the type of a type annotation
 #[inline]
 pub fn infer_ann(
   rec: &Option<(Name, Cid, Cid)>,
@@ -718,6 +734,7 @@ pub fn infer_ann(
   Ok(typ_dag)
 }
 
+/// Infers the type of a literal
 pub fn infer_lit(lit: Literal) -> Term {
   match lit {
     Literal::Nat(_) => yatima!("#Nat"),
@@ -740,6 +757,7 @@ pub fn infer_lit(lit: Literal) -> Term {
   }
 }
 
+/// Infers the type of a term and returns a term
 pub fn infer_term(
   defs: &Defs,
   term: &Term,
@@ -752,6 +770,7 @@ pub fn infer_term(
   Ok(typ)
 }
 
+/// Typechecks a definition
 pub fn check_def(
   defs: Rc<Defs>,
   name: &str,

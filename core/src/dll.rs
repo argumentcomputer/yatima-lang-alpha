@@ -13,7 +13,8 @@ use alloc::string::{
   ToString,
 };
 
-// A doubly-linked list (DLL) node
+/// A doubly-linked list (DLL) node
+/// Uses raw pointers in order to share mutable DAG references
 #[derive(Debug)]
 pub struct DLL<T> {
   pub next: Option<NonNull<DLL<T>>>,
@@ -21,6 +22,9 @@ pub struct DLL<T> {
   pub elem: T,
 }
 
+/// An forwards iterator over the DLL
+/// Uses a PhantomData marker to simulate ownership of the DLL during its
+/// lifetime of `'a`
 pub struct Iter<'a, T> {
   next: Option<NonNull<DLL<T>>>,
   this: Option<NonNull<DLL<T>>>,
@@ -28,9 +32,11 @@ pub struct Iter<'a, T> {
 }
 
 impl<'a, T> Iter<'a, T> {
+  /// Checks if last element in the DLL
   #[inline]
   pub fn is_last(&self) -> bool { self.next.is_none() }
 
+  /// Returns the inner DLL node
   #[inline]
   pub fn this(&self) -> Option<NonNull<DLL<T>>> { self.this }
 }
@@ -50,9 +56,11 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 
 impl<T> DLL<T> {
+  /// Creates a DLL with only one node
   #[inline]
   pub fn singleton(elem: T) -> Self { DLL { next: None, prev: None, elem } }
 
+  /// Checks if the DLL has only one node
   #[inline]
   pub fn is_singleton(dll: Option<NonNull<Self>>) -> bool {
     dll.map_or(false, |dll| unsafe {
@@ -61,6 +69,7 @@ impl<T> DLL<T> {
     })
   }
 
+  /// Inserts a new DLL node after the current node
   pub fn add_after(&mut self, elem: T) {
     let new_next = NonNull::new(Box::into_raw(Box::new(DLL {
       next: self.next,
@@ -71,6 +80,7 @@ impl<T> DLL<T> {
     self.next = new_next;
   }
 
+  /// Inserts a new DLL node before the current node
   pub fn add_before(&mut self, elem: T) {
     let new_prev = NonNull::new(Box::into_raw(Box::new(DLL {
       next: NonNull::new(self),
@@ -81,6 +91,8 @@ impl<T> DLL<T> {
     self.prev = new_prev;
   }
 
+  /// Inserts a given node before the current node, dropping the former's
+  /// previous links
   pub fn merge(&mut self, node: NonNull<Self>) {
     unsafe {
       (*node.as_ptr()).prev = self.prev;
@@ -90,8 +102,8 @@ impl<T> DLL<T> {
     }
   }
 
-  // Unlinks the given node and returns, if it exists, a neighboring node.
-  // Leaves the node to be deallocated afterwards.
+  /// Unlinks the given node and returns, if it exists, a neighboring node.
+  /// Leaves the node to be deallocated afterwards.
   pub fn unlink_node(&self) -> Option<NonNull<Self>> {
     unsafe {
       let next = self.next;
@@ -106,6 +118,7 @@ impl<T> DLL<T> {
     }
   }
 
+  /// Returns the first node in the DLL
   pub fn first(mut node: NonNull<Self>) -> NonNull<Self> {
     loop {
       let prev = unsafe { (*node.as_ptr()).prev };
@@ -117,6 +130,7 @@ impl<T> DLL<T> {
     node
   }
 
+  /// Returns the last node in the DLL
   pub fn last(mut node: NonNull<Self>) -> NonNull<Self> {
     loop {
       let next = unsafe { (*node.as_ptr()).next };
@@ -128,6 +142,7 @@ impl<T> DLL<T> {
     node
   }
 
+  /// Joins two DLLs together at the ends
   pub fn concat(dll: NonNull<Self>, rest: Option<NonNull<Self>>) {
     let last = DLL::last(dll);
     let first = rest.map(DLL::first);
@@ -139,17 +154,20 @@ impl<T> DLL<T> {
     });
   }
 
+  /// Creates an iterator over the DLL if it exists
   #[inline]
   pub fn iter_option<'a>(dll: Option<NonNull<Self>>) -> Iter<'a, T> {
     Iter { next: dll.map(DLL::first), this: None, marker: PhantomData }
   }
 
+  /// Creates a mutable iterator over the DLL
   #[inline]
   pub fn iter_mut(&mut self) -> Iter<'_, T> {
     let link: NonNull<Self> = NonNull::from(self);
     Iter { next: Some(DLL::first(link)), this: None, marker: PhantomData }
   }
 
+  /// Creates an iterator over the DLL
   #[inline]
   pub fn iter(&self) -> Iter<'_, T> {
     let link: NonNull<Self> = NonNull::from(self);

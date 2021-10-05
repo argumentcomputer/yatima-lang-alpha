@@ -19,6 +19,7 @@ use crate::{
   yatima,
 };
 
+/// Primitive char operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum CharOp {
   FromU32,
@@ -56,6 +57,7 @@ pub enum CharOp {
 }
 
 impl CharOp {
+  /// Gets the syntax string of a Char operation
   pub fn symbol(self) -> String {
     match self {
       Self::FromU32 => "from_U32".to_owned(),
@@ -93,6 +95,7 @@ impl CharOp {
     }
   }
 
+  /// Gets a Char operation from a syntax string
   pub fn from_symbol(x: &str) -> Option<Self> {
     match x {
       "from_U32" => Some(Self::FromU32),
@@ -131,6 +134,7 @@ impl CharOp {
     }
   }
 
+  /// Returns the type of a Char operation
   pub fn type_of(self) -> Term {
     match self {
       Self::FromU32 => yatima!("∀ #U32 -> #Char"),
@@ -168,6 +172,7 @@ impl CharOp {
     }
   }
 
+  /// Converts a Char operation into an IPLD object
   pub fn to_ipld(self) -> Ipld {
     match self {
       Self::FromU32 => Ipld::Integer(0),
@@ -205,6 +210,7 @@ impl CharOp {
     }
   }
 
+  /// Converts an IPLD object into a Char operation
   pub fn from_ipld(ipld: &Ipld) -> Result<Self, IpldError> {
     match ipld {
       Ipld::Integer(0) => Ok(Self::FromU32),
@@ -243,6 +249,7 @@ impl CharOp {
     }
   }
 
+  /// Returns the number of parameters used in the operation
   pub fn arity(self) -> u64 {
     match self {
       Self::FromU32 => 1,
@@ -280,6 +287,7 @@ impl CharOp {
     }
   }
 
+  /// Applies a unary operation to a literal and returns it if successful
   pub fn apply1(self, x: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x) {
@@ -321,6 +329,7 @@ impl CharOp {
     }
   }
 
+  /// Applies a binary operation to a literal and returns it if successful
   pub fn apply2(self, x: &Literal, y: &Literal) -> Option<Literal> {
     use Literal::*;
     match (self, x, y) {
