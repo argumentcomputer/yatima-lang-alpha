@@ -144,8 +144,8 @@ pub mod pallet {
 
 5. Clone the [Substrate Front End Template](https://github.com/substrate-developer-hub/substrate-front-end-template.git) in a separate directory.
 
-6. Navigate to `src/TemplateModule.js` and replace it with the following:
-   ```javascript
+6.  Navigate to `src/TemplateModule.js` and replace it with the following:
+```javascript
 import React, { useState } from 'react';
 import { Form, Input, Grid } from 'semantic-ui-react';
 
@@ -209,13 +209,13 @@ export default function TemplateModule (props) {
     ? <Main {...props} />
     : null;
 }
-   ```
+```
 
 7. Build and install the front end as detailed in the [Readme](https://github.com/substrate-developer-hub/substrate-front-end-template/blob/master/README.md)
 8. Run the node as done in Step 4, then run the front end with `yarn start`
 9. Interact with the `sp-yatima` commands
   * In the browser, scroll to the Theorem Prover section at the bottom of the page and input a Yatima file such as [`bool.ya`](https://github.com/yatima-inc/introit/blob/main/bool.ya), then hit Upload. Then go to the node's `stdout` and observe that the Yatima typechecker has deduced that each of the package's properties will always be true for the given type parameters. Please note that the Yatima package must contain all dependencies in the same file for serialization, e.g. [`sp-vector.ya`](https://github.com/yatima-inc/introit/blob/sb/proof-demo/sp-vector.ya). 
-   
+
 ## Working example of this tutorial
 See the Yatima [substrate-node-template](https://github.com/yatima-inc/substrate-node-template) and
 [substrate-front-end-template](https://github.com/yatima-inc/substrate-front-end-template) repos on the `yatima-tutorial` branch
