@@ -16,7 +16,7 @@
 
 5. Run the node as done in Step 2, then run the front end with `yarn start`
 
-6. Clone the [Yatima Standard Library]() and checkout the `sb/proof-demo` branch
+6. Clone the [Yatima Standard Library](https://github.com/yatima-inc/introit) and checkout the `sb/proof-demo` branch
 
 6. Interact with the `sp-yatima` commands
   * In the browser, scroll to the Theorem Prover section at the bottom of the page and input a Yatima file such as [`sp-bool.ya`](https://github.com/yatima-inc/introit/blob/sb/proof-demo/sp-bool.ya) or [`sp-vector.ya`](https://github.com/yatima-inc/introit/blob/sb/proof-demo/sp-vector.ya), then hit Upload. 
