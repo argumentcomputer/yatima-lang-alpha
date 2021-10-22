@@ -22,12 +22,15 @@ use crate::{
   term::*,
 };
 
-use sp_std::{
-  cell::RefCell,
+use alloc::{
   collections::vec_deque::VecDeque,
-  convert::TryFrom,
   rc::Rc,
   vec::Vec,
+};
+
+use core::{
+  cell::RefCell,
+  convert::TryFrom,
 };
 
 use nom::{

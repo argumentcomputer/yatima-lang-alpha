@@ -9,7 +9,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 yatima-core = { path = "../core" }
 yatima-runtime = { path = "../runtime" }
-sp-std = { version = "3", default-features = false }
 sp-cid = "0.2"
 sp-multihash = "0.2"
 sp-ipld = "0.1.2"

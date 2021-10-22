@@ -16,16 +16,16 @@ pub use crate::{
 
 use sp_cid::Cid;
 
-use sp_std::{
+use core::fmt;
+
+use alloc::{
+  string::{
+    String,
+    ToString,
+  },
   borrow::ToOwned,
   boxed::Box,
-  fmt,
   rc::Rc,
-};
-
-use alloc::string::{
-  String,
-  ToString,
 };
 
 /// Yatima terms with source positions
@@ -549,10 +549,10 @@ pub mod tests {
     Arbitrary,
     Gen,
   };
-  use sp_std::ops::Range;
+  use core::ops::Range;
 
   use sp_im::Vector;
-  use sp_std::{
+  use alloc::{
     boxed::Box,
     vec::Vec,
   };

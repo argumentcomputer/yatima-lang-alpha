@@ -1,12 +1,12 @@
 use num_bigint::BigUint;
 use sp_ipld::Ipld;
 
-use sp_std::{
-  borrow::ToOwned,
-  fmt,
-};
+use core::fmt;
 
-use alloc::string::String;
+use alloc::{
+  string::String,
+  borrow::ToOwned, 
+};
 
 use crate::{
   defs,
@@ -200,7 +200,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use sp_std::mem;
+  use core::mem;
   use Literal::{
     Bool,
     Nat,

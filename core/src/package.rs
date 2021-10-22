@@ -13,14 +13,13 @@ use sp_ipld::{
   Ipld,
 };
 
-use sp_std::{
+use alloc::{
+  string::{
+    String,
+    ToString,
+  },
   borrow::ToOwned,
   vec::Vec,
-};
-
-use alloc::string::{
-  String,
-  ToString,
 };
 
 /// Namespace of definitions and imports

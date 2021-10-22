@@ -28,12 +28,14 @@ use nom::{
   Err,
   IResult,
 };
-use sp_std::{
-  cell::RefCell,
+
+use alloc::{
   collections::vec_deque::VecDeque,
   rc::Rc,
   vec::Vec,
 };
+
+use core::cell::RefCell;
 
 use sp_cid::Cid;
 use sp_im::conslist::ConsList;

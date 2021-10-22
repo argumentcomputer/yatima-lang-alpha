@@ -1,13 +1,10 @@
 use sp_ipld::Ipld;
 
-use sp_std::{
-  borrow::ToOwned,
-  fmt,
-};
+use core::fmt;
 
-use alloc::string::{
-  String,
-  ToString,
+use alloc::{
+  string::{String, ToString},
+  borrow::ToOwned,
 };
 
 use crate::{
@@ -368,7 +365,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use sp_std::mem;
+  use core::mem;
   use Literal::{
     Bool,
     Char,

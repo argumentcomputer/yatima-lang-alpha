@@ -1,9 +1,11 @@
-use alloc::string::String;
 use sp_ipld::Ipld;
-use sp_std::{
-  num::TryFromIntError,
+
+use alloc::{
+  string::String,
   vec::Vec,
 };
+
+use core::num::TryFromIntError;
 
 /// IPLD objects that fail during conversion
 #[derive(PartialEq, Debug, Clone)]

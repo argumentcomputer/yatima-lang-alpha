@@ -2,11 +2,12 @@ use crate::{
   literal::Literal,
   term::Term,
 };
-use sp_std::{
-  fmt,
-  rc::Rc
+use core::fmt;
+
+use alloc::{
+  string::String,
+  rc::Rc,
 };
-use alloc::string::String;
 
 #[derive(Clone)]
 pub struct IoOp {

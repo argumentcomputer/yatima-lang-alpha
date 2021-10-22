@@ -1,9 +1,9 @@
-use sp_std::{
-  borrow::ToOwned,
-  fmt,
-};
+use core::fmt;
 
-use alloc::string::String;
+use alloc::{
+  string::String,
+  borrow::ToOwned,
+};
 
 use crate::{
   check::ctx::*,

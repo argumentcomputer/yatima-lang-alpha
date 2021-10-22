@@ -30,18 +30,20 @@ use sp_ipld::{
   Codec,
 };
 
-use sp_std::{
+use alloc::{
   borrow::ToOwned,
   boxed::Box,
-  cell::RefCell,
   rc::Rc,
   vec::Vec,
+  collections::vec_deque::VecDeque,
+  string::{
+    String,
+    ToString,
+  },
 };
 
-use alloc::string::{
-  String,
-  ToString,
-};
+
+use core::cell::RefCell;
 
 use crate::parse::span::Span;
 
@@ -80,7 +82,6 @@ use nom::{
   Err,
   IResult,
 };
-use sp_std::collections::vec_deque::VecDeque;
 
 /// Parsing context to store expression names
 pub type Ctx = ConsList<Name>;
@@ -1061,8 +1062,8 @@ macro_rules! yatima {
     let mut quasi = Vec::new();
     $(quasi.push($q);)*
     parse::term::parse_quasi($i,
-      sp_std::rc::Rc::new(sp_std::cell::RefCell::new(defs::Defs::new())),
-      sp_std::rc::Rc::new(sp_std::collections::vec_deque::VecDeque::from(quasi)))
+      alloc::rc::Rc::new(core::cell::RefCell::new(defs::Defs::new())),
+      alloc::rc::Rc::new(alloc::collections::vec_deque::VecDeque::from(quasi)))
       .unwrap().1
   }}
 }

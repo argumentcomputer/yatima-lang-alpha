@@ -1,16 +1,15 @@
 use core::{
   marker::PhantomData,
   ptr::NonNull,
-};
-
-use sp_std::{
-  boxed::Box,
   fmt,
 };
 
-use alloc::string::{
-  String,
-  ToString,
+use alloc::{
+  boxed::Box,
+  string::{
+    String,
+    ToString,
+  },
 };
 
 /// A doubly-linked list (DLL) node

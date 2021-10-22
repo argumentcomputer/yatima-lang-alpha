@@ -20,17 +20,19 @@ use crate::{
 
 use sp_cid::Cid;
 
-use core::ptr::NonNull;
+use core::{
+  ptr::NonNull,
+  mem
+};
 
-use alloc::string::ToString;
-use sp_std::{
+use alloc::{
   borrow::ToOwned,
   collections::{
     btree_map::BTreeMap,
     btree_set::BTreeSet,
   },
-  mem,
   rc::Rc,
+  string::ToString,
 };
 
 /// Generates a content id for a DAG pointer's anonymous term

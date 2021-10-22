@@ -7,6 +7,8 @@ use yatima_core::{
   term::Term,
 };
 
+extern crate alloc;
+
 mod runtime;
 pub mod transform;
 use transform::RunIO;

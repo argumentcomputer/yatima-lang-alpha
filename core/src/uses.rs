@@ -1,7 +1,7 @@
 use crate::ipld_error::IpldError;
 use sp_ipld::Ipld;
-use sp_std::{
-  borrow::ToOwned,
+use alloc::borrow::ToOwned;
+use core::{
   fmt,
   ops,
 };
@@ -75,7 +75,7 @@ impl ops::Div for Uses {
   }
 }
 
-impl sp_std::ops::Rem for Uses {
+impl core::ops::Rem for Uses {
   type Output = Self;
 
   fn rem(self, rhs: Self) -> Self {
@@ -151,7 +151,7 @@ pub mod tests {
 
   use crate::tests::frequency;
 
-  use sp_std::{
+  use alloc::{
     boxed::Box,
     vec::Vec,
   };

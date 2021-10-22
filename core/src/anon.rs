@@ -14,11 +14,12 @@ use crate::{
   uses::Uses,
 };
 
-use sp_std::{
+use alloc::{
   borrow::ToOwned,
   boxed::Box,
-  convert::TryInto,
 };
+
+use core::convert::TryInto;
 
 /// Anonymous term containing only data and content id
 /// This is equivalent to an anonymous abstract syntax tree

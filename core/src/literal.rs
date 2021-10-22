@@ -22,16 +22,18 @@ use num_bigint::{
   Sign,
 };
 
-use sp_std::{
-  borrow::ToOwned,
+use core::{
   convert::TryInto,
   fmt,
-  vec::Vec,
 };
 
-use alloc::string::{
-  String,
-  ToString,
+use alloc::{
+  borrow::ToOwned,
+  string::{
+    String,
+    ToString,
+  },
+  vec::Vec,
 };
 
 /// Built-in primitives
@@ -545,7 +547,7 @@ pub mod tests {
   };
 
   use crate::tests::frequency;
-  use sp_std::{
+  use alloc::{
     boxed::Box,
     vec::Vec,
   };

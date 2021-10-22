@@ -13,17 +13,17 @@ use crate::{
 
 use sp_cid::Cid;
 
-use sp_std::{
+use alloc::{
   collections::btree_map::BTreeMap,
-  fmt,
   rc::Rc,
   vec::Vec,
+  string::{
+    String,
+    ToString,
+  },
 };
 
-use alloc::string::{
-  String,
-  ToString,
-};
+use core::fmt;
 
 /// A type-annotated definition with content ids for the def and its
 /// data, represented as an AST

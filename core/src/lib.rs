@@ -55,7 +55,7 @@ pub mod tests {
 
   pub fn frequency<T, F: Fn(&mut Gen) -> T>(
     g: &mut Gen,
-    gens: sp_std::vec::Vec<(i64, F)>,
+    gens: alloc::vec::Vec<(i64, F)>,
   ) -> T {
     if gens.iter().any(|(v, _)| *v < 0) {
       panic!("Negative weight");

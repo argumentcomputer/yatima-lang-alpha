@@ -14,10 +14,10 @@ use crate::{
   },
 };
 use nom::Err;
-use sp_std::{
+use std::{
   cell::RefCell,
   rc::Rc,
-  sync::Arc,
+  sync::{Arc, Mutex},
 };
 use yatima_runtime::{
   run,
@@ -27,7 +27,6 @@ use yatima_runtime::{
   },
 };
 
-use std::sync::Mutex;
 use yatima_core::{
   check::{
     check_def,

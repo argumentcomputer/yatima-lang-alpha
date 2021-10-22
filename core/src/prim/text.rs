@@ -2,15 +2,18 @@ use num_bigint::BigUint;
 use sp_ropey::Rope;
 use sp_ipld::Ipld;
 
-use sp_std::{
+use alloc::{
+  string::{
+    String,
+    ToString,
+  },
   borrow::ToOwned,
-  fmt,
   vec::Vec,
 };
 
-use alloc::string::{
-  String,
-  ToString,
+use core::{
+  convert::{TryFrom, TryInto},
+  fmt,
 };
 
 use crate::{
@@ -20,11 +23,6 @@ use crate::{
   parse,
   term::Term,
   yatima,
-};
-
-use core::convert::{
-  TryFrom,
-  TryInto,
 };
 
 /// Primitive 8-bit signed integer operations
@@ -451,7 +449,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use sp_std::mem;
+  use core::mem;
   use Literal::{
     Bool,
     Bytes,

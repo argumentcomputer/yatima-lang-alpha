@@ -8,12 +8,11 @@ use crate::{
 use sp_cid::Cid;
 use sp_ipld::Ipld;
 
-use sp_std::{
+use alloc::{
   borrow::ToOwned,
   boxed::Box,
+  string::ToString,
 };
-
-use alloc::string::ToString;
 
 /// Metadata term containing only name, source position, and content id
 #[derive(PartialEq, Clone, Debug)]

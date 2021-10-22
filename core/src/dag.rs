@@ -14,19 +14,21 @@ use crate::{
   uses::Uses,
 };
 
-use core::ptr::NonNull;
+use core::{
+  ptr::NonNull,
+  fmt,
+  mem,
+};
 
-use sp_std::{
+use alloc::{
   boxed::Box,
   collections::{
     btree_map::BTreeMap,
     btree_set::BTreeSet,
   },
-  fmt,
-  mem,
+  string::String,
 };
 
-use alloc::string::String;
 use sp_cid::Cid;
 
 /// A λ-DAG used to reduce Yatima terms. Acts like a directed acyclice graph,

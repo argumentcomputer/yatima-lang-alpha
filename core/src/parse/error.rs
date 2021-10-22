@@ -19,13 +19,15 @@ use nom::{
 };
 
 #[cfg(not(feature = "std"))]
-use sp_std::{
+use core::{
   cmp::Ordering,
   fmt,
   fmt::Write,
   num::ParseIntError,
-  vec::Vec,
 };
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 #[cfg(feature = "std")]
 use std::{
   cmp::Ordering,

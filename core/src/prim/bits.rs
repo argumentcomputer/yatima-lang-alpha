@@ -1,12 +1,16 @@
 use num_bigint::BigUint;
 use sp_ipld::Ipld;
-use sp_std::{
+
+use alloc::{
+  string::String,
   borrow::ToOwned,
-  fmt,
   vec::Vec,
 };
 
-use alloc::string::String;
+use core::{
+  fmt,
+  convert::TryFrom
+};
 
 use crate::{
   defs,
@@ -16,8 +20,6 @@ use crate::{
   term::Term,
   yatima,
 };
-
-use core::convert::TryFrom;
 
 /// Primitive bit operations
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -319,7 +321,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use sp_std::{
+  use core::{
     convert::TryInto,
     mem,
   };

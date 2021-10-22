@@ -6,13 +6,15 @@ use crate::{
 use sp_cid::Cid;
 use sp_ipld::Ipld;
 
-use sp_std::{
-  borrow::ToOwned,
+use core::{
   convert::TryInto,
   fmt,
 };
 
-use alloc::string::String;
+use alloc::{
+  string::String,
+  borrow::ToOwned,
+};
 
 /// Source code position of an expression in a file
 #[derive(PartialEq, Clone, Copy, Debug)]

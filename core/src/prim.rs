@@ -18,12 +18,12 @@ pub mod u8;
 
 pub mod io;
 
-use sp_std::{
-  borrow::ToOwned,
-  fmt,
-};
+use core::fmt;
 
-use alloc::string::String;
+use alloc::{
+  string::String,
+  borrow::ToOwned,
+};
 
 use sp_ipld::Ipld;
 

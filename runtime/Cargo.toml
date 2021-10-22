@@ -7,4 +7,3 @@ edition = "2018"
 
 [dependencies]
 yatima-core = { path = "../core", features = ["std"]}
-sp-std = { version = "3" }

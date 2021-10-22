@@ -1,11 +1,11 @@
 use sp_ipld::Ipld;
 
-use sp_std::{
+use alloc::{
+  string::String,
   borrow::ToOwned,
-  fmt,
 };
 
-use alloc::string::String;
+use core::fmt;
 
 use crate::{
   defs,
@@ -164,7 +164,7 @@ pub mod tests {
     TestResult,
   };
   use rand::Rng;
-  use sp_std::mem;
+  use core::mem;
   use Literal::Bool;
   impl Arbitrary for BoolOp {
     fn arbitrary(_g: &mut Gen) -> Self {

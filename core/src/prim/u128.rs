@@ -1,12 +1,14 @@
 use sp_ipld::Ipld;
 
-use sp_std::{
+use alloc::{
   borrow::ToOwned,
+  string::String,
+};
+
+use core::{
   convert::TryFrom,
   fmt,
 };
-
-use alloc::string::String;
 
 use crate::{
   ipld_error::IpldError,

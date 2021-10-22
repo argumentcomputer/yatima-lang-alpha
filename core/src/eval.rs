@@ -7,13 +7,13 @@ use crate::{
   upcopy::*,
 };
 
-use sp_std::{
+use alloc::{
   collections::btree_map::BTreeMap,
-  mem,
   vec::Vec,
+  string::String,
 };
 
-use alloc::string::String;
+use core::mem;
 
 enum Single {
   Lam(Var),

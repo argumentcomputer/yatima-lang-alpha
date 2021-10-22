@@ -4,15 +4,14 @@ use crate::{
   uses::*,
 };
 
-use sp_std::{
+use alloc::{
   collections::{
     btree_map::BTreeMap,
     vec_deque::VecDeque,
   },
+  string::String,
   vec::Vec,
 };
-
-use alloc::string::String;
 
 // Optimization: use of `*mut DAGPtr` instead of `DAG`. The context does not
 // need to hold full, "autonomous" DAGs. Instead it can keep references to parts

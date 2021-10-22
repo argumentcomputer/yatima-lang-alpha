@@ -182,7 +182,7 @@ pub fn parse_text(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
 }
 pub fn parse_char(from: Span) -> IResult<Span, Literal, ParseError<Span>> {
   let (upto, c) = delimited(tag("'"), parse_string("'"), tag("'"))(from)?;
-  let s: sp_std::vec::Vec<char> = c.chars().collect();
+  let s: alloc::vec::Vec<char> = c.chars().collect();
   if s.len() != 1 {
     Err(Err::Error(ParseError::new(
       upto,

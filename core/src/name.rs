@@ -1,13 +1,15 @@
-use sp_std::{
-  borrow::Borrow,
+use core::{
   fmt,
   ops::Deref,
-  rc::Rc,
 };
 
-use alloc::string::{
-  String,
-  ToString,
+use alloc::{
+  borrow::Borrow,
+  string::{
+    String,
+    ToString,
+  },
+  rc::Rc,
 };
 
 /// The name for packages, defs, and expressions

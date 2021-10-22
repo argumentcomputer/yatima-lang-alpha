@@ -33,9 +33,10 @@ use nom::{
   IResult,
 };
 
-use sp_std::borrow::ToOwned;
-
-use alloc::string::String;
+use alloc::{
+  borrow::ToOwned,
+  string::String,
+};
 
 pub fn parse_codepoint(from: Span) -> IResult<Span, char, ParseError<Span>> {
   let (i, _) =

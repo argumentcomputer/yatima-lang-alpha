@@ -4,12 +4,14 @@ use crate::{
   package::Entry,
   term::*,
 };
-use sp_std::{
+
+use alloc::{
   boxed::Box,
-  iter::once,
   rc::Rc,
   vec::Vec,
 };
+
+use core::iter::once;
 
 /// A type declaration syntax that allows for convenient expression of Yatima's
 /// lambda encoded datatypes.
