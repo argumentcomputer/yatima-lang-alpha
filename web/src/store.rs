@@ -29,6 +29,7 @@ use yatima_utils::{
   },
 };
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct WebStore {
   window: Window,
