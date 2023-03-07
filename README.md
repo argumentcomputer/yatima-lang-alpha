@@ -2,6 +2,8 @@
 
 [![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
 
+NOTE: This repository is no longer maintained. Development has moved to https://github.com/yatima-inc/yatima, a dependently typed and content addressed compiler from the [Lean theorem prover](https://github.com/leanprover/lean4) to the [Lurk zkSNARK language](https://github.com/lurk-lang/lurk-rs). Further information can be found in the [Yatima Wiki](https://github.com/yatima-inc/yatima/wiki).
+
 ---
 
 > In one sense, the Truth Mines were just another indexscape. Hundreds of
